@@ -1,0 +1,322 @@
+#!/usr/bin/env node
+
+/**
+ * CRM CLI - Config-driven CRM wrapper
+ *
+ * Reads CRM type from .jfl/config.json and routes to appropriate backend.
+ * Supports: google-sheets, airtable, markdown
+ *
+ * @purpose Route CRM commands to configured backend
+ */
+
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// ============ CONFIG ============
+
+function loadConfig() {
+  const configPath = path.join(process.cwd(), '.jfl/config.json');
+
+  if (!fs.existsSync(configPath)) {
+    return { crm: { type: '', config: {} } };
+  }
+
+  try {
+    return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  } catch (e) {
+    console.error('Error reading .jfl/config.json:', e.message);
+    return { crm: { type: '', config: {} } };
+  }
+}
+
+function saveConfig(config) {
+  const configPath = path.join(process.cwd(), '.jfl/config.json');
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
+}
+
+// ============ SETUP WIZARD ============
+
+async function setupWizard() {
+  const readline = await import('readline');
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+
+  const question = (q) => new Promise(resolve => rl.question(q, resolve));
+
+  console.log(`
+╔══════════════════════════════════════════════════════════════╗
+║                      CRM SETUP                                ║
+╚══════════════════════════════════════════════════════════════╝
+
+Choose your CRM backend:
+
+  1. google-sheets  - Google Sheets (recommended)
+                      Full-featured, real-time sync, collaborative
+
+  2. airtable       - Airtable
+                      Rich field types, automations, views
+
+  3. markdown       - Markdown file
+                      Simple, no external dependencies
+                      Best for solo projects
+`);
+
+  const choice = await question('\nEnter choice (1/2/3): ');
+
+  const config = loadConfig();
+  config.crm = config.crm || { type: '', config: {} };
+
+  switch (choice.trim()) {
+    case '1':
+    case 'google-sheets':
+      config.crm.type = 'google-sheets';
+      console.log(`
+Google Sheets Setup:
+
+1. Create a new Google Sheet (or use existing)
+2. Copy the Sheet ID from the URL:
+   https://docs.google.com/spreadsheets/d/[THIS_IS_THE_ID]/edit
+
+3. Ensure you have Google Cloud credentials:
+   gcloud auth application-default login
+`);
+      const sheetId = await question('Enter Sheet ID: ');
+      if (sheetId.trim()) {
+        config.crm.config = { sheet_id: sheetId.trim() };
+        // Also set env var hint
+        console.log(`
+To use this sheet, either:
+  - Set in config (done) ✓
+  - Or set env var: export CRM_SHEET_ID="${sheetId.trim()}"
+`);
+      }
+      break;
+
+    case '2':
+    case 'airtable':
+      config.crm.type = 'airtable';
+      console.log(`
+Airtable Setup:
+
+1. Get your API key from https://airtable.com/account
+2. Get Base ID from https://airtable.com/api (select your base)
+`);
+      const apiKey = await question('Enter API Key (or press enter to use env var): ');
+      const baseId = await question('Enter Base ID: ');
+
+      config.crm.config = {
+        base_id: baseId.trim(),
+        api_key_env: 'AIRTABLE_API_KEY'
+      };
+
+      if (apiKey.trim()) {
+        console.log(`
+⚠️  Storing API key in config. For security, prefer using env var:
+    export AIRTABLE_API_KEY="${apiKey.trim()}"
+`);
+        config.crm.config.api_key = apiKey.trim();
+      }
+      break;
+
+    case '3':
+    case 'markdown':
+      config.crm.type = 'markdown';
+      config.crm.config = { path: 'knowledge/CRM.md' };
+      console.log(`
+Markdown CRM configured.
+
+Your CRM file is at: knowledge/CRM.md
+Edit it directly or use ./crm commands to manage contacts.
+`);
+      break;
+
+    default:
+      console.log('Invalid choice. Run ./crm setup again.');
+      rl.close();
+      return;
+  }
+
+  saveConfig(config);
+  console.log(`✓ CRM configured: ${config.crm.type}\n`);
+  rl.close();
+}
+
+// ============ MARKDOWN CRM ============
+
+function markdownCRM(args) {
+  const config = loadConfig();
+  const crmPath = config.crm?.config?.path || 'knowledge/CRM.md';
+  const fullPath = path.join(process.cwd(), crmPath);
+
+  if (!fs.existsSync(fullPath)) {
+    console.log(`CRM file not found: ${crmPath}`);
+    console.log('Creating from template...');
+
+    // Copy template
+    const templatePath = path.join(__dirname, 'templates/collaboration/CRM.md');
+    if (fs.existsSync(templatePath)) {
+      fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+      fs.copyFileSync(templatePath, fullPath);
+      console.log(`✓ Created ${crmPath}`);
+    } else {
+      console.log('Template not found. Please create knowledge/CRM.md manually.');
+      return;
+    }
+  }
+
+  const command = args[0];
+
+  switch (command) {
+    case 'list':
+      console.log(`\nCRM: ${crmPath}\n`);
+      console.log(fs.readFileSync(fullPath, 'utf8'));
+      break;
+
+    case 'edit':
+      console.log(`\nOpen ${crmPath} in your editor.\n`);
+      console.log('Markdown CRM is edited directly in the file.');
+      break;
+
+    default:
+      console.log(`
+Markdown CRM - Simple file-based contact management
+
+Commands:
+  ./crm list          Show CRM contents
+  ./crm edit          Instructions to edit CRM file
+
+For more features, consider switching to Google Sheets or Airtable:
+  ./crm setup
+`);
+  }
+}
+
+// ============ GOOGLE SHEETS CRM ============
+
+async function googleSheetsCRM(args) {
+  const config = loadConfig();
+  const sheetId = config.crm?.config?.sheet_id || process.env.CRM_SHEET_ID;
+
+  if (!sheetId) {
+    console.log(`
+Google Sheets CRM not configured.
+
+To set up:
+  1. Run: ./crm setup
+  2. Or set env var: export CRM_SHEET_ID="your-sheet-id"
+`);
+    return;
+  }
+
+  // Set env var for the actual CRM script
+  process.env.CRM_SHEET_ID = sheetId;
+
+  // Import and run the Google Sheets CRM
+  // For now, exec the existing crm script if it exists, or inline the logic
+  const gsCliPath = path.join(__dirname, 'scripts/crm-google-sheets.js');
+
+  if (fs.existsSync(gsCliPath)) {
+    // Dynamic import the Google Sheets CRM
+    const gsCRM = await import(gsCliPath);
+    if (gsCRM.main) {
+      await gsCRM.main(args);
+    }
+  } else {
+    // Fallback: use existing googleapis implementation
+    // This would be the full CRM code from the main repo
+    console.log('Google Sheets CRM handler not found.');
+    console.log('Expected: scripts/crm-google-sheets.js');
+    console.log('');
+    console.log('For now, ensure CRM_SHEET_ID is set and use the original ./crm script.');
+  }
+}
+
+// ============ AIRTABLE CRM ============
+
+async function airtableCRM(args) {
+  const config = loadConfig();
+  const baseId = config.crm?.config?.base_id;
+  const apiKey = config.crm?.config?.api_key || process.env.AIRTABLE_API_KEY;
+
+  if (!baseId || !apiKey) {
+    console.log(`
+Airtable CRM not fully configured.
+
+To set up:
+  1. Run: ./crm setup
+  2. Or set env vars:
+     export AIRTABLE_API_KEY="your-api-key"
+     And configure base_id in .jfl/config.json
+`);
+    return;
+  }
+
+  // Airtable implementation would go here
+  // For MVP, show placeholder
+  console.log('Airtable CRM integration coming soon.');
+  console.log(`Base ID: ${baseId}`);
+  console.log('');
+  console.log('For now, manage your Airtable directly at https://airtable.com');
+}
+
+// ============ MAIN ============
+
+async function main() {
+  const args = process.argv.slice(2);
+  const command = args[0];
+
+  // Handle setup command regardless of config
+  if (command === 'setup') {
+    await setupWizard();
+    return;
+  }
+
+  // Load config and route to appropriate backend
+  const config = loadConfig();
+  const crmType = config.crm?.type;
+
+  // If no CRM type configured, check for env var fallback
+  if (!crmType) {
+    if (process.env.CRM_SHEET_ID) {
+      // Fallback to Google Sheets if env var is set
+      await googleSheetsCRM(args);
+      return;
+    }
+
+    console.log(`
+CRM not configured.
+
+Run: ./crm setup
+
+Or set environment variable for Google Sheets:
+  export CRM_SHEET_ID="your-sheet-id"
+`);
+    return;
+  }
+
+  // Route to configured backend
+  switch (crmType) {
+    case 'google-sheets':
+      await googleSheetsCRM(args);
+      break;
+
+    case 'airtable':
+      await airtableCRM(args);
+      break;
+
+    case 'markdown':
+      markdownCRM(args);
+      break;
+
+    default:
+      console.log(`Unknown CRM type: ${crmType}`);
+      console.log('Run: ./crm setup');
+  }
+}
+
+main().catch(console.error);

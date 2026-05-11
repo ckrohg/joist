@@ -1,0 +1,89 @@
+version: 1.0.0
+title: Analyze PR
+description: Deep analysis of a pull request — what changed, why, what to watch for, tenet context
+author: tenet
+maturity: stable
+trust_level: 1
+category: code
+tags: [pr, review, analysis, code]
+
+skills:
+  - name: eval
+    why: Understand how the PR scores against the project's eval metrics
+  - name: spec
+    why: Compare what was built against the original spec — catch drift early
+
+bundle:
+  name: PR Review Kit
+  description: Analyze PRs with context, score them against evals, check for spec drift
+  skills: [eval, spec, context]
+
+parameters:
+  - key: pr
+    type: string
+    required: true
+    description: PR number or branch name
+  - key: repo
+    type: string
+    required: false
+    default: ""
+    description: GitHub repo (owner/name). Uses current repo if empty.
+
+activities:
+  - Find and fetch the PR
+  - Analyze what changed and why
+  - Cross-reference with project memory and journal
+  - Identify risks and things worth a closer look
+  - Summarize for reviewer
+
+tools:
+  - tenet_context
+  - tenet_memory_search
+
+prompt: |
+  Analyze the pull request: {{ pr }}
+  {% if repo %}Working with repo: {{ repo }}{% endif %}
+  
+  ## Step 1: Find the PR
+  ```bash
+  gh pr list --state all {% if repo %}--repo {{ repo }} {% endif %}| grep "{{ pr }}"
+  # Or if PR number:
+  gh pr view {{ pr }} {% if repo %}--repo {{ repo }} {% endif %}--json number,title,body,additions,deletions,changedFiles
+  ```
+  
+  ## Step 2: Get the Diff
+  ```bash
+  gh pr diff {{ pr }} {% if repo %}--repo {{ repo }} {% endif %}| head -300
+  ```
+  
+  ## Step 3: Check CI and Reviews
+  ```bash
+  gh pr checks {{ pr }} {% if repo %}--repo {{ repo }} {% endif %}
+  gh pr view {{ pr }} {% if repo %}--repo {{ repo }} {% endif %}--json reviews
+  ```
+  
+  ## Step 4: Cross-Reference with Project Memory
+  Call tenet_memory_search with keywords from the PR title and changed files.
+  Look for: related past decisions, previous attempts at the same thing, known gotchas.
+  
+  ## Step 5: Call tenet_context to get project state
+  Call tenet_context to understand what this PR fits into.
+  
+  ## Step 6: Produce Analysis
+  
+  ### What Changed
+  [Summary of the actual code changes]
+  
+  ### Why (from PR description + context)
+  [The problem being solved]
+  
+  ### Related Memory
+  [Any relevant past decisions or journal entries]
+  
+  ### Things Worth a Closer Look
+  - [Specific concern 1]
+  - [Specific concern 2]
+  
+  ### Recommendation
+  APPROVE / REQUEST_CHANGES / COMMENT
+  [1-2 sentence rationale]

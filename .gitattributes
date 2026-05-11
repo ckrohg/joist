@@ -1,0 +1,8 @@
+# JSONL append-only files use union merge strategy
+# This prevents conflicts on concurrent session writes to the same file
+.tenet/journal/**/*.jsonl merge=union
+.tenet/eval.jsonl merge=union
+.tenet/training-buffer.jsonl merge=union
+.tenet/service-events.jsonl merge=union
+.tenet/map-events.jsonl merge=union
+.tenet/skill-usage.jsonl merge=union

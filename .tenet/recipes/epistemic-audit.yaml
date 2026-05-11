@@ -1,0 +1,116 @@
+version: 1.0.0
+title: Epistemic Audit
+description: Map what your project knows and doesn't — surface blind spots before they become bugs. Scans journals + file tree, surfaces areas with no recent agent activity, files GitHub Issues.
+author: tenet
+maturity: stable
+trust_level: 1
+category: agents
+tags: [agents, knowledge, audit, nightly]
+
+# Skills that load well with this recipe
+skills:
+  - name: eval
+    why: Understand how agents measure progress — helps interpret the coverage scores
+  - name: build-agent
+    why: Once you see the blind spots, build agents to cover them
+
+# A bundle of skills that pairs with this recipe
+bundle:
+  name: Agent Coverage Kit
+  description: Know where your agents are blind, build agents to cover them, track improvement
+  skills: [eval, build-agent, context]
+
+parameters:
+  - key: blind_spot_days
+    type: number
+    required: false
+    default: 14
+    description: Days without any agent session = blind spot
+  - key: create_issues
+    type: boolean
+    required: false
+    default: false
+    description: Automatically create GitHub Issues for blind spots found
+
+activities:
+  - Build epistemic map from journal entries + file tree
+  - Identify files and directories with zero agent sessions in blind_spot_days
+  - Surface hot spots (frequently touched) vs blind spots (never touched)
+  - Recommend which agents to run against blind spot areas
+  - Optionally create GitHub Issues for blind spots with tenet/backlog label
+
+tools:
+  - tenet_context
+  - tenet_journal_write
+  - tenet_memory_search
+
+eval:
+  - check: journal entries readable
+    command: ls .tenet/journal/*.jsonl 2>/dev/null | wc -l
+    expect_exit: 0
+  - check: src directory exists
+    command: test -d src
+    expect_exit: 0
+
+prompt: |
+  Run an epistemic audit on this project.
+
+  ## Step 1: Build File Knowledge Map
+  List all TypeScript source files:
+  ```bash
+  find src -name "*.ts" -not -path "*/node_modules/*" -not -path "*/dist/*" | sort
+  ```
+
+  ## Step 2: Map Journal Coverage
+  Which files appear in recent journal entries?
+  Use tenet_context to get the last 20 journal entries.
+  Extract file references from the `files` field of each entry.
+
+  ## Step 3: Identify Coverage Tiers
+  Classify each directory as:
+  - **Hot** (3+ journal references in last {{ blind_spot_days }} days)
+  - **Good** (1-2 references)
+  - **Thin** (<1 reference, but touched in last 30 days)
+  - **Blind** (0 references in {{ blind_spot_days }} days)
+
+  ## Step 4: Surface Blind Spots
+  List every blind spot with:
+  - Directory path
+  - Days since last session
+  - What the files appear to do (read file headers)
+  - Recommended agent to run against it (build-agent, code-quality, test-coverage)
+
+  ## Step 5: Generate Recommendations
+  Output:
+  ```
+  EPISTEMIC AUDIT — [project name]
+  Coverage: X% of source has recent session activity
+
+  🔴 BLIND SPOTS ({{ blind_spot_days }}+ days)
+  - src/auth/ — last touched 21 days ago — run: code-quality, test-coverage
+  - src/server/storage/ — last touched 18 days ago — run: build-storage-adapter
+
+  🟡 THIN COVERAGE
+  - src/lib/voice-router.ts — 1 session (14 days ago)
+
+  ✅ HOT
+  - src/commands/ — 12 sessions this week
+  - src/lib/kanban-github.ts — 5 sessions
+  ```
+
+  {% if create_issues %}
+  ## Step 6: Create GitHub Issues
+  For each blind spot, file a GitHub Issue:
+  ```bash
+  gh issue create \
+    --title "Epistemic: cover [dir] — [blind_spot_days]+ days no sessions" \
+    --body "Blind spot detected by epistemic audit. No agent sessions in {{ blind_spot_days }} days. Recommended: run code-quality + test-coverage agents." \
+    --label "tenet/backlog,epistemic,P2"
+  ```
+  {% endif %}
+
+  ## Step 7: Journal the Result
+  Call tenet_journal_write:
+  - type: "discovery"
+  - title: "Epistemic audit: X% coverage, N blind spots"
+  - summary: Key findings in 2-3 sentences

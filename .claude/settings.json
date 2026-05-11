@@ -1,0 +1,145 @@
+{
+    "hooks": {
+        "SessionStart": [
+            {
+                "matcher": "",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "./scripts/session/session-init.sh"
+                    },
+                    {
+                        "type": "command",
+                        "command": "PORT=$(jq -r \".contextHub.port // empty\" .tenet/config.json 2>/dev/null || jq -r \".contextHub.port // empty\" .jfl/config.json 2>/dev/null); if [ -z \"$PORT\" ]; then PORT=4200; fi; curl -sf http://localhost:$PORT/health >/dev/null 2>&1 || tenet context-hub ensure --port $PORT >> .tenet/logs/context-hub.log 2>&1 || tenet context-hub ensure --port $PORT >> .jfl/logs/context-hub.log 2>&1; true",
+                        "async": true
+                    }
+                ]
+            }
+        ],
+        "PostToolUse": [
+            {
+                "matcher": "Bash",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "if echo \"$TOOL_INPUT\" | grep -qE 'git commit'; then BRANCH=$(cat .tenet/current-session-branch.txt 2>/dev/null || git branch --show-current); MSG=$(git log -1 --pretty=%B 2>/dev/null | head -1); FILES=$(git diff-tree --no-commit-id --name-only -r HEAD 2>/dev/null | tr '\\n' ', ' | sed 's/,$//'); echo ''; echo '==============================================================='; echo 'JOURNAL REQUIRED: Git commit detected'; echo '==============================================================='; echo \"Commit: $(git rev-parse --short HEAD 2>/dev/null)\"; echo \"Message: $MSG\"; echo \"Files: $FILES\"; echo ''; echo 'WRITE JOURNAL ENTRY NOW. File: .tenet/journal/'\"${BRANCH}\"'.jsonl'; echo '==============================================================='; fi"
+                    }
+                ]
+            },
+            {
+                "matcher": "Write|Edit",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "FILE=$(echo \"$TOOL_INPUT\" | grep -oE '\"file_path\":\\s*\"[^\"]+\"' | head -1 | sed 's/.*\"\\([^\"]*\\)\"/\\1/'); if echo \"$FILE\" | grep -qE '\\.(ts|tsx|js|jsx)$'; then if [ -f \"$FILE\" ] && ! head -20 \"$FILE\" | grep -q '@purpose'; then echo ''; echo 'WARNING: MISSING @purpose HEADER'; echo \"   File: $FILE\"; echo '   Add: /** @purpose One-line description */'; fi; fi",
+                        "async": true
+                    }
+                ]
+            },
+            {
+                "matcher": "TaskUpdate",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "if echo \"$TOOL_INPUT\" | grep -q '\"status\":\\s*\"completed\"'; then BRANCH=$(cat .tenet/current-session-branch.txt 2>/dev/null || git branch --show-current); echo ''; echo '==============================================================='; echo 'JOURNAL REQUIRED: Task completed'; echo '==============================================================='; echo 'WRITE JOURNAL ENTRY NOW. File: .tenet/journal/'\"${BRANCH}\"'.jsonl'; echo '==============================================================='; fi"
+                    }
+                ]
+            },
+            {
+                "matcher": "",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "PORT=$(cat .tenet/context-hub.port 2>/dev/null || jq -r '.contextHub.port // empty' .tenet/config.json 2>/dev/null); if [ -n \"$PORT\" ]; then curl -s -X POST http://localhost:$PORT/api/hooks -H 'Content-Type: application/json' -d '{\"event\":\"PostToolUse\"}' --connect-timeout 2 2>/dev/null; fi; exit 0",
+                        "async": true
+                    }
+                ]
+            }
+        ],
+        "UserPromptSubmit": [
+            {
+                "matcher": "done|looks good|ship it|approved|lgtm|perfect|yes do it|go ahead|yeah|yep",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "BRANCH=$(cat .tenet/current-session-branch.txt 2>/dev/null || git branch --show-current); echo ''; echo '==============================================================='; echo 'JOURNAL CHECK: User approved/confirmed something'; echo '==============================================================='; echo 'If a decision or feature was just approved, write journal entry.'; echo 'File: .tenet/journal/'\"${BRANCH}\"'.jsonl'; echo '==============================================================='"
+                    }
+                ]
+            }
+        ],
+        "Stop": [
+            {
+                "matcher": "",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "BRANCH=$(cat .tenet/current-session-branch.txt 2>/dev/null || git branch --show-current); JOURNAL=\".tenet/journal/${BRANCH}.jsonl\"; if [ ! -s \"$JOURNAL\" ] 2>/dev/null; then echo 'WARNING: No journal entry for session'; else echo 'OK: Journal exists'; fi; exit 0"
+                    },
+                    {
+                        "type": "command",
+                        "command": "./scripts/session/session-cleanup.sh >> .tenet/logs/session-cleanup.log 2>&1 || echo 'Cleanup skipped'; exit 0"
+                    }
+                ]
+            },
+            {
+                "matcher": "",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "PORT=$(cat .tenet/context-hub.port 2>/dev/null || jq -r '.contextHub.port // empty' .tenet/config.json 2>/dev/null); if [ -n \"$PORT\" ]; then curl -s -X POST http://localhost:$PORT/api/hooks -H 'Content-Type: application/json' -d '{\"event\":\"Stop\"}' --connect-timeout 2 2>/dev/null; fi; exit 0",
+                        "async": true
+                    }
+                ]
+            }
+        ],
+        "PreCompact": [
+            {
+                "matcher": "",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "BRANCH=$(cat .tenet/current-session-branch.txt 2>/dev/null || git branch --show-current); JOURNAL=\".tenet/journal/${BRANCH}.jsonl\"; if [ ! -s \"$JOURNAL\" ] 2>/dev/null; then echo ''; echo 'CONTEXT COMPACTING - WRITE JOURNAL NOW'; echo \"File: .tenet/journal/${BRANCH}.jsonl\"; fi"
+                    },
+                    {
+                        "type": "command",
+                        "command": "nohup sh -c 'git add knowledge/ previews/ content/ suggestions/ CLAUDE.md .tenet/journal/ .tenet/config.json 2>/dev/null; git diff --cached --quiet || git commit -m \"auto: pre-compact save\"' > /dev/null 2>&1 & disown; exit 0"
+                    }
+                ]
+            },
+            {
+                "matcher": "",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "PORT=$(cat .tenet/context-hub.port 2>/dev/null || jq -r '.contextHub.port // empty' .tenet/config.json 2>/dev/null); if [ -n \"$PORT\" ]; then curl -s -X POST http://localhost:$PORT/api/hooks -H 'Content-Type: application/json' -d '{\"event\":\"PreCompact\"}' --connect-timeout 2 2>/dev/null; fi; exit 0",
+                        "async": true
+                    }
+                ]
+            }
+        ],
+        "SubagentStart": [
+            {
+                "matcher": "",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "PORT=$(cat .tenet/context-hub.port 2>/dev/null || jq -r '.contextHub.port // empty' .tenet/config.json 2>/dev/null); if [ -n \"$PORT\" ]; then curl -s -X POST http://localhost:$PORT/api/hooks -H 'Content-Type: application/json' -d '{\"event\":\"SubagentStart\"}' --connect-timeout 2 2>/dev/null; fi; exit 0",
+                        "async": true
+                    }
+                ]
+            }
+        ],
+        "SubagentStop": [
+            {
+                "matcher": "",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "PORT=$(cat .tenet/context-hub.port 2>/dev/null || jq -r '.contextHub.port // empty' .tenet/config.json 2>/dev/null); if [ -n \"$PORT\" ]; then curl -s -X POST http://localhost:$PORT/api/hooks -H 'Content-Type: application/json' -d '{\"event\":\"SubagentStop\"}' --connect-timeout 2 2>/dev/null; fi; exit 0",
+                        "async": true
+                    }
+                ]
+            }
+        ]
+    }
+}

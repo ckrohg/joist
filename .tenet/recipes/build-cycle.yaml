@@ -1,0 +1,318 @@
+name: build-cycle
+description: "The Sequence — learned from 5+ waves, 50+ agents. Enforces anti-patterns as hard constraints, not suggestions. Harness-agnostic: works from Claude Code, Tenet CLI, or Pi delegate — all funnel into `tenet build --run`."
+version: "2.0.0"
+maturity: experimental
+trust_level: 3
+
+# ═══════════════════════════════════════════════════════
+# HARD CONSTRAINTS (learned from failures)
+# These gate EVERY step. Violation = stop, don't improvise.
+# ═══════════════════════════════════════════════════════
+
+constraints:
+  # FIRE 1 stalled at turn 39 because 6 issues were bundled.
+  # Wave 0 workers deleted 600 lines because no regression checks.
+  # Zombie workers persisted because stale detection was turn-based.
+  max_issues_per_agent: 2
+  max_turns_per_agent: 30
+  stale_detection: time_based     # wall clock, not turn parsing
+  stale_timeout_minutes: 15       # no file change in 15min = kill
+  require_regression_checks: true # every eval must have line_count + exports_preserved
+  require_spec_freeze: true       # git commit before firing
+  require_eval_baseline: true     # run eval, confirm <1.0
+  require_branch: true            # never commit to main
+  require_stderr_output: true     # eval must write failed checks to stderr
+  require_incremental_commits: true # workers commit after each issue, not at end
+  parallel_limit: 4               # max concurrent workers
+
+# ═══════════════════════════════════════════════════════
+# ANTI-PATTERNS (from journals — check BEFORE each step)
+# ═══════════════════════════════════════════════════════
+
+anti_patterns:
+  - name: mega-agent
+    description: "6 issues in 1 agent → 39 turns → analysis paralysis → zero writes"
+    source: "FIRE 1 instrumentation, session 2026-04-06"
+    gate: "If task has >2 issues, SPLIT into separate agents. Even if same files."
+    enforcement: "Count issues in task description. If >2, refuse to fire."
+
+  - name: destructive-rewrite
+    description: "Agent rewrites entire file to pass eval, deleting 600 lines of working code"
+    source: "Wave 0, compaction.ts + index.ts + skill-shed.ts, session 2026-04-06"
+    gate: "Every eval MUST have regression checks: line count within 2x, all existing exports preserved"
+    enforcement: "eval-quality-gate scans for regression checks. Missing = block agent."
+
+  - name: stub-eval
+    description: "1 compile check gives zero gradient. Agent stuck at 0% or 100% with no middle."
+    source: "3/7 stalled agents, session 2026-04-05"
+    gate: "Minimum 8 binary checks per eval. Stub evals must be decomposed before firing."
+    enforcement: "Count checks in eval file. If <8, refuse to fire."
+
+  - name: blind-supervisor
+    description: "Eval doesn't write failed_checks to stderr → supervisor says STALLED but can't say WHY"
+    source: "13/13 converged had stderr. 3/7 stalled were missing it."
+    gate: "Every eval must have console.error('[eval] failed: X, Y') AND JSON.stringify({failed_checks})"
+    enforcement: "eval-quality-gate checks for stderr pattern. Missing = block agent."
+
+  - name: main-branch-commit
+    description: "Workers committed directly to main, skipping PR/sentinel/QA"
+    source: "Wave 0, session 2026-04-06"
+    gate: "ALL work on branches. NEVER commit to main. PR required for merge."
+    enforcement: "Worker spawns on issue/N-slug branch. Main branch = error."
+
+  - name: spec-drift
+    description: "Spec changed after agent launched → agent has stale target → stalls"
+    source: "Build-agent skill 'Common Failures' section"
+    gate: "git commit all specs before firing. No spec changes during agent run."
+    enforcement: "Check git status before firing. Uncommitted specs = refuse."
+
+  - name: impossible-task
+    description: "Issue assumes platform support that doesn't exist (e.g. display:omitted in Pi)"
+    source: "#2780, session 2026-04-06"
+    gate: "Before creating issue, verify the underlying platform supports the change."
+    enforcement: "Spec review step asks: 'Does the runtime/framework actually support this?'"
+
+# ═══════════════════════════════════════════════════════
+# DECISION TREE: how to dispatch each issue
+# (from build-agent skill learnings section)
+# ═══════════════════════════════════════════════════════
+
+dispatch_rules:
+  clean_build_clear_spec:
+    method: "pi one-shot"
+    description: "All new files, specific file paths + function signatures in spec"
+    expected_rounds: 1
+    evidence: "recipe-bundle 14/14 R1, linear-dashboard 17/17 R1"
+
+  clean_build_vague_spec:
+    method: "PP eval loop"
+    description: "New files but spec lacks specifics"
+    expected_rounds: 3-5
+    evidence: "scout-agent 31 checks R2, mesh-dashboard 14 checks R3"
+
+  improve_existing:
+    method: "PP eval loop"
+    description: "Modifying existing code, needs iterative refinement"
+    expected_rounds: 2-5
+    evidence: "pp-cross-model 14 checks R3, qa-agent 19 checks R5"
+
+  research_task:
+    method: "delegate with output path"
+    description: "Read + analyze + write report, no eval loop needed"
+    expected_rounds: 1
+    evidence: "PI-UX-PATTERNS.md 495 lines R1, Claude Code comparison 377 lines R1"
+
+# ═══════════════════════════════════════════════════════
+# THE SEQUENCE v2 — with constraint gates at each step
+# ═══════════════════════════════════════════════════════
+
+subrecipes:
+  - name: specs
+    recipe: spec-from-issues.yaml
+
+  - name: quality-gate
+    recipe: eval-quality-gate-v2.yaml
+    # v2 adds: regression check scan, min 8 checks, stderr pattern
+
+  - name: dependency-graph
+    recipe: build-dependency-graph.yaml
+
+steps:
+
+  # ─── PLANNING ────────────────────────────────────────
+  - name: scan-and-split
+    gate: "No issue may have >2 sub-tasks. Split first."
+    prompt: |
+      1. Read dependency graph: specs/dependency-graph-v5.md
+      2. For each cluster, check: how many issues per planned agent?
+      3. If ANY agent would get >2 issues: SPLIT into separate agents.
+         Even if they touch the same files → serialize, don't bundle.
+         Reason: FIRE 1 proved 6-issue agents stall. 1-2 issue agents converge.
+      4. Same-file agents run SERIAL (queued in same bucket).
+         Different-file agents run PARALLEL.
+      5. For each issue, classify dispatch method:
+         - New files + clear spec → pi one-shot
+         - New files + vague spec → PP eval loop
+         - Existing code changes → PP eval loop
+         - Research/analysis → delegate with output path
+      6. Write updated execution plan with agent-per-issue mapping.
+
+  - name: eval-regression-gate
+    gate: "Every eval must have regression checks."
+    prompt: |
+      For EVERY eval in eval/build/*.ts:
+      1. Check for regression guards:
+         - Line count check: original file line count within 2x of current
+         - Export preservation: all existing exports still present
+         - No accidental deletions: key functions still exist
+      2. If missing: ADD them. Use this pattern:
+         ```
+         // Regression guard: file should not shrink dramatically
+         { name: "no-destructive-rewrite",
+           pass: mainFile.split('\n').length > ORIGINAL_LINE_COUNT * 0.5 },
+         // Regression guard: existing exports preserved
+         { name: "existing-exports-preserved",
+           pass: KNOWN_EXPORTS.every(e => mainFile.includes(e)) },
+         ```
+      3. For improve agents: read the CURRENT file, count lines, list exports.
+         Bake those numbers INTO the eval as constants.
+      4. Confirm: console.error('[eval] failed: ...') pattern exists.
+      5. Confirm: JSON.stringify({failed_checks}) pattern exists.
+      6. Confirm: AGENT_WORKTREE is used.
+      7. Count total checks. If <8: add more behavioral checks from spec.
+      8. BLOCK any agent whose eval fails these gates.
+
+  - name: spec-freeze
+    gate: "All specs, evals, TOMLs committed before firing."
+    prompt: |
+      git add specs/ eval/build/ .tenet/agents/
+      git commit -m "spec freeze: N agents ready to build"
+      
+      Verify: git status shows clean working directory for spec/eval/toml files.
+      If dirty: DO NOT fire agents. Commit first.
+
+  - name: baseline
+    gate: "Every eval must return <1.0 (otherwise nothing to build)."
+    prompt: |
+      For each agent:
+        npx tsx eval/build/<name>.ts
+      Record baseline score.
+      If baseline = 1.0: skip this agent (already done).
+      If baseline = 0.0 for improve agent: eval may be broken, investigate.
+
+  # ─── FORWARD ARM ─────────────────────────────────────
+  - name: dispatch
+    gate: "Single-process per agent. Sequential by default. Parallel only via explicit setsid bash."
+    prompt: |
+      READ the execution plan from scan-and-split.
+
+      For WAVE A (no dependencies, highest V×U/C):
+        Fire all agents — one process each — via the canonical CLI:
+          tenet build --run <name> --from-issue N
+
+        Equivalents (all funnel into the same `tenet build --run`):
+          - From Claude Code: invoke this skill, which shells out to the CLI
+          - From a Pi session: delegate(build_agent: "<name>", from_issue: N)
+
+        Sequential is the default — simpler, deterministic, easy to debug.
+        For PARALLEL (rare, requires explicit cleanup):
+          ( setsid bash -c "tenet build --run $name --from-issue $N" >> log.$name 2>&1 & )
+          # Then `wait` or `trap 'pkill -g $PGID' EXIT` for cleanup.
+
+        Same-file agents must run SERIAL (one after another).
+        Different-file agents may run PARALLEL (up to parallel_limit).
+
+      RULES:
+        - Max 4 concurrent workers (parallel_limit)
+        - Each worker gets 1-2 issues MAX
+        - Workers MUST be on branches (issue/N-slug)
+        - Workers commit after completing each sub-task
+        - If worker goes 15min without file change → kill (stale)
+
+      When Wave A agents finish:
+        - Check which Wave B agents are now unblocked (graph deps met)
+        - Fire Wave B with same rules
+        - Continue until all waves done
+
+  - name: convergence-watch
+    prompt: |
+      Monitor each running `tenet build --run` process by PID + log file.
+      For background runs spawned via `setsid`, the parent process group
+      tracks them — check `ps -o pid,pgid,etime,command -g $PGID`.
+
+      For each active worker:
+        - If converged (1.0) → mark for backward arm
+        - If stalled (3+ rounds no improvement) → check supervisor hints
+          - If supervisor had failed_checks → give one more round with explicit hint
+          - If supervisor was blind (no stderr) → kill, fix eval, re-fire
+        - If stale (15min no file change) → kill process, record failure
+        - If turn count > 30 → kill, record as too-ambitious
+      
+      Record training tuple for each completion:
+        tenet_training_buffer(action_type, description, outcome, delta)
+
+  # ─── BACKWARD ARM ───────────────────────────────────
+  - name: score-and-validate
+    prompt: |
+      For each converged branch:
+      1. Run eval one final time: AGENT_WORKTREE=<branch> npx tsx eval/build/<name>.ts
+      2. Check regression: did the agent delete existing code? (regression guard checks)
+      3. If regression detected:
+         - Revert destructive changes
+         - Surgically re-apply only the correct parts
+         - This is what Wave 0 backward arm did successfully
+      4. Search memory: tenet_memory_search("failure pattern <check name>")
+         - If prior fix found → compare approaches
+      5. Record final score + trajectory in journal
+
+  - name: create-prs
+    gate: "Only for branches that survived backward arm."
+    prompt: |
+      For each validated branch:
+        gh pr create \
+          --title "agent(<name>): <summary>" \
+          --body "Closes #N\n\nEval: X/Y checks passing\nTrajectory: 0→...→1.0\nRegression: clean"
+      
+      Move kanban: gh issue edit N --add-label "tenet/eval" --remove-label "tenet/in-progress"
+
+  # ─── BRAIN ──────────────────────────────────────────
+  - name: ceremony
+    prompt: |
+      After each wave completes:
+      1. What shipped? (converged agents, PRs created)
+      2. What stalled? (agent name, turn count, failing checks, dispatch method)
+      3. Was the dependency ordering right? (did shipping A actually unblock B?)
+      4. Update anti-patterns: any NEW failure mode discovered?
+      5. Update dispatch rules: did the method predictions hold?
+         - pi one-shot predicted R1 → actual?
+         - PP loop predicted R3-5 → actual?
+      6. Write journal entry with all of above
+      7. If learnings warrant: update THIS recipe's anti_patterns section
+
+  - name: sharpen
+    prompt: |
+      From ceremony learnings:
+      1. Update eval-quality-gate if new patterns found
+      2. Update dependency graph (shipped items removed, new issues added)
+      3. If a dispatch method consistently over/underperforms → update dispatch_rules
+      4. If an anti-pattern was hit → add to anti_patterns with source
+      5. Commit updates: git commit -m "sharpen: learnings from wave N"
+
+# ═══════════════════════════════════════════════════════
+# EVAL for the RECIPE ITSELF
+# (how do we know the recipe is working?)
+# ═══════════════════════════════════════════════════════
+
+eval:
+  - check: "No agent received >2 issues"
+  - check: "All evals have regression checks"
+  - check: "All evals have >=8 binary checks"
+  - check: "All evals write to stderr"
+  - check: "All work on branches, not main"
+  - check: "Specs committed before agents fired"
+  - check: "Stale workers killed within 15min"
+  - check: "At least 1 agent converged per wave"
+  - check: "Ceremony ran with real metrics"
+  - check: "Anti-patterns section updated if new failure discovered"
+
+# ═══════════════════════════════════════════════════════
+# LEARNINGS LOG (append after each run)
+# ═══════════════════════════════════════════════════════
+#
+# 2026-04-06 Wave 0: 3/4 converged. Workers destroyed files → added regression checks.
+#   Anti-pattern added: destructive-rewrite
+#
+# 2026-04-06 FIRE 1: 0/1 converged. 6 issues bundled → 39 turns → zero writes.
+#   Anti-pattern added: mega-agent. Constraint added: max_issues_per_agent: 2
+#
+# 2026-04-05 Batch: 6/7 converged. Pi one-shot hit 100% on R1 for clean builds.
+#   Dispatch rule added: clean_build_clear_spec → pi one-shot
+#
+# 2026-04-05 Swarm: 7/12 converged. Supervisor blind on 3 agents (no stderr).
+#   Anti-pattern added: blind-supervisor. Constraint: require_stderr_output
+#
+# 2026-04-04 Swarm: 6/16 converged first pass. Epistemic audit helped routing.
+#   Decision: always run epistemic audit before dispatch.
+#
+# 2026-04-03 First batch: 12/12 converged. Keep rate only 14-22% due to stalls.
+#   Discovery: stall = missing failed_checks in stderr output.

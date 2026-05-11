@@ -1,0 +1,3 @@
+# Journal folder (legacy)
+# New format: .jfl/journal/<session-id>.jsonl
+# See CLAUDE.md Journal Protocol for format

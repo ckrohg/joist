@@ -1,0 +1,204 @@
+# ════════════════════════════════════════════════════════════════════
+# TENET GOVERNANCE — Operational Law
+# ════════════════════════════════════════════════════════════════════
+#
+# This file is BINDING. Programs that govern themselves to TENET
+# read this file. Doctrine and commentary live in
+# knowledge/CONSTITUTION.md and are non-binding. If commentary and
+# this file disagree, this file wins.
+#
+# Changes are made via amendment PRs. Each amendment lives in
+# .tenet/governance/amendments/ and cites an experiment in
+# .tenet/governance/experiments/. Direct edits to this file outside
+# the amendment process are governance violations.
+#
+# ════════════════════════════════════════════════════════════════════
+
+version: 1
+ratified_at: 2026-04-29
+last_amended: 2026-04-29
+
+# ─── The constitutional rule ─────────────────────────────────────
+# Changing this is a constitutional convention, not an amendment.
+constitutional_rule: >
+  Peter optimizes for clean institutional absorption,
+  not raw agent output.
+
+# ─── Principles (binding short-form) ─────────────────────────────
+# Commentary lives in knowledge/CONSTITUTION.md.
+# Repeal requires meta-amendment + observed-violation evidence.
+principles:
+  - "Valid refusal is a first-class contribution."
+  - "Concurrency is adaptive, not declared."
+  - "Smoke is independent clearing."
+  - "Routing is risk-aware, not throughput-aware."
+  - "Presence is human right-of-way."
+  - "Supervision is exception detection."
+  - "The journal is settlement history."
+  - "The governor is also governed."
+
+# ─── Governing values ────────────────────────────────────────────
+# Each value carries: current value, last review, due date,
+# active experiment (if any), graduation/rollback conditions.
+
+values:
+  max_concurrent:
+    value: 4
+    experimental_ceiling: 8
+    active_experiment: peter-capacity-ladder-2026-04-29
+    proposed_by: amendments/2026-04-29-A001-experimental-ceiling-max-concurrent-8.md
+    reviewed_at: 2026-04-29
+    review_due: 2026-07-28
+    graduation_condition:
+      operational_window_days: 7
+      criteria:
+        - "3 consecutive nights run under ceiling without rollback"
+        - "presence_violations == 0 across all experiment nights"
+        - "clean_ship_rate >= 0.80"
+        - "human_intervention_count <= 2 per night"
+        - "rollback_or_followup_required == 0 within 7-day window"
+    rollback_if:
+      - "any single experiment night with presence_violation > 0"
+      - "clean_ship_rate drops below 4-concurrent baseline"
+      - "merge_conflict_rate increases vs baseline"
+      - "human_interruption_count exceeds 3 per night"
+    reputation_observation_days: 30
+
+  spawn_cooldown_ms:
+    value: 60000
+    experimental_floor: 5000
+    active_experiment: peter-capacity-ladder-2026-04-29
+    proposed_by: amendments/2026-04-29-A001-experimental-ceiling-max-concurrent-8.md
+    reviewed_at: 2026-04-29
+    review_due: 2026-07-28
+
+  smoke_gate:
+    value: not_yet_implemented
+    graduate_to: log_only
+    graduate_to_2: soft_gate
+    graduate_to_3: hard_gate
+    reviewed_at: 2026-04-29
+    review_due: 2026-07-28
+    graduation_condition:
+      criteria:
+        - "log_only: implementation merged + 1 night data captured"
+        - "soft_gate: 7 consecutive days false_positive_rate < 0.05"
+        - "hard_gate: 30 days false_positive_rate < 0.02 + zero missed escapes"
+
+  auto_merge:
+    value: human_required
+    reviewed_at: 2026-04-29
+    review_due: 2026-07-28
+    defers_to: .tenet/config.json#trust
+
+  taskrouter:
+    value: not_yet_implemented
+    graduate_to: enabled_under_peter
+    reviewed_at: 2026-04-29
+    review_due: 2026-07-28
+    graduation_condition:
+      criteria:
+        - "smoke_gate >= log_only (do not amplify routing without clearing)"
+        - "presence detection in place"
+        - "declared_vs_actual_file_mismatch tracked in training buffer"
+
+# ─── Reward tuple v2 ─────────────────────────────────────────────
+# Capture-before-formalize: all fields written to training buffer.
+# Policy head may read a subset until each is formalized.
+# Adding a field requires an amendment.
+#
+# Founding errata applied 2026-04-29 (within founding session):
+# - Split rollback_or_followup_required into _7d and _30d (delayed audit, not settlement-time)
+# - Added tuple_status (pending | settled | refused | dirty | failed)
+# - All fields written to buffer immediately on action; settlement backfills outcome
+reward_tuple_v2:
+  fields:
+    - tuple_status                          # pending | settled | refused | dirty | failed
+    - eval_delta
+    - smoke_pass
+    - merged
+    - time_to_merge_seconds
+    - reviewer_intervention_count
+    - human_interruption_count
+    - merge_conflict_absence
+    - stale_base_detected
+    - declared_vs_actual_file_mismatch
+    - diff_cleanliness
+    - rollback_or_followup_required_7d      # null at settlement; reconciliation job fills
+    - rollback_or_followup_required_30d     # null at settlement; reconciliation job fills
+    - presence_violation
+    - refusal_quality                        # valid | invalid | none — valid refusal IMPROVES reputation
+  pending_tuple_rule: >
+    Every action writes a pending tuple immediately. Settlement backfills outcome
+    fields and promotes to trainable status. Invalid, refused, failed, or dirty
+    tuples remain in the buffer but are excluded or downweighted by policy.
+  windows:
+    operational_graduation_days: 7
+    reputation_shadow_days: 30
+  smoke_independence_rule: >
+    Smoke agents are adversarial or skeptical by role. Their reward is catching
+    invalid settlement, not helping the builder pass. Different model lineage
+    from the builder where possible. If builder and smoke both optimize the same
+    eval through the same prompt family, independence is theatrical.
+
+# ─── Drift detection ─────────────────────────────────────────────
+# Prevents the constitution from going stale through neglect.
+drift_detection:
+  default_review_period_days: 90
+  surface_in:
+    - tenet_doctor
+    - morning_packet
+  triggers:
+    - name: value_overdue
+      condition: "now > review_due"
+      action: "surface as drift_candidate; require re-justify or rollback"
+    - name: principle_violation_pattern
+      condition: "3+ valid violations of same principle within 90 days"
+      action: "trigger principle review (meta-amendment path)"
+    - name: amendment_stale
+      condition: "experimental_ceiling active > 60 days without graduation or rollback"
+      action: "auto-rollback ceiling; force re-experiment"
+
+# ─── Amendment process ───────────────────────────────────────────
+# Binds humans and Peter equally to evidence-based change.
+amendment_process:
+  required_artifacts:
+    - "amendment file in .tenet/governance/amendments/{date}-{ID}-{slug}.md"
+    - "experiment file in .tenet/governance/experiments/{slug}.md"
+  approval:
+    - "PR against this file"
+    - "minimum 1 human approver per CODEOWNERS"
+  forbidden:
+    - "Direct edits to this file outside amendment PR"
+    - "Self-amendment by Peter (he may PROPOSE, not merge)"
+    - "Amendments without an experiment doc"
+    - "Cowboy mode: changing values because someone feels powerful"
+    - "Trauma mode: refusing change indefinitely after one bad incident"
+
+# ─── Meta-amendment process ──────────────────────────────────────
+# Changes to this amendment process itself. Higher bar.
+meta_amendment_process:
+  required_artifacts:
+    - "meta-amendment file"
+    - "30-day public-comment window in repo"
+  approval:
+    - "2 human approvers per CODEOWNERS"
+
+# ─── Recursion termination ───────────────────────────────────────
+# Constitution governs Peter. Peter governs agents.
+# Watchdog stops Peter on liveness failure (no policy of its own).
+# Humans hold final amendment authority and are themselves bound
+# by this file's amendment_process.
+#
+# Founding errata 2026-04-29: presence and watchdog are SEPARATE primitives.
+# - presence_guard protects humans FROM peter (right-of-way during active work)
+# - watchdog protects the institution FROM peter (liveness + spawn-rate bounds)
+# Combining them is a governance error: someone will build presence and
+# think watchdog is done. It is not.
+recursion_termination:
+  layers:
+    - constitution: passive law, cannot act
+    - peter: active governor, cannot self-amend
+    - presence_guard: protects humans from peter (defers dispatch on active work)
+    - watchdog: dumb circuit breaker — protects institution from peter (liveness + bounds)
+    - human: final amendment authority, bound to evidence rules

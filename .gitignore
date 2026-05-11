@@ -1,0 +1,45 @@
+# TENET runtime data — auto-generated, contains auth tokens and session state
+# Only .tenet/config.json and .tenet/agents/*.toml should be tracked
+.tenet/context-hub.*
+.tenet/provenance-key
+.tenet/memory.db*
+.tenet/map-events.jsonl
+.tenet/service-events.jsonl
+.tenet/eval.jsonl
+.tenet/journal/
+.tenet/logs/
+.tenet/presence/
+.tenet/telemetry/
+.tenet/telemetry-agent-state.json
+.tenet/current-*.txt
+.tenet/training-buffer.jsonl
+.tenet/predictions/
+
+# Legacy .jfl directory (pre-rename)
+.jfl/
+
+# Worktrees
+worktrees/
+
+# Node
+node_modules/
+dist/
+build/
+.next/
+
+# Secrets
+.env
+.env.*
+!.env.example
+!.env.required
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

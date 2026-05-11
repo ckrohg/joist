@@ -1,0 +1,27 @@
+{
+  "claudeMdPath": "CLAUDE.md",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  Service Agent Session\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n' && SERVICE_NAME=$(jq -r '.name // \"unknown\"' .tenet/config.json 2>/dev/null || echo 'unknown') && echo \"  Service: $SERVICE_NAME\" && echo '' && if [ -f .tenet/status.json ]; then echo 'Status:' && cat .tenet/status.json | jq -r '\"  \" + (.status // \"unknown\")'; fi && echo '\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  Validating configuration...\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n' && if command -v tenet >/dev/null 2>&1; then tenet services validate 2>&1 | grep -E '^\\[|^Summary:' || echo '  (validation skipped - tenet not in PATH)'; else echo '  (validation skipped - tenet not installed)'; fi && echo '\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  Ready to work\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "SESSION=$(git branch --show-current 2>/dev/null || echo 'main') && if [ -d .tenet/journal ] && [ $(ls -1 .tenet/journal/*.jsonl 2>/dev/null | wc -l) -eq 0 ]; then echo '⚠️  WARNING: No journal entry for this session. Service work should be documented.'; fi && if [ -f .tenet/status.json ]; then jq --arg ts \"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\" '.last_updated = $ts' .tenet/status.json > .tenet/status.json.tmp && mv .tenet/status.json.tmp .tenet/status.json; fi"
+          }
+        ]
+      }
+    ]
+  }
+}

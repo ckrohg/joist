@@ -1,0 +1,302 @@
+name: product-smoke-fleet
+description: "Run fleet of agent personas against a product. Score each via decomposed eval. Hard budget cap on real spend. Auto-route findings to the right repo. Journal + learn. Gate downstream on threshold."
+version: "0.1.0"
+maturity: experimental
+trust_level: 3
+
+# ═══════════════════════════════════════════════════════
+# LEARNINGS BAKED IN (from session 2026-04-22 — 7 live runs, $0.85 spent, 11 issues filed)
+# ═══════════════════════════════════════════════════════
+#
+# 1. Personas need explicit routing tables — SkillLoader misrouted #136 to wrong repo
+# 2. Eval blind spots cost real money — fal-* patterns missed Run #5 paid call
+# 3. Banner-vs-SOUL tension — agents prioritize SOUL over hook imperatives (Run #2)
+# 4. Per-tool prompt injection from MCP servers is widespread — auditor catches reliably
+# 5. Cross-repo filing needs label discovery — gh issue create doesn't auto-tag
+# 6. SOULs must say "project-local only" — Run #3 false-positive on user-global file
+# 7. Critical-fail gates work — keep using them
+# 8. Hard budget cap via transaction_history before+after — essential safety
+# 9. Sibling sessions clobber current-session-branch.txt (#2974) — runs work anyway
+# 10. ~$0.10/persona on Haiku — design budget accordingly
+# 11. Static evals can re-run on existing transcripts — backfill works
+# 12. Sibling agents write their own journals — bonus durable history
+
+parameters:
+  - name: product
+    description: "Product slug — matches agents/smoke-fleet/<product>/ dir. Use _workspace for the workspace itself."
+    default: "_workspace"
+  - name: workspace
+    description: "Path to workspace under test (defaults to current dir)"
+    default: ""
+  - name: personas
+    description: "Space-separated persona list, or empty to run ALL personas under agents/smoke-fleet/<product>/"
+    default: ""
+  - name: threshold
+    description: "Per-persona score threshold to gate on (0-1)"
+    default: "0.7"
+  - name: composite_pass
+    description: "Composite-score threshold (passed/total) below which the fleet fails"
+    default: "0.8"
+  - name: max_spend_usd
+    description: "Hard cap on real-product paid calls. Fleet stops if exceeded."
+    default: "1.00"
+  - name: model
+    description: "Model for sibling claude --print"
+    default: "claude-haiku-4-5-20251001"
+  - name: parallelism
+    description: "Max concurrent persona spawns (rate-limit + cost trade-off)"
+    default: "4"
+
+# ═══════════════════════════════════════════════════════
+# PHASE 1 — PREFLIGHT
+# ═══════════════════════════════════════════════════════
+
+steps:
+  - name: preflight
+    prompt: |
+      Look back before launching. Use tenet to gather context, validate prerequisites, capture before-snapshot.
+
+      Context survey:
+        1. mcp__tenet-context__context_get — check recent journals for prior runs
+        2. mcp__tenet-context__memory_search "{{product}} smoke fleet runs" — last results
+        3. mcp__tenet-context__kanban_ls --scope tenet-cli — open product issues
+
+      Inventory check:
+        - find agents/smoke-fleet/{{product}}/ -name "*.md" → list available personas
+        - find eval/smoke-fleet/{{product}}/ -name "*.ts" → confirm matching evals
+        - For each persona requested (or each .md found), confirm matching .ts exists
+        - Abort with "PRECONDITION_FAIL: persona X has no eval" if gap
+
+      Before-snapshot (capture into .tenet/.fleet-snapshot-<run-id>.json):
+        - START_TS: epoch ms
+        - LATEST_COMMIT: git rev-parse HEAD
+        - SPEND_BEFORE: if visa-cli configured, parse transaction_history; else 0
+        - HUB_REACHABLE: curl <hub-port>/health
+        - PERSONAS_TO_RUN: resolved list
+
+  - name: discover-invariants
+    prompt: |
+      Survey product invariants — useful for ceremony + drift detection:
+        1. For each persona SOUL, extract "Expected Stream-JSON Contract" section → coverage map
+        2. grep "@purpose" headers in product source — component contracts
+        3. mcp__tenet-context__memory_search "{{product}} known bugs regressions" — what should personas catch
+        4. Read .tenet/DEPENDENCY_GRAPH.md for prior coverage gaps
+
+      Output: /tmp/fleet-invariants-<run-id>.md (brief — used in ceremony step)
+
+# ═══════════════════════════════════════════════════════
+# PHASE 2 — RUN FLEET
+# ═══════════════════════════════════════════════════════
+
+  - name: spawn-fleet-parallel
+    prompt: |
+      For each persona in PERSONAS_TO_RUN, spawn via:
+        bash scripts/smoke-fleet/run-persona.sh {{product}} <persona> {{workspace}}
+
+      Parallelism rules:
+        - Up to {{parallelism}} concurrent (cost + Haiku rate limit)
+        - Per-persona timeout: 180s
+        - Each gets own /tmp/fleet-runner-<run-id>-<persona>.out
+        - Each writes /tmp/fleet-<product>-<persona>-<sub-id>.{jsonl,report.json}
+
+      The runner already:
+        - Unsets CLAUDECODE/CLAUDE_CODE (avoids nested-claude)
+        - Spawns claude --print --output-format stream-json --include-hook-events
+        - Uses local OAuth (no ANTHROPIC_API_KEY needed for dev)
+        - Appends each result to .tenet/eval.jsonl with composite + persona + product
+        - Best-effort emits MAP event fleet:<persona>:result
+
+      Wait for all spawns to complete (or timeout).
+
+  - name: enforce-budget-cap
+    prompt: |
+      Re-snapshot spend.
+      Compute SPEND_DELTA = SPEND_AFTER - SPEND_BEFORE.
+
+      If SPEND_DELTA > {{max_spend_usd}}:
+        - Journal type=fix, severity=P0, title="Fleet exceeded budget cap"
+        - Annotate every persona's report.json with "OVER_BUDGET":true
+        - Block downstream gating (force composite=0)
+        - Continue to aggregate/journal but mark BUDGET_VIOLATION
+      Else:
+        - Proceed.
+
+  - name: enforce-routing-classification
+    prompt: |
+      For each persona report:
+        - If findings_count > 0, ensure persona's stream-json contains "bug_owner:" or routing-table reference
+        - If missing, mark persona report with "ROUTING_UNCLASSIFIED" — skip auto-filing for that persona, queue for human triage
+
+      This prevents the visa-cli-gtm #136 misroute pattern: filings without explicit owner classification.
+
+# ═══════════════════════════════════════════════════════
+# PHASE 3 — AGGREGATE + GATE
+# ═══════════════════════════════════════════════════════
+
+  - name: aggregate-and-gate
+    prompt: |
+      For each persona's report.json:
+        - Parse {score, threshold, failed_checks, findings, paid_unsafe}
+        - Status: PASS if score >= threshold AND no over_budget AND no critical-fail
+
+      Composite:
+        - composite_score = sum(scores) / count(personas)
+        - composite_pass = passed_personas / total_personas >= {{composite_pass}}
+
+      Build outputs:
+        - /tmp/fleet-summary-<run-id>.json (machine-readable)
+        - /tmp/fleet-summary-<run-id>.md (markdown table for PR comment / dashboards)
+
+      If !composite_pass:
+        - tenet_kanban_add scope=tenet-cli priority=1 type=Bug
+          title="Smoke-fleet regression: {{product}} composite below threshold"
+          description=summary URL + per-persona table
+        - Cross-link to sibling personas that failed.
+
+# ═══════════════════════════════════════════════════════
+# PHASE 4 — ROUTE FINDINGS (the previous-run gap we're now closing)
+# ═══════════════════════════════════════════════════════
+
+  - name: route-findings
+    prompt: |
+      For each persona report's findings[]:
+        - Get bug_owner from finding (or persona report)
+        - Group by target_repo (jfl-gtm | visa-cli-gtm | Visa-mono | other)
+        - For each target_repo:
+
+      ROUTING TABLE (per persona SOUL routing rules — keep in sync with each SOUL):
+        bug_owner=tenet-cli       → 402goose/JFL-GTM via tenet_kanban_add scope=tenet-cli
+        bug_owner=tenet-platform  → 402goose/JFL-GTM via tenet_kanban_add scope=tenet-platform
+        bug_owner=visa-cli        → Visa-Crypto-Labs/visa-cli-gtm via gh issue create
+        bug_owner=visa-mono       → Visa-Crypto-Labs/Visa-mono via gh issue create
+        bug_owner=unknown         → 402goose/JFL-GTM with tag "needs-routing" + human triage
+
+      For external repos (gh issue create path):
+        - Pre-query: gh label list --repo <target>
+        - Apply at minimum:
+          - type label: "bug" or "enhancement" (per finding.severity)
+          - scope label if exists (e.g. "scope:visa-cli")
+          - "tenet/backlog" (kanban routing)
+          - "source:agent" (transparency)
+          - priority label (per finding.severity → critical/high/low)
+        - Body must include:
+          - Source run-id + persona name
+          - Cross-link to sibling jfl-gtm tracking issue if any
+          - Repro steps from persona transcript
+          - Suggested fix paths
+
+      For internal (jfl-gtm) findings via tenet_kanban_add:
+        - ALWAYS pass scope (warn-noise reduction)
+        - priority maps from severity
+        - Body includes run-id + persona + transcript path
+
+# ═══════════════════════════════════════════════════════
+# PHASE 5 — EMIT EVENTS + JOURNAL
+# ═══════════════════════════════════════════════════════
+
+  - name: emit-events
+    prompt: |
+      For each persona, emit MAP event:
+        mcp__tenet-context__events_publish
+          type: "fleet:{{product}}:{{persona}}:result"
+          source: "smoke-fleet"
+          data: {product, persona, score, threshold, findings_count, run_id}
+
+      Aggregate event:
+        type: "fleet:{{product}}:run-complete"
+        data: {composite_score, composite_pass, total, passed, spend_delta, run_id}
+
+  - name: journal-and-learn
+    prompt: |
+      Write milestone or discovery journal entry:
+        mcp__tenet-context__journal_write
+          type: "milestone" if composite_pass else "discovery"
+          title: "Fleet {{product}} run {{run-id}} — composite N/M"
+          summary: "...with cost, findings count, regressions caught"
+          files: [.tenet/SMOKE_FLEET_RESULTS.md, .tenet/DEPENDENCY_GRAPH.md]
+          next: "..."
+
+      Search prior runs of this fleet:
+        mcp__tenet-context__memory_search "fleet {{product}} runs"
+        Compare: composite up / down / flat? Findings count up / down? Spend up / down?
+
+      Append run section to .tenet/SMOKE_FLEET_RESULTS.md with:
+        - Run header (id, ts, workspace)
+        - Per-persona scores table
+        - Findings summary (with cross-links to filed issues)
+        - Spend + delta vs prior runs
+        - Learnings (new SOUL gaps? new eval blind spots? new routing categories?)
+
+# ═══════════════════════════════════════════════════════
+# PHASE 6 — CEREMONY (the build-agent skill's ceremony, applied to fleet)
+# ═══════════════════════════════════════════════════════
+
+  - name: ceremony
+    prompt: |
+      Synthesize what this run taught us:
+
+      1. Did any persona detect a NEW class of bug not previously surfaced?
+         → Update .tenet/DEPENDENCY_GRAPH.md "Coverage map" section
+
+      2. Did any persona fail its own SOUL safety contract?
+         → File "Persona <name> SOUL needs hardening: <reason>"
+         → Reference the run-id + transcript
+
+      3. Did the eval miss a class of paid tool / pattern?
+         → File "Eval <name> blind spot: <pattern>" (e.g. Run #5 fal-*)
+         → Suggest regex or check addition
+
+      4. Were any findings misrouted (filed to wrong repo)?
+         → Update persona's SOUL routing table
+         → File correction comment + re-file in correct repo
+
+      5. Update DEPENDENCY_GRAPH.md "Active items" with status changes:
+         - Personas now covered → check off
+         - New gaps surfaced → add to graph
+         - Issues filed → cross-link
+
+      6. If composite trending DOWN over 3+ consecutive runs:
+         → File "Fleet quality regression: {{product}} composite trend"
+         → Increase eval threshold OR retire flaky personas
+
+# ═══════════════════════════════════════════════════════
+# PHASE 7 — GATE + EXIT
+# ═══════════════════════════════════════════════════════
+
+  - name: gate-and-exit
+    prompt: |
+      Exit code derived from:
+        - 0 if composite_pass AND no over_budget AND no PRECONDITION_FAIL
+        - 1 otherwise
+
+      Print final summary table (use the markdown summary).
+
+      Summary fields (always print):
+        - composite N/M
+        - per-persona PASS/FAIL with score
+        - spend delta
+        - findings filed (with URLs)
+        - run-id (for transcript lookup)
+        - next-action recommendation
+
+# ═══════════════════════════════════════════════════════
+# How to invoke (manual, until tenet has a `recipe run` ergonomics layer)
+# ═══════════════════════════════════════════════════════
+#
+# For now, this recipe is a SPEC describing what tenet recipe run product-smoke-fleet.yaml
+# should orchestrate. The phases map to the existing scripts:
+#
+#   bash scripts/smoke-fleet/run-fleet.sh <workspace>      # Phases 2-3 (already automated)
+#   bash scripts/smoke-fleet/run-persona.sh <product> <p>  # Phase 2 (per-persona)
+#
+# The recipe steps that AREN'T yet shell-automated:
+#   - preflight (currently mental)
+#   - discover-invariants (currently mental)
+#   - enforce-budget-cap (TODO)
+#   - enforce-routing-classification (TODO)
+#   - route-findings (currently manual)
+#   - emit-events (already best-effort in run-persona.sh)
+#   - journal-and-learn (currently manual + agent self-journals)
+#   - ceremony (currently manual)
+#
+# Next iterations should fold each TODO into automation OR delegate to a fleet-orchestrator agent.

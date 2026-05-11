@@ -1,0 +1,88 @@
+# TENET — Agent Manifest
+
+> Canonical hosted version: https://10et.ai/llms-full.txt
+> This local copy provides a quick-reference for agents at session start.
+> For the full manifest with all commands and capabilities, fetch the hosted version.
+
+## What is TENET?
+
+TENET is the complete operating system for AI agent teams. It provides:
+- **Context Hub** — semantic search, knowledge coordination across sessions
+- **Memory System** — graph edges, embeddings, temporal reasoning
+- **RL Learning Loop** — eval → reward → policy head → autonomous improvement
+- **Subway Mesh** — P2P agent-to-agent coordination
+- **Session Management** — all sessions on main, journal-based isolation, auto-commit
+- **Journal Protocol** — structured JSONL entries for features, decisions, fixes, discoveries
+- **Build Agents** — isolated /tmp worktrees, push+PR, trust-gated merge via character eval
+
+## Core Commands
+
+| Command | What it does |
+|---------|-------------|
+| `tenet context` | Get project context (journal entries + knowledge docs) |
+| `tenet hud` | Project dashboard — metrics, trends, status |
+| `tenet memory search <query>` | Search past decisions, features, learnings |
+| `tenet memory add` | Persist insights/decisions to project memory |
+| `tenet journal write` | Write structured journal entry |
+| `tenet eval status` | Eval scores and trends |
+| `tenet build` | Guided agent creation (The Sequence) |
+| `tenet build --list` | Show all agents and scores |
+| `tenet build --dispatch <issue#>` | Full pipeline: issue → spec → eval → TOML → run |
+| `tenet flow run overnight` | Run agents autonomously overnight |
+| `tenet skill load <name>` | Load a skill (build-agent, spec, fly-deploy, etc.) |
+| `tenet pivot` | Checkpoint work mid-session |
+| `tenet synopsis` | Summarize recent work |
+| `tenet update` | Update GTM toolkit (CLAUDE.md, skills/) |
+
+## Agent Tools (MCP / Pi)
+
+| Capability | Claude Code MCP | Pi tool |
+|------------|-----------------|---------|
+| Get project context | `mcp__tenet-context__context_get` | `tenet_context` |
+| Search past work | `mcp__tenet-context__memory_search` | `tenet_memory_search` |
+| Add memory | `mcp__tenet-context__memory_add` | `tenet_memory_add` |
+| Project dashboard | `/hud` skill | `tenet_hud` |
+| Publish event | `mcp__tenet-context__events_publish` | `tenet_publish_event` |
+| Write journal | `mcp__tenet-context__journal_write` | `tenet_journal_write` |
+| Match skill by intent | `mcp__tenet-context__skill_match` | — |
+| Load skill (fuzzy) | `mcp__tenet-context__skill_load` | `tenet_skill_load` |
+| Dispatch build agent | `mcp__tenet-context__build_dispatch` | — |
+
+## Skills
+
+| Skill | Use when |
+|-------|----------|
+| `build-agent` | Building agents, evals, specs, overnight runs |
+| `spec` | Writing/reviewing specs or PRDs (adversarial review) |
+| `brand-architect` | Brand, logo, colors, design system |
+| `fly-deploy` | Deploying to Fly.io |
+| `content-creator` | Content, posts, threads |
+| `ci-setup` | CI/CD setup |
+| `pi-agents` | Multi-agent coordination |
+| `voice-ingest` | Voice memo or audio file processing |
+
+## Key Concepts
+
+- **Sessions** — Three-tier: (1) JSONL-first on main (single session), (2) worktree isolation (concurrent), (3) PR escape valve (conflicts). Auto-commit every 120s.
+- **Journal entries** — JSONL at `.tenet/journal/session-*.jsonl`, merged to `main.jsonl` on cleanup. Types: feature, decision, fix, discovery, milestone
+- **Memory** — persistent cross-session knowledge in `.tenet/memory.db` (SQLite WAL, auto-heals corruption)
+- **Context Hub** — HTTP daemon on deterministic port. Self-recovers from OOM crashes. Configurable via `TENET_HUB_HEAP_MB`.
+- **Presence** — File-based heartbeat at `.tenet/presence/*.json` (30s interval). Stale files cleaned on session start.
+- **Cloud sync** — `tenet sync` pushes journals/memory/evals to TENET Cloud. GitHub App webhook syncs knowledge files to Postgres.
+- **Self-healing** — hub auto-restarts on crash (30s cooldown), `tenet doctor --fix` repairs journals/memory/duplicates
+
+## Architecture
+
+```
+project/           <- Your workspace
+  knowledge/       <- strategy, vision, brand docs
+  specs/           <- product and feature specs
+  .tenet/          <- journal, memory, config, sessions, agents
+  llms.txt         <- this file (agent manifest)
+  CLAUDE.md        <- agent instructions
+  AGENTS.md        <- canonical runtime protocol
+```
+
+## Links
+
+- Full manifest: https://10et.ai/llms-full.txt

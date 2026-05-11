@@ -1,0 +1,91 @@
+version: 1.0.0
+title: Daily Release Check
+description: Verify all services are ready for a daily release — tests, CI, open P1 issues, changelog
+author: tenet
+maturity: beta
+trust_level: 2
+category: devops
+tags: [release, ci, pipeline, devops]
+persona: Michael (Visa CLI pipeline)
+
+skills:
+  - name: fly-deploy
+    why: Check deploy status and rollback if release fails
+  - name: eval
+    why: Confirm eval scores haven't regressed before releasing
+
+bundle:
+  name: Release Ops Kit
+  description: Daily release check + deploy management + eval gates
+  skills: [fly-deploy, eval]
+
+parameters:
+  - key: repo
+    type: string
+    required: true
+    description: GitHub repo slug (owner/name), e.g. Visa-Crypto-Labs/Visa-CLI
+  - key: branch
+    type: string
+    required: false
+    default: main
+    description: Branch to check
+
+activities:
+  - Check CI is green on main
+  - Verify no open P1 blocker issues
+  - Confirm tests pass
+  - Generate changelog since last release
+  - Report release readiness
+
+tools:
+  - tenet_context
+  - tenet_hud
+  - tenet_journal_write
+
+eval:
+  - check: gh CLI available
+    command: which gh
+    expect_exit: 0
+  - check: no P1 blockers open
+    command: "gh issue list --repo {{ repo }} --label P1 --label blocker --state open --json number --jq length"
+    expect: "0"
+  - check: CI green on main
+    command: "gh run list --repo {{ repo }} --branch {{ branch }} --limit 1 --json conclusion --jq '.[0].conclusion // \"none\"'"
+    expect: success
+
+prompt: |
+  Run the daily release check for {{ repo }} on branch {{ branch }}.
+  
+  ## Step 1: Check CI Status
+  Run: `gh run list --repo {{ repo }} --branch {{ branch }} --limit 5 --json name,conclusion,status`
+  Report which workflows passed/failed.
+  
+  ## Step 2: Check Open P1 Issues
+  Run: `gh issue list --repo {{ repo }} --label P1 --state open --json number,title`
+  Any P1 issues = blocker. List them clearly.
+  
+  ## Step 3: Check for Blocker Labels  
+  Run: `gh issue list --repo {{ repo }} --label blocker --state open --json number,title`
+  
+  ## Step 4: Get Recent Changes
+  Run: `gh pr list --repo {{ repo }} --state merged --limit 10 --json number,title,mergedAt`
+  Summarize what shipped since last release.
+  
+  ## Step 5: Generate Release Decision
+  Based on the above, output ONE of:
+  
+  ✅ READY TO RELEASE
+  - All CI passing
+  - No P1 blockers
+  - Changes: [list merged PRs]
+  - Suggested version bump: patch|minor|major
+  
+  ❌ NOT READY
+  - Blockers: [list issues]
+  - Fix required: [specific steps]
+  
+  ## Step 6: Journal the Result
+  Call tenet_journal_write with:
+  - type: "discovery"
+  - title: "Daily release check: {{ repo }} — [READY/BLOCKED]"
+  - summary: 2-3 sentences on status
