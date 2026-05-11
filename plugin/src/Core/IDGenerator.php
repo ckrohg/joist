@@ -6,16 +6,13 @@ namespace Joist\Core;
 /**
  * Generate Elementor-compatible element IDs (8-char lowercase hex).
  *
- * Elementor's own ID generator uses `dechex(rand(...))` truncated to 7-8 chars.
- * We use 8 chars from `random_bytes` to keep collision probability negligible
- * across a single page and to match the format the editor emits on save.
- *
- * v0.1 M0: fillMissing only. v0.5 adds regenerateTree(deep:bool) for
- * duplicate/wrap ops (constraint #28).
+ * Extended in v0.5 with regenerateTree(deep:bool) for duplicate/wrap ops
+ * (constraint #28 — deep regen prevents nested-ID collisions that would
+ * break custom CSS selectors, anchor links, scroll targets).
  */
 final class IDGenerator
 {
-    /** @var array<string, string> Map of temp-id -> generated-id from the last fillMissing call. */
+    /** @var array<string, string> Map of temp-id / original-id -> generated-id from the last fillMissing/regenerate call. */
     private array $lastGeneratedMap = [];
 
     public function generate(): string
@@ -26,15 +23,28 @@ final class IDGenerator
     /**
      * Walk an element tree and assign IDs to any element missing one,
      * OR any element whose ID looks like a placeholder (temp-N).
-     *
-     * @param array $elements Element tree (recursive).
-     * @return array Tree with all IDs populated.
      */
     public function fillMissing(array $elements): array
     {
         $this->lastGeneratedMap = [];
         $existingIds = $this->collectIds($elements);
         return $this->walkAssign($elements, $existingIds);
+    }
+
+    /**
+     * Constraint #28: regenerate IDs across an entire subtree.
+     *
+     * `deep:true` means EVERY nested element gets a fresh ID — used for
+     * `duplicate` and `wrap` ops to prevent collisions with the source
+     * tree's nested IDs.
+     *
+     * `deep:false` only regenerates the root element — used internally
+     * for sanity, not exposed to op callers.
+     */
+    public function regenerateTree(array $subtree, bool $deep = true, array $existingIds = []): array
+    {
+        $this->lastGeneratedMap = [];
+        return $this->walkRegen($subtree, $deep, $existingIds);
     }
 
     /** @return array<string, string> */
@@ -46,9 +56,8 @@ final class IDGenerator
     private function walkAssign(array $elements, array &$existingIds): array
     {
         foreach ($elements as $i => $el) {
-            if (!is_array($el)) {
-                continue;
-            }
+            if (!is_array($el)) continue;
+
             $needsNew = !isset($el['id'])
                 || !is_string($el['id'])
                 || $el['id'] === ''
@@ -68,6 +77,35 @@ final class IDGenerator
 
             if (isset($el['elements']) && is_array($el['elements'])) {
                 $elements[$i]['elements'] = $this->walkAssign($el['elements'], $existingIds);
+            }
+        }
+        return $elements;
+    }
+
+    private function walkRegen(array $elements, bool $deep, array &$existingIds): array
+    {
+        foreach ($elements as $i => $el) {
+            if (!is_array($el)) continue;
+
+            $originalId = (string) ($el['id'] ?? '');
+            $newId = $this->generateUnique($existingIds);
+            $existingIds[$newId] = true;
+            if ($originalId !== '') {
+                $this->lastGeneratedMap[$originalId] = $newId;
+            }
+            $elements[$i]['id'] = $newId;
+
+            if (isset($el['elements']) && is_array($el['elements'])) {
+                if ($deep) {
+                    $elements[$i]['elements'] = $this->walkRegen($el['elements'], true, $existingIds);
+                } else {
+                    // Track child IDs in existingIds but don't regenerate them.
+                    foreach ($el['elements'] as $child) {
+                        if (is_array($child) && isset($child['id'])) {
+                            $existingIds[$child['id']] = true;
+                        }
+                    }
+                }
             }
         }
         return $elements;
@@ -100,7 +138,6 @@ final class IDGenerator
                 return $candidate;
             }
         }
-        // Astronomically unlikely; fall back to a longer ID.
         return bin2hex(random_bytes(6));
     }
 }
