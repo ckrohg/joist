@@ -180,13 +180,15 @@ plugin/
     └── integration/                  # requires Elementor installed
 ```
 
-PSR-4 namespace root: `TenetElementor\`. Composer autoload. Min PHP 8.1 (Elementor 3.21 requires 7.4 but our codebase uses match expressions, readonly props, never types).
+PSR-4 namespace root: `TenetElementor\`. Composer autoload. **Min PHP 8.0** (decision 2026-05-10 after hardening pass — `match`, named args, enums-as-classes, throw expressions, but NOT readonly props or `never` returns which are 8.1). Elementor 3.21 supports PHP 7.4 but the ~10% of installs still on 7.4 are declining fast and not worth the engineering regression to support.
+
+**Admin UI:** built with `@wordpress/element` (WP's bundled React) and `@wordpress/components` for accessibility-by-default and Gutenberg compatibility. Bundler: `@wordpress/scripts` (matches Gutenberg's webpack config + React version). NOT custom React or shadcn — those cause version conflicts and fail wp.org accessibility expectations. CSS scoped to `.tenet-el-admin` namespace, loaded only on plugin screens via `admin_enqueue_scripts` screen checks.
 
 ---
 
 ## 4. The critical pipeline — every write goes through here
 
-`DocumentWriter::save()` is the spine. It enforces 6 of the 16 failure-mode constraints in one method:
+`DocumentWriter::save()` is the spine. It enforces 9 of the 30 failure-mode constraints in one method. Critically: **the synchronous portion does the minimum** (lock, validate, snapshot, write, return). CSS regen, cache flush, frontend verify, webhook emission all defer to `shutdown` hook or `wp_schedule_single_event` — no inline `wp_remote_*` calls. Response returns optimistically; webhook fires on async-verification completion or failure.
 
 ```php
 namespace TenetElementor\Elementor;
@@ -203,6 +205,13 @@ final class DocumentWriter
         private CacheFlusher $cacheFlusher,
         private AuditLogger $audit,
         private ElementorAdapter $elementor,
+        private PolicyGuard $policy,
+        private SessionTracker $sessions,
+        private OperatingMode $opMode,
+        private ContainerModeAdapter $layoutMode,
+        private GlobalRefPreferrer $globals,
+        private DynamicTagValidator $dynamicTags,
+        private CustomCSSBlockManager $cssBlocks,
     ) {}
 
     /**
@@ -215,17 +224,47 @@ final class DocumentWriter
      */
     public function save(SaveRequest $req): SaveResult
     {
+        // Constraint #20: HTTPS enforced at controller, but assert here as defense-in-depth
+        // Constraint #18: PolicyGuard refusals BEFORE any work
+        $this->policy->assertAllowed($req);
+
+        // Constraint #6.12: operating mode check
+        $modeResult = $this->opMode->intercept($req);
+        if ($modeResult !== null) {
+            return $modeResult; // observer mode → dry_run; quiet/kill_switch → 423
+        }
+
+        // Constraint #19: chained-singleton plan-required trigger
+        $this->sessions->recordOp($req->sessionId, $req->op, $req->postId);
+        $this->policy->checkPlanRequired($req->sessionId, $req->op, $req->postId);
+
         $lock = $this->locks->acquire($req->postId, $req->sessionId);
         $revisionId = null;
         try {
             // Constraint #8: pin to tested Elementor version range
             $this->elementor->assertSupportedVersion();
 
-            // Constraint #1: validate against live schema
+            // Constraint #23: container-mode matching
+            $this->layoutMode->validateInserts($req->postId, $req->elements);
+
+            // Constraint #25: dynamic tag references resolve
+            $this->dynamicTags->validateTree($req->elements);
+
+            // Constraint #1, #24, #27, #29: schema validation
+            // (covers responsive-completeness warnings, inner-flag check, skin-aware validation)
             $validation = $this->validator->validateTree($req->elements);
             if (!$validation->valid) {
                 throw new InvalidSettingsException($validation->errors);
             }
+
+            // Constraint #26: prefer global refs over literals (auto-transform)
+            [$elements, $transformations] = $this->globals->preferGlobals($req->elements);
+
+            // Constraint #10: explicit ID generation; deep-regen on duplicate/wrap
+            $elements = $this->idGen->fillMissing($elements);
+
+            // Custom CSS blocks merged (not replaced) — preserves human-written blocks
+            $elements = $this->cssBlocks->mergeBlocks($elements, $req->postId);
 
             // OCC: hash check
             if ($req->expectedHash !== null) {
@@ -246,31 +285,24 @@ final class DocumentWriter
                 intent: $req->intent,
             );
 
-            // Constraint #10: explicit ID generation (don't let Elementor invent silently)
-            $elements = $this->idGen->fillMissing($req->elements);
-
             // Dry run shortcut
             if ($req->dryRun) {
-                return SaveResult::dryRun($elements, $this->hashes->forElements($elements));
+                return SaveResult::dryRun($elements, $this->hashes->forElements($elements), $transformations);
             }
 
-            // The actual save — goes through Elementor's own path
+            // The actual save — synchronous, fast portion only
+            // Goes through Elementor's own path
             $document = $this->elementor->getDocument($req->postId);
             $document->save([
                 'elements' => $elements,
                 'settings' => $req->pageSettings,
             ]);
 
-            // Constraint #5: regen CSS + flush host caches
-            $this->cssRegen->regenerate($req->postId);
-            $this->cacheFlusher->flushPage($req->postId);
-
-            // Constraint #2: read-after-write verify
+            // Constraint #2: read-after-write verify (synchronous — confirms the write landed)
             $verified = $document->get_elements_data();
             $newHash = $this->hashes->forElements($verified);
-            $this->cacheFlusher->verifyFrontendUpdated($req->postId, $newHash);
 
-            // Constraint #15: audit every edit
+            // Constraint #15, #30: audit every edit with hash-chained entry
             $this->audit->log(
                 op: 'document.save',
                 postId: $req->postId,
@@ -281,12 +313,24 @@ final class DocumentWriter
                 intent: $req->intent,
             );
 
+            // Constraint #17: ASYNC the expensive stuff
+            // CSS regen + cache flush + frontend verify + webhook emission all deferred
+            wp_schedule_single_event(time() + 1, 'tenet_el_post_save_verify', [
+                'post_id' => $req->postId,
+                'expected_hash' => $newHash,
+                'session_id' => $req->sessionId,
+                'revision_id' => $revisionId,
+            ]);
+
             return new SaveResult(
                 newHash: $newHash,
                 verifiedElements: $verified,
                 generatedIds: $this->idGen->lastGeneratedMap(),
                 revisionId: $revisionId,
-                cssRegenerated: true,
+                transformations: $transformations,
+                cssRegenerated: false, // happens async; webhook fires when done
+                pendingVerifications: ['css_regen', 'cache_flush', 'frontend_verify'],
+                warnings: $validation->warnings, // responsive_incomplete et al.
             );
 
         } catch (\Throwable $e) {
@@ -457,11 +501,55 @@ final class LockManager
 
 Same session reusing the lock is a no-op (re-extends TTL). Different session sees 423.
 
+### New classes added in v1 hardening pass
+
+These were added after the 2026-05-10 red-team critique. Each has a one-paragraph contract here; full signatures are in code.
+
+**`PolicyGuard`** — runs FIRST in every controller. Hardcoded refuse-list (constraint #18) of "agent role must never" operations. Also implements `checkPlanRequired($session_id, $op, $page_id)` for chained-singleton enforcement (constraint #19). Refusals throw `PolicyRefusedException` → controller renders 403 `policy.<reason>` or 423 `policy.plan_required`.
+
+**`RateLimiter`** — token-bucket per session, persisted in `wp_tenet_el_rate_limits` table. Buckets: writes, reads, plugin-install, webhook-emit, AI-passthrough. Configurable via `tenet_el_rate_limits` option. Returns 429 + Retry-After when exhausted.
+
+**`URLValidator`** — SSRF defense (constraint #21). `validateExternal($url)` checks: scheme whitelist, DNS resolution returns public IP only, no banned schemes. Called by MediaController (url mode) and WebhooksController. Returns pre-resolved IP for `CURLOPT_RESOLVE` to defeat DNS rebinding.
+
+**`DynamicTagValidator`** — walks element trees, finds every `__dynamic__` key, validates each tag reference against the live registered-tags registry (constraint #25). Suggests fuzzy matches on unknown tags.
+
+**`CustomCSSBlockManager`** — parses and merges named custom CSS blocks (constraint #10 / §6.7 of PLUGIN_API.md). `mergeBlocks($elements, $page_id)` runs before save; reads existing CSS, identifies named blocks via TENET:BEGIN/END markers, replaces the named block being updated, preserves all others.
+
+**`GlobalRefPreferrer`** — scans settings for color/typography literals, computes delta-E against kit globals, rewrites to `__globals__` refs when within threshold (constraint #26). `preferGlobals($elements)` returns `[$elements, $transformations]`; transformations surfaced in save response so the agent learns to use globals directly next time.
+
+**`ContainerModeAdapter`** — autodetects site's layout mode (containers_only / sections_only / mixed) and enforces cross-mode refusal (constraint #23). `validateInserts($post_id, $elements)` walks proposed inserts and rejects mode mismatches.
+
+**`SessionTracker`** — maintains per-session counters in `wp_tenet_el_sessions` for `op_count`, `ops_destructive`, `ops_per_page`. `recordOp()` increments; `lastApprovedPlan` resets counters on plan approval.
+
+**`OperatingMode`** — intercepts every write to apply per-site mode (`live` / `observer` / `quiet` / `kill_switch` / `staging_mandatory`). Returns SaveResult early for observer mode (dry_run); throws for quiet/kill_switch.
+
+**`PrivacyExporter` / `PrivacyEraser`** — register `wp_privacy_personal_data_exporters` and `..._erasers` filters for GDPR DSR (§29 of PLUGIN_API.md). Audit log entries, revisions, sessions attributed to a subject user are exportable / anonymizable.
+
+**`Logger`** — PSR-3-style with mandatory `redact()` chokepoint. Every log call runs through `redact()` which strips App Passwords, Anthropic keys, HMAC secrets, OAuth tokens by pattern match. Writes to `wp_upload_dir() . '/tenet-el-logs/'` (with `.htaccess` deny rule) + `wp_options` rolling buffer (last 200 entries).
+
+**Extended `SchemaValidator`** methods:
+- `validateTree($elements)` — full tree (existing)
+- `validateResponsiveCompleteness($settings, $schema)` — constraint #24, returns warnings (not errors)
+- `validateInnerFlag($element, $parent_context)` — constraint #27, throws on mismatch
+- `validateSkinAware($settings, $schema)` — constraint #29, validates against `settings._skin`'s control set
+- `validateGlobalsPreferred($settings, $schema)` — informational, encourages globals
+- `validateDynamicTagsResolve($settings)` — delegates to `DynamicTagValidator`
+
+**Extended `IDGenerator`** methods:
+- `fillMissing($elements)` — existing
+- `regenerateTree($subtree, deep: bool = true)` — constraint #28, deep regen on duplicate/wrap
+
+**Extended `LockManager`** — replaces transient-backed implementation with custom-table-backed (`wp_tenet_el_locks`); same external API.
+
+**Extended `CSSRegenerator`** — `regenerate($post_id)` now calls Post + Global_CSS + Custom_CSS + Manager flush + clears `_elementor_element_cache` + `_elementor_inline_svg` postmeta (Elementor specialist critique).
+
 ---
 
 ## 6. DB schema — custom tables
 
-All tables prefixed `wp_tenet_el_` to avoid collision. Created in migrations on plugin activation; cleaned up in `uninstall.php` only if the user opts in.
+All tables prefixed `wp_<prefix>_tenet_el_` (using `$wpdb->prefix`, NOT `base_prefix` — works on multisite). Created in migrations on plugin activation with `db_version` tracking + idempotent CREATE IF NOT EXISTS; cleaned up in `uninstall.php` ONLY if `tenet_el_delete_data_on_uninstall` option is true (default false).
+
+Every CREATE TABLE appends `$wpdb->get_charset_collate()`. ENUMs replaced with VARCHAR(16) + application-level CHECK (dbDelta alter on ENUM fails silently — see WP plugin engineer critique).
 
 ### `wp_tenet_el_revisions`
 ```sql
@@ -471,17 +559,17 @@ CREATE TABLE wp_tenet_el_revisions (
     hash         CHAR(72) NOT NULL,           -- 'sha256:' + 64 hex
     snapshot     LONGBLOB NOT NULL,            -- gzipped JSON of _elementor_data
     snapshot_size INT UNSIGNED NOT NULL,
-    actor_type   ENUM('agent','human','system') NOT NULL,
+    actor_type   VARCHAR(16) NOT NULL,         -- 'agent' | 'human' | 'system' (app-validated)
     actor_id     VARCHAR(64),                  -- user ID for human, session ID for agent
     session_id   VARCHAR(64),
     intent       VARCHAR(500),
     created_at   DATETIME NOT NULL,
     INDEX idx_post_created (post_id, created_at DESC),
     INDEX idx_session (session_id)
-);
+) {$charset_collate};
 ```
 
-Pruning: keep last N (default 50) per page; older entries pruned daily via WP cron.
+Pruning: keep last N (default 50) per page; older entries pruned daily via WP cron. Per-write pruning also runs if a page's revision count exceeds the cap.
 
 ### `wp_tenet_el_audit`
 ```sql
@@ -490,54 +578,68 @@ CREATE TABLE wp_tenet_el_audit (
     timestamp    DATETIME NOT NULL,
     op           VARCHAR(64) NOT NULL,         -- 'document.save', 'kit.import', etc.
     post_id      BIGINT UNSIGNED,
-    actor_type   ENUM('agent','human','system') NOT NULL,
+    actor_type   VARCHAR(16) NOT NULL,         -- 'agent' | 'human' | 'system'
     actor_id     VARCHAR(64),
+    app_password_user_id BIGINT UNSIGNED,      -- the WP user the App Password belongs to (separate from session attribution)
     session_id   VARCHAR(64),
     before_hash  CHAR(72),
     after_hash   CHAR(72),
     duration_ms  INT UNSIGNED,
     intent       VARCHAR(500),
     payload      LONGBLOB,                     -- gzipped op-specific payload, nullable
+    chain_hash   CHAR(64) NOT NULL,            -- sha256(prev_row.chain_hash || sha256(row_payload)) — tamper detection (constraint #30)
     INDEX idx_post_time (post_id, timestamp DESC),
     INDEX idx_session (session_id),
     INDEX idx_op_time (op, timestamp DESC)
-);
+) {$charset_collate};
 ```
+
+`chain_hash` is computed at write time. A daily integrity check verifies the chain; any break is surfaced as an admin notice ("Audit log tampering detected — row IDs X-Y"). Erasure via GDPR DSR (§29 of PLUGIN_API.md) anonymizes `actor_id` but preserves the chain by re-computing chain_hash forward from the erasure point.
 
 ### `wp_tenet_el_plans`
 ```sql
 CREATE TABLE wp_tenet_el_plans (
-    id           VARCHAR(64) PRIMARY KEY,      -- 'pln_01HXY...'
-    session_id   VARCHAR(64) NOT NULL,
-    page_id      BIGINT UNSIGNED,
-    intent       VARCHAR(500) NOT NULL,
-    steps        LONGBLOB NOT NULL,            -- gzipped JSON
-    status       ENUM('pending','approved','rejected','executing','completed','failed','expired') NOT NULL,
+    id              VARCHAR(64) PRIMARY KEY,        -- 'pln_01HXY...' (ULID)
+    approval_token  CHAR(64) NOT NULL,              -- 32-byte random hex, REQUIRED in approval URL (defense against ULID enumeration)
+    session_id      VARCHAR(64) NOT NULL,
+    page_id         BIGINT UNSIGNED,
+    intent          VARCHAR(500) NOT NULL,
+    steps           LONGBLOB NOT NULL,              -- gzipped JSON
+    status          VARCHAR(16) NOT NULL,           -- 'pending'|'approved'|'rejected'|'executing'|'completed'|'failed'|'expired'
     approval_user_id BIGINT UNSIGNED,
-    approval_at  DATETIME,
-    executed_at  DATETIME,
-    result       LONGBLOB,                     -- execution result gzipped
-    created_at   DATETIME NOT NULL,
-    expires_at   DATETIME NOT NULL,
+    approval_at     DATETIME,
+    approver_session_id VARCHAR(64),                -- WP session ID at approval time (CSRF nonce defense)
+    executed_at     DATETIME,
+    result          LONGBLOB,
+    created_at      DATETIME NOT NULL,
+    expires_at      DATETIME NOT NULL,
     INDEX idx_status_created (status, created_at DESC)
-);
+) {$charset_collate};
 ```
+
+Approval URL: `https://example.com/wp-admin/admin.php?page=tenet-plan&id=pln_01HXY...&token=<approval_token>`. Plan can only be approved by the user who created the agent session, OR by an admin in a configured approvers list. CSRF nonce required on the Approve button.
+
+On `init` after a plugin update or activation, any plan with `status: executing` older than 5 minutes is marked `failed` with reason `plugin_updated_mid_execution`; webhook fires.
 
 ### `wp_tenet_el_sessions`
 ```sql
 CREATE TABLE wp_tenet_el_sessions (
-    id            VARCHAR(64) PRIMARY KEY,     -- 'ses_01HXY...'
-    agent_name    VARCHAR(64) NOT NULL,
-    agent_version VARCHAR(32),
-    intent        VARCHAR(500),
-    user_label    VARCHAR(200),
-    started_at    DATETIME NOT NULL,
-    last_activity DATETIME NOT NULL,
-    ended_at      DATETIME,
-    op_count      INT UNSIGNED DEFAULT 0,
-    cost_tokens   INT UNSIGNED DEFAULT 0,
+    id              VARCHAR(64) PRIMARY KEY,        -- 'ses_01HXY...'
+    agent_name      VARCHAR(64) NOT NULL,
+    agent_version   VARCHAR(32),
+    app_password_user_id BIGINT UNSIGNED NOT NULL,  -- which WP user's App Password initiated
+    intent          VARCHAR(500),
+    user_label      VARCHAR(200),
+    started_at      DATETIME NOT NULL,
+    last_activity   DATETIME NOT NULL,
+    ended_at        DATETIME,
+    op_count        INT UNSIGNED DEFAULT 0,         -- chained-singleton counter (constraint #19)
+    ops_destructive INT UNSIGNED DEFAULT 0,
+    ops_per_page    LONGBLOB,                       -- gzipped JSON map {page_id: count}
+    last_approved_plan_id VARCHAR(64),              -- resets counters when a plan covering the page is approved
+    cost_tokens     INT UNSIGNED DEFAULT 0,
     INDEX idx_started (started_at DESC)
-);
+) {$charset_collate};
 ```
 
 ### `wp_tenet_el_webhooks`
@@ -555,6 +657,49 @@ CREATE TABLE wp_tenet_el_webhooks (
 );
 ```
 
+### `wp_tenet_el_locks` (replaces transient locks — constraint #22)
+```sql
+CREATE TABLE wp_tenet_el_locks (
+    post_id      BIGINT UNSIGNED PRIMARY KEY,
+    session_id   VARCHAR(64) NOT NULL,
+    acquired_at  DATETIME NOT NULL,
+    expires_at   DATETIME NOT NULL,
+    reason       VARCHAR(500),
+    INDEX idx_expires (expires_at)
+) {$charset_collate};
+```
+
+Validated `post_id` (must exist) before insert. Daily WP-Cron prunes expired locks. Avoids the wp_options autoload bloat problem on no-object-cache hosts.
+
+### `wp_tenet_el_rate_limits` (per-session token buckets — §26 of PLUGIN_API.md)
+```sql
+CREATE TABLE wp_tenet_el_rate_limits (
+    session_id   VARCHAR(64) NOT NULL,
+    bucket_class VARCHAR(32) NOT NULL,           -- 'writes' | 'reads' | 'plugin_install' | etc.
+    tokens       INT UNSIGNED NOT NULL,
+    last_refill  DATETIME NOT NULL,
+    PRIMARY KEY (session_id, bucket_class)
+) {$charset_collate};
+```
+
+Pruned hourly.
+
+### `wp_tenet_el_backlog` (per-page "we'll come back to this" — §31 of PLUGIN_API.md)
+```sql
+CREATE TABLE wp_tenet_el_backlog (
+    id           VARCHAR(64) PRIMARY KEY,        -- 'back_01HXY...'
+    page_id      BIGINT UNSIGNED NOT NULL,
+    intent       VARCHAR(500) NOT NULL,
+    priority     VARCHAR(16) NOT NULL DEFAULT 'medium',
+    created_by_user_id BIGINT UNSIGNED,
+    created_by_session_id VARCHAR(64),
+    created_at   DATETIME NOT NULL,
+    resolved_at  DATETIME,
+    resolved_plan_id VARCHAR(64),
+    INDEX idx_page_priority (page_id, priority)
+) {$charset_collate};
+```
+
 ### `wp_tenet_el_bot_crawls` (v1.5 — `llms.txt` traffic logging)
 ```sql
 CREATE TABLE wp_tenet_el_bot_crawls (
@@ -566,8 +711,49 @@ CREATE TABLE wp_tenet_el_bot_crawls (
     status_code  SMALLINT UNSIGNED,
     referer      VARCHAR(500),
     INDEX idx_bot_time (bot, timestamp DESC)
-);
+) {$charset_collate};
 ```
+
+### Activation / version tracking
+
+Plugin stores `tenet_el_db_version` option (integer). Activation runs migrations idempotently:
+```php
+function tenet_el_run_migrations(): void {
+    $current = (int) get_option('tenet_el_db_version', 0);
+    $migrations = [
+        1 => 'migration_001_create_revisions',
+        2 => 'migration_002_create_audit',
+        3 => 'migration_003_create_plans',
+        4 => 'migration_004_create_sessions',
+        5 => 'migration_005_create_locks',
+        6 => 'migration_006_create_rate_limits',
+        7 => 'migration_007_create_backlog',
+        8 => 'migration_008_create_webhooks',
+    ];
+    foreach ($migrations as $version => $fn) {
+        if ($version <= $current) continue;
+        try {
+            $fn();
+            update_option('tenet_el_db_version', $version);
+        } catch (\Throwable $e) {
+            update_option('tenet_el_activation_error', [
+                'version' => $version,
+                'message' => $e->getMessage(),
+                'time' => time(),
+            ]);
+            return; // halt; admin notice surfaces
+        }
+    }
+}
+```
+
+Admin notice fires if `tenet_el_activation_error` is set, surfacing the failure with retry button.
+
+### Multisite (constraint #29)
+
+On `wpmu_new_blog`, plugin's bootstrap re-runs migrations against the new site's `$wpdb->prefix`. Network-admin settings page (separate from per-site settings) controls fleet-wide defaults: operating-mode default for new sites, rate-limit defaults, host detection overrides. Network-activated installs iterate `get_sites()` on first activation.
+
+`$wpdb->prefix` (per-site) used throughout — NEVER `$wpdb->base_prefix`. Tested with `wp-env` multisite fixtures in CI.
 
 ---
 
@@ -658,17 +844,24 @@ mcp-server/
 ```
 
 The MCP server is a *thin* layer over the plugin's REST API. Its only complexity is:
-- Auth handling (load WP URL + App Password from Claude Code config or env)
+- Auth handling — App Password loaded via Claude Code's credential manager (Keychain on macOS / libsecret on Linux / DPAPI on Windows). **Never plaintext in `.mcp.json`.**
+- Anthropic / OpenAI / image-gen API keys — same credential manager delegation. Never plaintext, never logged.
 - Type generation from `PLUGIN_API.md` (manual at v0, codegen in v0.5)
 - Quality gates that run *before* writes (SlopDetector pre-validates AI-generated content)
 - Plan composition (helping the agent produce well-structured plans)
+- **Error enrichment** — `errors.ts` takes plugin error responses and amplifies the `recovery_suggestions[]` (e.g., 422 `schema.unknown_key` becomes "I tried to set X, that key doesn't exist on widget Y, but Z does — should I try Z?" rather than raw 422).
+- **AI generation** (the `/ai/*` endpoints) — copy, headline, image, schema construction. Lives HERE not in the PHP plugin (wp.org review blocker — see HARDENING_v1.md §1.1).
+- **`OperatingMode` client-side check** — before any write tool call, server checks the site's operating_mode and intercepts (observer → all dry_run, quiet/kill_switch → refuses with explanation).
+- **Untrusted content wrapping** — when reading widget content back into the model's context, wrap in `<untrusted_content>...</untrusted_content>` tags to defeat prompt injection from page text (security review item).
+- **Cost tracking** — every Anthropic call logged with input/output tokens + computed USD via published pricing. Per-session totals exposed to the agent and surfaced in Plan Mode "estimated cost" line.
 
-Why have the server at all instead of letting Claude call the REST API directly? Three reasons:
+Why have the server at all instead of letting Claude call the REST API directly? Four reasons:
 1. **Tool surface ergonomics** — MCP tools are nicer than raw HTTP for Claude
 2. **Quality gates close to the model** — SlopDetector / SchemaBuilder run in Node before any network round-trip, saving tokens
-3. **Future: aggregation** — `elementor_build_landing_page` (multi-step composite tool) can live here without polluting the WP plugin
+3. **Error enrichment + injection defense** — best place to wrap untrusted content + amplify recovery suggestions
+4. **Future: aggregation** — `elementor_build_landing_page` (multi-step composite tool) can live here without polluting the WP plugin
 
-**Distribution:** `npm install -g @tenet/elementor-mcp` OR `npx @tenet/elementor-mcp` OR drop-in to `.mcp.json` via the CLI.
+**Distribution:** `npm install -g @tenet/elementor-mcp` OR `npx @tenet/elementor-mcp` OR drop-in to `.mcp.json` via the CLI. Published with **npm provenance + Sigstore attestations**; maintainer accounts require 2FA hardware key (supply chain defense per security review).
 
 ---
 
@@ -702,15 +895,21 @@ cli/
     ├── index.ts                    # entry — picks subcommand
     ├── commands/
     │   ├── init.ts                 # `tenet-elementor init` — top-level wizard
-    │   ├── connect.ts              # `tenet-elementor connect <site-url>` — wire up auth
+    │   ├── connect.ts              # `tenet-elementor connect <site-url>` — single-site
+    │   ├── connect_bulk.ts         # `tenet-elementor connect --config sites.yaml` — fleet
+    │   ├── fleet.ts                # `tenet-elementor fleet status|broadcast` — fleet ops
     │   ├── install-plugin.ts       # downloads + activates plugin via REST or WP-CLI
-    │   ├── doctor.ts               # diagnoses connection + permission issues
+    │   ├── connect_cdn.ts          # `tenet-elementor connect-cdn cloudflare` — CDN purge setup
+    │   ├── doctor.ts               # diagnoses connection + permission issues; runs REAL write test
     │   ├── status.ts               # current connection info
+    │   ├── operating_mode.ts       # `tenet-elementor mode observer|live|quiet|kill --site=` 
     │   └── disconnect.ts
     ├── lib/
     │   ├── ClaudeCodeConfig.ts     # reads/writes ~/.claude/.mcp.json
     │   ├── WordPressDetector.ts    # probes for plugin presence
     │   ├── AppPassword.ts          # generation helper
+    │   ├── FleetRegistry.ts        # reads/writes ~/.tenet-elementor/fleet.json
+    │   ├── ParallelRunner.ts       # bounded concurrency for bulk operations
     │   └── prompts.ts
 ```
 
@@ -743,6 +942,26 @@ You're ready. Try in Claude Code:
 
 If WP-CLI is unavailable (SiteGround StartUp/GrowBig plans), the CLI falls back to: download plugin zip, upload via REST `/wp/v2/plugins`, activate via REST.
 
+**Bulk fleet mode** (constraint #1 of agency adoption — see HARDENING_v1.md §1.5):
+
+```bash
+$ tenet-elementor connect --config sites.yaml --concurrency 5
+
+# sites.yaml format:
+# - url: https://client1.com
+#   admin_user: marcus
+#   admin_app_password: "xxxx xxxx xxxx xxxx xxxx xxxx"
+#   operating_mode: observer        # default for new sites
+#   staging_mandatory: true
+#   brand_kit: ./kits/client1.json
+# - url: https://client2.com
+#   ...
+```
+
+Per-site flow identical to single-site; runs in parallel up to `--concurrency` limit. Per-site outcome reported as a table; failures listed for retry. Failed sites can be re-tried with `--retry-failed`.
+
+`~/.tenet-elementor/fleet.json` registry maintained locally for subsequent `fleet status` and `fleet broadcast` operations.
+
 ---
 
 ## 11. Plan Mode end-to-end flow
@@ -753,35 +972,51 @@ The most important user-visible workflow. Sequence:
 1. User: "/elementor-build a 3-tile bento features section on /home"
 
 2. Claude Code (skill):
+   - checks operating_mode (observer mode → all writes return dry_run)
    - calls elementor_list_widgets → knows what's available
    - calls elementor_get_widget_schema('container'), ('heading'), ('image'), ('icon-box')
    - calls elementor_get_page(123) → has current state + hash_A
+   - calls elementor_iteration_context(123) → loads recent plans + human edits
    - SchemaBuilder constructs valid element tree
    - SlopDetector rejects the AI's first draft headline ("Build the future of features")
    - regenerates with concrete copy from the brand kit
    - composes a plan: 3 ops (insert container, insert 3 child widgets)
+   - calls elementor_preview_render(prospective_elements) → preview_url for human review
    - calls elementor_create_plan(...)
 
 3. Plugin:
-   - persists plan, returns plan_id + approval_url
-   - emits webhook to user's Slack/email: "Plan ready for review"
+   - generates plan_id (ULID) + approval_token (32-byte random hex)
+   - persists plan
+   - returns plan_id + approval_url with both id AND token: 
+     /wp-admin/admin.php?page=tenet-plan&id=pln_01HXY...&token=abc123...
+   - emits webhook to user's Slack/email/Claude Code: "Plan ready for review"
 
 4. User opens approval_url in browser (WP admin):
-   - sees plan structure, preview of changes, estimated cost
+   - approval page validates: token matches, plan not expired, user has manage_options
+     OR is in the configured approvers list, OR is the user who created the session
+   - shows plan structure, side-by-side preview iframe (desktop/tablet/mobile), CSS-diff,
+     estimated cost in tokens + USD
+   - CSRF nonce on the Approve button
    - clicks Approve
 
 5. Plugin:
-   - PlanExecutor begins execution
+   - validates CSRF nonce
+   - records approval_user_id + approval_at + approver_session_id
+   - PlanExecutor begins execution synchronously (small ops) OR via wp_schedule_single_event (large)
    - acquires page lock on post 123
-   - runs each op through DocumentWriter::save() (with rollback on any failure)
-   - emits webhook: "Plan completed"
+   - runs each op through DocumentWriter::save() (which respects all 30 constraints)
+   - on any step failure: rollback ALL prior steps via revision snapshot taken at plan-start
+   - resets session's chained-singleton counters
+   - emits webhook: "Plan completed" with new hash
 
 6. Claude Code (skill) receives webhook:
    - confirms to user: "Done. New section added. View at https://example.com/home"
-   - calls elementor_audit_page(123) → reports a11y/SEO/perf scores
+   - calls elementor_audit_page(123) → reports a11y/SEO/perf scores against the new content
 ```
 
-A failed step rolls back the entire plan via revision snapshot taken at plan-start.
+A failed step rolls back the entire plan via the snapshot. If the plugin updates mid-execution (plan stuck in `executing` for > 5 min), `init` action marks it `failed` with reason `plugin_updated_mid_execution` and fires a webhook.
+
+**Plan expiration:** plans expire after 1 hour by default (configurable). Expired plans cannot be approved; they must be regenerated. This is intentional — stale plans operating on stale page state are dangerous.
 
 ---
 
@@ -799,21 +1034,35 @@ A failed step rolls back the entire plan via revision snapshot taken at plan-sta
 | # | Constraint | Enforced in |
 |---|---|---|
 | 1 | Validate writes against live schema | `SchemaValidator::validateTree` → throws before `DocumentWriter::save` proceeds |
-| 2 | Read-after-write | `DocumentWriter::save` always returns `verifiedElements` from `$document->get_elements_data()` post-save |
+| 2 | Read-after-write | `DocumentWriter::save` returns `verifiedElements` from `$document->get_elements_data()` post-save |
 | 3 | Snapshot before multi-step | `PlanExecutor` snapshots at plan-start; `DocumentWriter::save` snapshots per-call |
-| 4 | Surgical diff-based edits only | REST: `POST /pages/{id}/patch` is the primary write; `PUT /pages/{id}` (full replace) requires explicit `expected_hash` |
-| 5 | Auto-flush cache + verify | `CSSRegenerator` + `CacheFlusher` called inside `DocumentWriter::save`; `verifyFrontendUpdated()` confirms guest-cache invalidation |
-| 6 | Token-budgeted reads | `PagesController::get` returns `tree_summary` by default; `?include=full` for full tree; per-element reads support `?depth=N` |
-| 7 | Hard pre-flight | `PreflightValidator` runs on every controller's `permission_callback`; refuses on incompatible PHP/WP/Elementor |
+| 4 | Surgical diff-based edits only | REST `POST /pages/{id}/patch` primary; `PUT /pages/{id}` requires `expected_hash` |
+| 5 | Auto-flush cache + verify | Deferred async (constraint #17); `CSSRegenerator` + `CacheFlusher` + `verifyFrontendUpdated` in `tenet_el_post_save_verify` cron event |
+| 6 | Token-budgeted reads | `PagesController::get` returns `tree_summary` by default; `?include=full` for full; per-element supports `?depth=N` |
+| 7 | Hard pre-flight | `PreflightValidator` runs on every controller's `permission_callback` |
 | 8 | Pin Elementor version range | `ElementorAdapter::assertSupportedVersion` runs in every write |
-| 9 | Cost meter | MCP server tracks tokens per session; refuses to retry > N times on same error class |
-| 10 | Append vs replace explicit | All write ops require explicit `op` field; "append" never default |
+| 9 | Cost meter | MCP server tracks tokens per session; refuses retry > N on same error class |
+| 10 | Append vs replace explicit | All write ops require explicit `op` field; "append" never default; `CustomCSSBlockManager` enforces named-block replace |
 | 11 | Tool-count discipline | ~50 MCP tools total; parameterized over specialized |
-| 12 | Scope guards | `PatchEngine` only mutates element IDs listed in `ops[].element_id`; refuses ops with no target |
-| 13 | Performance budgets | `PerformanceBudget` quality gate runs pre-write; rejects oversized images, banned widgets |
+| 12 | Scope guards | `PatchEngine` only mutates element IDs listed in `ops[].element_id` |
+| 13 | Performance budgets | `PerformanceBudget` quality gate pre-write; rejects oversized images, banned widgets |
 | 14 | First-class export | `GET /kit/export`, `GET /pages/{id}/export?format=...` always available |
-| 15 | Audit-tagged edits | `AuditLogger` writes to `wp_tenet_el_audit` + adds line to WP's native revision comment |
-| 16 | No silent failures | Every controller's error envelope; `DocumentWriter::save` throws on rollback rather than returning partial |
+| 15 | Audit-tagged edits | `AuditLogger` writes to `wp_tenet_el_audit` + adds WP revision comment |
+| 16 | No silent failures | Every controller's error envelope; `DocumentWriter::save` throws on rollback |
+| 17 | Async-by-default I/O | `wp_schedule_single_event('tenet_el_post_save_verify', ...)` defers all `wp_remote_*` and expensive ops |
+| 18 | PolicyGuard refusals | `PolicyGuard::assertAllowed()` runs FIRST in every controller; hardcoded refuse-list |
+| 19 | Chained-singleton plan trigger | `SessionTracker::recordOp` + `PolicyGuard::checkPlanRequired` enforced in `DocumentWriter::save` |
+| 20 | HTTPS-only | `ControllerBase` checks `is_ssl()` first; returns 421 |
+| 21 | SSRF guards on URLs | `URLValidator::validateExternal($url)` called by MediaController + WebhooksController |
+| 22 | Custom locks table | `LockManager` uses `wp_tenet_el_locks` (not transients); validated `post_id` |
+| 23 | Container-mode matching | `ContainerModeAdapter::validateInserts` in `DocumentWriter::save` |
+| 24 | Responsive completeness | `SchemaValidator::validateResponsiveCompleteness` + auto-fill in `PatchEngine` |
+| 25 | Dynamic tag references resolve | `DynamicTagValidator::validateTree` in `DocumentWriter::save` |
+| 26 | Global refs preferred | `GlobalRefPreferrer::preferGlobals` transforms tree before write |
+| 27 | Inner-flag inference | `PatchEngine::insert` auto-sets `isInner`; `SchemaValidator::validateInnerFlag` rejects mismatches |
+| 28 | Deep ID regen on duplicate/wrap | `IDGenerator::regenerateTree(deep: true)` default for those ops |
+| 29 | Skin-aware schema validation | `WidgetCatalog::getSchema` returns per-skin; `SchemaValidator::validateSkinAware` enforces |
+| 30 | Hash-chained audit log | `AuditLogger::log` computes `chain_hash = sha256(prev.chain_hash \|\| payload_hash)` |
 
 ---
 
@@ -842,15 +1091,187 @@ A failed step rolls back the entire plan via revision snapshot taken at plan-sta
 Repeated from §1, deliberately. The discipline of cutting matters more than the ambition of adding.
 
 - ❌ Hosted SaaS dashboard
-- ❌ Multi-site management
+- ❌ Hosted standalone Plan Review approval surface (v1 uses wp-admin)
+- ❌ Multi-site management dashboard (v1 ships bulk CLI; web dashboard is v2)
 - ❌ Autonomous background agents (post-launch content/SEO/perf monitors)
 - ❌ Native A/B testing
 - ❌ Figma / URL / screenshot import
 - ❌ Multilingual adapter
 - ❌ WooCommerce
-- ❌ Static HTML export
+- ❌ Static HTML export (Kit `.zip` + WXR + Elementor template JSON cover v1 export)
 - ❌ Custom WordPress theme builder (Hello + Pro is enough)
-- ❌ Real-time collaboration (use WP's existing post-lock UX)
+- ❌ Real-time collaboration (use WP's existing post-lock UX + our locks/operating-mode)
 - ❌ Mobile app
+- ❌ Per-step plan approval / plan forking / variant branches (v1 = single-approval atomic execution)
+- ❌ Visual-diff screenshots with pixel-delta human review (v1 ships CSS-diff JSON only; screenshots are v1.5)
+- ❌ AI-edit canvas badge inside the Elementor editor itself (audit log + revision tags substitute in v1)
+- ❌ Real-time presence indicators (locks for exclusion; presence is v2)
+- ❌ Live cost meter UI in chat (session-level cost tracking + per-task estimates in plans is v1)
 
 These are roadmapped (see `knowledge/ROADMAP.md`) but explicit non-goals for v1.0.
+
+---
+
+## 17. Multisite handling
+
+WordPress Network installs are ~10% of plugin installs (per WP plugin engineer critique). Supported from v1.
+
+- All custom tables use `$wpdb->prefix` (per-site), NOT `$wpdb->base_prefix`. Tested with `wp-env` multisite fixtures in CI.
+- On `wpmu_new_blog` action, plugin's `Bootstrap::onNewBlog($blog_id)` calls `switch_to_blog($blog_id)`, runs migrations, restores. Idempotent.
+- Network-activated installs iterate `get_sites()` once on activation.
+- Network-admin settings page (separate from per-site settings) controls fleet-wide defaults:
+  - Default operating mode for new sites (recommend `observer`)
+  - Default rate-limit thresholds
+  - Host detection adapter overrides (e.g., "we're on a custom-configured Kinsta — use this adapter")
+  - Default Anthropic API key (per-site override allowed)
+- Audit log + revisions are per-site. Webhook config is per-site.
+- The `tenet_agent` role is registered on every site in the network.
+
+---
+
+## 18. Async I/O discipline
+
+Hard rule (constraint #17): no `wp_remote_*` calls or expensive filesystem ops in REST controller hot path. Inventory of what runs sync vs async:
+
+**Synchronous (inside REST handler):**
+- App Password auth
+- HTTPS check (`is_ssl()`)
+- PolicyGuard refusals
+- Operating mode check
+- Rate limit token bucket
+- Hash compute (in-memory)
+- Schema validation (in-memory; widget catalog is cached)
+- Element ID generation
+- OCC hash check
+- Revision snapshot (single DB write — gzipped LONGBLOB)
+- Elementor `Document::save()` (the actual postmeta write; happens inside Elementor's own code)
+- Read-after-write of `_elementor_data` (single DB read)
+- Hash chain audit row write (single DB write)
+
+**Deferred via `wp_schedule_single_event(time() + 1, ...)`:**
+- Elementor CSS regeneration (Post + Global + Custom + Manager flush — see §5 CSSRegenerator)
+- Host cache flush (SG Optimizer, WP Rocket, LiteSpeed, etc.)
+- CDN cache purge (Cloudflare, BunnyCDN, KeyCDN)
+- Frontend verification fetch (HEAD against the rendered page to confirm hash matches)
+- Webhook emission to subscribers
+
+**Deferred via `shutdown` action:**
+- Session counter persistence (`ops_per_page` map update)
+- Rate limit bucket refill
+- Cleanup of expired idempotency keys
+
+**Result:** typical write latency on a 5MB page drops from 1.5–3s (sync everything) to ~200–400ms (sync minimum), with full verification completing 2–10s after via webhook. Agent treats the webhook as the canonical "this is done" signal; the initial response is provisional. SKILL.md prompts the model to surface "Applied (verification pending)" then update once webhook fires.
+
+If `wp_schedule_single_event` fails (some hosts disable WP-Cron), the scheduled work runs in `shutdown` instead. Both paths log failures to `wp_tenet_el_async_log` for triage.
+
+---
+
+## 19. Custom `tenet_agent` role + capabilities
+
+Constraint #18 + security review. The default Editor role gives way too much capability for an automated agent.
+
+```php
+add_role('tenet_agent', __('Tenet Agent', 'tenet-elementor-agent'), [
+    // What it CAN do:
+    'read' => true,
+    'edit_pages' => true,
+    'edit_others_pages' => true,
+    'publish_pages' => true,
+    'edit_published_pages' => true,
+    'delete_pages' => true,                // soft-delete to trash only — PolicyGuard refuses ?force=true
+    'edit_posts' => true,                  // for blog posts
+    'edit_others_posts' => true,
+    'publish_posts' => true,
+    'edit_published_posts' => true,
+    'delete_posts' => true,
+    'upload_files' => true,                // ONLY if image-gen enabled; disabled by default
+    'tenet_use_agent_api' => true,         // custom cap, checked by REST controllers
+    
+    // What it CANNOT do (NOT granted):
+    // 'unfiltered_html' => never
+    // 'manage_categories' => never
+    // 'manage_options' => never
+    // 'edit_users' => never
+    // 'install_plugins' => never
+    // 'activate_plugins' => never
+    // 'edit_themes' => never
+    // 'delete_users' => never
+    // 'create_users' => never
+]);
+```
+
+CLI setup wizard creates the `tenet-agent` user with this role by default. If the user wants Administrator-tier access (for `POST /plugins/install` with `slug`, for example), the CLI prompts with explicit warning: "Administrator role expands blast radius. Recommended only if you understand the risk. The PolicyGuard refuse-list (§27 of PLUGIN_API.md) still applies, but Administrator capability grants broader DB access. Continue? [y/N]"
+
+REST controllers check `current_user_can('tenet_use_agent_api')` first (works for both `tenet_agent` and Administrator). Specific destructive endpoints additionally check `current_user_can('manage_options')` (Administrator only).
+
+---
+
+## 20. Host adapter matrix
+
+Specific behaviors per detected host. Each adapter is a class implementing `HostAdapterInterface`:
+
+| Host | Plan | SSH/WP-CLI | App Password auth | Cache | Notes |
+|---|---|---|---|---|---|
+| SiteGround StartUp | shared | No | Works if SG Security default-off | SG Optimizer | SG Security: must auto-allowlist REST writes via SG-FW-XMLRPC-1 rule toggle. No staging — draft-mode fallback. |
+| SiteGround GrowBig | shared | No | Same | SG Optimizer | Same as StartUp. Most common agency target — fully documented compat matrix shipped with plugin. |
+| SiteGround GoGeek+ | shared+ | Yes | Same | SG Optimizer | SSH/WP-CLI available. Native staging via SG dashboard — we trigger via unofficial REST API; mark as "best-effort" in docs. |
+| Kinsta | managed | Yes | Works | Kinsta CDN + native cache | Native staging via Kinsta API (with API token). REST writes unrestricted. Recommended host. |
+| Cloudways | managed | Yes | Works | Varies by stack | Most permissive. Recommended host. |
+| WP Engine | managed | Yes | Mercury security layer may rate-limit | WPE native cache | Mercury blocks REST writes from non-allowlisted IPs. Doctor surfaces specific allowlist instructions. |
+| Pressable | managed | Yes | Works | Native | Similar to Kinsta. |
+| Local by WP Engine | local dev | Yes | Works | None | Recommended dev environment. |
+| GoDaddy Managed WP | shared | No | Often blocked | Varies | Not recommended. Doctor warns. |
+| Budget shared hosts (Bluehost, HostGator, Namecheap basic) | shared | Varies | Often blocked | Varies | Not recommended. Doctor warns. |
+
+Each adapter implements: `detect()` (UA / file-marker / config detection), `flushCache($post_id)`, `restApiWriteCompatibility()` (returns specific blockers), `setupInstructions()` (doctor command output).
+
+SiteGround GrowBig gets the deepest treatment in v1 — it's the most common agency target. A separate document `docs/hosts/siteground.md` ships with the plugin documenting exact configuration steps.
+
+---
+
+## 21. Cache adapter matrix
+
+Page cache + object cache adapters. Each implements `CacheAdapterInterface { flushPage($id), flushSite(), detect() }`.
+
+| Adapter | Detection | Flush mechanism | v1 priority |
+|---|---|---|---|
+| SG Optimizer | `function_exists('sg_cachepress_purge_cache')` | Direct fn call | **v1 must-have** |
+| WP Rocket | `defined('WP_ROCKET_VERSION')` | `rocket_clean_post`, `rocket_clean_domain` | **v1 must-have** (largest install base) |
+| LiteSpeed Cache | `class_exists('LiteSpeed\Cache')` | `do_action('litespeed_purge_post', $id)` | **v1 must-have** (shared host favorite) |
+| WP Engine native | `class_exists('WpeCommon')` | `WpeCommon::purge_varnish_cache_post()` | **v1 must-have** (no plugin, host-controlled) |
+| W3 Total Cache | `function_exists('w3tc_pgcache_flush')` | Direct fn calls | v1.5 |
+| WP Super Cache | `function_exists('wp_cache_post_change')` | Direct fn call | v1.5 |
+| WP Fastest Cache | `function_exists('wpfc_clear_post_cache_by_id')` | Direct fn call | v1.5 |
+| Cloudflare APO | API call to CF | REST API with token | v1.5 |
+| Comet Cache | `class_exists('comet_cache')` | Direct fn calls | v1.5 |
+
+Object cache adapters: Redis (`wp_cache_flush`), Memcached, native non-persistent (fallback). All v1.
+
+---
+
+## 22. CDN flusher
+
+Separate from cache (which is server-side). CDN purges run at the edge.
+
+Each adapter implements `CDNAdapterInterface { purgePage($url), purgeAssets($urls), detect() }`.
+
+| Adapter | Detection | Auth | v1 |
+|---|---|---|---|
+| Cloudflare | DNS lookup → CF nameservers OR `cf-ray` header on response | User-provided API token (Zone:Edit:Edit + Cache Purge:Edit), encrypted via libsodium with `AUTH_KEY` | **v1 must-have** |
+| BunnyCDN | URL contains `b-cdn.net` OR explicit config | API token | v1.5 |
+| KeyCDN | Explicit config | API token | v1.5 |
+| Fastly | Explicit config | API token | v2 |
+
+API tokens stored in `wp_options.tenet_el_cdn_config` JSON, **encrypted at rest** using libsodium symmetric encryption keyed off `AUTH_KEY` from `wp-config.php` (so unauthorized DB access doesn't yield tokens directly).
+
+Cloudflare adapter setup via CLI:
+```bash
+$ tenet-elementor connect-cdn cloudflare
+? Cloudflare API token: ****
+? Zone ID: example.com → 0123abc...
+✓ Verified token permissions
+✓ Stored encrypted in wp_options
+✓ Tested purge of /wp-content/uploads/elementor/css/post-1.css
+```
+
+Async purge: invoked from `tenet_el_post_save_verify` cron event (along with cache flush). Failures retry with exponential backoff up to 3 times; persistent failure → admin notice.
