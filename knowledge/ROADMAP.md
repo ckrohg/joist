@@ -6,12 +6,15 @@
 
 ## Launch target
 
-**v1.0 OSS plugin on wp.org: ~3 months from start of focused engineering.**
+**v1.0 OSS plugin on wp.org: ~14–16 weeks from start of focused engineering.**
 
-Working backward from a 3-month v1.0:
-- **Month 1**: M0 spike + plugin scaffold + core write pipeline
-- **Month 2**: All §1–§18 API endpoints + 16 failure-mode constraints enforced
-- **Month 3**: Plan Mode + anti-slop AI gen + Claude Code skills + CLI + wp.org submission
+Updated 2026-05-10 after the v1 hardening pass (`specs/HARDENING_v1.md`) — original 12-week target slipped 2–4 weeks to absorb: bulk fleet CLI brought forward from v2, multisite handling, custom `tenet_agent` role, PolicyGuard refusals, async I/O refactor, third-party security audit, and the 14 new failure-mode constraints (#17–#30).
+
+- **Weeks 1–6 (v0.5)**: full API surface + all 30 failure-mode constraints + multisite + custom role + PolicyGuard + async I/O
+- **Weeks 7–8 (v0.7 — NEW)**: bulk fleet CLI, observer/quiet/kill-switch modes, client changelog export, Discord channel live
+- **Weeks 9–12 (v0.9)**: Plan Mode end-to-end + anti-slop AI gen + SiteGround GrowBig real-site testing + preview render + iteration context
+- **Week 13 (v0.95 — NEW)**: third-party security audit + remediation pass
+- **Weeks 14–16 (v1.0)**: wp.org submission + public launch
 
 ---
 
@@ -23,31 +26,53 @@ Working backward from a 3-month v1.0:
        I can edit it in Elementor, nothing broke."
 
 [ ] v0.5 — Plugin Alpha (4–6 weeks)
-    └─ Full §1–§18 API. All 16 failure-mode constraints enforced.
+    └─ Full §1–§22 API. All 30 failure-mode constraints enforced.
        Schema-validated writes. Atomic rollback. Hash-based OCC.
+       Multisite support. Custom tenet_agent role. PolicyGuard
+       refuse-list. Async I/O discipline. Custom locks table.
 
-[ ] v0.9 — Beta (8–10 weeks)
-    └─ Plan Mode end-to-end. Anti-slop AI gen for copy + images.
-       Quality gates. SiteGround tested. Claude Code skill bundle.
+[ ] v0.7 — Agency-ready (2 weeks) — NEW
+    └─ Bulk fleet CLI (`connect --config sites.yaml`).
+       Observer / quiet / kill-switch / staging-mandatory modes.
+       Client-facing changelog export (HTML/CSV/PDF).
+       Discord channel + GitHub Discussions live.
+       SiteGround GrowBig compat matrix documented.
 
-[ ] v1.0 — OSS Launch (12 weeks)
-    └─ wp.org-listed. Documented. CLI for one-shot setup.
+[ ] v0.9 — Beta (4 weeks)
+    └─ Plan Mode end-to-end with WP-admin React approval UI built on
+       @wordpress/components. Anti-slop AI gen for copy + images.
+       Quality gates. SiteGround real-site testing.
+       POST /preview/render with sandboxed iframe + CSS-diff.
+       Iteration context endpoint. Claude Code skill bundle.
+
+[ ] v0.95 — Security audit (1 week) — NEW
+    └─ Third-party WP-specialist security audit + remediation pass.
+       Penetration test of REST surface, SSRF guards, policy
+       refusals, plan approval flow. Budget $5–15k.
+
+[ ] v1.0 — OSS Launch (14–16 weeks total)
+    └─ wp.org-listed. Documented. Bulk CLI tested in production.
        Hello + Elementor Pro fully supported. Audit log + rollback
        proven in production with beta users.
 
 [ ] v1.5 — Depth (6 months)
-    └─ SEO depth (schema markup, llms.txt). A11y scanner (axe-core).
-       Multilingual via WPML adapter. Forms (Pro) integration.
-       Staging mode for hosts that support it.
+    └─ SEO depth (schema markup, llms.txt). A11y scanner (axe-core)
+       + remediation. Multilingual via WPML adapter. Forms (Pro)
+       integration. Per-step plan approval + plan forking.
+       AI-edit canvas badge in Elementor editor. Visual-diff
+       screenshots. GDPR DSR endpoints. Curated starter kits.
 
 [ ] v2.0 — SaaS Launch (9–12 months)
-    └─ Hosted control plane. Multi-site dashboard. Post-launch
-       autonomous agents. Brand kit cloud storage. Optional managed
-       AI. Agency white-label.
+    └─ Hosted control plane with standalone approval surface.
+       Multi-site dashboard. Post-launch autonomous agents.
+       Brand kit cloud storage. Optional managed AI. Agency
+       white-label. Real-time presence indicators.
 
 [ ] v3.0 — Parity (12–18 months)
-    └─ Figma / screenshot import. Native A/B testing. AEO citation
-       tracking. WooCommerce. Static HTML export.
+    └─ Figma / screenshot import. Native A/B testing. AEO
+       citation tracking. WooCommerce. Static HTML export.
+       Design system tokens (variants, semantic, dark-mode).
+       Site graph + coherence scoring.
 ```
 
 ---
@@ -167,7 +192,15 @@ Working backward from a 3-month v1.0:
 
 ## Updates log
 
-### 2026-05-10
+### 2026-05-10 (later)
+- v1 hardening pass — 5-way red-team critique synthesized into `specs/HARDENING_v1.md`
+- §20 failure-mode constraints extended from 16 → 30 (PLUGIN_API.md)
+- Roadmap updated: v1.0 timeline 12 → 14–16 weeks; new v0.7 (agency-ready) and v0.95 (security audit) milestones
+- Bulk fleet CLI brought forward from v2 to v1
+- README hardened: status warning to top, support strategy, recommended-for tiers, "what survives if maintainer disappears"
+- New memory: `v1_hard_requirements.md` consolidates non-negotiables from critique
+
+### 2026-05-10 (earlier)
 - Workspace initialized via `tenet init`
 - API spec v0 drafted (`specs/PLUGIN_API.md` — 1200+ lines covering §1–§22)
 - Architecture spec v0 drafted (`specs/ARCHITECTURE.md`)

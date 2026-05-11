@@ -1,8 +1,9 @@
 # tenet-elementor
 
-> Open-source agentic backbone for Elementor (WordPress) sites. A plugin + Claude Code skill + CLI that gives an AI agent safe, schema-validated, audit-logged read/write access to any Elementor site — so AI can build new sites, edit existing pages surgically, and refresh content as a trusted teammate, not a magic button.
+> [!WARNING]
+> **Status: pre-v0.1 — specs only, no plugin code yet.** Do not install on production sites. Target v1.0 OSS launch: ~14–16 weeks of focused engineering from start. Watch the repo if you want to follow along; install on a staging site at v0.5; install on a non-critical client site at v1.0; install on important client sites only after v1.0 has been in the wild for 60+ days.
 
-**Status:** pre-v0.1 — workspace bootstrapped, API + architecture specs drafted, no code yet.
+> Open-source agentic backbone for Elementor (WordPress) sites. A plugin + Claude Code skill + CLI that gives an AI agent safe, schema-validated, audit-logged read/write access to any Elementor site — so AI can build new sites, edit existing pages surgically, and refresh content as a trusted teammate, not a magic button.
 
 ---
 
@@ -97,6 +98,31 @@ Full list of 16 constraints in [`specs/PLUGIN_API.md §20`](specs/PLUGIN_API.md)
 
 ---
 
+## Recommended for
+
+**v1.0 target users:**
+- Solo Elementor builders and freelancers running 1–5 client sites
+- Small studios (1–3 people) who are Claude-Code-fluent
+- WordPress devs evaluating agentic AI tooling for client work
+
+**Wait for v2 SaaS (~9–12 months out):**
+- Agencies running 10+ client sites who need bulk fleet management with a web dashboard, autonomous post-launch agents, white-label
+- Anyone who needs a designer team (non-developers) to drive the agent without going through Claude Code
+
+The v1 OSS CLI includes a `--config sites.yaml` bulk-onboarding mode for fleet operators, but the full multi-site management surface is the v2 paid tier.
+
+---
+
+## Support
+
+- **GitHub Discussions** — technical questions, contribution discussion *(set up at v0.5)*
+- **Discord** — real-time support, office hours *(set up at v0.5)*
+- **Bug triage SLA** — best-effort, business-hours US, critical bugs (data loss, security) triaged within 48 hours of report *(once v1.0 ships)*
+
+**What if the maintainer disappears?** The plugin is GPL. The MCP server + CLI are MIT. The schema validator is self-contained — fork the repo and run. The custom database tables (`wp_tenet_el_*`) are documented in `specs/ARCHITECTURE.md §6`. Every AI-generated edit lives in native `_elementor_data`, so uninstalling the plugin doesn't remove your pages.
+
+---
+
 ## License
 
 - Plugin (PHP): GPL-2.0-or-later (required for wp.org)
@@ -106,6 +132,8 @@ Full list of 16 constraints in [`specs/PLUGIN_API.md §20`](specs/PLUGIN_API.md)
 
 ---
 
-## Status
+## Repo status
 
-Private development repo. Public OSS launch targeted for v1.0 (~3 months from focused engineering start).
+Private during pre-v0.5 development. Will go public when v0.5 plugin alpha is ready for community feedback. Public OSS launch (v1.0 → wp.org) targeted ~14–16 weeks from focused engineering start.
+
+See `specs/HARDENING_v1.md` for the detailed v1 scope after the 5-way red-team critique pass.
