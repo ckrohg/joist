@@ -15,7 +15,7 @@ This document is **canonical** for what changed and why. PLUGIN_API.md and ARCHI
 
 ### 1.2 The agent's Editor-role default is too much capability
 **Identified by:** Security review (blast radius), WP plugin engineer (privilege minimization).
-**Decision:** Custom `tenet_agent` role with: `edit_pages`, `edit_others_pages`, `publish_pages`, `read`, custom `tenet_use_agent_api`. `upload_files` only when image-gen enabled. NEVER `unfiltered_html`. Admin-role escalation requires explicit user confirmation in the CLI with a warning.
+**Decision:** Custom `joist_agent` role with: `edit_pages`, `edit_others_pages`, `publish_pages`, `read`, custom `joist_use_agent_api`. `upload_files` only when image-gen enabled. NEVER `unfiltered_html`. Admin-role escalation requires explicit user confirmation in the CLI with a warning.
 **v1 target.**
 
 ### 1.3 Plan Mode is bypassable via chained singleton patches
@@ -30,7 +30,7 @@ This document is **canonical** for what changed and why. PLUGIN_API.md and ARCHI
 
 ### 1.5 No real bulk/fleet support kills the agency segment entirely
 **Identified by:** Marcus (the agency user), competitor red-team (distribution).
-**Decision:** Bring `tenet-elementor connect --config sites.yaml` forward to v1 OSS CLI. SaaS multi-site dashboard remains v2, but the bulk-onboard primitive is v1. Without this, the agency thesis fails.
+**Decision:** Bring `joist connect --config sites.yaml` forward to v1 OSS CLI. SaaS multi-site dashboard remains v2, but the bulk-onboard primitive is v1. Without this, the agency thesis fails.
 **v1 target.**
 
 ### 1.6 The wp-admin Plan Review surface drags the UX into "WP plugin uncanny valley"
@@ -75,7 +75,7 @@ This document is **canonical** for what changed and why. PLUGIN_API.md and ARCHI
 | §8 widget catalog | Schema returns `breakpoints[]`, `supports_globals: bool`, `skins[]` per control. New `POST /widgets/validate` enforces all three. | Elementor |
 | §9 globals | `PUT /kit` triggers global+page+kit CSS regen. New `POST /kit/match-color` (delta-E nearest global). | Elementor |
 | §11 media | URL-mode upload tightened: https only, public-IP only, max-redirect 0, banned schemes, MIME-sniff post-download, size cap pre-download (HEAD then GET). | Security |
-| §13 plugins | `POST /plugins/install` with `zip_url` requires `TENET_ALLOW_ARBITRARY_ZIP` constant in `wp-config.php` (default false). v1 restricts to wp.org slugs. | Security |
+| §13 plugins | `POST /plugins/install` with `zip_url` requires `JOIST_ALLOW_ARBITRARY_ZIP` constant in `wp-config.php` (default false). v1 restricts to wp.org slugs. | Security |
 | §15 webhooks | URL validated at registration AND each emission (DNS rebinding); circuit breaker after failure_count > 10; HMAC dual-secret rotation. | Security |
 | §16 health | Doctor performs real write test, not just config flags. Surfaces specific Wordfence/iThemes/SG rule IDs to fix. | WP eng + Marcus |
 | §17 MCP | Tool surface includes `elementor_iteration_context`, `elementor_preview_render`, `elementor_match_color`, `elementor_list_dynamic_tags` | Competitor + Elementor |
@@ -113,12 +113,12 @@ This document is **canonical** for what changed and why. PLUGIN_API.md and ARCHI
 | §5 class catalog | NEW `OperatingMode` (observer / quiet / kill-switch / staging-only enforcement at ControllerBase) | Marcus |
 | §5 SchemaValidator | Extend with: `validateResponsiveCompleteness()`, `validateSkinAware()`, `validateInnerFlag()`, `validateGlobalsPreferred()`, `validateDynamicTagsResolve()` | Elementor |
 | §5 IDGenerator | Add `regenerateTree($subtree, deep: bool)` default `true` for duplicate/wrap | Elementor |
-| §5 LockManager | Replace transient-backed locks with custom `wp_tenet_el_locks` table (autoload=no, validated post_id) | WP eng + security |
+| §5 LockManager | Replace transient-backed locks with custom `wp_joist_locks` table (autoload=no, validated post_id) | WP eng + security |
 | §5 CSSRegenerator | Add `Global_CSS::create()->update()`, `Custom_CSS::create()->update()`, `Manager` flush, `_elementor_element_cache` + `_elementor_inline_svg` clearance | Elementor |
 | §6 DB schema | Replace all ENUM columns with VARCHAR(16) + CHECK or app-level validation. Add `$wpdb->get_charset_collate()` to every CREATE TABLE. | WP eng |
-| §6 DB schema | NEW `wp_tenet_el_locks` table replacing transient locks | WP eng + security |
-| §6 DB schema | `wp_tenet_el_audit` adds `chain_hash CHAR(64)` for hash-chained tamper detection | Security |
-| §6 DB schema | `wp_tenet_el_plans` adds `approval_token CHAR(64) NOT NULL` (32-byte random) alongside ULID id | Security |
+| §6 DB schema | NEW `wp_joist_locks` table replacing transient locks | WP eng + security |
+| §6 DB schema | `wp_joist_audit` adds `chain_hash CHAR(64)` for hash-chained tamper detection | Security |
+| §6 DB schema | `wp_joist_plans` adds `approval_token CHAR(64) NOT NULL` (32-byte random) alongside ULID id | Security |
 | §6 DB schema | `db_version` option, idempotent migrations, last-success tracking, admin-notice on failure | WP eng |
 | §7 MCP wiring | Tool list explicitly under 80 tools; parameterized over specialized — confirmed | WP eng |
 | §8 MCP server | NEW `OperatingMode` client-side enforcement before any write call | Marcus |
@@ -129,7 +129,7 @@ This document is **canonical** for what changed and why. PLUGIN_API.md and ARCHI
 | §11 Plan Mode flow | Sequence updated: approval URL contains separate `approval_token`; CSRF nonce on Approve button; approver-binding (same user who created session OR designated approvers) | Security |
 | **NEW §17** | Multisite handling (`wpmu_new_blog`, per-site migrations, network-admin settings, `$wpdb->prefix` discipline) | WP eng |
 | **NEW §18** | Async I/O discipline (full inventory of deferred operations, what runs sync vs async) | WP eng |
-| **NEW §19** | Custom `tenet_agent` role definition + capability whitelist | Security |
+| **NEW §19** | Custom `joist_agent` role definition + capability whitelist | Security |
 | **NEW §20** | Host adapter matrix (SiteGround GrowBig/GoGeek+, Kinsta, WPE, Cloudways, Local) with specific behaviors per host | Marcus + WP eng |
 | **NEW §21** | Cache adapter matrix (SG Optimizer, WP Rocket, LiteSpeed, W3TC, WP Super Cache, WPE native, Cloudflare APO) | WP eng |
 | **NEW §22** | CDN flusher interface (Cloudflare, BunnyCDN; encrypted token storage in options) | WP eng |
@@ -265,11 +265,11 @@ Response includes `generated_ids: {temp-1 → real-8hex, temp-2 → real-8hex, .
 - `ops_total > 5` since last approved plan
 - `ops_per_page[$page_id] > 10` since last approved plan
 
-Configurable thresholds via `tenet_el_plan_thresholds` option.
+Configurable thresholds via `joist_plan_thresholds` option.
 
 ### §6.12 Observer / dry-only mode
 
-Per-site option `tenet_el_operating_mode`:
+Per-site option `joist_operating_mode`:
 - `live` (default for v1.0+ once user opts in)
 - `observer` — all writes return 200 with `dry_run: true` automatically applied; nothing persisted; webhook fires `plan.would_have` event for offline review. Default for new installs in v1.0.
 - `quiet` — writes refused for N minutes (`quiet_until` timestamp); returns 423 `operating_mode.quiet`.
@@ -283,7 +283,7 @@ Marcus's "I'd run it in observer mode for 30 days before allowing writes" use ca
 
 CLI:
 ```bash
-$ tenet-elementor connect --config sites.yaml
+$ joist connect --config sites.yaml
 # sites.yaml format:
 # - url: https://client1.com
 #   admin_user: marcus
@@ -333,7 +333,7 @@ Plugin renders mode in:
 - Health check (`GET /health` reports current mode).
 - Webhook `operating_mode.changed` event.
 
-`tenet_el_staging_mandatory` site option — when true, REST writes refused unless request `Origin` header matches a configured staging URL pattern. v1 includes this; users can opt in per site.
+`joist_staging_mandatory` site option — when true, REST writes refused unless request `Origin` header matches a configured staging URL pattern. v1 includes this; users can opt in per site.
 
 ### New §25 Client-facing reports
 
@@ -376,7 +376,7 @@ SchemaValidator runs DynamicTagValidator on every write that touches a `__dynami
   "include_css_diff": true
 }
 → {
-  "preview_url": "https://example.com/?tenet_preview=tok_...",
+  "preview_url": "https://example.com/?joist_preview=tok_...",
   "preview_token": "tok_...",
   "expires_at": "...",
   "css_diff": [/* changed CSS rules with selectors + before/after */]
@@ -385,7 +385,7 @@ SchemaValidator runs DynamicTagValidator on every write that touches a `__dynami
 
 The preview URL serves a one-shot rendered page derived from the prospective elements WITHOUT mutating `_elementor_data`. Token-scoped, expires in 30 min, requires same App Password.
 
-Implementation: copy current `_elementor_data`, apply patch in-memory, write to a transient post (`tenet_preview_*` post type), render via Elementor's frontend handler with the transient post as context. Cleanup cron after expiry.
+Implementation: copy current `_elementor_data`, apply patch in-memory, write to a transient post (`joist_preview_*` post type), render via Elementor's frontend handler with the transient post as context. Cleanup cron after expiry.
 
 Used by the v1 Plan Review UI for side-by-side before/after.
 
@@ -401,7 +401,7 @@ Used by the v1 Plan Review UI for side-by-side before/after.
   "recent_human_edits": [
     {"user_id": 5, "summary": "Changed primary color", "timestamp": "..."}
   ],
-  "open_backlog": [/* items in tenet_el_backlog table */],
+  "open_backlog": [/* items in joist_backlog table */],
   "brand_kit_version": "kit_v_..."
 }
 ```
@@ -417,11 +417,11 @@ These are appended to PLUGIN_API.md §20 as constraints #17 through #30. Each ma
 | # | Constraint | Source |
 |---|---|---|
 | 17 | **Async-by-default for I/O.** No `wp_remote_*` calls or filesystem ops inside REST controller hot path. Defer via `wp_schedule_single_event` or `shutdown` hook. `DocumentWriter::save()` returns optimistically; CSS regen + cache flush + frontend verify run async; webhook fires on completion. *(Kills synchronous-timeout failures on large pages and shared hosts.)* | WP eng |
-| 18 | **PolicyGuard refusals independent of capabilities.** Hardcoded deny-list of operations the agent role can never perform regardless of WP capabilities granted: `DELETE /pages/{id}?force=true`, `POST /plugins/install` with `zip_url` outside an admin-initiated session with the `TENET_ALLOW_ARBITRARY_ZIP` constant, `PUT /kit` with all-zero color palette, `DELETE` on a page where `is_front_page()` AND `status: publish`. *(Kills accidental destructive ops; defense against jailbroken agents.)* | Security |
+| 18 | **PolicyGuard refusals independent of capabilities.** Hardcoded deny-list of operations the agent role can never perform regardless of WP capabilities granted: `DELETE /pages/{id}?force=true`, `POST /plugins/install` with `zip_url` outside an admin-initiated session with the `JOIST_ALLOW_ARBITRARY_ZIP` constant, `PUT /kit` with all-zero color palette, `DELETE` on a page where `is_front_page()` AND `status: publish`. *(Kills accidental destructive ops; defense against jailbroken agents.)* | Security |
 | 19 | **Chained-singleton ops force Plan Mode.** Cumulative ops/session > 5, OR cumulative ops/page > 10, OR any single op of `delete`/`unwrap`/full-replace → 423 `policy.plan_required` until a Plan Mode plan is approved. *(Kills the Plan Mode bypass via N back-to-back single-op patches.)* | Security + competitor |
 | 20 | **HTTPS-only.** Every REST controller checks `is_ssl()`; returns 421 `transport.https_required` over plain HTTP. *(Kills passive credential interception on misconfigured hosts.)* | Security |
 | 21 | **SSRF defense on every URL input.** `POST /media` (url mode) and `POST /webhooks`: scheme whitelist (`https:` only), public-IP-only resolution check (deny RFC1918 / loopback / link-local / cloud-metadata), re-resolve on connect (DNS rebinding), max-redirect 0, timeout 5s, banned schemes explicitly enumerated. *(Kills SSRF to internal services + cloud-metadata exfil.)* | Security |
-| 22 | **Custom locks table.** Per-page locks live in `wp_tenet_el_locks` (custom table) with validated `post_id`, explicit TTL column, daily prune cron. NOT in transients. *(Kills wp_options autoload bloat on hosts without persistent object cache.)* | WP eng + security |
+| 22 | **Custom locks table.** Per-page locks live in `wp_joist_locks` (custom table) with validated `post_id`, explicit TTL column, daily prune cron. NOT in transients. *(Kills wp_options autoload bloat on hosts without persistent object cache.)* | WP eng + security |
 | 23 | **Container-mode matching.** Plugin autodetects layout mode (`containers_only` / `sections_only` / `mixed`). Cross-mode inserts refused without `force: true` and Plan Mode approval. *(Kills the legacy-site formatting break where agent inserts container as sibling of section at root.)* | Elementor |
 | 24 | **Responsive-completeness default.** When desktop control value differs from default, plugin auto-populates `_tablet` and `_mobile` equal to desktop unless `responsive: "explicit"` set in patch op. *(Kills the "looks fine on desktop, broken on mobile" failure mode that would otherwise occur on every responsive control the agent touches.)* | Elementor |
 | 25 | **Dynamic tag references must resolve.** Every `__dynamic__` reference validated against the live registered-tags registry; 422 on unregistered. *(Kills silent blank-content failures from dangling dynamic tag refs.)* | Elementor |

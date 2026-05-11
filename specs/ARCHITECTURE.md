@@ -1,4 +1,4 @@
-# tenet-elementor-agent — v1 Architecture
+# joist — v1 Architecture
 
 Companion to `PLUGIN_API.md`. The API spec defines *what* the surface is; this doc defines *how* we build it.
 
@@ -12,7 +12,7 @@ Companion to `PLUGIN_API.md`. The API spec defines *what* the surface is; this d
 - A WordPress plugin (PHP) that exposes the full §1–§18 API surface from `PLUGIN_API.md`, enforces all 16 failure-mode constraints, and is GPL-licensed for wp.org distribution.
 - A Claude Code MCP server (TypeScript) that calls the plugin and gives Claude a clean tool surface for building/editing Elementor sites.
 - A Claude Code skill bundle (`/elementor-build`, `/elementor-edit`, `/elementor-audit`) that wires the above into chat workflows.
-- A CLI (`tenet-elementor`) that handles one-shot onboarding: install plugin, generate App Password, configure Claude Code.
+- A CLI (`joist`) that handles one-shot onboarding: install plugin, generate App Password, configure Claude Code.
 - Plan Mode end-to-end: agent proposes, human approves in WP admin, executor runs with rollback.
 - Anti-slop AI generation for copy + images (§19.5, §19.6) with quality gates (§19.15) enforced.
 
@@ -37,7 +37,7 @@ Companion to `PLUGIN_API.md`. The API spec defines *what* the surface is; this d
 ## 2. Three deliverables, three repos directories
 
 ```
-tenet-elementor/
+joist/
 ├── plugin/                  # WordPress plugin (PHP). Ships to wp.org.
 ├── mcp-server/              # Claude Code MCP server (TypeScript/Node).
 ├── cli/                     # Setup CLI (Node, single binary via pkg/bun).
@@ -48,7 +48,7 @@ tenet-elementor/
 └── (tenet workspace state)
 ```
 
-Single monorepo. CI builds three artifacts: `tenet-elementor-agent.zip` (the WP plugin), `@tenet/elementor-mcp` (npm), `@tenet/elementor-cli` (npm with single-file binary).
+Single monorepo. CI builds three artifacts: `joist.zip` (the WP plugin), `@joist/elementor-mcp` (npm), `@joist/cli` (npm with single-file binary).
 
 ---
 
@@ -56,7 +56,7 @@ Single monorepo. CI builds three artifacts: `tenet-elementor-agent.zip` (the WP 
 
 ```
 plugin/
-├── tenet-elementor-agent.php       # main plugin file (WP header, bootstrap)
+├── joist.php       # main plugin file (WP header, bootstrap)
 ├── readme.txt                       # wp.org plugin readme (markdown-ish)
 ├── uninstall.php                    # cleanup on uninstall
 ├── composer.json                    # PHP deps + PSR-4 autoload
@@ -180,9 +180,9 @@ plugin/
     └── integration/                  # requires Elementor installed
 ```
 
-PSR-4 namespace root: `TenetElementor\`. Composer autoload. **Min PHP 8.0** (decision 2026-05-10 after hardening pass — `match`, named args, enums-as-classes, throw expressions, but NOT readonly props or `never` returns which are 8.1). Elementor 3.21 supports PHP 7.4 but the ~10% of installs still on 7.4 are declining fast and not worth the engineering regression to support.
+PSR-4 namespace root: `Joist\`. Composer autoload. **Min PHP 8.0** (decision 2026-05-10 after hardening pass — `match`, named args, enums-as-classes, throw expressions, but NOT readonly props or `never` returns which are 8.1). Elementor 3.21 supports PHP 7.4 but the ~10% of installs still on 7.4 are declining fast and not worth the engineering regression to support.
 
-**Admin UI:** built with `@wordpress/element` (WP's bundled React) and `@wordpress/components` for accessibility-by-default and Gutenberg compatibility. Bundler: `@wordpress/scripts` (matches Gutenberg's webpack config + React version). NOT custom React or shadcn — those cause version conflicts and fail wp.org accessibility expectations. CSS scoped to `.tenet-el-admin` namespace, loaded only on plugin screens via `admin_enqueue_scripts` screen checks.
+**Admin UI:** built with `@wordpress/element` (WP's bundled React) and `@wordpress/components` for accessibility-by-default and Gutenberg compatibility. Bundler: `@wordpress/scripts` (matches Gutenberg's webpack config + React version). NOT custom React or shadcn — those cause version conflicts and fail wp.org accessibility expectations. CSS scoped to `.joist-admin` namespace, loaded only on plugin screens via `admin_enqueue_scripts` screen checks.
 
 ---
 
@@ -191,7 +191,7 @@ PSR-4 namespace root: `TenetElementor\`. Composer autoload. **Min PHP 8.0** (dec
 `DocumentWriter::save()` is the spine. It enforces 9 of the 30 failure-mode constraints in one method. Critically: **the synchronous portion does the minimum** (lock, validate, snapshot, write, return). CSS regen, cache flush, frontend verify, webhook emission all defer to `shutdown` hook or `wp_schedule_single_event` — no inline `wp_remote_*` calls. Response returns optimistically; webhook fires on async-verification completion or failure.
 
 ```php
-namespace TenetElementor\Elementor;
+namespace Joist\Elementor;
 
 final class DocumentWriter
 {
@@ -315,7 +315,7 @@ final class DocumentWriter
 
             // Constraint #17: ASYNC the expensive stuff
             // CSS regen + cache flush + frontend verify + webhook emission all deferred
-            wp_schedule_single_event(time() + 1, 'tenet_el_post_save_verify', [
+            wp_schedule_single_event(time() + 1, 'joist_post_save_verify', [
                 'post_id' => $req->postId,
                 'expected_hash' => $newHash,
                 'session_id' => $req->sessionId,
@@ -485,7 +485,7 @@ final class LockManager
 {
     public function acquire(int $postId, ?string $sessionId, int $ttl = 60): Lock
     {
-        $key = "tenet_lock_page_{$postId}";
+        $key = "joist_lock_page_{$postId}";
         $existing = get_transient($key);
         if ($existing !== false && $existing['session_id'] !== $sessionId) {
             throw new LockHeldException($existing);
@@ -507,7 +507,7 @@ These were added after the 2026-05-10 red-team critique. Each has a one-paragrap
 
 **`PolicyGuard`** — runs FIRST in every controller. Hardcoded refuse-list (constraint #18) of "agent role must never" operations. Also implements `checkPlanRequired($session_id, $op, $page_id)` for chained-singleton enforcement (constraint #19). Refusals throw `PolicyRefusedException` → controller renders 403 `policy.<reason>` or 423 `policy.plan_required`.
 
-**`RateLimiter`** — token-bucket per session, persisted in `wp_tenet_el_rate_limits` table. Buckets: writes, reads, plugin-install, webhook-emit, AI-passthrough. Configurable via `tenet_el_rate_limits` option. Returns 429 + Retry-After when exhausted.
+**`RateLimiter`** — token-bucket per session, persisted in `wp_joist_rate_limits` table. Buckets: writes, reads, plugin-install, webhook-emit, AI-passthrough. Configurable via `joist_rate_limits` option. Returns 429 + Retry-After when exhausted.
 
 **`URLValidator`** — SSRF defense (constraint #21). `validateExternal($url)` checks: scheme whitelist, DNS resolution returns public IP only, no banned schemes. Called by MediaController (url mode) and WebhooksController. Returns pre-resolved IP for `CURLOPT_RESOLVE` to defeat DNS rebinding.
 
@@ -519,13 +519,13 @@ These were added after the 2026-05-10 red-team critique. Each has a one-paragrap
 
 **`ContainerModeAdapter`** — autodetects site's layout mode (containers_only / sections_only / mixed) and enforces cross-mode refusal (constraint #23). `validateInserts($post_id, $elements)` walks proposed inserts and rejects mode mismatches.
 
-**`SessionTracker`** — maintains per-session counters in `wp_tenet_el_sessions` for `op_count`, `ops_destructive`, `ops_per_page`. `recordOp()` increments; `lastApprovedPlan` resets counters on plan approval.
+**`SessionTracker`** — maintains per-session counters in `wp_joist_sessions` for `op_count`, `ops_destructive`, `ops_per_page`. `recordOp()` increments; `lastApprovedPlan` resets counters on plan approval.
 
 **`OperatingMode`** — intercepts every write to apply per-site mode (`live` / `observer` / `quiet` / `kill_switch` / `staging_mandatory`). Returns SaveResult early for observer mode (dry_run); throws for quiet/kill_switch.
 
 **`PrivacyExporter` / `PrivacyEraser`** — register `wp_privacy_personal_data_exporters` and `..._erasers` filters for GDPR DSR (§29 of PLUGIN_API.md). Audit log entries, revisions, sessions attributed to a subject user are exportable / anonymizable.
 
-**`Logger`** — PSR-3-style with mandatory `redact()` chokepoint. Every log call runs through `redact()` which strips App Passwords, Anthropic keys, HMAC secrets, OAuth tokens by pattern match. Writes to `wp_upload_dir() . '/tenet-el-logs/'` (with `.htaccess` deny rule) + `wp_options` rolling buffer (last 200 entries).
+**`Logger`** — PSR-3-style with mandatory `redact()` chokepoint. Every log call runs through `redact()` which strips App Passwords, Anthropic keys, HMAC secrets, OAuth tokens by pattern match. Writes to `wp_upload_dir() . '/joist-logs/'` (with `.htaccess` deny rule) + `wp_options` rolling buffer (last 200 entries).
 
 **Extended `SchemaValidator`** methods:
 - `validateTree($elements)` — full tree (existing)
@@ -539,7 +539,7 @@ These were added after the 2026-05-10 red-team critique. Each has a one-paragrap
 - `fillMissing($elements)` — existing
 - `regenerateTree($subtree, deep: bool = true)` — constraint #28, deep regen on duplicate/wrap
 
-**Extended `LockManager`** — replaces transient-backed implementation with custom-table-backed (`wp_tenet_el_locks`); same external API.
+**Extended `LockManager`** — replaces transient-backed implementation with custom-table-backed (`wp_joist_locks`); same external API.
 
 **Extended `CSSRegenerator`** — `regenerate($post_id)` now calls Post + Global_CSS + Custom_CSS + Manager flush + clears `_elementor_element_cache` + `_elementor_inline_svg` postmeta (Elementor specialist critique).
 
@@ -547,13 +547,13 @@ These were added after the 2026-05-10 red-team critique. Each has a one-paragrap
 
 ## 6. DB schema — custom tables
 
-All tables prefixed `wp_<prefix>_tenet_el_` (using `$wpdb->prefix`, NOT `base_prefix` — works on multisite). Created in migrations on plugin activation with `db_version` tracking + idempotent CREATE IF NOT EXISTS; cleaned up in `uninstall.php` ONLY if `tenet_el_delete_data_on_uninstall` option is true (default false).
+All tables prefixed `wp_<prefix>_joist_` (using `$wpdb->prefix`, NOT `base_prefix` — works on multisite). Created in migrations on plugin activation with `db_version` tracking + idempotent CREATE IF NOT EXISTS; cleaned up in `uninstall.php` ONLY if `joist_delete_data_on_uninstall` option is true (default false).
 
 Every CREATE TABLE appends `$wpdb->get_charset_collate()`. ENUMs replaced with VARCHAR(16) + application-level CHECK (dbDelta alter on ENUM fails silently — see WP plugin engineer critique).
 
-### `wp_tenet_el_revisions`
+### `wp_joist_revisions`
 ```sql
-CREATE TABLE wp_tenet_el_revisions (
+CREATE TABLE wp_joist_revisions (
     id           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     post_id      BIGINT UNSIGNED NOT NULL,
     hash         CHAR(72) NOT NULL,           -- 'sha256:' + 64 hex
@@ -571,9 +571,9 @@ CREATE TABLE wp_tenet_el_revisions (
 
 Pruning: keep last N (default 50) per page; older entries pruned daily via WP cron. Per-write pruning also runs if a page's revision count exceeds the cap.
 
-### `wp_tenet_el_audit`
+### `wp_joist_audit`
 ```sql
-CREATE TABLE wp_tenet_el_audit (
+CREATE TABLE wp_joist_audit (
     id           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     timestamp    DATETIME NOT NULL,
     op           VARCHAR(64) NOT NULL,         -- 'document.save', 'kit.import', etc.
@@ -596,9 +596,9 @@ CREATE TABLE wp_tenet_el_audit (
 
 `chain_hash` is computed at write time. A daily integrity check verifies the chain; any break is surfaced as an admin notice ("Audit log tampering detected — row IDs X-Y"). Erasure via GDPR DSR (§29 of PLUGIN_API.md) anonymizes `actor_id` but preserves the chain by re-computing chain_hash forward from the erasure point.
 
-### `wp_tenet_el_plans`
+### `wp_joist_plans`
 ```sql
-CREATE TABLE wp_tenet_el_plans (
+CREATE TABLE wp_joist_plans (
     id              VARCHAR(64) PRIMARY KEY,        -- 'pln_01HXY...' (ULID)
     approval_token  CHAR(64) NOT NULL,              -- 32-byte random hex, REQUIRED in approval URL (defense against ULID enumeration)
     session_id      VARCHAR(64) NOT NULL,
@@ -617,13 +617,13 @@ CREATE TABLE wp_tenet_el_plans (
 ) {$charset_collate};
 ```
 
-Approval URL: `https://example.com/wp-admin/admin.php?page=tenet-plan&id=pln_01HXY...&token=<approval_token>`. Plan can only be approved by the user who created the agent session, OR by an admin in a configured approvers list. CSRF nonce required on the Approve button.
+Approval URL: `https://example.com/wp-admin/admin.php?page=joist-plan&id=pln_01HXY...&token=<approval_token>`. Plan can only be approved by the user who created the agent session, OR by an admin in a configured approvers list. CSRF nonce required on the Approve button.
 
 On `init` after a plugin update or activation, any plan with `status: executing` older than 5 minutes is marked `failed` with reason `plugin_updated_mid_execution`; webhook fires.
 
-### `wp_tenet_el_sessions`
+### `wp_joist_sessions`
 ```sql
-CREATE TABLE wp_tenet_el_sessions (
+CREATE TABLE wp_joist_sessions (
     id              VARCHAR(64) PRIMARY KEY,        -- 'ses_01HXY...'
     agent_name      VARCHAR(64) NOT NULL,
     agent_version   VARCHAR(32),
@@ -642,9 +642,9 @@ CREATE TABLE wp_tenet_el_sessions (
 ) {$charset_collate};
 ```
 
-### `wp_tenet_el_webhooks`
+### `wp_joist_webhooks`
 ```sql
-CREATE TABLE wp_tenet_el_webhooks (
+CREATE TABLE wp_joist_webhooks (
     id           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     url          VARCHAR(500) NOT NULL,
     secret       VARCHAR(64) NOT NULL,
@@ -657,9 +657,9 @@ CREATE TABLE wp_tenet_el_webhooks (
 );
 ```
 
-### `wp_tenet_el_locks` (replaces transient locks — constraint #22)
+### `wp_joist_locks` (replaces transient locks — constraint #22)
 ```sql
-CREATE TABLE wp_tenet_el_locks (
+CREATE TABLE wp_joist_locks (
     post_id      BIGINT UNSIGNED PRIMARY KEY,
     session_id   VARCHAR(64) NOT NULL,
     acquired_at  DATETIME NOT NULL,
@@ -671,9 +671,9 @@ CREATE TABLE wp_tenet_el_locks (
 
 Validated `post_id` (must exist) before insert. Daily WP-Cron prunes expired locks. Avoids the wp_options autoload bloat problem on no-object-cache hosts.
 
-### `wp_tenet_el_rate_limits` (per-session token buckets — §26 of PLUGIN_API.md)
+### `wp_joist_rate_limits` (per-session token buckets — §26 of PLUGIN_API.md)
 ```sql
-CREATE TABLE wp_tenet_el_rate_limits (
+CREATE TABLE wp_joist_rate_limits (
     session_id   VARCHAR(64) NOT NULL,
     bucket_class VARCHAR(32) NOT NULL,           -- 'writes' | 'reads' | 'plugin_install' | etc.
     tokens       INT UNSIGNED NOT NULL,
@@ -684,9 +684,9 @@ CREATE TABLE wp_tenet_el_rate_limits (
 
 Pruned hourly.
 
-### `wp_tenet_el_backlog` (per-page "we'll come back to this" — §31 of PLUGIN_API.md)
+### `wp_joist_backlog` (per-page "we'll come back to this" — §31 of PLUGIN_API.md)
 ```sql
-CREATE TABLE wp_tenet_el_backlog (
+CREATE TABLE wp_joist_backlog (
     id           VARCHAR(64) PRIMARY KEY,        -- 'back_01HXY...'
     page_id      BIGINT UNSIGNED NOT NULL,
     intent       VARCHAR(500) NOT NULL,
@@ -700,9 +700,9 @@ CREATE TABLE wp_tenet_el_backlog (
 ) {$charset_collate};
 ```
 
-### `wp_tenet_el_bot_crawls` (v1.5 — `llms.txt` traffic logging)
+### `wp_joist_bot_crawls` (v1.5 — `llms.txt` traffic logging)
 ```sql
-CREATE TABLE wp_tenet_el_bot_crawls (
+CREATE TABLE wp_joist_bot_crawls (
     id           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     timestamp    DATETIME NOT NULL,
     bot          VARCHAR(64) NOT NULL,         -- 'GPTBot', 'ClaudeBot', 'PerplexityBot', etc.
@@ -716,10 +716,10 @@ CREATE TABLE wp_tenet_el_bot_crawls (
 
 ### Activation / version tracking
 
-Plugin stores `tenet_el_db_version` option (integer). Activation runs migrations idempotently:
+Plugin stores `joist_db_version` option (integer). Activation runs migrations idempotently:
 ```php
-function tenet_el_run_migrations(): void {
-    $current = (int) get_option('tenet_el_db_version', 0);
+function joist_run_migrations(): void {
+    $current = (int) get_option('joist_db_version', 0);
     $migrations = [
         1 => 'migration_001_create_revisions',
         2 => 'migration_002_create_audit',
@@ -734,9 +734,9 @@ function tenet_el_run_migrations(): void {
         if ($version <= $current) continue;
         try {
             $fn();
-            update_option('tenet_el_db_version', $version);
+            update_option('joist_db_version', $version);
         } catch (\Throwable $e) {
-            update_option('tenet_el_activation_error', [
+            update_option('joist_activation_error', [
                 'version' => $version,
                 'message' => $e->getMessage(),
                 'time' => time(),
@@ -747,7 +747,7 @@ function tenet_el_run_migrations(): void {
 }
 ```
 
-Admin notice fires if `tenet_el_activation_error` is set, surfacing the failure with retry button.
+Admin notice fires if `joist_activation_error` is set, surfacing the failure with retry button.
 
 ### Multisite (constraint #29)
 
@@ -764,8 +764,8 @@ WordPress 6.9 ships the Abilities API; `WordPress/mcp-adapter` bridges abilities
 1. On plugin activate, `AbilityRegistrar` registers one ability per public operation:
 
 ```php
-wp_register_ability('tenet-elementor/get_page', [
-    'label' => __('Get an Elementor page', 'tenet-elementor-agent'),
+wp_register_ability('joist/get_page', [
+    'label' => __('Get an Elementor page', 'joist'),
     'description' => 'Fetch the full Elementor element tree for a page, with content hash for OCC.',
     'input_schema' => [
         'type' => 'object',
@@ -780,13 +780,13 @@ wp_register_ability('tenet-elementor/get_page', [
 ]);
 ```
 
-2. `mcp-adapter` (configured via plugin settings) discovers all `tenet-elementor/*` abilities and exposes them on an MCP endpoint at `/wp-json/mcp/v1/`.
+2. `mcp-adapter` (configured via plugin settings) discovers all `joist/*` abilities and exposes them on an MCP endpoint at `/wp-json/mcp/v1/`.
 
 3. Our Claude Code MCP server (next section) connects to that endpoint.
 
 **Tool naming convention:**
-- REST `GET /pages` → ability `tenet-elementor/list_pages` → MCP tool `elementor_list_pages`
-- REST `POST /pages/{id}/patch` → ability `tenet-elementor/patch_page` → MCP tool `elementor_patch_page`
+- REST `GET /pages` → ability `joist/list_pages` → MCP tool `elementor_list_pages`
+- REST `POST /pages/{id}/patch` → ability `joist/patch_page` → MCP tool `elementor_patch_page`
 - All MCP tool names prefixed `elementor_` for namespace separation.
 
 **Tool-count budget (constraint #11):** stay under 80 tools to leave headroom. Strategy: prefer parameterized tools over specialized. One `elementor_patch_page` with an `ops[]` array beats `elementor_update_widget`, `elementor_insert_element`, `elementor_delete_element`, etc. as separate tools.
@@ -861,7 +861,7 @@ Why have the server at all instead of letting Claude call the REST API directly?
 3. **Error enrichment + injection defense** — best place to wrap untrusted content + amplify recovery suggestions
 4. **Future: aggregation** — `elementor_build_landing_page` (multi-step composite tool) can live here without polluting the WP plugin
 
-**Distribution:** `npm install -g @tenet/elementor-mcp` OR `npx @tenet/elementor-mcp` OR drop-in to `.mcp.json` via the CLI. Published with **npm provenance + Sigstore attestations**; maintainer accounts require 2FA hardware key (supply chain defense per security review).
+**Distribution:** `npm install -g @joist/elementor-mcp` OR `npx @joist/elementor-mcp` OR drop-in to `.mcp.json` via the CLI. Published with **npm provenance + Sigstore attestations**; maintainer accounts require 2FA hardware key (supply chain defense per security review).
 
 ---
 
@@ -894,21 +894,21 @@ cli/
 └── src/
     ├── index.ts                    # entry — picks subcommand
     ├── commands/
-    │   ├── init.ts                 # `tenet-elementor init` — top-level wizard
-    │   ├── connect.ts              # `tenet-elementor connect <site-url>` — single-site
-    │   ├── connect_bulk.ts         # `tenet-elementor connect --config sites.yaml` — fleet
-    │   ├── fleet.ts                # `tenet-elementor fleet status|broadcast` — fleet ops
+    │   ├── init.ts                 # `joist init` — top-level wizard
+    │   ├── connect.ts              # `joist connect <site-url>` — single-site
+    │   ├── connect_bulk.ts         # `joist connect --config sites.yaml` — fleet
+    │   ├── fleet.ts                # `joist fleet status|broadcast` — fleet ops
     │   ├── install-plugin.ts       # downloads + activates plugin via REST or WP-CLI
-    │   ├── connect_cdn.ts          # `tenet-elementor connect-cdn cloudflare` — CDN purge setup
+    │   ├── connect_cdn.ts          # `joist connect-cdn cloudflare` — CDN purge setup
     │   ├── doctor.ts               # diagnoses connection + permission issues; runs REAL write test
     │   ├── status.ts               # current connection info
-    │   ├── operating_mode.ts       # `tenet-elementor mode observer|live|quiet|kill --site=` 
+    │   ├── operating_mode.ts       # `joist mode observer|live|quiet|kill --site=` 
     │   └── disconnect.ts
     ├── lib/
     │   ├── ClaudeCodeConfig.ts     # reads/writes ~/.claude/.mcp.json
     │   ├── WordPressDetector.ts    # probes for plugin presence
     │   ├── AppPassword.ts          # generation helper
-    │   ├── FleetRegistry.ts        # reads/writes ~/.tenet-elementor/fleet.json
+    │   ├── FleetRegistry.ts        # reads/writes ~/.joist/fleet.json
     │   ├── ParallelRunner.ts       # bounded concurrency for bulk operations
     │   └── prompts.ts
 ```
@@ -916,21 +916,21 @@ cli/
 **User flow — "I have a SiteGround site, I want Claude Code to edit it"** (v1 happy path):
 
 ```bash
-$ npx @tenet/elementor-cli connect https://example.com
+$ npx @joist/cli connect https://example.com
 
 ? Site URL detected: https://example.com  ✓
 ? WordPress detected: 6.5.2  ✓
 ? Elementor detected: 3.21.0 + Pro 3.21.0  ✓
 ? SiteGround host detected — will configure SG Optimizer + SG Security compatibility  ✓
 ?
-? Plugin not installed. Install tenet-elementor-agent? (Y/n) Y
+? Plugin not installed. Install joist? (Y/n) Y
 ? Need admin credentials to install the plugin.
   Username: ckrohg
   Application Password: ····················
 ?
 ✓ Plugin installed and activated
-✓ Created dedicated `tenet-agent` user (role: Editor)
-✓ Generated App Password for tenet-agent
+✓ Created dedicated `joist-agent` user (role: Editor)
+✓ Generated App Password for joist-agent
 ✓ Configured Claude Code MCP at ~/.claude/.mcp.json
 ✓ Verified connection — health check passed (12/12 checks)
 ✓ Webhook endpoint configured
@@ -945,7 +945,7 @@ If WP-CLI is unavailable (SiteGround StartUp/GrowBig plans), the CLI falls back 
 **Bulk fleet mode** (constraint #1 of agency adoption — see HARDENING_v1.md §1.5):
 
 ```bash
-$ tenet-elementor connect --config sites.yaml --concurrency 5
+$ joist connect --config sites.yaml --concurrency 5
 
 # sites.yaml format:
 # - url: https://client1.com
@@ -960,7 +960,7 @@ $ tenet-elementor connect --config sites.yaml --concurrency 5
 
 Per-site flow identical to single-site; runs in parallel up to `--concurrency` limit. Per-site outcome reported as a table; failures listed for retry. Failed sites can be re-tried with `--retry-failed`.
 
-`~/.tenet-elementor/fleet.json` registry maintained locally for subsequent `fleet status` and `fleet broadcast` operations.
+`~/.joist/fleet.json` registry maintained locally for subsequent `fleet status` and `fleet broadcast` operations.
 
 ---
 
@@ -988,7 +988,7 @@ The most important user-visible workflow. Sequence:
    - generates plan_id (ULID) + approval_token (32-byte random hex)
    - persists plan
    - returns plan_id + approval_url with both id AND token: 
-     /wp-admin/admin.php?page=tenet-plan&id=pln_01HXY...&token=abc123...
+     /wp-admin/admin.php?page=joist-plan&id=pln_01HXY...&token=abc123...
    - emits webhook to user's Slack/email/Claude Code: "Plan ready for review"
 
 4. User opens approval_url in browser (WP admin):
@@ -1022,7 +1022,7 @@ A failed step rolls back the entire plan via the snapshot. If the plugin updates
 
 ## 12. Auth model
 
-- **Plugin operations:** every REST request requires HTTP Basic auth with WP Application Password. The CLI configures Claude Code with a password tied to the dedicated `tenet-agent` user (Editor role default, configurable to Administrator if needed for plugin install).
+- **Plugin operations:** every REST request requires HTTP Basic auth with WP Application Password. The CLI configures Claude Code with a password tied to the dedicated `joist-agent` user (Editor role default, configurable to Administrator if needed for plugin install).
 - **Webhook callbacks (plugin → agent):** HMAC-SHA256 signed. Agent verifies signature before acting.
 - **Plan approval:** WP admin session — only logged-in users with `edit_pages` capability can approve.
 - **No bearer tokens, no OAuth in v1.** App Passwords are sufficient and don't require an OAuth provider.
@@ -1037,7 +1037,7 @@ A failed step rolls back the entire plan via the snapshot. If the plugin updates
 | 2 | Read-after-write | `DocumentWriter::save` returns `verifiedElements` from `$document->get_elements_data()` post-save |
 | 3 | Snapshot before multi-step | `PlanExecutor` snapshots at plan-start; `DocumentWriter::save` snapshots per-call |
 | 4 | Surgical diff-based edits only | REST `POST /pages/{id}/patch` primary; `PUT /pages/{id}` requires `expected_hash` |
-| 5 | Auto-flush cache + verify | Deferred async (constraint #17); `CSSRegenerator` + `CacheFlusher` + `verifyFrontendUpdated` in `tenet_el_post_save_verify` cron event |
+| 5 | Auto-flush cache + verify | Deferred async (constraint #17); `CSSRegenerator` + `CacheFlusher` + `verifyFrontendUpdated` in `joist_post_save_verify` cron event |
 | 6 | Token-budgeted reads | `PagesController::get` returns `tree_summary` by default; `?include=full` for full; per-element supports `?depth=N` |
 | 7 | Hard pre-flight | `PreflightValidator` runs on every controller's `permission_callback` |
 | 8 | Pin Elementor version range | `ElementorAdapter::assertSupportedVersion` runs in every write |
@@ -1047,14 +1047,14 @@ A failed step rolls back the entire plan via the snapshot. If the plugin updates
 | 12 | Scope guards | `PatchEngine` only mutates element IDs listed in `ops[].element_id` |
 | 13 | Performance budgets | `PerformanceBudget` quality gate pre-write; rejects oversized images, banned widgets |
 | 14 | First-class export | `GET /kit/export`, `GET /pages/{id}/export?format=...` always available |
-| 15 | Audit-tagged edits | `AuditLogger` writes to `wp_tenet_el_audit` + adds WP revision comment |
+| 15 | Audit-tagged edits | `AuditLogger` writes to `wp_joist_audit` + adds WP revision comment |
 | 16 | No silent failures | Every controller's error envelope; `DocumentWriter::save` throws on rollback |
-| 17 | Async-by-default I/O | `wp_schedule_single_event('tenet_el_post_save_verify', ...)` defers all `wp_remote_*` and expensive ops |
+| 17 | Async-by-default I/O | `wp_schedule_single_event('joist_post_save_verify', ...)` defers all `wp_remote_*` and expensive ops |
 | 18 | PolicyGuard refusals | `PolicyGuard::assertAllowed()` runs FIRST in every controller; hardcoded refuse-list |
 | 19 | Chained-singleton plan trigger | `SessionTracker::recordOp` + `PolicyGuard::checkPlanRequired` enforced in `DocumentWriter::save` |
 | 20 | HTTPS-only | `ControllerBase` checks `is_ssl()` first; returns 421 |
 | 21 | SSRF guards on URLs | `URLValidator::validateExternal($url)` called by MediaController + WebhooksController |
-| 22 | Custom locks table | `LockManager` uses `wp_tenet_el_locks` (not transients); validated `post_id` |
+| 22 | Custom locks table | `LockManager` uses `wp_joist_locks` (not transients); validated `post_id` |
 | 23 | Container-mode matching | `ContainerModeAdapter::validateInserts` in `DocumentWriter::save` |
 | 24 | Responsive completeness | `SchemaValidator::validateResponsiveCompleteness` + auto-fill in `PatchEngine` |
 | 25 | Dynamic tag references resolve | `DynamicTagValidator::validateTree` in `DocumentWriter::save` |
@@ -1079,10 +1079,10 @@ A failed step rolls back the entire plan via the snapshot. If the plugin updates
 
 - **GitHub:** monorepo. Releases tagged. Tagged release triggers:
   - Build plugin zip → upload to GitHub Releases → mirror to wp.org SVN
-  - Publish `@tenet/elementor-mcp` to npm
-  - Publish `@tenet/elementor-cli` to npm with bundled binaries for darwin/linux/win
+  - Publish `@joist/elementor-mcp` to npm
+  - Publish `@joist/cli` to npm with bundled binaries for darwin/linux/win
 - **wp.org:** plugin reviewed + listed. Standard wp.org process: trunk + tags in SVN, readme.txt formatting, no obfuscation.
-- **Documentation site:** `docs.tenet-elementor.dev` (or similar), built from `docs/` via mkdocs/vitepress, deployed to Cloudflare Pages.
+- **Documentation site:** `docs.joist.dev` (or similar), built from `docs/` via mkdocs/vitepress, deployed to Cloudflare Pages.
 
 ---
 
@@ -1125,7 +1125,7 @@ WordPress Network installs are ~10% of plugin installs (per WP plugin engineer c
   - Host detection adapter overrides (e.g., "we're on a custom-configured Kinsta — use this adapter")
   - Default Anthropic API key (per-site override allowed)
 - Audit log + revisions are per-site. Webhook config is per-site.
-- The `tenet_agent` role is registered on every site in the network.
+- The `joist_agent` role is registered on every site in the network.
 
 ---
 
@@ -1162,16 +1162,16 @@ Hard rule (constraint #17): no `wp_remote_*` calls or expensive filesystem ops i
 
 **Result:** typical write latency on a 5MB page drops from 1.5–3s (sync everything) to ~200–400ms (sync minimum), with full verification completing 2–10s after via webhook. Agent treats the webhook as the canonical "this is done" signal; the initial response is provisional. SKILL.md prompts the model to surface "Applied (verification pending)" then update once webhook fires.
 
-If `wp_schedule_single_event` fails (some hosts disable WP-Cron), the scheduled work runs in `shutdown` instead. Both paths log failures to `wp_tenet_el_async_log` for triage.
+If `wp_schedule_single_event` fails (some hosts disable WP-Cron), the scheduled work runs in `shutdown` instead. Both paths log failures to `wp_joist_async_log` for triage.
 
 ---
 
-## 19. Custom `tenet_agent` role + capabilities
+## 19. Custom `joist_agent` role + capabilities
 
 Constraint #18 + security review. The default Editor role gives way too much capability for an automated agent.
 
 ```php
-add_role('tenet_agent', __('Tenet Agent', 'tenet-elementor-agent'), [
+add_role('joist_agent', __('Joist Agent', 'joist'), [
     // What it CAN do:
     'read' => true,
     'edit_pages' => true,
@@ -1185,7 +1185,7 @@ add_role('tenet_agent', __('Tenet Agent', 'tenet-elementor-agent'), [
     'edit_published_posts' => true,
     'delete_posts' => true,
     'upload_files' => true,                // ONLY if image-gen enabled; disabled by default
-    'tenet_use_agent_api' => true,         // custom cap, checked by REST controllers
+    'joist_use_agent_api' => true,         // custom cap, checked by REST controllers
     
     // What it CANNOT do (NOT granted):
     // 'unfiltered_html' => never
@@ -1200,9 +1200,9 @@ add_role('tenet_agent', __('Tenet Agent', 'tenet-elementor-agent'), [
 ]);
 ```
 
-CLI setup wizard creates the `tenet-agent` user with this role by default. If the user wants Administrator-tier access (for `POST /plugins/install` with `slug`, for example), the CLI prompts with explicit warning: "Administrator role expands blast radius. Recommended only if you understand the risk. The PolicyGuard refuse-list (§27 of PLUGIN_API.md) still applies, but Administrator capability grants broader DB access. Continue? [y/N]"
+CLI setup wizard creates the `joist-agent` user with this role by default. If the user wants Administrator-tier access (for `POST /plugins/install` with `slug`, for example), the CLI prompts with explicit warning: "Administrator role expands blast radius. Recommended only if you understand the risk. The PolicyGuard refuse-list (§27 of PLUGIN_API.md) still applies, but Administrator capability grants broader DB access. Continue? [y/N]"
 
-REST controllers check `current_user_can('tenet_use_agent_api')` first (works for both `tenet_agent` and Administrator). Specific destructive endpoints additionally check `current_user_can('manage_options')` (Administrator only).
+REST controllers check `current_user_can('joist_use_agent_api')` first (works for both `joist_agent` and Administrator). Specific destructive endpoints additionally check `current_user_can('manage_options')` (Administrator only).
 
 ---
 
@@ -1262,11 +1262,11 @@ Each adapter implements `CDNAdapterInterface { purgePage($url), purgeAssets($url
 | KeyCDN | Explicit config | API token | v1.5 |
 | Fastly | Explicit config | API token | v2 |
 
-API tokens stored in `wp_options.tenet_el_cdn_config` JSON, **encrypted at rest** using libsodium symmetric encryption keyed off `AUTH_KEY` from `wp-config.php` (so unauthorized DB access doesn't yield tokens directly).
+API tokens stored in `wp_options.joist_cdn_config` JSON, **encrypted at rest** using libsodium symmetric encryption keyed off `AUTH_KEY` from `wp-config.php` (so unauthorized DB access doesn't yield tokens directly).
 
 Cloudflare adapter setup via CLI:
 ```bash
-$ tenet-elementor connect-cdn cloudflare
+$ joist connect-cdn cloudflare
 ? Cloudflare API token: ****
 ? Zone ID: example.com → 0123abc...
 ✓ Verified token permissions
@@ -1274,4 +1274,4 @@ $ tenet-elementor connect-cdn cloudflare
 ✓ Tested purge of /wp-content/uploads/elementor/css/post-1.css
 ```
 
-Async purge: invoked from `tenet_el_post_save_verify` cron event (along with cache flush). Failures retry with exponential backoff up to 3 times; persistent failure → admin notice.
+Async purge: invoked from `joist_post_save_verify` cron event (along with cache flush). Failures retry with exponential backoff up to 3 times; persistent failure → admin notice.

@@ -55,7 +55,7 @@ Four things converged in early 2026 that make this the right moment:
 
 ## The end state
 
-**3 years out** — tenet-elementor is the default agentic layer for the WordPress + Elementor ecosystem:
+**3 years out** — joist is the default agentic layer for the WordPress + Elementor ecosystem:
 
 - The free OSS plugin distributes via wp.org and reaches 100k+ active Elementor sites.
 - The hosted SaaS layer serves 1,000+ agencies running multi-site dashboards, autonomous post-launch agents, and white-label client portals.

@@ -8,7 +8,7 @@
 
 **v1.0 OSS plugin on wp.org: ~14–16 weeks from start of focused engineering.**
 
-Updated 2026-05-10 after the v1 hardening pass (`specs/HARDENING_v1.md`) — original 12-week target slipped 2–4 weeks to absorb: bulk fleet CLI brought forward from v2, multisite handling, custom `tenet_agent` role, PolicyGuard refusals, async I/O refactor, third-party security audit, and the 14 new failure-mode constraints (#17–#30).
+Updated 2026-05-10 after the v1 hardening pass (`specs/HARDENING_v1.md`) — original 12-week target slipped 2–4 weeks to absorb: bulk fleet CLI brought forward from v2, multisite handling, custom `joist_agent` role, PolicyGuard refusals, async I/O refactor, third-party security audit, and the 14 new failure-mode constraints (#17–#30).
 
 - **Weeks 1–6 (v0.5)**: full API surface + all 30 failure-mode constraints + multisite + custom role + PolicyGuard + async I/O
 - **Weeks 7–8 (v0.7 — NEW)**: bulk fleet CLI, observer/quiet/kill-switch modes, client changelog export, Discord channel live
@@ -28,7 +28,7 @@ Updated 2026-05-10 after the v1 hardening pass (`specs/HARDENING_v1.md`) — ori
 [ ] v0.5 — Plugin Alpha (4–6 weeks)
     └─ Full §1–§22 API. All 30 failure-mode constraints enforced.
        Schema-validated writes. Atomic rollback. Hash-based OCC.
-       Multisite support. Custom tenet_agent role. PolicyGuard
+       Multisite support. Custom joist_agent role. PolicyGuard
        refuse-list. Async I/O discipline. Custom locks table.
 
 [ ] v0.7 — Agency-ready (2 weeks) — NEW
@@ -91,7 +91,7 @@ Updated 2026-05-10 after the v1 hardening pass (`specs/HARDENING_v1.md`) — ori
 | -5 | Plugins + SEO + Health | §13 + §14 + §16; SEO adapters (Yoast, RankMath, AIOSEO, native); preflight validator |
 | -4 | Plan Mode end-to-end | PlanStore + PlanExecutor + admin approval UI + webhook |
 | -3 | MCP server + skill | TypeScript MCP server; `/elementor-build` `/elementor-edit` `/elementor-audit` skills |
-| -2 | CLI + anti-slop gen | `tenet-elementor connect`; SlopDetector; CopyGenerator with brand kit; ImageGenerator router |
+| -2 | CLI + anti-slop gen | `joist connect`; SlopDetector; CopyGenerator with brand kit; ImageGenerator router |
 | -1 | Polish + docs + wp.org prep | readme.txt; screenshots; INSTALL/QUICKSTART/FAQ; security review; SiteGround real-site test |
 
 ---

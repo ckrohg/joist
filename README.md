@@ -1,4 +1,4 @@
-# tenet-elementor
+# joist
 
 > [!WARNING]
 > **Status: pre-v0.1 — specs only, no plugin code yet.** Do not install on production sites. Target v1.0 OSS launch: ~14–16 weeks of focused engineering from start. Watch the repo if you want to follow along; install on a staging site at v0.5; install on a non-critical client site at v1.0; install on important client sites only after v1.0 has been in the wild for 60+ days.
@@ -29,7 +29,7 @@ Claude Code (your machine)
    │  MCP tool calls (over HTTPS, App Password auth)
    ▼
 WordPress site
-   ├─ our plugin: tenet-elementor-agent
+   ├─ our plugin: joist
    │     ├─ registers WP Abilities (Abilities API)
    │     ├─ exposed as MCP tools via WordPress/mcp-adapter
    │     ├─ schema-validates every widget setting before write
@@ -119,7 +119,7 @@ The v1 OSS CLI includes a `--config sites.yaml` bulk-onboarding mode for fleet o
 - **Discord** — real-time support, office hours *(set up at v0.5)*
 - **Bug triage SLA** — best-effort, business-hours US, critical bugs (data loss, security) triaged within 48 hours of report *(once v1.0 ships)*
 
-**What if the maintainer disappears?** The plugin is GPL. The MCP server + CLI are MIT. The schema validator is self-contained — fork the repo and run. The custom database tables (`wp_tenet_el_*`) are documented in `specs/ARCHITECTURE.md §6`. Every AI-generated edit lives in native `_elementor_data`, so uninstalling the plugin doesn't remove your pages.
+**What if the maintainer disappears?** The plugin is GPL. The MCP server + CLI are MIT. The schema validator is self-contained — fork the repo and run. The custom database tables (`wp_joist_*`) are documented in `specs/ARCHITECTURE.md §6`. Every AI-generated edit lives in native `_elementor_data`, so uninstalling the plugin doesn't remove your pages.
 
 ---
 

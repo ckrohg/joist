@@ -1,0 +1,652 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Vellum — keep a record of every AI edit on your Elementor site.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,400;1,500&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F3F2EC;
+    --surface: #FFFFFF;
+    --surface-2: #ECEAE0;
+    --text-1: #1A1813;
+    --text-2: #6B675F;
+    --text-3: #9C988E;
+    --accent: #C84A1A;
+    --accent-soft: #FBE6D9;
+    --rule: #D4D1C5;
+    --rule-2: #E5E2D8;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text-1);
+    font-family: 'Inter', system-ui, sans-serif;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: var(--accent); color: var(--bg); }
+  .container { max-width: 1080px; margin: 0 auto; padding: 0 2rem; }
+  .narrow { max-width: 720px; margin: 0 auto; padding: 0 2rem; }
+  .serif { font-family: 'Cormorant Garamond', Georgia, serif; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+
+  /* Top masthead */
+  .masthead {
+    border-bottom: 1px solid var(--text-1);
+    padding: 1.25rem 0;
+    background: var(--bg);
+  }
+  .masthead-inner {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  .masthead-title {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-weight: 500;
+    font-size: 2rem;
+    letter-spacing: 0.01em;
+    line-height: 1;
+    color: var(--text-1);
+    text-decoration: none;
+  }
+  .masthead-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6875rem;
+    letter-spacing: 0.1em;
+    color: var(--text-2);
+    text-transform: uppercase;
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .masthead-meta a { color: var(--text-2); text-decoration: none; }
+  .masthead-meta a:hover { color: var(--accent); }
+
+  /* Issue number bar */
+  .issue-bar {
+    border-bottom: 1px solid var(--rule);
+    padding: 0.625rem 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6875rem;
+    letter-spacing: 0.1em;
+    color: var(--text-2);
+    text-transform: uppercase;
+  }
+  .issue-bar .container {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  /* Hero — magazine cover treatment */
+  .hero {
+    padding: 4rem 0 5rem;
+    border-bottom: 1px solid var(--rule);
+  }
+  .hero-grid {
+    display: grid;
+    grid-template-columns: 5fr 3fr;
+    gap: 4rem;
+    align-items: end;
+  }
+  .feature-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6875rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .feature-tag::before {
+    content: "";
+    width: 32px;
+    height: 1px;
+    background: var(--accent);
+  }
+  h1.headline {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 400;
+    font-size: clamp(3rem, 7vw, 5.75rem);
+    line-height: 0.98;
+    letter-spacing: -0.015em;
+    margin-bottom: 2rem;
+    color: var(--text-1);
+  }
+  h1.headline em {
+    font-style: italic;
+    font-weight: 400;
+    color: var(--accent);
+  }
+  .deck {
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: 1.375rem;
+    line-height: 1.4;
+    color: var(--text-2);
+    max-width: 36ch;
+    margin-bottom: 2.5rem;
+  }
+  .byline {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    color: var(--text-2);
+    text-transform: uppercase;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--rule);
+  }
+  .byline strong { color: var(--text-1); font-weight: 500; }
+
+  .hero-side {
+    border-left: 1px solid var(--rule);
+    padding-left: 2rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8125rem;
+    line-height: 1.7;
+    color: var(--text-2);
+  }
+  .hero-side h3 {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 500;
+    font-size: 1.5rem;
+    color: var(--text-1);
+    margin-bottom: 0.75rem;
+    line-height: 1.1;
+    font-style: italic;
+  }
+  .hero-side .field {
+    padding: 0.625rem 0;
+    border-bottom: 1px dashed var(--rule);
+    display: flex;
+    justify-content: space-between;
+  }
+  .hero-side .field:last-child { border-bottom: none; }
+  .hero-side .field strong { color: var(--text-1); font-weight: 500; }
+
+  /* CTA buttons (restrained, type-led) */
+  .ctas {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 2.5rem;
+    align-items: center;
+  }
+  .btn {
+    text-decoration: none;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8125rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    transition: all .15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .btn-primary {
+    background: var(--text-1);
+    color: var(--bg);
+    padding: 0.875rem 1.5rem;
+    border-radius: 999px;
+  }
+  .btn-primary:hover { background: var(--accent); }
+  .btn-secondary {
+    color: var(--text-1);
+    border-bottom: 1px solid var(--text-1);
+    padding-bottom: 2px;
+  }
+  .btn-secondary:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* Section header treatment */
+  section { padding: 5rem 0; border-bottom: 1px solid var(--rule); }
+  .section-marker {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6875rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 1.5rem;
+  }
+  h2 {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 400;
+    font-size: clamp(2.25rem, 5vw, 3.75rem);
+    line-height: 1.05;
+    letter-spacing: -0.01em;
+    max-width: 22ch;
+    margin-bottom: 1.5rem;
+  }
+  h2 em { font-style: italic; color: var(--accent); }
+  .standfirst {
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-size: 1.375rem;
+    line-height: 1.45;
+    color: var(--text-2);
+    max-width: 56ch;
+    margin-bottom: 3rem;
+  }
+
+  /* Body prose — editorial */
+  .editorial p {
+    font-size: 1.0625rem;
+    line-height: 1.7;
+    color: var(--text-1);
+    margin-bottom: 1.25rem;
+    max-width: 64ch;
+  }
+  .editorial p.drop::first-letter {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 5.5rem;
+    float: left;
+    line-height: 0.85;
+    padding: 0.25rem 0.75rem 0 0;
+    color: var(--accent);
+    font-weight: 400;
+  }
+
+  /* Pull quote */
+  .pullquote {
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: 2rem;
+    line-height: 1.25;
+    text-align: center;
+    color: var(--text-1);
+    margin: 4rem auto;
+    max-width: 30ch;
+    padding: 2rem 0;
+    border-top: 1px solid var(--text-1);
+    border-bottom: 1px solid var(--text-1);
+  }
+  .pullquote-cite {
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    color: var(--text-2);
+    text-transform: uppercase;
+    margin-top: -3rem;
+    margin-bottom: 4rem;
+  }
+
+  /* Discipline list (refusals) */
+  .discipline {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 1rem 3rem;
+    border-top: 1px solid var(--rule);
+    margin-top: 3rem;
+  }
+  .discipline > div {
+    padding: 2rem 0 1.5rem;
+    border-bottom: 1px solid var(--rule);
+  }
+  .d-num {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2.5rem;
+    color: var(--accent);
+    line-height: 1;
+    font-style: italic;
+  }
+  .d-content h3 {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 500;
+    font-size: 1.625rem;
+    margin-bottom: 0.625rem;
+    letter-spacing: -0.01em;
+  }
+  .d-content p {
+    color: var(--text-2);
+    font-size: 1rem;
+    line-height: 1.55;
+    max-width: 60ch;
+  }
+  .d-content .footnote {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-3);
+    margin-top: 0.5rem;
+    font-style: normal;
+  }
+
+  /* Index/TOC */
+  .toc {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2rem 4rem;
+  }
+  .toc-item {
+    border-top: 1px solid var(--rule);
+    padding-top: 1rem;
+  }
+  .toc-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6875rem;
+    letter-spacing: 0.1em;
+    color: var(--text-2);
+    margin-bottom: 0.5rem;
+  }
+  .toc-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.5rem;
+    font-weight: 500;
+    line-height: 1.2;
+    margin-bottom: 0.375rem;
+  }
+  .toc-desc {
+    font-size: 0.9375rem;
+    color: var(--text-2);
+    line-height: 1.5;
+    max-width: 40ch;
+  }
+
+  /* Code snippet */
+  pre.code-block {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    padding: 1.75rem 2rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8125rem;
+    line-height: 1.7;
+    overflow-x: auto;
+    color: var(--text-1);
+    margin: 2rem 0;
+  }
+  pre.code-block .c { color: var(--text-3); font-style: italic; }
+  pre.code-block .k { color: var(--accent); }
+  pre.code-block .s { color: #806530; }
+
+  /* Closing */
+  .colophon {
+    text-align: center;
+    padding: 6rem 0;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--rule);
+  }
+  .colophon h2 { margin: 0 auto 1.5rem; }
+  .colophon p { color: var(--text-2); max-width: 48ch; margin: 0 auto 2.5rem; font-size: 1.125rem; }
+
+  footer {
+    padding: 3rem 0;
+    color: var(--text-2);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6875rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .foot-inner { display: flex; flex-wrap: wrap; gap: 2rem; justify-content: space-between; align-items: baseline; }
+  .foot-inner a { color: var(--text-2); text-decoration: none; margin-right: 1.5rem; }
+  .foot-inner a:hover { color: var(--accent); }
+  .foot-logo {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.5rem;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--text-1);
+  }
+
+  @media (max-width: 800px) {
+    .hero-grid { grid-template-columns: 1fr; gap: 3rem; }
+    .hero-side { border-left: none; border-top: 1px solid var(--rule); padding-left: 0; padding-top: 2rem; }
+    .toc { grid-template-columns: 1fr; }
+    .discipline { grid-template-columns: 1fr; gap: 0; }
+    .d-num { font-size: 1.75rem; }
+  }
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="container masthead-inner">
+    <a href="/" class="masthead-title">Vellum</a>
+    <div class="masthead-meta">
+      <a href="#discipline">Discipline</a>
+      <a href="#how">How it works</a>
+      <a href="#colophon">Get started</a>
+      <a href="https://github.com/ckrohg/tenet-elementor">GitHub →</a>
+    </div>
+  </div>
+</header>
+
+<div class="issue-bar">
+  <div class="container">
+    <span>VOL. 0 · ISSUE 1 · MAY 2026</span>
+    <span>OPEN SOURCE · GPL + MIT</span>
+    <span>STATUS — pre-v0.1 · specs only</span>
+  </div>
+</div>
+
+<section class="hero" style="border-top: 0;">
+  <div class="container hero-grid">
+    <div>
+      <div class="feature-tag">FEATURE / AGENTIC WORDPRESS</div>
+      <h1 class="headline">A record of <em>every AI edit</em> on your Elementor site.</h1>
+      <p class="deck">Vellum is the open-source agentic backbone for WordPress + Elementor — a plugin and Claude Code skill that lets AI act as a trusted collaborator without breaking your site.</p>
+      <div class="ctas">
+        <a href="#colophon" class="btn btn-primary">Get started →</a>
+        <a href="#discipline" class="btn btn-secondary">Read the discipline →</a>
+      </div>
+      <div class="byline">
+        <strong>WRITTEN BY</strong> Vellum maintainers &nbsp; · &nbsp; <strong>FILED</strong> 2026-05-11 &nbsp; · &nbsp; <strong>READ</strong> ~7 min
+      </div>
+    </div>
+
+    <aside class="hero-side">
+      <h3>Spec at a glance</h3>
+      <div class="field"><span>VERSION</span><strong>pre-v0.1</strong></div>
+      <div class="field"><span>SHIPS</span><strong>v1.0 in ~14w</strong></div>
+      <div class="field"><span>LICENSE</span><strong>GPL + MIT</strong></div>
+      <div class="field"><span>RUNS ON</span><strong>any host</strong></div>
+      <div class="field"><span>STACK</span><strong>WordPress · Elementor · Claude Code</strong></div>
+      <div class="field"><span>INVARIANTS</span><strong>30</strong></div>
+      <div class="field"><span>WRITES VIA</span><strong>Document::save()</strong></div>
+    </aside>
+  </div>
+</section>
+
+<section id="why">
+  <div class="narrow">
+    <div class="section-marker">PROLOGUE · WHY THIS EXISTS</div>
+    <h2>The AI website builders shipped <em>the same bugs</em>.</h2>
+    <p class="standfirst">We read every public bug tracker, postmortem, and Trustpilot review of Wix AI, 10Web, Lovable, the half-dozen open-source Elementor MCP servers, Builder.ai. Same failure modes, repeating. We engineered Vellum around them by name.</p>
+
+    <div class="editorial">
+      <p class="drop">For two years, the AI-website-builder category has converged on the wrong product: <em>one-shot generation</em>. Press a button, receive a finished site. The output looks impressive in demos and fails on contact with reality — edits regenerate the entire page, destroying prior work; widgets render broken because the agent emitted settings the renderer doesn't understand; cache layers serve stale HTML; humans editing in parallel get silently clobbered.</p>
+
+      <p>The msrbuilds Elementor MCP bug tracker is the canonical reading list. <strong>Issue #32:</strong> tool wrote <code style="background: var(--surface); padding: 0.125rem 0.375rem; border: 1px solid var(--rule); font-family: 'JetBrains Mono', monospace; font-size: 0.875rem;">justify_content</code> when Elementor expected <code style="background: var(--surface); padding: 0.125rem 0.375rem; border: 1px solid var(--rule); font-family: 'JetBrains Mono', monospace; font-size: 0.875rem;">flex_justify_content</code>; the tool returned success; the frontend rendered default alignment. The agent thought it worked. The user only found out later.</p>
+
+      <p>This isn't an edge case. It's the dominant failure mode of the category — and every prior attempt shipped with some variant of it. Vellum's architecture treats each of those failures as a hard product invariant.</p>
+    </div>
+
+    <div class="pullquote">"The first AI tool pitch I've read in a year that doesn't read like ChatGPT wrote it."</div>
+    <div class="pullquote-cite">— A skeptical agency owner, red-team review</div>
+
+    <div class="editorial">
+      <p>Vellum is what an AI builder looks like when the writers <em>read the bug trackers first</em>. Open source. Schema-validated. Audit-logged. Built so the agent's work is durable enough to hand to a client.</p>
+    </div>
+  </div>
+</section>
+
+<section id="discipline">
+  <div class="container">
+    <div class="section-marker">CHAPTER 01 · THE DISCIPLINE</div>
+    <h2>Six bugs killed every prior attempt. <em>We refuse each by name.</em></h2>
+    <p class="standfirst" style="max-width: 70ch;">Each entry below is a failure mode documented in a public bug report. Each is matched to a Vellum invariant that makes it structurally impossible.</p>
+
+    <div class="discipline">
+      <div class="d-num">i.</div>
+      <div class="d-content">
+        <h3>No silent writes</h3>
+        <p>The tool that returns <code style="background: var(--surface); padding: 0 0.25rem; font-family: 'JetBrains Mono', monospace; font-size: 0.875rem;">{success: true}</code> while the actual save never lands is the most damaging bug class in this category. Vellum requires read-after-write on every mutation: the verified post-save element is returned, never a success flag.</p>
+        <div class="footnote">— msrbuilds/elementor-mcp #36</div>
+      </div>
+
+      <div class="d-num">ii.</div>
+      <div class="d-content">
+        <h3>No schema drift</h3>
+        <p>When the LLM emits a settings key the renderer doesn't recognize, the agent's work is invisibly wrong. Vellum validates every widget setting against the live introspected schema of <em>that specific install</em> before any write. Unknown keys return 422 with Levenshtein-1 and <code style="background: var(--surface); padding: 0 0.25rem; font-family: 'JetBrains Mono', monospace; font-size: 0.875rem;">flex_*</code>-aware suggestions.</p>
+        <div class="footnote">— msrbuilds/elementor-mcp #32 (the canonical case)</div>
+      </div>
+
+      <div class="d-num">iii.</div>
+      <div class="d-content">
+        <h3>No regenerate-clobber</h3>
+        <p>"Redesign my homepage" should not delete three weeks of human work. Vellum permits surgical edits by element ID only; full-page regeneration as a single tool call is refused with 423 <code style="background: var(--surface); padding: 0 0.25rem; font-family: 'JetBrains Mono', monospace; font-size: 0.875rem;">policy.plan_required</code>.</p>
+        <div class="footnote">— Wix Harmony, 10Web, documented user complaints</div>
+      </div>
+
+      <div class="d-num">iv.</div>
+      <div class="d-content">
+        <h3>No round-trip clobber</h3>
+        <p>Optimistic concurrency via canonicalized content hashes. Every read returns a hash; every write echoes the hash it was planned against. Human edits in the Elementor UI invalidate that hash — the agent's next write fails fast and re-reads. No mystery overwrites.</p>
+        <div class="footnote">— A category-wide failure</div>
+      </div>
+
+      <div class="d-num">v.</div>
+      <div class="d-content">
+        <h3>No cache drift</h3>
+        <p>Elementor CSS regeneration, page-cache flushing (SG Optimizer, WP Rocket, LiteSpeed, WPE native), and CDN purging (Cloudflare) all deferred to scheduled events post-write, with a frontend verification fetch confirming the change before resolving.</p>
+        <div class="footnote">— msrbuilds/elementor-mcp #30 §2.3</div>
+      </div>
+
+      <div class="d-num">vi.</div>
+      <div class="d-content">
+        <h3>No credit-burn loops</h3>
+        <p>Per-task token budget with cheap-mode fallback. After N retries on the same error class, escalate to human rather than spending another $4 of Anthropic credits proposing the seventh variant of a wrong fix.</p>
+        <div class="footnote">— Lovable, Elementor AI, Hostinger Horizons</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="narrow">
+    <div class="section-marker">CHAPTER 02 · THE WRITE PATH</div>
+    <h2>One spine. <em>Five gates.</em> Verify asynchronously.</h2>
+    <p class="standfirst"><code style="font-family: 'JetBrains Mono', monospace; font-size: 0.95rem;">DocumentWriter::save()</code> is the only sanctioned write path. <code style="font-family: 'JetBrains Mono', monospace; font-size: 0.95rem;">update_post_meta('_elementor_data', …)</code> is grep-banned in the codebase. There is no second way to write — by design.</p>
+
+    <pre class="code-block"><span class="c">// What the agent sees on a malformed write — actual error envelope</span>
+
+POST /wp-json/vellum/v1/pages/123/patch
+{ "expected_hash": "sha256:abc...",
+  "ops": [{
+    "op": "update_settings",
+    "element_id": "6a637978",
+    "settings": { "<span class="k">justify_content</span>": "center" }
+  }] }
+
+<span class="c">→ 422 Unprocessable Entity</span>
+{
+  "code": "schema.unknown_key",
+  "message": "Widget 'heading' has no control named 'justify_content'.",
+  "<span class="k">recovery_suggestions</span>": [{
+    "op": "update_settings",
+    "args": { "settings": { "<span class="k">flex_justify_content</span>": "center" } },
+    "rationale": <span class="s">"Levenshtein-1 + flex_*-aware match"</span>
+  }]
+}
+
+<span class="c">// The MCP server surfaces this to Claude as conversation:</span>
+<span class="c">// "I tried justify_content but Elementor calls it flex_justify_content.</span>
+<span class="c">//  Should I use that instead?"</span></pre>
+
+    <div class="editorial" style="margin-top: 2rem;">
+      <p>The synchronous portion of <code style="font-family: 'JetBrains Mono', monospace; font-size: 0.95rem;">DocumentWriter::save()</code> does the minimum: PolicyGuard refusals, schema validation, atomic revision snapshot, the actual save via Elementor's own <code style="font-family: 'JetBrains Mono', monospace; font-size: 0.95rem;">Document::save()</code>, and read-after-write verification. Everything expensive — CSS regeneration, page-cache flushing, CDN purging, frontend verification, webhook emission — defers to scheduled events so the REST handler returns in under 250ms even on a 5MB page.</p>
+
+      <p>The agent receives an immediate response with <code style="font-family: 'JetBrains Mono', monospace; font-size: 0.95rem;">pending_verifications</code>; a webhook fires when the deferred work completes. The Claude Code skill surfaces this as "Applied (verification pending)" then updates the user once the webhook arrives.</p>
+    </div>
+  </div>
+</section>
+
+<section id="toc">
+  <div class="container">
+    <div class="section-marker">CHAPTER 03 · WHAT'S IN THE BINDER</div>
+    <h2>An index of what Vellum <em>actually does</em>.</h2>
+    <p class="standfirst" style="max-width: 60ch;">Eight chapters of capability in the v1.0 release. No "AI-powered" hand-waving — each section maps to specific endpoints in the spec.</p>
+
+    <div class="toc">
+      <div class="toc-item">
+        <div class="toc-num">SECTION i</div>
+        <div class="toc-title">Pages & Elements</div>
+        <div class="toc-desc">Full CRUD with surgical patch operations. Container vs section legacy autodetect. Responsive completeness enforcement.</div>
+      </div>
+      <div class="toc-item">
+        <div class="toc-num">SECTION ii</div>
+        <div class="toc-title">Widget Catalog</div>
+        <div class="toc-desc">Live introspection of every registered widget — including Pro and third-party (JetEngine, Crocoblock). Per-skin schemas.</div>
+      </div>
+      <div class="toc-item">
+        <div class="toc-num">SECTION iii</div>
+        <div class="toc-title">Brand Kit (Globals)</div>
+        <div class="toc-desc">Persistent colors, typography, voice, audience. Auto-rewrite color literals to kit refs (delta-E &lt; 5 matching).</div>
+      </div>
+      <div class="toc-item">
+        <div class="toc-num">SECTION iv</div>
+        <div class="toc-title">Theme Builder Templates</div>
+        <div class="toc-desc">Headers, footers, single, archive, popups. Display conditions with priority. Pro features handled.</div>
+      </div>
+      <div class="toc-item">
+        <div class="toc-num">SECTION v</div>
+        <div class="toc-title">Media</div>
+        <div class="toc-desc">Image gen routing (DALL-E / Imagen / Flux). SSRF defenses on URL-mode upload. WebP/AVIF conversion.</div>
+      </div>
+      <div class="toc-item">
+        <div class="toc-num">SECTION vi</div>
+        <div class="toc-title">Plan Mode</div>
+        <div class="toc-desc">Multi-step plans require WP-admin approval with CSRF + approver-binding. Atomic execution. Rollback on any step failure.</div>
+      </div>
+      <div class="toc-item">
+        <div class="toc-num">SECTION vii</div>
+        <div class="toc-title">Audit Log</div>
+        <div class="toc-desc">Hash-chained tamper detection. Client-facing changelog export (HTML/CSV/PDF). 90-day retention default.</div>
+      </div>
+      <div class="toc-item">
+        <div class="toc-num">SECTION viii</div>
+        <div class="toc-title">Fleet Operations</div>
+        <div class="toc-desc">Bulk onboarding via <code style="font-family: 'JetBrains Mono', monospace; font-size: 0.875rem;">connect --config sites.yaml</code>. Broadcast brand-kit updates. Per-site operating modes.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="colophon" id="colophon">
+  <div class="container">
+    <h2 style="margin: 0 auto 1.5rem;">A colophon, <em>not a launch</em>.</h2>
+    <p>Vellum is in pre-release. v0.5 alpha in ~6 weeks. v1.0 OSS launch on wp.org in 14–16. We're publishing the specs in the open, taking the time, and refusing to ship until the discipline is real. Star the repo to be notified when the alpha is ready for a staging site.</p>
+    <div class="ctas" style="justify-content: center;">
+      <a href="https://github.com/ckrohg/tenet-elementor" class="btn btn-primary">View on GitHub →</a>
+      <a href="https://github.com/ckrohg/tenet-elementor/blob/main/specs/PLUGIN_API.md" class="btn btn-secondary">Read the specifications →</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container foot-inner">
+    <div>
+      <div class="foot-logo">Vellum</div>
+      <div style="margin-top: 0.5rem;">PRE-V0.1 · SPECS ONLY · DO NOT INSTALL ON PRODUCTION</div>
+    </div>
+    <div>
+      <a href="https://github.com/ckrohg/tenet-elementor">GITHUB</a>
+      <a href="https://github.com/ckrohg/tenet-elementor/blob/main/specs/PLUGIN_API.md">SPEC</a>
+      <a href="#">DISCORD (v0.5)</a>
+      <a href="#">DISCUSSIONS (v0.5)</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

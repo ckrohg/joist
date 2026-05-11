@@ -103,7 +103,7 @@ OSS phase: $0 revenue, low cost (one-time engineering + maintenance). Profitable
 | Anthropic prices change unfavorably or Claude Code stagnates | Medium | Medium | MCP is provider-agnostic; we already support Cursor, Windsurf, Postman, and other MCP clients. Provider routing is a one-day change. |
 | Open source forks splinter the community | Medium | Medium | Standard OSS playbook — fast iteration, clear governance, paid SaaS layer captures professional buyers who want one canonical path. |
 | Security incident — a malicious operator uses the plugin to vandalize sites | Medium | High | Application Passwords + capability checks + audit log + atomic rollback are designed for this. Plus: human approval gate on Plan Mode prevents zero-click destruction. |
-| Support burden swamps a small team | High | Medium | Heavy investment in `tenet-elementor doctor` self-diagnostics, anti-slop refusals (refuse-don't-guess), and SiteGround/Kinsta/etc. host adapters that detect + auto-fix common issues. |
+| Support burden swamps a small team | High | Medium | Heavy investment in `joist doctor` self-diagnostics, anti-slop refusals (refuse-don't-guess), and SiteGround/Kinsta/etc. host adapters that detect + auto-fix common issues. |
 
 ---
 

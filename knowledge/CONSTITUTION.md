@@ -1,6 +1,6 @@
 # Constitution
 
-> Non-negotiable rules for how we build and ship tenet-elementor-agent. Distilled from postmortem research of every prior attempt + the strategic frame we've chosen.
+> Non-negotiable rules for how we build and ship joist. Distilled from postmortem research of every prior attempt + the strategic frame we've chosen.
 
 ---
 

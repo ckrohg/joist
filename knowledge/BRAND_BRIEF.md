@@ -1,14 +1,24 @@
 # Brand Brief
 
-> Input for the `/brandarchitect` skill. Defines the brand attributes, target customer, voice, visual direction, and positioning so brandarchitect can generate name candidates, palette, type system, and identity. **Do not pre-decide the name.** Let brandarchitect propose; founder selects.
+> Documented for the team and any future skill invocations. Brand was finalized 2026-05-11 via a 3-way comparison of live-deployed landing pages (Joist / Splice / Vellum). **Joist** was selected. This doc preserves the inputs that led there + locks the working visual + voice decisions.
+
+---
+
+## DECISIONS LOCKED (2026-05-11)
+
+- **Name:** **Joist** — /dʒɔɪst/, foundational structural beam. Contains "join."
+- **Palette:** **Foundry** — warm dark `#0E0E0C` + Cloud Dancer `#F3F2EC` + electric chartreuse `#D4FF3A`
+- **Type:** **Engineering Editorial** — Fraunces (display) + Inter (body) + JetBrains Mono (code). Working pair (free, Google Fonts). Aspirational upgrade at v1.0 marketing: Editorial New + Neue Montreal + Berkeley Mono (Pangram Pangram + paid).
+- **Wordmark:** plain Fraunces wordmark, single horizontal chartreuse stroke before it (favicon-friendly).
+- **Voice:** discipline-forward, anti-magic, engineer-night. See `memory/brand_decisions.md` for the full forbidden/preferred vocabulary list.
+
+Full visual identity + code-naming conventions in `memory/brand_decisions.md`. Live demo lives at `https://tenet-brand-drafts.vercel.app/joist` (will migrate to a permanent home at v0.5).
 
 ---
 
 ## What we are
 
 An open-source agentic backbone for Elementor (WordPress) websites. A plugin + Claude Code skill + CLI that gives AI agents safe, schema-validated, audit-logged read/write access to any Elementor site — so AI can build new sites, edit existing ones, and refresh content as a trusted teammate, not a magic button.
-
-**Working name (placeholder until brandarchitect runs):** `tenet-elementor-agent` / `tenet-elementor`. Both are descriptive but not memorable. We want a real product name.
 
 ---
 
