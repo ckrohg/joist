@@ -3,18 +3,13 @@ declare(strict_types=1);
 
 namespace Joist\REST;
 
-use Joist\Elementor\WidgetCatalog;
+use Joist\Container;
 use WP_REST_Request;
 use WP_REST_Server;
 
 /**
  * GET /joist/v1/site — site identity, plugin status, runtime env.
- * Used by the agent (or CLI doctor) at session start to know what stack
- * it's talking to.
- *
- * v0.1 M0: minimal shape. v0.5 adds layout_mode autodetect, host adapter
- * detection (SiteGround / Kinsta / WPE / Cloudways), operating mode,
- * dynamic tag count, etc.
+ * Plus /site/flush-cache and /elementor/refresh-layout-mode.
  */
 final class SiteController extends ControllerBase
 {
@@ -25,26 +20,41 @@ final class SiteController extends ControllerBase
             'callback' => [$this, 'getSite'],
             'permission_callback' => [$this, 'permissionsCheck'],
         ]);
-
-        register_rest_route(self::NAMESPACE, '/widgets', [
-            'methods' => WP_REST_Server::READABLE,
-            'callback' => [$this, 'listWidgets'],
+        register_rest_route(self::NAMESPACE, '/site/flush-cache', [
+            'methods' => WP_REST_Server::CREATABLE,
+            'callback' => [$this, 'flushCache'],
+            'permission_callback' => [$this, 'permissionsCheck'],
+        ]);
+        register_rest_route(self::NAMESPACE, '/elementor/refresh-layout-mode', [
+            'methods' => WP_REST_Server::CREATABLE,
+            'callback' => [$this, 'refreshLayoutMode'],
+            'permission_callback' => [$this, 'permissionsCheck'],
+        ]);
+        register_rest_route(self::NAMESPACE, '/site/regenerate-css', [
+            'methods' => WP_REST_Server::CREATABLE,
+            'callback' => [$this, 'regenerateCss'],
             'permission_callback' => [$this, 'permissionsCheck'],
         ]);
     }
 
-    public function getSite(WP_REST_Request $request)
+    public function getSite(WP_REST_Request $req)
     {
-        try {
-            $catalog = new WidgetCatalog();
+        return $this->handle($req, 'reads', function () {
+            $catalog = Container::get('catalog');
+            $dynamicTags = Container::get('dynamicTags');
+            $layoutMode = Container::get('layoutMode')->current();
+            $opMode = Container::get('opMode')->current();
+            $host = Container::get('hostDetector')->detect();
+            $cacheAdapters = Container::get('cacheFlusher')->detectedAdapters();
 
-            $payload = [
+            return $this->ok([
                 'site' => [
                     'url' => home_url(),
                     'title' => get_bloginfo('name'),
                     'tagline' => get_bloginfo('description'),
                     'language' => get_locale(),
                     'timezone' => wp_timezone_string(),
+                    'permalink_structure' => get_option('permalink_structure'),
                 ],
                 'wordpress' => [
                     'version' => get_bloginfo('version'),
@@ -63,28 +73,73 @@ final class SiteController extends ControllerBase
                         'version' => defined('ELEMENTOR_PRO_VERSION') ? ELEMENTOR_PRO_VERSION : null,
                     ],
                     'registered_widget_count' => count($catalog->listAll()),
+                    'registered_dynamic_tag_count' => count($dynamicTags->listAll()),
+                    'layout_mode' => $layoutMode['mode'] ?? 'unknown',
+                    'layout_mode_confidence' => $layoutMode['confidence'] ?? null,
+                ],
+                'operating_mode' => [
+                    'mode' => $opMode['mode'],
+                    'expires_at' => $opMode['expires_at'],
+                    'staging_mandatory' => (bool) $opMode['staging_mandatory'],
+                ],
+                'hosting' => [
+                    'host' => $host['host'],
+                    'plan' => $host['plan'],
+                    'php_version' => PHP_VERSION,
+                    'notes' => $host['notes'],
+                    'cache_adapters' => $cacheAdapters,
                 ],
                 'plugin' => [
                     'name' => 'Joist',
                     'version' => JOIST_VERSION,
-                    'status' => 'v0.1-alpha-m0-spike',
                     'db_version' => (int) get_option('joist_db_version', 0),
+                    'activation_error' => get_option('joist_activation_error', null),
                 ],
-            ];
-
-            return $this->ok($payload);
-        } catch (\Throwable $e) {
-            return $this->errorResponse($e);
-        }
+            ]);
+        });
     }
 
-    public function listWidgets(WP_REST_Request $request)
+    public function flushCache(WP_REST_Request $req)
     {
-        try {
-            $catalog = new WidgetCatalog();
-            return $this->ok(['widgets' => $catalog->listAll()]);
-        } catch (\Throwable $e) {
-            return $this->errorResponse($e);
-        }
+        return $this->handle($req, 'writes', function (WP_REST_Request $req) {
+            $body = $req->get_json_params();
+            $scope = (string) ($body['scope'] ?? 'all');
+            $pageId = (int) ($body['page_id'] ?? 0);
+
+            $flusher = Container::get('cacheFlusher');
+            $regen = Container::get('cssRegen');
+            if ($scope === 'page' && $pageId > 0) {
+                $regen->regenerate($pageId);
+                $flusher->flushPage($pageId);
+            } else {
+                $regen->regenAll();
+                $flusher->flushSite();
+            }
+            return $this->ok(['flushed' => true, 'scope' => $scope]);
+        });
+    }
+
+    public function regenerateCss(WP_REST_Request $req)
+    {
+        return $this->handle($req, 'writes', function (WP_REST_Request $req) {
+            $body = $req->get_json_params();
+            $scope = (string) ($body['scope'] ?? 'all');
+            $regen = Container::get('cssRegen');
+            match ($scope) {
+                'page' => $regen->regenPost((int) ($body['page_id'] ?? 0)),
+                'global' => $regen->regenGlobal(),
+                'kit' => $regen->regenCustom(),
+                default => $regen->regenAll(),
+            };
+            return $this->ok(['regenerated' => true, 'scope' => $scope]);
+        });
+    }
+
+    public function refreshLayoutMode(WP_REST_Request $req)
+    {
+        return $this->handle($req, 'writes', function () {
+            $result = Container::get('layoutMode')->refresh();
+            return $this->ok($result);
+        });
     }
 }
