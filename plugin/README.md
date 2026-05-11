@@ -64,52 +64,57 @@ WP-admin React Plan Review UI (REST exists, UI is v0.7) · MCP adapter wiring (R
 
 ## Install (manual, for dev only)
 
-```bash
-# Symlink the plugin into a local WP install:
-ln -s /Users/ckrohg/Documents/Claude/tenet-elementor/plugin \
-      ~/Local\ Sites/your-site/app/public/wp-content/plugins/joist
+1. Install [Local](https://localwp.com), spin up a site — WordPress 6.5+, PHP 8.0+.
+2. Install **Elementor** (the free version is enough for v0.5 — we don't use Pro-only features yet) and the **Hello Elementor** theme.
+3. Symlink the plugin into the site:
+   ```bash
+   ln -s /Users/ckrohg/Documents/Claude/tenet-elementor/plugin \
+         ~/Local\ Sites/your-site/app/public/wp-content/plugins/joist
+   ```
+4. Activate (this runs the 8 migrations + registers the `joist_agent` role):
+   ```bash
+   wp --path=~/Local\ Sites/your-site/app/public plugin activate joist
+   # ...or just activate it in WP Admin → Plugins
+   ```
+5. Generate an Application Password: WP Admin → Users → Profile → Application Passwords.
 
-# Activate:
-wp --path=~/Local\ Sites/your-site/app/public plugin activate joist
+**New installs default to operating mode `observer`** — every write returns `dry_run: true` and persists nothing. That's the 30-day trial-mode design. To do real writes, set mode to `live`:
+```bash
+curl -u "USER:APP_PWD" -X POST "$WP_URL/wp-json/joist/v1/site/operating-mode" \
+     -H 'Content-Type: application/json' -d '{"mode":"live"}'
+```
+(The acceptance test does this for you.)
+
+## Testing
+
+### `tests/manual/acceptance.sh` — the full v0.5 suite
+
+~80 assertions exercising the entire surface: health (incl. a real write test), sessions, page CRUD, all 8 patch ops, OCC hash-mismatch (409 + recovery_suggestions), schema-validation rejection with Levenshtein suggestion, revisions + atomic restore, kit + match-color, PolicyGuard kit-zero-colors refusal (403), SEO read/write, webhooks register/rotate/delete, Theme Builder templates, hash-chained audit log, Plan Mode (create → approve → execute → completed), operating mode (observer forces dry_run), and the chained-singleton trigger (6th unplanned op → 423).
+
+Requires `curl` + `jq` (`brew install jq`). Doesn't need WP-CLI.
+
+```bash
+WP_URL="http://your-site.local" \
+JOIST_USER="admin" \
+JOIST_APP_PWD="xxxx xxxx xxxx xxxx xxxx xxxx" \
+bash tests/manual/acceptance.sh
 ```
 
-Then create an Application Password for your admin user (WP Admin → Users → Profile → Application Passwords).
+Useful env vars: `JOIST_VERBOSE=1` (print full responses), `JOIST_KEEP=1` (don't trash the test pages — needed for the manual round-trip step below).
 
-## Smoke test
+**First run will surface plugin bugs** — this code was written against the spec without a live WP. Expect failures; fix them in `src/`, re-run. The `GET /health` real-write-test is the single most informative check — if that passes, the core spine works.
 
-See `tests/manual/smoke.sh` for copy-pasteable curl commands.
+### `tests/manual/smoke.sh` — 30-second quick check
 
-Quick version:
+A minimal create-a-page-and-read-it-back script, predates the full suite. Still works as a sanity check.
 
-```bash
-WP_URL="http://your-site.local"
-USER="admin"
-APP_PWD="xxxx xxxx xxxx xxxx xxxx xxxx"
+### The manual round-trip step (the proof)
 
-# Health check
-curl -u "$USER:$APP_PWD" "$WP_URL/wp-json/joist/v1/site" | jq .
-
-# Create a page with a heading widget
-curl -u "$USER:$APP_PWD" \
-     -H "Content-Type: application/json" \
-     -X POST "$WP_URL/wp-json/joist/v1/pages" \
-     -d '{
-       "title": "Joist test page",
-       "status": "publish",
-       "elements": [{
-         "elType": "container",
-         "settings": {"flex_direction": "column", "padding": {"unit":"px","top":"40"}},
-         "elements": [{
-           "elType": "widget",
-           "widgetType": "heading",
-           "settings": {"title": "Hello from Joist", "align": "center", "header_size": "h1"},
-           "elements": []
-         }]
-       }]
-     }'
-```
-
-Open the returned `edit_url` in your browser. Edit the heading text in the Elementor UI. Save. Re-fetch via `GET /pages/{id}` — verify the hash changed and the edit landed.
+Run with `JOIST_KEEP=1`, then in your browser:
+1. Open the `edit_url` the test prints for the last test page.
+2. Edit a widget in the Elementor UI, save.
+3. `curl GET /pages/{id}` — the hash will differ from the test's last write, and `last_modifier.actor_type` will be `human`.
+4. That's round-trip detection working — the agent's next write would see the mismatch and re-read instead of clobbering. No "the AI deleted my work" failure mode.
 
 ## Requirements
 
