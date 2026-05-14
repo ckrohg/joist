@@ -254,6 +254,7 @@ final class PagesController extends ControllerBase
                 'dry_run' => (bool) ($body['dry_run'] ?? false),
                 'force_layout_cross_mode' => (bool) ($body['force'] ?? false),
                 'prefer_literals' => (bool) ($body['prefer_literals'] ?? false),
+                'fill_responsive' => (bool) ($body['fill_responsive'] ?? false),
             ]));
 
             return $this->ok([
@@ -261,6 +262,7 @@ final class PagesController extends ControllerBase
                 'applied_ops' => count($ops),
                 'generated_ids' => array_merge($generatedFromPatch, $result['generated_ids']),
                 'transformations' => $result['transformations'] ?? [],
+                'responsive_fills' => $result['responsive_fills'] ?? [],
                 'warnings' => $result['warnings'] ?? [],
                 'pending_verifications' => $result['pending_verifications'] ?? [],
                 'dry_run' => $result['dry_run'],

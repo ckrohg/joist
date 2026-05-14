@@ -17,6 +17,7 @@ use Joist\Elementor\DocumentWriter;
 use Joist\Elementor\DynamicTagValidator;
 use Joist\Elementor\GlobalRefPreferrer;
 use Joist\Elementor\PatchEngine;
+use Joist\Elementor\ResponsiveFiller;
 use Joist\Elementor\SchemaValidator;
 use Joist\Elementor\WidgetCatalog;
 use Joist\Host\HostDetector;
@@ -55,6 +56,7 @@ final class Container
             'dynamicTags' => new DynamicTagValidator(),
             'globals' => new GlobalRefPreferrer(),
             'cssBlocks' => new CustomCSSBlockManager(),
+            'responsiveFiller' => new ResponsiveFiller(self::get('catalog')),
             'layoutMode' => new ContainerModeAdapter(),
             'locks' => new LockManager(),
             'opMode' => new OperatingMode(),
@@ -86,6 +88,7 @@ final class Container
                 self::get('revisions'),
                 self::get('audit'),
                 self::get('webhooks'),
+                self::get('responsiveFiller'),
             ),
             'planExecutor' => new PlanExecutor(
                 self::get('planStore'),

@@ -62,6 +62,7 @@ final class DocumentWriter
         private RevisionStore $revisions,
         private AuditLogger $audit,
         private WebhookEmitter $webhooks,
+        private ?ResponsiveFiller $responsiveFiller = null,
     ) {}
 
     /**
@@ -140,6 +141,19 @@ final class DocumentWriter
                 (bool) ($req['prefer_literals'] ?? false)
             );
 
+            // Constraint #24 (updated 2026-05-13): responsive fill is OPT-IN.
+            // Elementor handles missing _tablet/_mobile via CSS cascade — missing
+            // keys are CORRECT, not incomplete. Only fill when caller explicitly
+            // sets fill_responsive: true (agent has per-breakpoint design intent).
+            $responsiveFills = [];
+            if (!empty($req['fill_responsive']) && $this->responsiveFiller !== null) {
+                [$elements, $responsiveFills] = $this->responsiveFiller->fill(
+                    $elements,
+                    true,
+                    is_array($req['kit_breakpoints'] ?? null) ? $req['kit_breakpoints'] : []
+                );
+            }
+
             // Constraint #10: ID generation for any missing/temp.
             $elements = $this->idGen->fillMissing($elements);
 
@@ -182,6 +196,7 @@ final class DocumentWriter
                     'verified_elements' => $elements,
                     'generated_ids' => $this->idGen->lastGeneratedMap(),
                     'transformations' => $transformations,
+                    'responsive_fills' => $responsiveFills,
                     'warnings' => $warnings,
                 ];
             }
@@ -233,6 +248,7 @@ final class DocumentWriter
                 'generated_ids' => $this->idGen->lastGeneratedMap(),
                 'revision_id' => $revisionId,
                 'transformations' => $transformations,
+                'responsive_fills' => $responsiveFills,
                 'warnings' => $warnings,
                 'pending_verifications' => ['css_regen', 'cache_flush', 'frontend_verify'],
             ];

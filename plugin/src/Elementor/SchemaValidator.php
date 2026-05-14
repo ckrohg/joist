@@ -86,23 +86,15 @@ final class SchemaValidator
             // v0.7 adds value-type validation per control type.
         }
 
-        // Constraint #24: responsive-completeness warnings.
-        foreach ($controlByName as $name => $control) {
-            if (empty($control['responsive'])) continue;
-            $hasDesktop = isset($settings[$name]);
-            $hasTablet = isset($settings[$name . '_tablet']);
-            $hasMobile = isset($settings[$name . '_mobile']);
-            $default = $control['default'] ?? null;
-            if ($hasDesktop && $settings[$name] !== $default && (!$hasTablet || !$hasMobile)) {
-                $warnings[] = [
-                    'code' => 'validation.responsive_incomplete',
-                    'path' => "settings.{$name}",
-                    'message' => "Responsive control '{$name}' has a desktop value but missing tablet/mobile variants. "
-                        . "Mobile/tablet will render the control default ('{$default}'). "
-                        . "Set responsive: \"explicit\" in the op to suppress.",
-                ];
-            }
-        }
+        // Constraint #24 — UPDATED 2026-05-13 after research verification:
+        // The earlier "responsive_incomplete" warning was based on a wrong
+        // assumption. Elementor handles missing _tablet/_mobile keys via CSS
+        // cascade (max-width media queries with desktop = unscoped base).
+        // Missing keys are CORRECT, not incomplete. Human-edited posts NEVER
+        // write per-breakpoint keys when values match desktop.
+        // The previous warning misled the agent into "fixing" something that
+        // isn't broken. Removed entirely. Responsive fill is now opt-in via
+        // the `fill_responsive: true` op param, handled in ResponsiveFiller.
 
         if (!empty($errors)) {
             throw new InvalidSettingsException(
