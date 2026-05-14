@@ -20,6 +20,8 @@ use Joist\Elementor\PatchEngine;
 use Joist\Elementor\ResponsiveFiller;
 use Joist\Elementor\SchemaValidator;
 use Joist\Elementor\WidgetCatalog;
+use Joist\Eval\ForbiddenPhraseValidator;
+use Joist\Eval\PreferenceMemory;
 use Joist\Host\HostDetector;
 use Joist\Plan\PlanExecutor;
 use Joist\Plan\PlanStore;

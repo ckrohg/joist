@@ -30,12 +30,30 @@ final class Bootstrap
 
         add_action('rest_api_init', [self::class, 'registerRoutes']);
 
+        // Widget Pack — Joist's custom Elementor widgets (v0.9-α).
+        if (class_exists(\Joist\WidgetPack\PackBootstrap::class)) {
+            \Joist\WidgetPack\PackBootstrap::init();
+        }
+
+        // Preference-memory capture hooks (v0.7-α).
+        if (class_exists(\Joist\Eval\PreferenceCapture::class)) {
+            \Joist\Eval\PreferenceCapture::init();
+        }
+
         // Scheduled events.
         add_action('joist_post_save_verify', [self::class, 'postSaveVerify'], 10, 1);
         add_action(WebhookEmitter::HOOK, [self::class, 'webhookDispatch'], 10, 2);
         add_action('joist_daily_maintenance', [self::class, 'dailyMaintenance']);
         if (!wp_next_scheduled('joist_daily_maintenance')) {
             wp_schedule_event(time() + 3600, 'daily', 'joist_daily_maintenance');
+        }
+
+        // Hourly eval-events rollup.
+        if (class_exists(\Joist\Eval\RollupJob::class)) {
+            add_action('joist_eval_rollup', [\Joist\Eval\RollupJob::class, 'run']);
+            if (!wp_next_scheduled('joist_eval_rollup')) {
+                wp_schedule_event(time() + 600, 'hourly', 'joist_eval_rollup');
+            }
         }
 
         // Recovery: any plan stuck in 'executing' > 5 min is marked failed.
@@ -69,6 +87,7 @@ final class Bootstrap
     {
         // Don't delete data; just unschedule events.
         wp_clear_scheduled_hook('joist_daily_maintenance');
+        wp_clear_scheduled_hook('joist_eval_rollup');
     }
 
     public static function registerRoutes(): void
@@ -91,6 +110,8 @@ final class Bootstrap
             \Joist\REST\AuditLogController::class,
             \Joist\REST\HealthController::class,
             \Joist\REST\OperatingModeController::class,
+            \Joist\REST\PreferencesController::class,
+            \Joist\REST\QualityController::class,
         ];
         foreach ($controllers as $c) {
             if (class_exists($c)) {

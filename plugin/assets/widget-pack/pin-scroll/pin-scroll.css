@@ -1,0 +1,118 @@
+/*
+ * Joist Pin-Scroll widget styles.
+ *
+ * CSS-first pin behavior: the outer wrapper provides scroll length, the sticky
+ * child is the viewport, the inner track translates horizontally.
+ */
+
+.joist-pin {
+  /* outer wrapper provides total scroll budget = panels × duration */
+  position: relative;
+  height: calc(var(--joist-pin-panels, 3) * var(--joist-pin-duration, 100vh));
+}
+
+.joist-pin__sticky {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.joist-pin__track {
+  display: flex;
+  height: 100%;
+  width: calc(var(--joist-pin-panels, 3) * 100vw);
+  will-change: transform;
+}
+
+.joist-pin__panel {
+  flex: 0 0 100vw;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* CSS-first pin: animation-timeline drives the transform without JS.
+   Browsers that don't support it ignore the rule; the JS runtime takes over. */
+@supports (animation-timeline: scroll()) {
+  .joist-pin[data-engine="auto"] .joist-pin__track,
+  .joist-pin[data-engine="css"]  .joist-pin__track {
+    animation: joist-pin-translate linear both;
+    animation-timeline: view();
+    animation-range: contain 0% contain 100%;
+  }
+  @keyframes joist-pin-translate {
+    from { transform: translate3d(0, 0, 0); }
+    to   { transform: translate3d(calc(-1 * var(--joist-pin-distance, 200vw)), 0, 0); }
+  }
+}
+
+/* Reduced motion: stack vertically, no transform. */
+@media (prefers-reduced-motion: reduce) {
+  .joist-pin[data-reduced-motion="1"] {
+    height: auto;
+  }
+  .joist-pin[data-reduced-motion="1"] .joist-pin__sticky {
+    position: static;
+    height: auto;
+    overflow: visible;
+  }
+  .joist-pin[data-reduced-motion="1"] .joist-pin__track {
+    flex-direction: column;
+    width: 100%;
+    transform: none !important;
+    animation: none !important;
+  }
+  .joist-pin[data-reduced-motion="1"] .joist-pin__panel {
+    flex: 0 0 auto;
+    width: 100%;
+    height: auto;
+    min-width: 100% !important;
+  }
+}
+
+/* Mobile fallback: below the configured breakpoint, stack panels. */
+@media (max-width: 767px) {
+  .joist-pin[data-disable-below] {
+    height: auto;
+  }
+  .joist-pin[data-disable-below] .joist-pin__sticky {
+    position: static;
+    height: auto;
+    overflow: visible;
+  }
+  .joist-pin[data-disable-below] .joist-pin__track {
+    flex-direction: column;
+    width: 100%;
+    transform: none !important;
+    animation: none !important;
+  }
+  .joist-pin[data-disable-below] .joist-pin__panel {
+    flex: 0 0 auto;
+    width: 100%;
+    height: auto;
+    min-width: 100% !important;
+  }
+}
+
+/* Editor preview — Elementor's edit-mode iframe doesn't reliably scroll;
+   show first panel statically with a notice. */
+.joist-pin--editor,
+.joist-pin .joist-pin__editor-preview {
+  height: auto;
+  position: relative;
+}
+.joist-pin .joist-pin__editor-preview .joist-pin__panel {
+  min-width: 100%;
+  width: 100%;
+  height: auto;
+}
+.joist-pin__editor-notice {
+  background: #fffbe6;
+  color: #5a4400;
+  padding: 8px 12px;
+  font-size: 12px;
+  border: 1px solid #ffe58f;
+  border-radius: 4px;
+  margin-bottom: 12px;
+}

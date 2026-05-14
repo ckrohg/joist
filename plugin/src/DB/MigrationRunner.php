@@ -15,7 +15,7 @@ namespace Joist\DB;
  */
 final class MigrationRunner
 {
-    public const DB_VERSION = 8;
+    public const DB_VERSION = 11;
 
     public static function run(): void
     {
@@ -33,6 +33,9 @@ final class MigrationRunner
             6 => [self::class, 'migration006CreateRateLimits'],
             7 => [self::class, 'migration007CreateBacklog'],
             8 => [self::class, 'migration008CreateWebhooks'],
+            9 => [self::class, 'migration009CreatePreferences'],
+            10 => [self::class, 'migration010CreateEvalEvents'],
+            11 => [self::class, 'migration011CreateEvalRollups'],
         ];
 
         foreach ($steps as $version => $callable) {
@@ -238,11 +241,80 @@ final class MigrationRunner
         ) {$charset};");
     }
 
+    public static function migration009CreatePreferences(): void
+    {
+        global $wpdb;
+        $charset = $wpdb->get_charset_collate();
+        $table = self::tableName('preferences');
+        self::exec("CREATE TABLE {$table} (
+            id VARCHAR(64) NOT NULL,
+            site_id VARCHAR(64) NOT NULL,
+            kind VARCHAR(32) NOT NULL,
+            scope VARCHAR(100) NOT NULL DEFAULT 'global',
+            pattern TEXT NOT NULL,
+            directive TEXT NOT NULL,
+            provenance LONGTEXT NULL,
+            confidence DECIMAL(3,2) NOT NULL DEFAULT 1.00,
+            status VARCHAR(20) NOT NULL DEFAULT 'active',
+            created_at DATETIME NOT NULL,
+            last_invoked_at DATETIME NULL,
+            superseded_by VARCHAR(64) NULL,
+            PRIMARY KEY  (id),
+            KEY idx_site_status (site_id, status),
+            KEY idx_site_kind (site_id, kind)
+        ) {$charset};");
+    }
+
+    public static function migration010CreateEvalEvents(): void
+    {
+        global $wpdb;
+        $charset = $wpdb->get_charset_collate();
+        $table = self::tableName('eval_events');
+        self::exec("CREATE TABLE {$table} (
+            id BIGINT UNSIGNED AUTO_INCREMENT NOT NULL,
+            ts DATETIME NOT NULL,
+            site_id VARCHAR(64) NOT NULL,
+            session_id VARCHAR(64) NULL,
+            plan_id VARCHAR(64) NULL,
+            page_id BIGINT UNSIGNED NULL,
+            section_id VARCHAR(64) NULL,
+            metric_key VARCHAR(64) NOT NULL,
+            metric_value DECIMAL(12,4) NOT NULL,
+            agent_version VARCHAR(32) NULL,
+            plugin_version VARCHAR(32) NULL,
+            prompt_hash CHAR(16) NULL,
+            PRIMARY KEY  (id),
+            KEY idx_ts (ts),
+            KEY idx_site_metric_ts (site_id, metric_key, ts),
+            KEY idx_plan (plan_id)
+        ) {$charset};");
+    }
+
+    public static function migration011CreateEvalRollups(): void
+    {
+        global $wpdb;
+        $charset = $wpdb->get_charset_collate();
+        $table = self::tableName('eval_rollups');
+        self::exec("CREATE TABLE {$table} (
+            bucket_ts DATETIME NOT NULL,
+            site_id VARCHAR(64) NOT NULL,
+            metric_key VARCHAR(64) NOT NULL,
+            agent_version VARCHAR(32) NOT NULL DEFAULT '',
+            plugin_version VARCHAR(32) NOT NULL DEFAULT '',
+            sample_count INT UNSIGNED NOT NULL DEFAULT 0,
+            p50 DECIMAL(12,4) NULL,
+            p95 DECIMAL(12,4) NULL,
+            avg_value DECIMAL(12,4) NULL,
+            rate DECIMAL(5,4) NULL,
+            PRIMARY KEY  (bucket_ts, site_id, metric_key, agent_version, plugin_version)
+        ) {$charset};");
+    }
+
     /** Drop all custom tables. Called ONLY from uninstall.php when user opts in. */
     public static function dropAll(): void
     {
         global $wpdb;
-        $suffixes = ['revisions', 'audit', 'plans', 'sessions', 'locks', 'rate_limits', 'backlog', 'webhooks'];
+        $suffixes = ['revisions', 'audit', 'plans', 'sessions', 'locks', 'rate_limits', 'backlog', 'webhooks', 'preferences', 'eval_events', 'eval_rollups'];
         foreach ($suffixes as $s) {
             $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}joist_{$s}");
         }

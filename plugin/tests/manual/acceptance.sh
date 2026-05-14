@@ -508,6 +508,169 @@ case "$WP_URL" in
   *) fail "site is plain HTTP and not a recognized local dev host — the plugin should have returned 421 on the first call" ;;
 esac
 
+# ── PREFERENCE MEMORY (v0.7-α) ──────────────────────────────────────────────
+section "Preference memory — per-site brand learning"
+
+# Render baseline (likely empty on a fresh install)
+api GET "/preferences/render"
+if [ "$HTTP_CODE" = "404" ]; then
+  skip "preference-memory endpoints not registered (pre-v0.7 build) — skipping rest of section"
+else
+  assert_status 200 "GET /preferences/render (baseline)"
+
+  # Create a forbidden_phrase rule
+  api POST "/preferences" '{
+    "kind": "forbidden_phrase",
+    "pattern": "synergy",
+    "rationale": "brand voice — avoid corporate jargon",
+    "confidence": 0.8
+  }'
+  assert_status_in "200 201" "POST /preferences (forbidden_phrase: synergy)"
+  RULE_ID="$(jqr '.id // .rules[0].id')"
+  if [ -z "$RULE_ID" ] || [ "$RULE_ID" = "null" ]; then
+    fail "could not extract rule id from create response — skipping forbidden-phrase round trip"
+  else
+    info "rule id: $RULE_ID"
+
+    # Confirm it surfaces in listActive
+    api GET "/preferences"
+    assert_status 200 "GET /preferences (list)"
+    assert_jq "[.rules[] | select(.kind == \"forbidden_phrase\" and .pattern == \"synergy\")] | length >= 1" "rule shows in active list"
+
+    # Confirm renderForPrompt includes it
+    api GET "/preferences/render"
+    assert_status 200 "GET /preferences/render (with rule)"
+    if echo "$RESP" | grep -qi "synergy"; then
+      pass "render-for-prompt includes 'synergy' rule"
+    else
+      fail "render-for-prompt missing 'synergy' rule"
+    fi
+
+    # Validate flow: text containing the forbidden phrase should be flagged
+    api POST "/preferences/validate" '{"text": "We need to drive synergy across teams."}'
+    assert_status 200 "POST /preferences/validate (positive)"
+    assert_jq '.violations | length >= 1' "validator flags forbidden phrase"
+    assert_jq '[.violations[] | select(.pattern == "synergy")] | length >= 1' "violation cites correct pattern"
+
+    # Negative case: clean text passes
+    api POST "/preferences/validate" '{"text": "We help teams ship."}'
+    assert_status 200 "POST /preferences/validate (negative)"
+    assert_jq '.violations | length == 0' "clean text has no violations"
+
+    # Dedup: re-adding the same pattern should bump confidence, not duplicate
+    api POST "/preferences" '{
+      "kind": "forbidden_phrase",
+      "pattern": "synergy",
+      "rationale": "second sighting",
+      "confidence": 0.7
+    }'
+    assert_status_in "200 201" "POST /preferences (duplicate pattern)"
+    api GET "/preferences"
+    assert_jq '[.rules[] | select(.kind == "forbidden_phrase" and .pattern == "synergy")] | length == 1' "dedup: still exactly one synergy rule"
+
+    # Archive
+    api DELETE "/preferences/$RULE_ID"
+    assert_status_in "200 204" "DELETE /preferences/{id} (archive)"
+    api GET "/preferences"
+    assert_jq "[.rules[] | select(.id == \"$RULE_ID\")] | length == 0" "archived rule no longer in active list"
+  fi
+
+  # Compact (admin)
+  api POST "/preferences/compact" '{}'
+  assert_status_in "200 202" "POST /preferences/compact"
+fi
+
+# ── QUALITY EVAL (v0.7-α) ───────────────────────────────────────────────────
+section "Quality eval — events + hourly rollup"
+
+api GET "/quality/summary"
+if [ "$HTTP_CODE" = "404" ]; then
+  skip "quality endpoints not registered (pre-v0.7 build)"
+else
+  assert_status 200 "GET /quality/summary"
+  assert_jq '.metrics // .summary // .' "summary returns shaped JSON"
+
+  api GET "/quality/trend?metric=fidelity"
+  assert_status_in "200 204" "GET /quality/trend?metric=fidelity"
+
+  # Manual rollup trigger (admin only — exercises the cron path synchronously)
+  api POST "/quality/rollup" '{}'
+  assert_status_in "200 202" "POST /quality/rollup (manual trigger)"
+fi
+
+# ── WIDGET PACK: PIN-SCROLL (v0.9-α) ────────────────────────────────────────
+section "Widget Pack — Pin-Scroll registration"
+
+api GET "/widgets"
+if [ "$HTTP_CODE" != "200" ]; then
+  skip "GET /widgets not available — cannot verify widget pack registration"
+else
+  # The widget should be registered under the joist category.
+  if echo "$RESP" | jq -e '.widgets[] | select(.name == "joist-pin-scroll")' >/dev/null 2>&1; then
+    pass "joist-pin-scroll widget is registered"
+  else
+    fail "joist-pin-scroll widget NOT in /widgets — Widget Pack not loaded (check class_exists guard in Bootstrap)"
+  fi
+
+  api GET "/widgets/joist-pin-scroll/schema"
+  if [ "$HTTP_CODE" = "200" ]; then
+    pass "GET /widgets/joist-pin-scroll/schema reachable"
+    assert_jq '.controls | type == "object" or type == "array"' "schema exposes controls"
+    # Key controls from research stream C
+    if echo "$RESP" | grep -q '"pin_distance"'; then pass "schema includes pin_distance"; else fail "schema missing pin_distance"; fi
+    if echo "$RESP" | grep -q '"pin_duration"'; then pass "schema includes pin_duration"; else fail "schema missing pin_duration"; fi
+    if echo "$RESP" | grep -q '"engine"';       then pass "schema includes engine";       else fail "schema missing engine";       fi
+    if echo "$RESP" | grep -q '"panels"';       then pass "schema includes panels repeater"; else fail "schema missing panels"; fi
+  elif [ "$HTTP_CODE" = "404" ]; then
+    skip "per-widget schema endpoint not present in this build"
+  else
+    fail "GET /widgets/joist-pin-scroll/schema returned $HTTP_CODE"
+  fi
+
+  # Place a pin-scroll widget into a fresh page and verify it round-trips
+  api POST "/pages" '{"title":"Joist Pin-Scroll smoke","status":"draft"}'
+  if [ "$HTTP_CODE" = "201" ] || [ "$HTTP_CODE" = "200" ]; then
+    PIN_PAGE_ID="$(jqr '.id')"
+    CREATED_PAGES+=("$PIN_PAGE_ID")
+    pass "created pin-scroll smoke page #$PIN_PAGE_ID"
+
+    api GET "/pages/$PIN_PAGE_ID"
+    PIN_HASH="$(jqr '.elementor.hash')"
+
+    api PATCH "/pages/$PIN_PAGE_ID" "$(cat <<EOF
+{
+  "hash": "$PIN_HASH",
+  "ops": [{
+    "op": "add",
+    "path": "/elements/-",
+    "value": {
+      "elType": "widget",
+      "widgetType": "joist-pin-scroll",
+      "settings": {
+        "pin_distance": 200,
+        "pin_duration": 300,
+        "engine": "auto",
+        "panels": [
+          {"panel_content": "<h2>Panel A</h2>"},
+          {"panel_content": "<h2>Panel B</h2>"},
+          {"panel_content": "<h2>Panel C</h2>"}
+        ]
+      }
+    }
+  }]
+}
+EOF
+)"
+    assert_status_in "200 202" "PATCH adds pin-scroll widget to page"
+
+    api GET "/pages/$PIN_PAGE_ID"
+    assert_jq '[.elementor.elements | .. | objects | select(.widgetType? == "joist-pin-scroll")] | length >= 1' "pin-scroll widget survives round trip"
+    assert_jq '[.elementor.elements | .. | objects | select(.widgetType? == "joist-pin-scroll") | .settings.panels | length] | first >= 3' "panels repeater preserved (3+ panels)"
+  else
+    skip "could not create page for pin-scroll round-trip test ($HTTP_CODE)"
+  fi
+fi
+
 # ── CLEANUP ─────────────────────────────────────────────────────────────────
 section "Cleanup"
 api POST "/sessions/$SESSION_ID/end" '{}' >/dev/null 2>&1 || true
