@@ -1,0 +1,111 @@
+/*
+ * Joist Anchored Pop — shared baseline styles.
+ *
+ * Per-instance anchor-name, position-anchor, position-area, and
+ * @position-try rules are emitted inline by Renderer::buildCss() so multiple
+ * pops on the same page can't collide on anchor names.
+ *
+ * No JS. Pure CSS. `popover` attribute (Baseline 2024) drives click-to-open
+ * for trigger_mode=click; CSS :hover / :focus-within drives hover mode.
+ *
+ * Degradation on browsers without anchor positioning (pre-2026): pop renders
+ * inline beneath its trigger; popover attribute still hides/shows it; no
+ * functional regression, just no anchored-to-target placement.
+ */
+
+.joist-anchored-pop {
+  display: inline-block;
+  position: relative;
+}
+
+.joist-anchored-pop__trigger {
+  font: inherit;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 4px 10px;
+  color: inherit;
+}
+
+.joist-anchored-pop__trigger:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.joist-anchored-pop__pop {
+  /* Defaults; per-instance overrides come from Renderer-emitted inline CSS. */
+  max-width: 28ch;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  z-index: 1000;
+  /* Transition for the popover open/close state (Baseline 2024). */
+  transition: opacity 160ms ease, transform 160ms ease, overlay 160ms allow-discrete, display 160ms allow-discrete;
+  opacity: 0;
+  transform: scale(0.96);
+}
+
+/* Hover mode: show on hover/focus of the trigger; the wrapper scopes the
+   sibling selector so multiple pops on the page stay isolated. */
+.joist-anchored-pop--trigger-hover:hover .joist-anchored-pop__pop,
+.joist-anchored-pop--trigger-hover:focus-within .joist-anchored-pop__pop {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Hover mode keeps the pop in the flow but hidden unless triggered. */
+.joist-anchored-pop--trigger-hover .joist-anchored-pop__pop {
+  visibility: hidden;
+}
+.joist-anchored-pop--trigger-hover:hover .joist-anchored-pop__pop,
+.joist-anchored-pop--trigger-hover:focus-within .joist-anchored-pop__pop {
+  visibility: visible;
+}
+
+/* Click mode: native popover attribute handles visibility. The :popover-open
+   pseudo-class is Baseline 2024 alongside the popover attribute itself. */
+.joist-anchored-pop__pop[popover]:popover-open {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Manual mode: always visible (e.g. inline anchored callouts). */
+.joist-anchored-pop--trigger-manual .joist-anchored-pop__pop {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Arrow rotation defaults — Renderer emits the actual rotation per instance.
+   This rule provides the base shape and color inheritance. */
+.joist-anchored-pop__arrow {
+  /* Renderer emits position + size + rotation + clip-path inline. */
+  pointer-events: none;
+}
+
+/* Editor preview — show the pop inline, statically, so designers can edit. */
+.joist-anchored-pop--editor .joist-anchored-pop__pop {
+  position: static !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: none !important;
+  display: block;
+  margin-top: 8px;
+}
+.joist-anchored-pop__editor-notice {
+  background: #fffbe6;
+  color: #5a4400;
+  padding: 6px 10px;
+  font-size: 11px;
+  border: 1px solid #ffe58f;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  display: block;
+}
+
+/* Reduced-motion: drop the scale/transition entrance. */
+@media (prefers-reduced-motion: reduce) {
+  .joist-anchored-pop__pop {
+    transition: none;
+    transform: none;
+  }
+}

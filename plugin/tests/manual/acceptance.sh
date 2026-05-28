@@ -63,6 +63,8 @@ WP_URL="${WP_URL:-http://joist-test.local}"
 JOIST_USER="${JOIST_USER:-admin}"
 JOIST_APP_PWD="${JOIST_APP_PWD:-xxxx xxxx xxxx xxxx xxxx xxxx}"
 BASE="${WP_URL%/}/wp-json/joist/v1"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 RESP_FILE="$(mktemp -t joist-resp.XXXXXX)"
 trap 'rm -f "$RESP_FILE"' EXIT
 
@@ -1017,6 +1019,153 @@ EOF
   else
     skip "could not create page for pin-scroll round-trip test ($HTTP_CODE)"
   fi
+fi
+
+# ── WIDGET PACK: PIN-SCROLL — Wave 4d (Chrome 145+ trigger gate) ────────────
+section "Widget Pack — Pin-Scroll Chrome 145+ trigger gate"
+
+PIN_CSS="$PLUGIN_DIR/assets/widget-pack/pin-scroll/pin-scroll.css"
+PIN_JS="$PLUGIN_DIR/assets/widget-pack/pin-scroll/pin-scroll.js"
+
+if [ -f "$PIN_CSS" ]; then
+  if grep -q "@supports (timeline-trigger: --t)" "$PIN_CSS"; then
+    pass "pin-scroll.css gates Chrome 145+ branch on @supports (timeline-trigger: --t)"
+  else
+    fail "pin-scroll.css missing @supports (timeline-trigger: --t) gate"
+  fi
+
+  if awk '/@supports \(timeline-trigger: --t\)/,/^}$/' "$PIN_CSS" | grep -q -- "--joist-pinscroll-css-only: 1"; then
+    pass "pin-scroll.css publishes --joist-pinscroll-css-only inside the @supports block"
+  else
+    fail "pin-scroll.css does not set --joist-pinscroll-css-only inside the @supports block"
+  fi
+
+  if awk '/@supports \(timeline-trigger: --t\)/,/^}$/' "$PIN_CSS" | grep -q "animation-trigger:"; then
+    pass "pin-scroll.css uses declarative animation-trigger in the Chrome 145+ branch"
+  else
+    fail "pin-scroll.css missing animation-trigger in the @supports block"
+  fi
+
+  if awk '/prefers-reduced-motion: reduce/,/^}$/' "$PIN_CSS" | grep -q "animation-trigger: none"; then
+    pass "prefers-reduced-motion still gates animation-trigger (explicit reset)"
+  else
+    fail "prefers-reduced-motion block does not override animation-trigger"
+  fi
+else
+  fail "pin-scroll.css not found at $PIN_CSS"
+fi
+
+if [ -f "$PIN_JS" ]; then
+  if grep -q "joist-pinscroll-css-only" "$PIN_JS"; then
+    pass "pin-scroll.js early-exits when --joist-pinscroll-css-only is set"
+  else
+    fail "pin-scroll.js missing early-exit check for --joist-pinscroll-css-only"
+  fi
+else
+  fail "pin-scroll.js not found at $PIN_JS"
+fi
+
+# ── WIDGET PACK: ANCHORED POP (v0.9-beta, Wave 4a) ──────────────────────────
+section "Widget Pack — Anchored Pop registration"
+
+api GET "/widgets"
+if [ "$HTTP_CODE" != "200" ]; then
+  skip "GET /widgets not available — cannot verify Anchored Pop registration"
+else
+  if echo "$RESP" | jq -e '.widgets[] | select(.name == "joist-anchored-pop")' >/dev/null 2>&1; then
+    pass "joist-anchored-pop widget is registered in WidgetCatalog"
+  else
+    fail "joist-anchored-pop widget NOT in /widgets — check PackBootstrap::registerWidgets"
+  fi
+
+  api GET "/widgets/joist-anchored-pop/schema"
+  if [ "$HTTP_CODE" = "200" ]; then
+    pass "GET /widgets/joist-anchored-pop/schema reachable"
+    echo "$RESP" | grep -q '"anchor_target"'  && pass "schema includes anchor_target"  || fail "schema missing anchor_target"
+    echo "$RESP" | grep -q '"position"'       && pass "schema includes position"       || fail "schema missing position"
+    echo "$RESP" | grep -q '"offset_px"'      && pass "schema includes offset_px"      || fail "schema missing offset_px"
+    echo "$RESP" | grep -q '"auto_arrow"'     && pass "schema includes auto_arrow"     || fail "schema missing auto_arrow"
+    echo "$RESP" | grep -q '"fallback_chain"' && pass "schema includes fallback_chain" || fail "schema missing fallback_chain"
+    echo "$RESP" | grep -q '"trigger_mode"'   && pass "schema includes trigger_mode"   || fail "schema missing trigger_mode"
+    echo "$RESP" | grep -q '"inner_content"'  && pass "schema includes inner_content"  || fail "schema missing inner_content"
+    for pos in top top-start top-end right right-start right-end bottom bottom-start bottom-end left left-start left-end; do
+      echo "$RESP" | jq -e --arg p "$pos" '[.controls[] | select(.name == "position") | .options[$p]] | first != null' >/dev/null \
+        && pass "position enum has '$pos'" \
+        || fail "position enum missing '$pos'"
+    done
+    for mode in hover click manual; do
+      echo "$RESP" | jq -e --arg m "$mode" '[.controls[] | select(.name == "trigger_mode") | .options[$m]] | first != null' >/dev/null \
+        && pass "trigger_mode enum has '$mode'" \
+        || fail "trigger_mode enum missing '$mode'"
+    done
+  elif [ "$HTTP_CODE" = "404" ]; then
+    skip "per-widget schema endpoint not present in this build"
+  else
+    fail "GET /widgets/joist-anchored-pop/schema returned $HTTP_CODE"
+  fi
+fi
+
+# ── WIDGET PACK: VIEW TRANSITIONS EMITTER (v0.9-beta, Wave 4b) ──────────────
+section "Widget Pack — View Transitions emitter"
+
+if [ ! -f "$PLUGIN_DIR/assets/widget-pack/view-transitions/view-transitions.js" ]; then
+  pass "no view-transitions.js — pure CSS emitter as specced"
+else
+  fail "view-transitions.js exists — Wave 4b spec requires zero JS"
+fi
+
+if [ -f "$PLUGIN_DIR/assets/widget-pack/view-transitions/view-transitions.css" ]; then
+  pass "view-transitions.css ships as the site-wide stylesheet"
+  if grep -q "@view-transition" "$PLUGIN_DIR/assets/widget-pack/view-transitions/view-transitions.css"; then
+    pass "view-transitions.css contains @view-transition declaration"
+  else
+    fail "view-transitions.css missing @view-transition declaration"
+  fi
+else
+  fail "view-transitions.css not found"
+fi
+
+if [ -f "$PLUGIN_DIR/src/WidgetPack/ViewTransitions/Emitter.php" ]; then
+  pass "ViewTransitions\\Emitter class file present"
+  if grep -q "joist_view_transitions_enabled" "$PLUGIN_DIR/src/WidgetPack/ViewTransitions/Emitter.php"; then
+    pass "Emitter reads joist_view_transitions_enabled option"
+  else
+    fail "Emitter does not reference joist_view_transitions_enabled option"
+  fi
+  if grep -q "joist_vt_name" "$PLUGIN_DIR/src/WidgetPack/ViewTransitions/Emitter.php"; then
+    pass "Emitter registers joist_vt_name per-element control"
+  else
+    fail "Emitter does not register joist_vt_name control"
+  fi
+else
+  fail "ViewTransitions/Emitter.php missing"
+fi
+
+# ── WIDGET PACK: DISPLAY-SWAP (v0.9-beta, Wave 4c) ──────────────────────────
+section "Widget Pack — Display-swap (Container extension)"
+
+if [ -f "$PLUGIN_DIR/src/WidgetPack/DisplaySwap/Extension.php" ]; then
+  pass "DisplaySwap\\Extension class file present"
+else
+  fail "DisplaySwap/Extension.php missing"
+fi
+
+api GET "/widgets/container/schema"
+if [ "$HTTP_CODE" = "200" ]; then
+  pass "GET /widgets/container/schema reachable"
+  if echo "$RESP" | jq -e '.controls | (type == "array" and (map(.name) | index("joist_display_mode"))) or (type == "object" and has("joist_display_mode"))' >/dev/null 2>&1; then
+    pass "container schema exposes joist_display_mode control"
+  else
+    fail "container schema missing joist_display_mode — Extension::init() not wired in PackBootstrap"
+  fi
+
+  if echo "$RESP" | jq -e '[.controls // [] | .. | objects | select(.name? == "joist_display_mode") | .options] | first | (has("flex") and has("grid") and has("block"))' >/dev/null 2>&1; then
+    pass "joist_display_mode advertises flex / grid / block options"
+  else
+    fail "joist_display_mode options do not include flex+grid+block"
+  fi
+else
+  skip "per-widget schema endpoint not present (cannot inspect joist_display_mode)"
 fi
 
 # ── CLEANUP ─────────────────────────────────────────────────────────────────

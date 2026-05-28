@@ -21,6 +21,10 @@
       var respectReduced = section.dataset.reducedMotion !== '0';
       var disableBelow = parseInt(section.dataset.disableBelow || '768', 10);
 
+      // Chrome 145+: declarative timeline-trigger / animation-trigger supported.
+      // CSS publishes `--joist-pinscroll-css-only: 1` on the section — skip JS entirely.
+      if (getComputedStyle(section).getPropertyValue('--joist-pinscroll-css-only').trim() === '1') return;
+
       // No JS needed in these cases — CSS handles everything.
       if (reducedMotion && respectReduced) return;
       if (window.innerWidth <= disableBelow) return;

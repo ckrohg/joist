@@ -47,6 +47,30 @@
   }
 }
 
+/* Chrome 145+: declarative scroll-triggered animations via timeline-trigger +
+   animation-trigger. Where supported, we publish `--joist-pinscroll-css-only: 1`
+   on the section so the JS runtime can early-exit (zero JS payload executed).
+   The pin-translate animation is the same keyframes/range as above — this branch
+   only adds the trigger-scope so entry/exit are declarative too.
+   Reference: https://developer.chrome.com/blog/scroll-triggered-animations */
+@supports (timeline-trigger: --t) {
+  .joist-pin[data-engine="auto"],
+  .joist-pin[data-engine="css"] {
+    /* Signal to pin-scroll.js that no JS work is required. */
+    --joist-pinscroll-css-only: 1;
+    trigger-scope: --joist-pin-trigger;
+  }
+  .joist-pin[data-engine="auto"] .joist-pin__track,
+  .joist-pin[data-engine="css"]  .joist-pin__track {
+    animation: joist-pin-translate linear both;
+    animation-timeline: view();
+    animation-range: contain 0% contain 100%;
+    /* Declarative entry/exit — no IntersectionObserver needed. */
+    animation-trigger: view();
+    animation-trigger-range: cover 0% cover 100%;
+  }
+}
+
 /* Reduced motion: stack vertically, no transform. */
 @media (prefers-reduced-motion: reduce) {
   .joist-pin[data-reduced-motion="1"] {
@@ -62,6 +86,9 @@
     width: 100%;
     transform: none !important;
     animation: none !important;
+    /* `animation-trigger` is not part of the `animation` shorthand — reset
+       explicitly so the Chrome 145+ branch above is fully overridden. */
+    animation-trigger: none !important;
   }
   .joist-pin[data-reduced-motion="1"] .joist-pin__panel {
     flex: 0 0 auto;
@@ -86,6 +113,7 @@
     width: 100%;
     transform: none !important;
     animation: none !important;
+    animation-trigger: none !important;
   }
   .joist-pin[data-disable-below] .joist-pin__panel {
     flex: 0 0 auto;

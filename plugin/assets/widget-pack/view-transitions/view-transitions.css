@@ -1,0 +1,21 @@
+/*
+ * @purpose Joist View Transitions — site-wide opt-in stylesheet.
+ *
+ * Loaded only when `joist_view_transitions_enabled` is on. Triggers the
+ * browser's cross-document View Transition pipeline (Chrome 126+, Safari
+ * 18.2+, Firefox 144+ partial). Element-scoped transitions are driven by
+ * per-element `view-transition-name` stamps emitted via parse_css.
+ *
+ * Browsers without support skip the at-rule entirely. No regression.
+ */
+@view-transition { navigation: auto; }
+
+::view-transition-group(*) { animation-duration: .25s; }
+::view-transition-old(*),
+::view-transition-new(*) { animation-timing-function: cubic-bezier(.2,.0,.2,1); }
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) { animation-duration: .01ms; }
+}
