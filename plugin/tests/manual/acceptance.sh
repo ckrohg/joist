@@ -34,6 +34,10 @@
 #   - Chained-singleton: 6th op without a plan → 423 (#19)
 #   - Async pipeline returns optimistically with pending_verifications (#17)
 #   - Hash-chained audit log records every write (#15, #30)
+#   - Elementor V3/V4 routing decision is exposed in /site (Wave 3, constraint #17)
+#   - V4 known-broken versions refuse writes with atomic_save_unstable_in_v4
+#   - Unsupported majors refuse writes with unsupported_elementor_major
+#   - V3 write path is unchanged from pre-Wave-3 (regression guard)
 #
 # ── What this does NOT cover (needs agent-role creds or runtime conditions) ─
 #   - Role-gated PolicyGuard refusals (force-delete / core-plugin-deactivate
@@ -138,9 +142,238 @@ info "WP $(jqr '.wordpress.version') · Elementor $(jqr '.elementor.version') ·
 info "DB version: $(jqr '.plugin.db_version') · widgets: $(jqr '.elementor.registered_widget_count') · dynamic tags: $(jqr '.elementor.registered_dynamic_tag_count') · layout mode: $(jqr '.elementor.layout_mode')"
 info "operating mode (before test): $(jqr '.operating_mode.mode')"
 
+# ── WP PLATFORM DETECTION + 7.0 CONNECTORS API (Wave 2b) ────────────────────
+# These tests exercise plugin/src/Platform/* — the WP-version-aware feature
+# gate that registers Joist with the WP 7.0 Connectors API on 7.0+ hosts
+# and gracefully no-ops on 6.x. See specs/ARCHITECTURE.md §7a.
+section "WP platform detection (WPVersionDetector)"
+api GET /site
+assert_status 200 "GET /site (re-read for platform block)"
+assert_jq '.wordpress.platform != null' "wordpress.platform block is present in the /site payload"
+assert_jq '.wordpress.platform.version != null and (.wordpress.platform.version | type == "string")' "platform.version is a non-null string"
+assert_jq '(.wordpress.platform.major | type == "number") and (.wordpress.platform.minor | type == "number") and (.wordpress.platform.patch | type == "number")' "platform.major/minor/patch are numbers"
+assert_jq '.wordpress.platform.supports_connectors_api | type == "boolean"' "supports_connectors_api is a boolean"
+assert_jq '.wordpress.platform.supports_dataviews | type == "boolean"'      "supports_dataviews is a boolean"
+assert_jq '.wordpress.platform.supports_client_side_abilities | type == "boolean"' "supports_client_side_abilities is a boolean"
+assert_jq '.wordpress.platform.source != null' "platform.source is present (global|bloginfo|env_override|unknown)"
+# Cross-check: major version inferred from .wordpress.version matches platform.major
+WP_MAJOR_FROM_VERSION="$(jqr '.wordpress.version' | awk -F. '{print $1}')"
+PLATFORM_MAJOR="$(jqr '.wordpress.platform.major')"
+[ "${WP_MAJOR_FROM_VERSION:-x}" = "${PLATFORM_MAJOR:-y}" ] \
+  && pass "platform.major ($PLATFORM_MAJOR) matches the major component of wordpress.version" \
+  || fail "platform.major ($PLATFORM_MAJOR) does NOT match major of wordpress.version ($WP_MAJOR_FROM_VERSION)"
+# Logical consistency: if major >= 7, all three support_* flags should be true; if major < 7, all should be false.
+CONN_SUPP="$(jqr '.wordpress.platform.supports_connectors_api')"
+if [ "${PLATFORM_MAJOR:-0}" -ge 7 ]; then
+  [ "$CONN_SUPP" = "true" ] && pass "WP 7.0+ host: supports_connectors_api == true" || fail "WP 7.0+ host but supports_connectors_api != true"
+else
+  [ "$CONN_SUPP" = "false" ] && pass "WP 6.x host: supports_connectors_api == false (graceful fallback to REST auth)" || fail "WP 6.x host but supports_connectors_api != false"
+fi
+
+section "WP 7.0 Connectors API — descriptor + registration"
+CONNECTOR_BLOCK="$(jqr '.plugin.connector')"
+[ -n "$CONNECTOR_BLOCK" ] && [ "$CONNECTOR_BLOCK" != "null" ] \
+  && pass "plugin.connector block is present" \
+  || fail "plugin.connector block missing — Wave 2b platform wiring did not load"
+
+# The descriptor must be returned even on 6.x — it's a static shape; only
+# the .registered boolean depends on the runtime API.
+assert_jq '.plugin.connector.descriptor != null' "connector descriptor is exposed (independent of WP version)"
+assert_jq '.plugin.connector.descriptor.name == "Joist"' "descriptor.name == \"Joist\""
+assert_jq '.plugin.connector.descriptor.type == "site_builder"' "descriptor.type == \"site_builder\""
+assert_jq '.plugin.connector.descriptor.authentication.method == "api_key"' "descriptor advertises api_key auth"
+assert_jq '.plugin.connector.descriptor.authentication.credentials_url | test("application-passwords")' "credentials_url points at WP App Passwords UI"
+assert_jq '.plugin.connector.descriptor.joist.rest_namespace == "joist/v1"' "joist namespace extension exposes rest_namespace"
+assert_jq '.plugin.connector.descriptor.joist.discovery_route == "/joist/v1/site"' "discovery_route points at /joist/v1/site"
+assert_jq '.plugin.connector.descriptor.joist.capabilities | length >= 10' "advertises >= 10 capabilities (elementor.* + plans.* + ...)"
+assert_jq '.plugin.connector.descriptor.joist.capabilities | index("elementor.pages.patch") != null' "capabilities include elementor.pages.patch"
+assert_jq '.plugin.connector.descriptor.joist.capabilities | index("plans.execute") != null' "capabilities include plans.execute"
+
+# Registration outcome depends on the host:
+#   - WP 7.0+ with Connectors API actually loaded → .registered == true
+#   - WP 7.0+ but API helpers absent → .registered == false (graceful no-op)
+#   - WP 6.x → .registered == false (class not even loaded)
+REGISTERED="$(jqr '.plugin.connector.registered')"
+if [ "${PLATFORM_MAJOR:-0}" -ge 7 ]; then
+  if [ "$REGISTERED" = "true" ]; then
+    pass "WP 7.0+ host: Joist connector registered with core Connectors API"
+  elif [ "$REGISTERED" = "false" ]; then
+    pass "WP 7.0+ host but Connectors API helpers absent — graceful no-op (no fatal, descriptor still exposed)"
+    info "this is the expected path on a 7.0+ host where wp_is_connector_registered() is missing"
+  else
+    fail "plugin.connector.registered is neither true nor false: '$REGISTERED'"
+  fi
+else
+  [ "$REGISTERED" = "false" ] \
+    && pass "WP 6.x host: connector NOT registered (graceful fallback — REST auth path still works)" \
+    || fail "WP 6.x host but plugin.connector.registered != false"
+fi
+
+# Sanity: the existing REST endpoints MUST still work regardless of WP version.
+# This is the "fallback path" assertion — on 6.x there's no Connectors API,
+# so the App Password + REST auth path must continue serving every endpoint.
+api GET /health
+assert_status 200 "fallback path: GET /health responds on this WP version (auth path independent of Connectors API)"
+
+# Optional WP_DEBUG-only test: env override flips the detector result without
+# touching the real WP install. Only meaningful when JOIST_TEST_WP_VERSION is set
+# on the WP side AND WP_DEBUG is on; the bash test only verifies the surface
+# accepts the env-override source string when it shows up.
+case "$(jqr '.wordpress.platform.source')" in
+  global|bloginfo|env_override|unknown)
+    pass "platform.source value is one of the documented sentinel strings"
+    ;;
+  *)
+    fail "platform.source returned unexpected value: $(jqr '.wordpress.platform.source')"
+    ;;
+esac
+
 # New installs default to 'observer' (the 30-day trial design). Set 'live' for testing.
 api POST /site/operating-mode '{"mode":"live"}'
 assert_status 200 "set operating mode → live (new installs default to observer — that's intentional)"
+
+# ── ELEMENTOR V3/V4 ROUTING (Wave 3 — failure-mode constraint #17) ──────────
+# These tests exercise plugin/src/Elementor/{VersionRouter,RoutingDecision,
+# AtomicSchemaProbe,AtomicDocumentWriter}. The router is the chokepoint that
+# decides whether writes proceed (legacy_v3), are refused as known-broken
+# (atomic_v4 + 4.0.0–4.1.1), or are refused as unsupported (major < 3 or
+# >= 5). See specs/ARCHITECTURE.md §7b and Wave_0_2026-05-26.md §1.3.
+section "Elementor V3/V4 routing — version detection & decision table"
+
+api GET /site
+assert_status 200 "GET /site (re-read for routing block)"
+assert_jq '.elementor.routing != null' "elementor.routing block is present in /site payload"
+assert_jq '.elementor.routing.kind != null and (.elementor.routing.kind | type == "string")' "routing.kind is a non-null string"
+assert_jq '(.elementor.routing.kind == "legacy_v3") or (.elementor.routing.kind == "atomic_v4") or (.elementor.routing.kind == "unsupported")' "routing.kind is one of the documented sentinels"
+assert_jq '(.elementor.routing.major | type == "number") and (.elementor.routing.minor | type == "number") and (.elementor.routing.patch | type == "number")' "routing.major/minor/patch are numbers"
+assert_jq '.elementor.routing.known_broken | type == "boolean"' "routing.known_broken is a boolean"
+assert_jq '.elementor.routing.source != null' "routing.source is present (constant|env_override|constant_missing)"
+assert_jq '.elementor.routing.notes | type == "array"' "routing.notes is an array"
+case "$(jqr '.elementor.routing.source')" in
+  constant|env_override|constant_missing)
+    pass "routing.source value is one of the documented sentinels"
+    ;;
+  *)
+    fail "routing.source returned unexpected value: $(jqr '.elementor.routing.source')"
+    ;;
+esac
+
+# Cross-check: V3 hosts (the v0.5 pin range 3.33–3.34.x) MUST route to legacy_v3
+# and MUST NOT be known_broken. V4 hosts MUST currently be known_broken (since
+# the full 4.0.0–4.1.1 range is in the broken window as of 2026-05-28).
+ROUTING_KIND="$(jqr '.elementor.routing.kind')"
+ROUTING_BROKEN="$(jqr '.elementor.routing.known_broken')"
+ELEMENTOR_MAJOR="$(jqr '.elementor.routing.major')"
+info "detected routing: kind=$ROUTING_KIND  major=$ELEMENTOR_MAJOR  known_broken=$ROUTING_BROKEN"
+if [ "$ELEMENTOR_MAJOR" = "3" ]; then
+  [ "$ROUTING_KIND" = "legacy_v3" ] && pass "Elementor 3.x → routing.kind == legacy_v3 (expected)" || fail "Elementor 3.x but routing.kind = $ROUTING_KIND (expected legacy_v3)"
+  [ "$ROUTING_BROKEN" = "false" ] && pass "Elementor 3.x → known_broken == false (V3 has no atomic-save bugs)" || fail "Elementor 3.x but known_broken = $ROUTING_BROKEN (expected false)"
+elif [ "$ELEMENTOR_MAJOR" = "4" ]; then
+  [ "$ROUTING_KIND" = "atomic_v4" ] && pass "Elementor 4.x → routing.kind == atomic_v4 (expected)" || fail "Elementor 4.x but routing.kind = $ROUTING_KIND (expected atomic_v4)"
+  [ "$ROUTING_BROKEN" = "true" ] && pass "Elementor 4.x is in the known-broken range (4.0.0–4.1.1) as of 2026-05-28" || info "Elementor 4.x outside the known-broken range — narrow VersionRouter::KNOWN_BROKEN_MAX once upstream fixes ship"
+elif [ "$ELEMENTOR_MAJOR" -ge 5 ] 2>/dev/null; then
+  [ "$ROUTING_KIND" = "unsupported" ] && pass "Elementor major >= 5 → routing.kind == unsupported" || fail "Elementor major $ELEMENTOR_MAJOR but routing.kind = $ROUTING_KIND (expected unsupported)"
+fi
+
+# Health surface MUST include the elementor.routing check.
+api GET /health
+assert_status 200 "GET /health (re-read for routing check)"
+assert_jq '.checks[] | select(.name=="elementor.routing")' "health surface includes the elementor.routing check"
+ROUTING_HEALTH_STATUS="$(echo "$RESP" | jq -r '.checks[] | select(.name=="elementor.routing") | .status' 2>/dev/null)"
+case "$ROUTING_HEALTH_STATUS" in
+  pass|warn) pass "elementor.routing check status is one of {pass, warn} (got: $ROUTING_HEALTH_STATUS)" ;;
+  *) fail "elementor.routing check status was '$ROUTING_HEALTH_STATUS' (expected pass|warn)" ;;
+esac
+
+# ── ROUTING — known-broken V4 refuses writes with the typed error ───────────
+# Only meaningful when the live host is V4 + known_broken. If you've set
+# JOIST_TEST_ELEMENTOR_VERSION to a V3 version with WP_DEBUG on (env-override
+# path), this section is skipped because the override flips us to legacy_v3.
+section "Elementor V3/V4 routing — known-broken V4 refuses writes"
+if [ "$ROUTING_KIND" = "atomic_v4" ] && [ "$ROUTING_BROKEN" = "true" ]; then
+  # Need a session for writes — start one.
+  api POST /sessions/start '{"agent":"routing-test","agent_version":"0.5","intent":"V4 known-broken refusal test"}'
+  TEST_SESSION="$(jqr '.session_id')"
+  if [ -n "$TEST_SESSION" ] && [ "$TEST_SESSION" != "null" ]; then
+    api POST /pages '{"title":"V4 known-broken refusal test (should never be created)","status":"draft","intent":"refusal test"}' "" "$TEST_SESSION"
+    assert_status 422 "POST /pages on known-broken V4 → 422 (refused before any side effects)"
+    assert_jq '.code == "atomic_save_unstable_in_v4"' "error code is atomic_save_unstable_in_v4"
+    assert_jq '.message | type == "string" and length > 20' "error message is human-readable"
+    assert_jq '.details.routing_decision.kind == "atomic_v4"' "details.routing_decision.kind == atomic_v4"
+    assert_jq '.details.routing_decision.known_broken == true' "details.routing_decision.known_broken == true"
+    assert_jq '.details.open_upstream_issues | length >= 3' "details.open_upstream_issues lists the open Elementor issues"
+    assert_jq '.details.guidance != null' "details.guidance is present"
+    assert_jq '.recovery_suggestions | length >= 1' "recovery_suggestions are populated"
+  else
+    skip "known-broken V4 refusal test (could not start session)"
+  fi
+else
+  skip "known-broken V4 refusal test (host is not atomic_v4 + known_broken)"
+fi
+
+# ── ROUTING — unsupported major refusal ─────────────────────────────────────
+# Only meaningful when ELEMENTOR_VERSION is < 3 or >= 5. Today's released
+# versions are all 3.x or 4.x, so this section is normally skipped unless
+# WP_DEBUG + JOIST_TEST_ELEMENTOR_VERSION='5.0.0' is set on the WP side.
+section "Elementor V3/V4 routing — unsupported major refusal"
+if [ "$ROUTING_KIND" = "unsupported" ]; then
+  api POST /sessions/start '{"agent":"routing-test","agent_version":"0.5","intent":"unsupported-major refusal test"}'
+  TEST_SESSION="$(jqr '.session_id')"
+  if [ -n "$TEST_SESSION" ] && [ "$TEST_SESSION" != "null" ]; then
+    api POST /pages '{"title":"unsupported refusal test","status":"draft","intent":"refusal test"}' "" "$TEST_SESSION"
+    assert_status 422 "POST /pages on unsupported major → 422"
+    assert_jq '.code == "unsupported_elementor_major"' "error code is unsupported_elementor_major"
+    assert_jq '.details.routing_decision.kind == "unsupported"' "details.routing_decision.kind == unsupported"
+  else
+    skip "unsupported-major refusal test (could not start session)"
+  fi
+else
+  skip "unsupported-major refusal test (host is not unsupported; set JOIST_TEST_ELEMENTOR_VERSION=5.0.0 with WP_DEBUG to exercise)"
+fi
+
+# ── ROUTING — V3 path is unchanged (regression guard) ───────────────────────
+# This is the load-bearing assertion that Wave 3 is non-destructive: on a V3
+# host (3.33/3.34.x) the existing write path must continue to produce
+# identical output. The page create + tree-summary tests later in this script
+# cover the full write loop; here we just verify routing.kind doesn't block.
+section "Elementor V3/V4 routing — V3 write path remains unblocked"
+if [ "$ROUTING_KIND" = "legacy_v3" ]; then
+  pass "V3 host detected — write path will be exercised by subsequent tests (regression guard)"
+else
+  skip "V3 regression guard (host is not legacy_v3)"
+fi
+
+# All routing-related error envelopes MUST be 422 with a typed code + message;
+# this is a recheck of the universal property — never 500, never empty 200.
+api GET /site
+assert_status 200 "GET /site final routing recheck"
+assert_jq '.elementor.routing.kind != null and .elementor.routing.kind != ""' "routing.kind remains populated (never empty)"
+
+# ── ROUTING — atomic schema probe surfaced in /diagnostics ──────────────────
+# Diagnostics is the read-only surface that exposes the probe result, so this
+# test verifies that on V4 hosts the probe runs and returns a typed shape
+# (either success with elements[] or a typed atomic_schema_unintrospectable
+# error). On V3 hosts the probe is null (not invoked — correct behavior).
+section "Elementor V3/V4 routing — atomic schema probe in /diagnostics"
+api GET /diagnostics
+assert_status 200 "GET /diagnostics"
+assert_jq '.elementor_routing != null' "diagnostics.elementor_routing block is present"
+if [ "$ROUTING_KIND" = "atomic_v4" ]; then
+  assert_jq '.atomic_schema_probe != null' "atomic_schema_probe runs on V4 host"
+  assert_jq '(.atomic_schema_probe.ok == true) or (.atomic_schema_probe.code == "atomic_schema_unintrospectable")' "probe returns either {ok:true,elements:...} or typed atomic_schema_unintrospectable"
+  # If the probe failed (registry surface unexpected), the error envelope must
+  # carry the typed code + details — never an empty object.
+  if [ "$(jqr '.atomic_schema_probe.ok')" = "false" ]; then
+    assert_jq '.atomic_schema_probe.code == "atomic_schema_unintrospectable"' "probe failure carries the typed code"
+    assert_jq '.atomic_schema_probe.message | type == "string" and length > 10' "probe failure has a human-readable message"
+    assert_jq '.atomic_schema_probe.details != null' "probe failure has a details object"
+  else
+    assert_jq '.atomic_schema_probe.elements | type == "array"' "probe success returns elements[] array"
+    assert_jq '.atomic_schema_probe.count | type == "number"' "probe success returns count"
+  fi
+else
+  assert_jq '.atomic_schema_probe == null' "atomic_schema_probe is null on non-V4 host (probe not invoked — correct)"
+fi
 
 # ── HEALTH (the canary) ─────────────────────────────────────────────────────
 section "Health — the single most informative call"
@@ -578,6 +811,121 @@ else
   # Compact (admin)
   api POST "/preferences/compact" '{}'
   assert_status_in "200 202" "POST /preferences/compact"
+fi
+
+# ── MEMORY TOOL SURFACE (Wave 2a — memory_20250818 substrate) ──────────────
+section "Memory tool — memory_20250818 command surface"
+
+# Discover the current site_id from the legacy /preferences listing.
+api GET "/preferences"
+if [ "$HTTP_CODE" != "200" ]; then
+  skip "memory tool tests: /preferences not reachable (pre-Wave-2a build)"
+else
+  MEM_SITE_ID="$(jqr '.site_id')"
+  if [ -z "$MEM_SITE_ID" ] || [ "$MEM_SITE_ID" = "null" ]; then
+    skip "memory tool tests: could not resolve site_id"
+  else
+    info "memory site_id: $MEM_SITE_ID"
+    MEM_ROOT="/memories/site/${MEM_SITE_ID}"
+    MEM_RULES="${MEM_ROOT}/rules"
+
+    # ── view: existing site ──────────────────────────────────────────────
+    api POST "/memory/view" "{\"path\":\"${MEM_ROOT}\"}"
+    if [ "$HTTP_CODE" = "404" ]; then
+      skip "memory tool endpoints not registered (pre-Wave-2a build) — skipping rest"
+    else
+      assert_status 200 "POST /memory/view (existing site dir)"
+      assert_jq '.type == "directory"' "view returns directory type for site path"
+      assert_jq '.entries | type == "array"' "view returns entries array"
+
+      # ── view: unknown site (cross-site denial) ─────────────────────────
+      api POST "/memory/view" '{"path":"/memories/site/host_evil_invalid_42/rules/forbidden_phrase"}'
+      assert_status 403 "POST /memory/view on unknown site → 403 cross_site_denied"
+      assert_jq '.code == "permission.cross_site_denied"' "code is permission.cross_site_denied"
+
+      # ── view: missing path argument ────────────────────────────────────
+      api POST "/memory/view" '{}'
+      assert_status 422 "POST /memory/view without path → 422"
+      assert_jq '.code == "memory.missing_arg"' "code is memory.missing_arg"
+
+      # ── create: new rule ───────────────────────────────────────────────
+      MEM_RULE_BODY=$'kind: forbidden_phrase\nscope: global\nconfidence: 0.85\nstatus: active\npattern: leverage synergies\ndirective: avoid empty corporate jargon'
+      api POST "/memory/create" "$(jq -nc --arg p "${MEM_RULES}/forbidden_phrase/will_be_assigned" --arg t "$MEM_RULE_BODY" '{path:$p, file_text:$t}')"
+      assert_status 201 "POST /memory/create (new rule)"
+      assert_jq '.dedup == false' "first create is not a dedup hit"
+      MEM_RULE_ID="$(jqr '.rule_id')"
+      [ -n "$MEM_RULE_ID" ] && [ "$MEM_RULE_ID" != "null" ] && pass "create returned rule_id: $MEM_RULE_ID" || fail "no rule_id returned from /memory/create"
+      MEM_RULE_PATH="$(jqr '.path')"
+
+      # ── create: dedup hit on same (site, kind, pattern) ────────────────
+      api POST "/memory/create" "$(jq -nc --arg p "${MEM_RULES}/forbidden_phrase/will_be_reassigned" --arg t "$MEM_RULE_BODY" '{path:$p, file_text:$t}')"
+      assert_status 201 "POST /memory/create (duplicate pattern)"
+      assert_jq '.dedup == true' "second create on same pattern flagged dedup:true"
+
+      # ── view: read the rule back (read-after-write, constraint #2) ─────
+      api POST "/memory/view" "$(jq -nc --arg p "$MEM_RULE_PATH" '{path:$p}')"
+      assert_status 200 "POST /memory/view (rule file)"
+      assert_jq '.type == "file"' "view returns file type for rule path"
+      if echo "$RESP" | jq -r '.content' | grep -q "leverage synergies"; then
+        pass "rule body contains pattern after create"
+      else
+        fail "rule body missing pattern after create"
+      fi
+
+      # ── view: render.md surfaces the rule ──────────────────────────────
+      api POST "/memory/view" "$(jq -nc --arg p "${MEM_ROOT}/render.md" '{path:$p}')"
+      assert_status 200 "POST /memory/view on render.md"
+      if echo "$RESP" | jq -r '.content' | grep -qi "jargon"; then
+        pass "render.md includes the newly created rule"
+      else
+        fail "render.md did not surface the new rule's directive"
+      fi
+
+      # ── str_replace: mutate the directive ──────────────────────────────
+      api POST "/memory/str_replace" "$(jq -nc --arg p "$MEM_RULE_PATH" --arg o "directive: avoid empty corporate jargon" --arg n "directive: never write 'leverage synergies'" '{path:$p, old_str:$o, new_str:$n}')"
+      assert_status 200 "POST /memory/str_replace (directive mutation)"
+      if echo "$RESP" | jq -r '.content' | grep -q "never write"; then
+        pass "str_replace landed the new directive"
+      else
+        fail "str_replace did not update the directive"
+      fi
+
+      # ── str_replace: old_str not found ─────────────────────────────────
+      api POST "/memory/str_replace" "$(jq -nc --arg p "$MEM_RULE_PATH" --arg o "this string is not present anywhere" --arg n "replacement" '{path:$p, old_str:$o, new_str:$n}')"
+      assert_status 404 "POST /memory/str_replace with missing old_str → 404"
+      assert_jq '.code == "memory.str_not_found"' "code is memory.str_not_found"
+
+      # ── insert: positional field line (no-op duplicate of an existing line) ─
+      api POST "/memory/insert" "$(jq -nc --arg p "$MEM_RULE_PATH" '{path:$p, insert_line:2, insert_text:"scope: global"}')"
+      assert_status 200 "POST /memory/insert (positional field line)"
+
+      # ── insert: unknown field → 422 ────────────────────────────────────
+      api POST "/memory/insert" "$(jq -nc --arg p "$MEM_RULE_PATH" '{path:$p, insert_line:1, insert_text:"bogus_field: 42"}')"
+      assert_status 422 "POST /memory/insert with unknown field → 422"
+      assert_jq '.code == "memory.unknown_field"' "code is memory.unknown_field"
+
+      # ── rename: change kind ────────────────────────────────────────────
+      MEM_NEW_PATH="${MEM_RULES}/preferred_vocab/${MEM_RULE_ID}"
+      api POST "/memory/rename" "$(jq -nc --arg o "$MEM_RULE_PATH" --arg n "$MEM_NEW_PATH" '{old_path:$o, new_path:$n}')"
+      assert_status 200 "POST /memory/rename (change kind)"
+      assert_jq '.renamed == true' "rename succeeded"
+
+      # ── rename: rule_id mismatch → 422 ─────────────────────────────────
+      api POST "/memory/rename" "$(jq -nc --arg o "$MEM_NEW_PATH" --arg n "${MEM_RULES}/preferred_vocab/some_other_id" '{old_path:$o, new_path:$n}')"
+      assert_status 422 "POST /memory/rename with changed rule_id → 422"
+      assert_jq '.code == "memory.rule_id_immutable"' "code is memory.rule_id_immutable"
+
+      # ── delete: archive the rule ───────────────────────────────────────
+      api POST "/memory/delete" "$(jq -nc --arg p "$MEM_NEW_PATH" '{path:$p}')"
+      assert_status 200 "POST /memory/delete (archive rule)"
+      assert_jq '.deleted == true' "delete returns deleted:true"
+
+      # ── delete: directory delete refused (#16 no silent bulk wipe) ────
+      api POST "/memory/delete" "$(jq -nc --arg p "${MEM_RULES}/forbidden_phrase" '{path:$p}')"
+      assert_status 422 "POST /memory/delete on a directory → 422 (refused)"
+      assert_jq '.code == "memory.delete_directory_refused"' "code is memory.delete_directory_refused"
+    fi
+  fi
 fi
 
 # ── QUALITY EVAL (v0.7-α) ───────────────────────────────────────────────────

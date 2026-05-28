@@ -94,6 +94,10 @@ For OCC mismatches:
 | 404 | `not_found.*` | Resource gone |
 | 409 | `elementor.hash_mismatch` / `lock.held` | Concurrent edit |
 | 422 | `widget.invalid_settings` / `schema.*` | Settings don't match widget schema |
+| 422 | `unsupported_elementor_major` | Elementor major version has no adapter (constraint #17) — see ARCHITECTURE.md §7b |
+| 422 | `atomic_save_unstable_in_v4` | Elementor 4.0.x–4.1.x has open save bugs (#35888 / #35625 / #36008); writes refused (constraint #16) |
+| 422 | `atomic_save_silent_failure` | V4 atomic write was attempted but post-save read-back diverged from intended state (#35888 class); refused (constraint #2 + #16) |
+| 422 | `atomic_schema_unintrospectable` | The live V4 atomic-elements registry doesn't expose the expected surface; refuse rather than guess |
 | 423 | `lock.held` | Page write-locked by another active session |
 | 429 | `rate_limit.*` | Throttled |
 | 500 | `internal.*` | Unhandled — full stack in `details` if `WP_DEBUG` |
@@ -129,7 +133,15 @@ Identifies what we're talking to. Agent calls once at session start.
     "layout_mode_confidence": 0.95,
     "layout_mode_last_scan": "2026-05-10T08:00:00Z",
     "bot_crawl_logging_enabled": false,
-    "registered_dynamic_tag_count": 32
+    "registered_dynamic_tag_count": 32,
+    "routing": {
+      "kind": "legacy_v3",
+      "version": "3.21.0",
+      "major": 3, "minor": 21, "patch": 0,
+      "known_broken": false,
+      "source": "constant",
+      "notes": ["Elementor 3.21.0 — legacy V3 (_elementor_data tree) write path."]
+    }
   },
   "operating_mode": {
     "mode": "observer",

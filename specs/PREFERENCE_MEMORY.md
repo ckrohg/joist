@@ -1,6 +1,6 @@
 # Preference Memory + Quality Eval — design spec
 
-**Date:** 2026-05-13. **Status:** v0 design, partial code (Wave 2 of build-wave 2). **Targets:** v0.7.
+**Date:** 2026-05-13 (original) / **Updated:** 2026-05-28 (substrate refactor). **Status:** v0.7-α shipped; Wave 2a substrate refactor in progress. **Targets:** v0.7 → v0.85.
 
 The "first concrete self-improve step" for Joist. Captures user corrections per-site, surfaces them to the agent on next session, measures quality over time. Synthesis of two parallel research streams (preference-memory patterns + agent eval frameworks). Joist's advantage: every prior tool drops rejection feedback on the floor; we already capture `rejection_note` on plan rejection — we just need to wire it through.
 
@@ -362,3 +362,139 @@ From research stream A (preference memory across 8 systems), every failure mode 
 **Concrete user-facing change:** the first time a user rejects "Build the future of X" with a note, that pattern is dead for that site forever. No "I keep telling Claude not to write that" frustration.
 
 This is **the first concrete self-improve step** — narrow scope, validated pattern, ~1000 LOC, ships in v0.7.
+
+---
+
+## 9. 2026-05-28 substrate refactor (Wave 2a)
+
+### 9.1 What changed
+
+The public REST surface for preference memory is now Anthropic's `memory_20250818`
+tool command vocabulary. Joist provides the storage backend; Anthropic owns the
+plumbing. The semantics — per-site namespacing, dedup by (site, kind, pattern),
+confidence promotion on re-add, the 40-rule / 800-token `renderForPrompt` cap,
+the daily `compact()` job — all live in `PreferenceMemory` and `MemoryToolHandler`
+exactly as before. The refactor only swaps the *transport*.
+
+Driver: [[wave-0-synthesis-2026-05-26]] §3.1 + the `architecture_decisions`
+"Memory substrate" section. Standardising on the tool's vocabulary means any
+future Anthropic client (Claude Code, Claude Desktop, third-party SDKs) reads
+and writes our preference store with no Joist-specific glue.
+
+### 9.2 Command surface
+
+Six new endpoints under `/joist/v1/memory/`, all `POST` (the memory tool always
+sends a structured JSON body):
+
+| Endpoint | memory_20250818 command | Routes into |
+|---|---|---|
+| `POST /memory/view`        | `view`        | `PreferenceMemory::listActive()` + `renderForPrompt()` |
+| `POST /memory/create`      | `create`      | `PreferenceMemory::add()` (dedup-aware) |
+| `POST /memory/str_replace` | `str_replace` | parse-edit-`PreferenceMemory::update()` |
+| `POST /memory/insert`      | `insert`      | parse-edit-`PreferenceMemory::update()` |
+| `POST /memory/delete`      | `delete`      | `PreferenceMemory::archive()` (soft delete) |
+| `POST /memory/rename`      | `rename`      | mutate `kind` segment + collision-check |
+
+Bodies match the Anthropic tool I/O contract literally — e.g.,
+`{"path": "/memories/site/<id>/rules/forbidden_phrase/<rule_id>",`
+`"file_text": "kind: forbidden_phrase\npattern: synergy\ndirective: ..."}`.
+
+### 9.3 Per-site multi-tenancy
+
+The `memory_20250818` tool is single-tenant. Joist hosts many sites, so we expose
+tenancy via a path prefix:
+
+```
+/memories                                       (root; view-only)
+/memories/site/<site_id>                        (directory)
+/memories/site/<site_id>/render.md              (synthesised prompt block, read-only)
+/memories/site/<site_id>/rules/<kind>           (directory; lists rule ids of that kind)
+/memories/site/<site_id>/rules/<kind>/<rule_id> (file; one rule body)
+```
+
+`<site_id>` is the same value `PreferenceMemory::siteId()` returns —
+`blog_<n>` on multisite, `host_<sanitized-host>` on single-site. The handler
+asserts the path's `site_id` matches the authenticated site and returns 403
+`permission.cross_site_denied` on mismatch. Failure-mode constraint #2
+(read-after-write) and #16 (no silent failures) are both enforced at this
+boundary: a rule looked up by id that belongs to a different site returns 404,
+never the wrong site's rule.
+
+### 9.4 Rule file format
+
+Rules are serialised as a small, line-oriented text block so the memory tool can
+sensibly `str_replace` and `insert` against them:
+
+```
+id: pref_3f2c…             (informational; read-only)
+kind: forbidden_phrase
+scope: global
+confidence: 0.80
+status: active
+pattern: synergy
+directive: avoid corporate jargon like "synergy"
+```
+
+Editable fields: `kind` (via `rename` only), `scope`, `pattern`, `directive`,
+`confidence`, `status`. **Unknown fields → 422** (`memory.unknown_field`,
+constraint #1). The handler refuses to mutate `id`; renames cannot change
+`<rule_id>` (immutable segment).
+
+### 9.5 Preserved semantics
+
+| Concern | Preserved how |
+|---|---|
+| Dedup by (site, kind, pattern) | `create` calls `PreferenceMemory::add()`; response surfaces `dedup: true` when an existing rule absorbed the create. |
+| Confidence promotion on re-add | Unchanged — `add()` bumps confidence by 0.1 on dedup hit. |
+| 40-rule / 800-token render cap | `renderForPrompt()` is called verbatim when reading `render.md`. |
+| Compaction | Still a daily cron job. No memory tool command for it; `POST /preferences/compact` remains until v0.9 (then either dropped or surfaced as a non-standard side-channel). |
+| Cross-site partition | Handler asserts site identity before every read/write. |
+| Soft-delete | `delete` archives; rules can be re-listed via the `status` field if we ever add an `archived/` listing path. |
+
+### 9.6 Deprecation path for the original 7 endpoints
+
+The original `/joist/v1/preferences*` endpoints remain wired but every handler
+method carries `@deprecated 2026-05-28` in its PHPDoc and is slated for removal
+in **v0.9**. The legacy surface keeps behavioural parity (same status codes,
+same bodies) so existing acceptance tests don't break mid-refactor.
+
+| Legacy endpoint | Replacement |
+|---|---|
+| `GET /preferences`              | `POST /memory/view` on `/memories/site/<id>/rules/<kind>` |
+| `GET /preferences/{id}`         | `POST /memory/view` on a rule file path |
+| `POST /preferences`             | `POST /memory/create` |
+| `PUT /preferences/{id}`         | `POST /memory/str_replace` or `POST /memory/insert` |
+| `DELETE /preferences/{id}`      | `POST /memory/delete` |
+| `GET /preferences/render`       | `POST /memory/view` on `/memories/site/<id>/render.md` |
+| `POST /preferences/validate`    | no memory-tool equivalent; survives as a Joist-specific endpoint past v0.9 (validator is our value-add, not Anthropic's surface) |
+| `POST /preferences/compact`     | survives as Joist-specific admin endpoint past v0.9 (cron-driven, not a tool command) |
+
+### 9.7 Files touched
+
+| File | Role |
+|---|---|
+| `plugin/src/Eval/MemoryToolHandler.php` (NEW)    | 6-command translator |
+| `plugin/src/REST/PreferencesController.php`      | adds /memory/* routes, marks legacy @deprecated |
+| `plugin/src/Container.php`                       | wires `preferenceMemory` + `memoryToolHandler` services |
+| `plugin/tests/manual/acceptance.sh`              | + ~14 assertions covering the 6 commands |
+
+`PreferenceMemory.php`, `Rule.php`, `ForbiddenPhraseValidator.php`,
+`PreferenceCapture.php`, `EvalRecorder.php`, `RollupJob.php`, and migrations
+009/010/011 are unchanged — the refactor is strictly a transport swap.
+
+### 9.8 Failure-mode constraint cross-check
+
+| Constraint | How the handler honours it |
+|---|---|
+| #1 Schema-validate; 422 on unknown keys | `parseRuleBody` rejects fields outside the whitelist; `assertValidKind` / `assertValidStatus` reject unknown enum values. |
+| #2 Read-after-write on every mutation    | Each command returns the persisted file content after the mutation — never `{success: true}`. |
+| #16 No silent failures                   | Empty paths, ambiguous str_replace targets, dedup collisions, cross-site access — all throw typed `WriteException`s. |
+
+### 9.9 Open questions deferred to v0.85
+
+- Should the validator (`/preferences/validate`) be re-expressed as a tool
+  command, perhaps a synthetic `view` against
+  `/memories/site/<id>/validate?text=...`? Probably not — it's not idiomatic
+  memory-tool usage. Leave as a Joist-specific endpoint.
+- Multi-tenancy at the connector level (WP 7.0 Connectors API) — same path
+  prefix, or separate connector instances per site? Decided in Wave 2b.

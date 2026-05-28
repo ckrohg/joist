@@ -42,6 +42,22 @@ final class HealthController extends ControllerBase
                 . JOIST_MIN_ELEMENTOR_VERSION . '–' . JOIST_MAX_TESTED_ELEMENTOR_VERSION . ').',
                 ['version' => $elVersion]);
 
+            // Wave 3: V3/V4 routing health check (failure-mode constraint #17).
+            // Refusal-to-write is a 'warn', not a 'fail' — the plugin itself
+            // is healthy; the host's Elementor version is what's broken.
+            if (class_exists(\Joist\Elementor\VersionRouter::class)) {
+                $routing = \Joist\Elementor\VersionRouter::detect();
+                $routingHealthy = !$routing->shouldRefuseWrites();
+                $checks[] = [
+                    'name' => 'elementor.routing',
+                    'status' => $routingHealthy ? 'pass' : 'warn',
+                    'message' => $routingHealthy
+                        ? sprintf('Routing: %s (writes will proceed).', $routing->kind)
+                        : sprintf('Routing: %s (writes refused: %s).', $routing->kind, $routing->knownBroken ? 'known_broken_v4' : 'unsupported_major'),
+                    'details' => $routing->toArray(),
+                ];
+            }
+
             $layoutMode = Container::get('layoutMode')->current();
             $checks[] = $this->check('elementor.layout_mode_detected', !empty($layoutMode['mode']), 'Layout mode autodetected.', $layoutMode);
 
@@ -91,6 +107,17 @@ final class HealthController extends ControllerBase
                     $pluginData[] = ['file' => $plugin, 'name' => $h['Name'] ?? $plugin, 'version' => $h['Version'] ?? '?'];
                 }
             }
+            // Wave 3: surface routing decision + atomic schema probe result
+            // in diagnostics so curl/CI tests can verify the V3/V4 surface
+            // without exercising an actual write. Read-only.
+            $routing = class_exists(\Joist\Elementor\VersionRouter::class)
+                ? \Joist\Elementor\VersionRouter::detect()
+                : null;
+            $atomicProbe = null;
+            if ($routing !== null && $routing->isAtomicV4() && class_exists(\Joist\Elementor\AtomicSchemaProbe::class)) {
+                $atomicProbe = Container::get('atomicSchemaProbe')->probe($routing);
+            }
+
             return $this->ok([
                 'php' => ['version' => PHP_VERSION, 'memory_limit' => ini_get('memory_limit'), 'max_upload' => size_format(wp_max_upload_size())],
                 'wordpress' => ['version' => get_bloginfo('version'), 'multisite' => is_multisite()],
@@ -99,6 +126,8 @@ final class HealthController extends ControllerBase
                 'cache_adapters' => Container::get('cacheFlusher')->detectedAdapters(),
                 'recent_log' => array_slice(get_option('joist_log_buffer', []), -50),
                 'audit_chain_status' => empty(get_option('joist_audit_chain_broken', [])) ? 'ok' : 'broken',
+                'elementor_routing' => $routing?->toArray(),
+                'atomic_schema_probe' => $atomicProbe,
             ]);
         });
     }

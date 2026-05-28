@@ -28,6 +28,14 @@ final class Bootstrap
             add_action('admin_notices', [self::class, 'noticeActivationError']);
         }
 
+        // Platform-feature gating (WP 7.0 Connectors API + future 7.x surfaces).
+        // Runs before REST so any AI client that probes via the Connectors
+        // hub gets our descriptor *with* the discovery route already mounted.
+        // See specs/ARCHITECTURE.md §7a "WP 7.0 Connectors API integration".
+        if (class_exists(\Joist\Platform\PlatformBootstrap::class)) {
+            \Joist\Platform\PlatformBootstrap::init();
+        }
+
         add_action('rest_api_init', [self::class, 'registerRoutes']);
 
         // Widget Pack — Joist's custom Elementor widgets (v0.9-α).

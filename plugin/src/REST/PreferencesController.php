@@ -6,18 +6,69 @@ namespace Joist\REST;
 use Joist\Container;
 use Joist\Elementor\WriteException;
 use Joist\Eval\ForbiddenPhraseValidator;
+use Joist\Eval\MemoryToolHandler;
 use Joist\Eval\PreferenceMemory;
 use Joist\Eval\Rule;
 use WP_REST_Request;
 use WP_REST_Server;
 
 /**
- * /joist/v1/preferences — per-site preference memory CRUD + render.
+ * @purpose REST surface for per-site preference memory.
+ *
+ * As of the 2026-05-28 substrate refactor (Wave 2a), the canonical public
+ * surface is the memory_20250818 command set under /joist/v1/memory/<command>.
+ * Routes the six tool commands (view / create / str_replace / insert / delete
+ * / rename) into MemoryToolHandler, which translates them into our existing
+ * PreferenceMemory + Rule semantics — dedup, confidence, compact, and the
+ * 40-rule / 800-token renderForPrompt cap all stay in the handler.
+ *
+ * Per-site multi-tenancy is exposed via the path prefix
+ * /memories/site/<site_id>/...; the handler asserts site identity from
+ * PreferenceMemory::siteId() and rejects cross-site access with 403.
+ *
+ * The original 7 /preferences endpoints below remain wired for v0.7/v0.8
+ * backwards compatibility but are @deprecated — slated for removal in v0.9.
  */
 final class PreferencesController extends ControllerBase
 {
     public function register(): void
     {
+        // ── memory_20250818 command surface (canonical as of 2026-05-28) ──
+        // Per Anthropic spec, all six commands are POST with a JSON body
+        // shaped like the tool I/O contract. Bodies vary per command; see
+        // MemoryToolHandler for the exact arg shapes.
+        register_rest_route(self::NAMESPACE, '/memory/view', [
+            'methods' => WP_REST_Server::CREATABLE,
+            'callback' => [$this, 'memoryView'],
+            'permission_callback' => [$this, 'permissionsCheck'],
+        ]);
+        register_rest_route(self::NAMESPACE, '/memory/create', [
+            'methods' => WP_REST_Server::CREATABLE,
+            'callback' => [$this, 'memoryCreate'],
+            'permission_callback' => [$this, 'permissionsCheck'],
+        ]);
+        register_rest_route(self::NAMESPACE, '/memory/str_replace', [
+            'methods' => WP_REST_Server::CREATABLE,
+            'callback' => [$this, 'memoryStrReplace'],
+            'permission_callback' => [$this, 'permissionsCheck'],
+        ]);
+        register_rest_route(self::NAMESPACE, '/memory/insert', [
+            'methods' => WP_REST_Server::CREATABLE,
+            'callback' => [$this, 'memoryInsert'],
+            'permission_callback' => [$this, 'permissionsCheck'],
+        ]);
+        register_rest_route(self::NAMESPACE, '/memory/delete', [
+            'methods' => WP_REST_Server::CREATABLE,
+            'callback' => [$this, 'memoryDelete'],
+            'permission_callback' => [$this, 'permissionsCheck'],
+        ]);
+        register_rest_route(self::NAMESPACE, '/memory/rename', [
+            'methods' => WP_REST_Server::CREATABLE,
+            'callback' => [$this, 'memoryRename'],
+            'permission_callback' => [$this, 'permissionsCheck'],
+        ]);
+
+        // ── Legacy /preferences surface (@deprecated, removal v0.9) ──
         register_rest_route(self::NAMESPACE, '/preferences', [
             ['methods' => WP_REST_Server::READABLE,  'callback' => [$this, 'list'],   'permission_callback' => [$this, 'permissionsCheck']],
             ['methods' => WP_REST_Server::CREATABLE, 'callback' => [$this, 'create'], 'permission_callback' => [$this, 'permissionsCheck']],
@@ -44,6 +95,58 @@ final class PreferencesController extends ControllerBase
         ]);
     }
 
+    // ──────────────────────────────────────────────────────────────────────
+    // memory_20250818 command handlers
+    // ──────────────────────────────────────────────────────────────────────
+
+    public function memoryView(WP_REST_Request $req)
+    {
+        return $this->handle($req, 'reads', function (WP_REST_Request $req) {
+            return $this->ok($this->handler()->view($this->jsonBody($req)));
+        });
+    }
+
+    public function memoryCreate(WP_REST_Request $req)
+    {
+        return $this->handle($req, 'writes', function (WP_REST_Request $req) {
+            return $this->ok($this->handler()->create($this->jsonBody($req)), 201);
+        });
+    }
+
+    public function memoryStrReplace(WP_REST_Request $req)
+    {
+        return $this->handle($req, 'writes', function (WP_REST_Request $req) {
+            return $this->ok($this->handler()->strReplace($this->jsonBody($req)));
+        });
+    }
+
+    public function memoryInsert(WP_REST_Request $req)
+    {
+        return $this->handle($req, 'writes', function (WP_REST_Request $req) {
+            return $this->ok($this->handler()->insert($this->jsonBody($req)));
+        });
+    }
+
+    public function memoryDelete(WP_REST_Request $req)
+    {
+        return $this->handle($req, 'writes', function (WP_REST_Request $req) {
+            return $this->ok($this->handler()->delete($this->jsonBody($req)));
+        });
+    }
+
+    public function memoryRename(WP_REST_Request $req)
+    {
+        return $this->handle($req, 'writes', function (WP_REST_Request $req) {
+            return $this->ok($this->handler()->rename($this->jsonBody($req)));
+        });
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // Legacy /preferences handlers (@deprecated since 2026-05-28, removal v0.9)
+    // Behaviour unchanged — kept for callers that haven't migrated yet.
+    // ──────────────────────────────────────────────────────────────────────
+
+    /** @deprecated 2026-05-28 — prefer POST /memory/view. Removed in v0.9. */
     public function list(WP_REST_Request $req)
     {
         return $this->handle($req, 'reads', function () {
@@ -57,6 +160,7 @@ final class PreferencesController extends ControllerBase
         });
     }
 
+    /** @deprecated 2026-05-28 — prefer POST /memory/view on /memories/site/<id>/render.md. Removed in v0.9. */
     public function render(WP_REST_Request $req)
     {
         return $this->handle($req, 'reads', function () {
@@ -70,6 +174,7 @@ final class PreferencesController extends ControllerBase
         });
     }
 
+    /** @deprecated 2026-05-28 — prefer POST /memory/view on a rule file path. Removed in v0.9. */
     public function get(WP_REST_Request $req)
     {
         return $this->handle($req, 'reads', function (WP_REST_Request $req) {
@@ -83,6 +188,7 @@ final class PreferencesController extends ControllerBase
         });
     }
 
+    /** @deprecated 2026-05-28 — prefer POST /memory/create. Removed in v0.9. */
     public function create(WP_REST_Request $req)
     {
         return $this->handle($req, 'writes', function (WP_REST_Request $req, string $sessionId) {
@@ -123,6 +229,7 @@ final class PreferencesController extends ControllerBase
         });
     }
 
+    /** @deprecated 2026-05-28 — prefer POST /memory/str_replace or /memory/insert. Removed in v0.9. */
     public function update(WP_REST_Request $req)
     {
         return $this->handle($req, 'writes', function (WP_REST_Request $req) {
@@ -145,6 +252,7 @@ final class PreferencesController extends ControllerBase
         });
     }
 
+    /** @deprecated 2026-05-28 — prefer POST /memory/delete. Removed in v0.9. */
     public function delete(WP_REST_Request $req)
     {
         return $this->handle($req, 'writes', function (WP_REST_Request $req) {
@@ -159,6 +267,7 @@ final class PreferencesController extends ControllerBase
         });
     }
 
+    /** @deprecated 2026-05-28 — validator semantics unchanged; no direct memory-tool equivalent. Removed in v0.9 only after a replacement validation surface ships. */
     public function validateText(WP_REST_Request $req)
     {
         return $this->handle($req, 'reads', function (WP_REST_Request $req) {
@@ -171,11 +280,36 @@ final class PreferencesController extends ControllerBase
         });
     }
 
+    /** @deprecated 2026-05-28 — compaction is a server-side cron, not a client tool command. May survive as /memory/compact in v0.9. */
     public function compact(WP_REST_Request $req)
     {
         return $this->handle($req, 'writes', function () {
             return $this->ok(Container::get('preferenceMemory')->compact());
         });
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // Internal helpers
+    // ──────────────────────────────────────────────────────────────────────
+
+    private function handler(): MemoryToolHandler
+    {
+        return Container::get('memoryToolHandler');
+    }
+
+    /**
+     * Extract a JSON body or throw a 400. The memory_20250818 tool always
+     * sends structured JSON; an empty/missing body is a hard error.
+     *
+     * @return array<string,mixed>
+     */
+    private function jsonBody(WP_REST_Request $req): array
+    {
+        $body = $req->get_json_params();
+        if (!is_array($body)) {
+            throw new WriteException('memory.invalid_body', 'JSON body required.', 400);
+        }
+        return $body;
     }
 
     private static function camelOrPassthrough(string $field): string

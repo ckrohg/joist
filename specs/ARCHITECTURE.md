@@ -793,6 +793,165 @@ wp_register_ability('joist/get_page', [
 
 ---
 
+## 7a. WP 7.0 Connectors API integration
+
+**Status:** v0.85-α (Wave 2b, 2026-05-28). Sources:
+- [Introducing the Connectors API in WordPress 7.0](https://make.wordpress.org/core/2026/03/18/introducing-the-connectors-api-in-wordpress-7-0/) — Make WordPress Core dev note
+- [Introducing the AI Client in WordPress 7.0](https://make.wordpress.org/core/2026/03/24/introducing-the-ai-client-in-wordpress-7-0/) — Make WordPress Core dev note
+- [WordPress 7.0 Field Guide](https://make.wordpress.org/core/2026/05/14/wordpress-7-0-field-guide/) — Make WordPress Core dev note
+
+**Why this matters.** WordPress 7.0 "Armstrong" (shipped 2026-05-20) introduces a provider-agnostic AI Client and a Connectors API. Plugins register themselves once via the Connectors API; users authenticate once in **Settings → Connectors**; and every WP 7.0 AI client (Claude Code, Claude Desktop, third-party SDKs) sees Joist without re-auth. This is the **v1.0 launch differentiator** identified in `[[wave-0-synthesis-2026-05-26]]` §3.2 — Novamira does not yet ship a Connector.
+
+**Detection + registration model.**
+
+1. **`Joist\Platform\WPVersionDetector::detect()`** — pure function. Reads `$GLOBALS['wp_version']` (with `get_bloginfo('version')` and `'0.0.0'` fallbacks) and returns:
+   ```php
+   [
+     'version' => '7.0.1',
+     'major' => 7, 'minor' => 0, 'patch' => 1,
+     'supports_connectors_api'        => true,
+     'supports_dataviews'             => true,
+     'supports_client_side_abilities' => true,
+     'source' => 'global',  // or 'bloginfo' | 'env_override' | 'unknown'
+   ]
+   ```
+   Honors a `JOIST_TEST_WP_VERSION` env override **only when `WP_DEBUG` is on** — used by `tests/manual/acceptance.sh` to simulate 6.x vs 7.0 without two installs.
+
+2. **`Joist\Platform\PlatformBootstrap::init()`** — runs from `Bootstrap::init()` during `plugins_loaded`, *before* REST routes register. Calls `WPVersionDetector::detect()`; if `supports_connectors_api` is true, instantiates `JoistConnector` and calls `register()`. Otherwise logs a debug-level note and proceeds with the existing REST auth path (App Passwords + the `joist_agent` role).
+
+3. **`Joist\Platform\JoistConnector::register()`** — hooks `wp_connectors_init` (priority 10). When core fires that action during `init`, the callback receives a `WP_Connector_Registry` instance and calls `$registry->register('joist', $descriptor)`. The descriptor follows the dev-note shape:
+   ```php
+   [
+     'name' => 'Joist',
+     'description' => '...',
+     'logo_url' => JOIST_URL . 'assets/logo.svg',
+     'type' => 'site_builder',
+     'authentication' => [
+       'method' => 'api_key',
+       'credentials_url' => admin_url('profile.php#application-passwords-section'),
+       'setting_name' => 'connectors_site_builder_joist_api_key',
+       'env_var_name' => 'JOIST_APP_PASSWORD',
+       'constant_name' => 'JOIST_APP_PASSWORD',
+     ],
+     'plugin' => ['file' => plugin_basename(JOIST_FILE)],
+
+     // Joist-namespaced extension — core ignores unknown top-level keys.
+     'joist' => [
+       'plugin_version' => JOIST_VERSION,
+       'rest_namespace' => 'joist/v1',
+       'discovery_route' => '/joist/v1/site',
+       'mcp_namespace' => 'mcp/v1',
+       'capabilities' => [ /* elementor.pages.read, ..., plans.execute, ... */ ],
+       'docs_url' => 'https://github.com/ckrohg/joist',
+     ],
+   ]
+   ```
+
+**Graceful degradation.** Every interaction with the Connectors API is guarded:
+- `function_exists('add_action')` before hooking
+- `function_exists('wp_get_connectors')` / `wp_is_connector_registered` / `wp_get_connector` — if NONE of these exist on a host that claims to be 7.0+, we log `joist.connector.api_missing` and bail without fataling
+- `is_object($registry) && method_exists($registry, 'register')` inside the hook
+- `try/catch (\Throwable)` around the final `$registry->register()` call — so a metadata-shape drift in 7.0.x produces a `joist.connector.register_failed` log line, not a fatal
+
+On WP 6.x, none of the above runs; `JoistConnector` is never instantiated; everything keeps working through the existing App Password / REST auth path. Same shape as the Elementor preflight in `Bootstrap::elementorReady()` — feature-gate, log, fall back.
+
+**Open questions** (resolve before v0.85 ships):
+- The dev note documents `setting_name` as `connectors_{$type}_{$id}_api_key` but doesn't specify whether `$type` is normalized (e.g. `site_builder` vs `site-builder`). We use the underscored form.
+- Whether `logo_url` accepts SVG MIME — we assume yes since the field is just a URL.
+- Whether the Connectors hub admin UI surfaces our `joist.capabilities` extension or strips unknown top-level keys before render. Either is fine for our purpose (AI clients reading the API see them either way), but UX clarity in the hub depends on this.
+
+`TODO(connectors-api-stability)` markers in `JoistConnector.php` flag the call site for revisit at 7.0.1 / 7.0.2.
+
+---
+
+## 7b. Elementor V3/V4 routing
+
+**Status:** v0.85-α (Wave 3, 2026-05-28). Backlinks: [[wave-0-synthesis-2026-05-26]] §1.3, [[failure-mode-constraints]] #17.
+
+**Why this matters.** Elementor 4.0 became the default for new installs on 2026-03-30; 4.1.1 is current as of late May. Every released 4.x version has **open upstream save bugs** that make atomic-element writes unsafe:
+
+| Bug | State (2026-05-28) | Symptom |
+|---|---|---|
+| [#35888](https://github.com/elementor/elementor/issues/35888) | open | atomic-element saves fail silently; `this.view.container is undefined`, `elementor.documents.getCurrent() is null` |
+| [#35625](https://github.com/elementor/elementor/issues/35625) | open | V4 atomic styling embedded in V3 templates throws `Argument #2 ($post) must be of type WP_Post, null given` |
+| [#36008](https://github.com/elementor/elementor/issues/36008) | open (2026-05-26) | cannot save Style Kit / site settings when Atomic Editor enabled |
+| [discussion #35627](https://github.com/orgs/elementor/discussions/35627) | open, no official workaround | "Atomic Editor breaks the site when activated" |
+| [#33000](https://github.com/elementor/elementor/issues/33000) | open since 2025-10 | persistent atomic-element-settings save errors |
+
+A fresh GrowBig install today pulls WordPress + Elementor 4.0.9 by default. Joist cannot ship v1.0 unable to write to that host, but it also cannot ship code that silently corrupts state on that host.
+
+**The router.** `Joist\Elementor\VersionRouter::detect()` is a pure function. It reads the `ELEMENTOR_VERSION` constant (with a `JOIST_TEST_ELEMENTOR_VERSION` env override gated on `WP_DEBUG` — same pattern as `WPVersionDetector`) and returns an immutable `RoutingDecision` value object:
+
+```php
+final class RoutingDecision {
+  public readonly string $kind;          // 'legacy_v3' | 'atomic_v4' | 'unsupported'
+  public readonly string $version;       // raw ELEMENTOR_VERSION, including beta/dev suffixes
+  public readonly int $major, $minor, $patch;
+  public readonly bool $knownBroken;     // true iff $kind == 'atomic_v4' AND in known-broken range
+  public readonly string $source;        // 'constant' | 'env_override' | 'constant_missing'
+  public readonly array $notes;          // human-readable warnings
+}
+```
+
+The `RoutingDecision` is included verbatim in `GET /site` under `elementor.routing` so any caller (Plan Mode UI, MCP server, the agent) can see the decision before attempting a write.
+
+**Routing decision table.**
+
+| Detected `ELEMENTOR_VERSION` | `kind` | `known_broken` | Write behavior |
+|---|---|---|---|
+| undefined (`!defined('ELEMENTOR_VERSION')`) | `unsupported` | — | refuse `unsupported_elementor_major` |
+| `0.0.0` / empty | `unsupported` | — | refuse `unsupported_elementor_major` |
+| `2.x.x` (or any major < 3) | `unsupported` | — | refuse `unsupported_elementor_major` |
+| `3.18.0` through `3.x.x` | `legacy_v3` | false | existing `DocumentWriter` path (no behavior change from pre-Wave-3) |
+| `4.0.0` through `4.1.1` | `atomic_v4` | **true** | refuse `atomic_save_unstable_in_v4` (constraint #16) |
+| `4.x.x` outside known-broken range (future) | `atomic_v4` | false | `AtomicDocumentWriter` write + read-after-write verification |
+| `5.x.x` (or any major >= 5) | `unsupported` | — | refuse `unsupported_elementor_major` |
+
+The `known_broken` range (`VersionRouter::KNOWN_BROKEN_MIN`..`KNOWN_BROKEN_MAX`) is currently `4.0.0..4.1.1` inclusive. We narrow this window the moment Elementor merges fixes for the open issues above and ships a release outside the window. A `TODO(elementor-v4-known-broken-narrow)` marker in `VersionRouter.php` flags the call site.
+
+**Refusal policy (failure-mode constraint #16).** When `RoutingDecision::shouldRefuseWrites()` is true (either `unsupported` or `atomic_v4 && known_broken`), `DocumentWriter::save()` throws a typed `WriteException` BEFORE any side effects: no policy check, no lock acquisition, no snapshot, no audit log entry. The error envelope carries:
+
+- The full `routing_decision` (for telemetry)
+- The list of `open_upstream_issues` (for user diagnostics)
+- A `guidance` string ("Downgrade Elementor to 3.33–3.34.x...")
+- Recovery suggestion `{op: 'get_site'}` (so the agent re-reads the decision)
+
+**V4 introspection (`AtomicSchemaProbe`).** When the host IS atomic_v4 and we eventually need to write to it (post-known-broken), `AtomicSchemaProbe::probe(RoutingDecision)` introspects the live registry via the canonical V4 surface (verified from main, 2026-05-28):
+
+| Surface | FQCN |
+|---|---|
+| Module | `Elementor\Modules\AtomicWidgets\Module` |
+| Atomic element base | `Elementor\Modules\AtomicWidgets\Elements\Base\Atomic_Element_Base` (extends `Element_Base`) |
+| Atomic widget base | `Elementor\Modules\AtomicWidgets\Elements\Base\Atomic_Widget_Base` (extends `Widget_Base`) |
+| Schema trait | `Elementor\Modules\AtomicWidgets\Elements\Base\Has_Atomic_Base` |
+| Enumeration | `\Elementor\Plugin::$instance->elements_manager->get_element_types(): Element_Base[]` (filter by `instanceof`) |
+| Per-element schema | static `get_props_schema(): array<string, Prop_Type>` + instance `get_atomic_controls(): array` |
+
+Crucially, `AtomicSchemaProbe` never calls `\Elementor\Plugin::$instance->documents->getCurrent()` — that's the surface broken by #35888. The introspection path is pure registry read, stable across the broken-save window.
+
+If the live registry doesn't expose the expected surface (Elementor renames or hides a class in a future minor), `probe()` returns a typed `atomic_schema_unintrospectable` error rather than guessing.
+
+**V4 write path (`AtomicDocumentWriter`).** When `kind == atomic_v4 && !known_broken`, `DocumentWriter::save()` delegates to `AtomicDocumentWriter::save(RoutingDecision, $req)`:
+
+1. Defense-in-depth re-check of the routing decision (refuse if upstream caller misrouted)
+2. `Document::save(['elements' => $tree, 'settings' => $pageSettings])` (same public API on 3.x and 4.x)
+3. **Read-after-write** via `$document->get_elements_data()` (constraint #2)
+4. Hash both sides via `Hasher::forElements()`; if the post-save canonical hash differs from the intended canonical hash, refuse with `atomic_save_silent_failure` — this is the runtime detector for the #35888 class of bug
+5. Regenerate CSS via `\Elementor\Core\Files\CSS\Post::create($id)->update()` and verify the call didn't throw (constraint #5)
+
+Step 4 means: even if we mark a future Elementor version as out-of-the-known-broken-range and we're wrong, the write either succeeds correctly OR returns a typed error. We never silently corrupt.
+
+**Where the chokepoint lives.** Constraint #17 is enforced in exactly one place: `DocumentWriter::save()`. Every REST controller that mutates `_elementor_data` (PagesController create/replace/patch, PlanExecutor, etc.) goes through `DocumentWriter`. There is no second write path. This is the chokepoint reviewers should grep for.
+
+**Open questions** (resolve before v1.0):
+- Which 4.x release (4.1.2? 4.2.0?) will narrow the known-broken range — depends on upstream merge timing
+- Whether `\Elementor\Core\Files\CSS\Post` shape diverges materially on V4 atomic posts (we use it identically; verify on a live V4 install once writes are safe)
+- Whether the V4 read-back through `get_elements_data()` returns settings in the same canonicalized order as the input (hash collision risk if normalization differs) — `TODO(v4-api-verify-on-live-install)` in `AtomicDocumentWriter::doSafeWrite()` flags this for verification when a safe 4.x ships
+
+`TODO(elementor-v4-known-broken-narrow)` markers in `VersionRouter.php` flag the call sites for revisit on every Elementor release.
+
+---
+
 ## 8. Claude Code MCP server (TypeScript)
 
 ```

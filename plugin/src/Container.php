@@ -10,6 +10,8 @@ use Joist\Concurrency\OperatingMode;
 use Joist\Concurrency\SessionTracker;
 use Joist\Core\Hasher;
 use Joist\Core\IDGenerator;
+use Joist\Elementor\AtomicDocumentWriter;
+use Joist\Elementor\AtomicSchemaProbe;
 use Joist\Elementor\ContainerModeAdapter;
 use Joist\Elementor\CSSRegenerator;
 use Joist\Elementor\CustomCSSBlockManager;
@@ -21,6 +23,7 @@ use Joist\Elementor\ResponsiveFiller;
 use Joist\Elementor\SchemaValidator;
 use Joist\Elementor\WidgetCatalog;
 use Joist\Eval\ForbiddenPhraseValidator;
+use Joist\Eval\MemoryToolHandler;
 use Joist\Eval\PreferenceMemory;
 use Joist\Host\HostDetector;
 use Joist\Plan\PlanExecutor;
@@ -75,6 +78,12 @@ final class Container
             'webhooks' => new WebhookEmitter(self::get('webhookStore'), self::get('urlValidator')),
             'patchEngine' => new PatchEngine(self::get('idGen'), self::get('cssBlocks')),
             'planStore' => new PlanStore(),
+            // Wave 3 (2026-05-28): V3/V4 routing chokepoint.
+            // VersionRouter::detect() is the source of truth; AtomicSchemaProbe
+            // introspects the V4 atomic registry; AtomicDocumentWriter performs
+            // V4 writes (refuses on known_broken; read-after-write on safe path).
+            'atomicSchemaProbe' => new AtomicSchemaProbe(),
+            'atomicDocumentWriter' => new AtomicDocumentWriter(self::get('hasher')),
             'documentWriter' => new DocumentWriter(
                 self::get('hasher'),
                 self::get('idGen'),
@@ -91,7 +100,11 @@ final class Container
                 self::get('audit'),
                 self::get('webhooks'),
                 self::get('responsiveFiller'),
+                self::get('atomicDocumentWriter'),
             ),
+            'preferenceMemory' => new PreferenceMemory(),
+            'forbiddenPhraseValidator' => new ForbiddenPhraseValidator(self::get('preferenceMemory')),
+            'memoryToolHandler' => new MemoryToolHandler(self::get('preferenceMemory')),
             'planExecutor' => new PlanExecutor(
                 self::get('planStore'),
                 self::get('documentWriter'),

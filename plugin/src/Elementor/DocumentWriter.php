@@ -26,7 +26,11 @@ use Joist\Webhooks\WebhookEmitter;
  *   #19 Chained-singleton plan-required check
  *   #20 (Controller-level) HTTPS enforcement
  *   #6.12 Operating mode interception
- *   #8  Elementor version pin
+ *   #8  Elementor version pin (min-version floor)
+ *   #17 V3/V4 routing — VersionRouter::detect() returns RoutingDecision;
+ *       known_broken V4 versions refused with atomic_save_unstable_in_v4,
+ *       major >= 5 refused with unsupported_elementor_major, atomic_v4 dispatches
+ *       to AtomicDocumentWriter (read-after-write detects #35888 silent failures)
  *   #23 Container-mode matching
  *   #25 Dynamic-tag references resolve
  *   #1, #24, #27, #29 Schema validation (covers responsive completeness,
@@ -63,6 +67,7 @@ final class DocumentWriter
         private AuditLogger $audit,
         private WebhookEmitter $webhooks,
         private ?ResponsiveFiller $responsiveFiller = null,
+        private ?AtomicDocumentWriter $atomicWriter = null,
     ) {}
 
     /**
@@ -109,8 +114,57 @@ final class DocumentWriter
             $this->policy->checkPlanRequired($sessionId, 'document.save', $postId);
         }
 
-        // Constraint #8: Elementor version pin.
-        $this->assertElementorVersion();
+        // Constraint #8 + #17: Elementor version pin AND V3/V4 routing decision.
+        // The router is the single source of truth for whether this host
+        // is writable at all. Detect ONCE per save and pass the decision
+        // down to whichever writer ends up running it.
+        // See specs/ARCHITECTURE.md §7b "Elementor V3/V4 routing".
+        $this->assertElementorPresent();
+        $routing = VersionRouter::detect();
+        if ($routing->isUnsupported()) {
+            throw new WriteException(
+                'unsupported_elementor_major',
+                sprintf(
+                    'Elementor %s is not supported by Joist (kind=%s). Refuse-or-adapt per failure-mode constraint #17.',
+                    $routing->version,
+                    $routing->kind
+                ),
+                422,
+                [
+                    'routing_decision' => $routing->toArray(),
+                    'supported_majors' => [3, 4],
+                ]
+            );
+        }
+        if ($routing->isAtomicV4() && $routing->knownBroken) {
+            throw new WriteException(
+                'atomic_save_unstable_in_v4',
+                sprintf(
+                    'Elementor %s is in the known-broken range (%s..%s). Atomic-element saves fail silently or corrupt state. Refused per failure-mode constraint #16.',
+                    $routing->version,
+                    VersionRouter::KNOWN_BROKEN_MIN,
+                    VersionRouter::KNOWN_BROKEN_MAX
+                ),
+                422,
+                [
+                    'routing_decision' => $routing->toArray(),
+                    'open_upstream_issues' => [
+                        'https://github.com/elementor/elementor/issues/35888',
+                        'https://github.com/elementor/elementor/issues/35625',
+                        'https://github.com/elementor/elementor/issues/36008',
+                    ],
+                    'guidance' => 'Downgrade Elementor to 3.33–3.34.x (v0.5 smoke-test pin) until upstream fixes ship.',
+                ]
+            );
+        }
+        // Belt-and-braces: keep the legacy MIN floor honored (constraint #8).
+        if (defined('ELEMENTOR_VERSION') && version_compare(ELEMENTOR_VERSION, JOIST_MIN_ELEMENTOR_VERSION, '<')) {
+            throw new WriteException(
+                'elementor.version_unsupported',
+                sprintf('Elementor %s+ required; site has %s.', JOIST_MIN_ELEMENTOR_VERSION, ELEMENTOR_VERSION),
+                503
+            );
+        }
 
         $document = \Elementor\Plugin::$instance->documents->get($postId);
         if (!$document) {
@@ -201,16 +255,38 @@ final class DocumentWriter
                 ];
             }
 
-            // The write — through Elementor's own path.
-            $document->save([
-                'elements' => $elements,
-                'settings' => is_array($req['page_settings'] ?? null) ? $req['page_settings'] : [],
-            ]);
+            // The write — dispatch on routing kind (constraint #17).
+            //   legacy_v3 → existing path, unchanged from pre-Wave-3.
+            //   atomic_v4 → AtomicDocumentWriter (refuses when known_broken,
+            //               does read-after-write to catch silent corruption).
+            // unsupported / known_broken paths are pre-checked above.
+            if ($routing->isAtomicV4() && $this->atomicWriter !== null) {
+                $atomicResult = $this->atomicWriter->save($routing, [
+                    'post_id' => $postId,
+                    'elements' => $elements,
+                    'page_settings' => is_array($req['page_settings'] ?? null) ? $req['page_settings'] : [],
+                    'intent' => $req['intent'] ?? null,
+                ]);
+                $verified = $atomicResult['verified_elements'];
+                $newHash = $atomicResult['new_hash'];
+                if (!empty($atomicResult['atomic_warnings'])) {
+                    foreach ($atomicResult['atomic_warnings'] as $w) {
+                        $warnings[] = ['code' => 'atomic.css_regen_warning', 'message' => $w];
+                    }
+                }
+            } else {
+                // legacy_v3 (or atomic_v4 with no AtomicDocumentWriter wired —
+                // belt-and-braces fallback). Behavior identical to pre-Wave-3.
+                $document->save([
+                    'elements' => $elements,
+                    'settings' => is_array($req['page_settings'] ?? null) ? $req['page_settings'] : [],
+                ]);
 
-            // Constraint #2: read-after-write verification.
-            $verified = $document->get_elements_data();
-            $verified = is_array($verified) ? $verified : [];
-            $newHash = $this->hasher->forElements($verified);
+                // Constraint #2: read-after-write verification.
+                $verified = $document->get_elements_data();
+                $verified = is_array($verified) ? $verified : [];
+                $newHash = $this->hasher->forElements($verified);
+            }
 
             $durationMs = (int) (microtime(true) * 1000) - $startMs;
 
@@ -275,17 +351,16 @@ final class DocumentWriter
         }
     }
 
-    private function assertElementorVersion(): void
+    /**
+     * Confirm Elementor's PHP surface is loaded at all. Version-range checks
+     * happen in VersionRouter::detect() + the routing-decision branches above.
+     * Constraint #8 is enforced by the version_compare against
+     * JOIST_MIN_ELEMENTOR_VERSION immediately after detection.
+     */
+    private function assertElementorPresent(): void
     {
         if (!class_exists('\Elementor\Plugin')) {
             throw new WriteException('elementor.missing', 'Elementor plugin is not active.', 503);
-        }
-        if (defined('ELEMENTOR_VERSION') && version_compare(ELEMENTOR_VERSION, JOIST_MIN_ELEMENTOR_VERSION, '<')) {
-            throw new WriteException(
-                'elementor.version_unsupported',
-                sprintf('Elementor %s+ required; site has %s.', JOIST_MIN_ELEMENTOR_VERSION, ELEMENTOR_VERSION),
-                503
-            );
         }
     }
 }

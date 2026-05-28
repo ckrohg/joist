@@ -47,6 +47,23 @@ final class SiteController extends ControllerBase
             $host = Container::get('hostDetector')->detect();
             $cacheAdapters = Container::get('cacheFlusher')->detectedAdapters();
 
+            // Platform-feature detection (WP 7.0 Connectors API + family).
+            // See specs/ARCHITECTURE.md §7a.
+            $platform = class_exists(\Joist\Platform\PlatformBootstrap::class)
+                ? \Joist\Platform\PlatformBootstrap::platform()
+                : ['version' => get_bloginfo('version'), 'supports_connectors_api' => false, 'supports_dataviews' => false, 'supports_client_side_abilities' => false];
+
+            $connectorDescriptor = null;
+            $connectorRegistered = false;
+            if (class_exists(\Joist\Platform\JoistConnector::class)) {
+                $connector = new \Joist\Platform\JoistConnector();
+                $connectorDescriptor = $connector->descriptor();
+                // Ask core whether our connector landed in the registry.
+                if (function_exists('wp_is_connector_registered')) {
+                    $connectorRegistered = (bool) wp_is_connector_registered(\Joist\Platform\JoistConnector::CONNECTOR_ID);
+                }
+            }
+
             return $this->ok([
                 'site' => [
                     'url' => home_url(),
@@ -60,6 +77,7 @@ final class SiteController extends ControllerBase
                     'version' => get_bloginfo('version'),
                     'multisite' => is_multisite(),
                     'https' => is_ssl(),
+                    'platform' => $platform,
                 ],
                 'theme' => [
                     'slug' => get_stylesheet(),
@@ -76,6 +94,12 @@ final class SiteController extends ControllerBase
                     'registered_dynamic_tag_count' => count($dynamicTags->listAll()),
                     'layout_mode' => $layoutMode['mode'] ?? 'unknown',
                     'layout_mode_confidence' => $layoutMode['confidence'] ?? null,
+                    // Wave 3 (2026-05-28): V3/V4 routing decision. The single
+                    // source of truth for "can we write to this Elementor?"
+                    // See specs/ARCHITECTURE.md §7b "Elementor V3/V4 routing".
+                    'routing' => class_exists(\Joist\Elementor\VersionRouter::class)
+                        ? \Joist\Elementor\VersionRouter::detect()->toArray()
+                        : null,
                 ],
                 'operating_mode' => [
                     'mode' => $opMode['mode'],
@@ -94,6 +118,10 @@ final class SiteController extends ControllerBase
                     'version' => JOIST_VERSION,
                     'db_version' => (int) get_option('joist_db_version', 0),
                     'activation_error' => get_option('joist_activation_error', null),
+                    'connector' => [
+                        'registered' => $connectorRegistered,
+                        'descriptor' => $connectorDescriptor,
+                    ],
                 ],
             ]);
         });

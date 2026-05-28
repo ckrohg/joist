@@ -170,6 +170,27 @@ abstract class ControllerBase
                 'args' => [],
                 'rationale' => 'Another session holds the lock. Wait for it to release or re-read state.',
             ]],
+            // Wave 3 — V3/V4 routing typed errors (failure-mode constraint #17).
+            'unsupported_elementor_major' => [[
+                'op' => 'get_site',
+                'args' => [],
+                'rationale' => 'Inspect site.elementor.routing to see the detected version. Joist supports Elementor major 3 and 4 only; major 5+ requires a future adapter.',
+            ]],
+            'atomic_save_unstable_in_v4' => [[
+                'op' => 'get_site',
+                'args' => [],
+                'rationale' => 'Elementor 4.0.x–4.1.x has open upstream save bugs (issues #35888, #35625, #36008). Downgrade Elementor to 3.33–3.34.x (v0.5 smoke-test pin) until upstream fixes ship.',
+            ]],
+            'atomic_save_silent_failure' => [[
+                'op' => 'get_page',
+                'args' => ['id' => $details['post_id'] ?? null],
+                'rationale' => 'Read-after-write detected post-save state did not match intended state (#35888 class). Refusing the write; the page is in its pre-save state. Investigate Elementor logs.',
+            ]],
+            'atomic_schema_unintrospectable' => [[
+                'op' => 'get_site',
+                'args' => [],
+                'rationale' => 'Atomic-Widgets module surface unexpected. Verify Elementor version, then file an issue with the details payload.',
+            ]],
             default => [],
         };
     }
