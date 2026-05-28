@@ -1,10 +1,22 @@
 # Joist Widget Pack — v0.9 work-stream spec
 
-**Date:** 2026-05-13. **Status:** spec draft (no code yet). **Targets:** v0.9 (~weeks 11–13 of the v1 timeline).
+**Date:** 2026-05-13. **Last updated:** 2026-05-26 (Wave 0 web-platform recheck). **Status:** spec draft; Pin-Scroll shipped 2026-05-13. **Targets:** v0.9 (~weeks 11–13 of the v1 timeline).
 
-The Widget Pack is the set of custom Elementor widgets + extensions Joist ships to break Elementor's structural walls. It's the prerequisite for the clone-pipeline's **90%+ native fidelity** target. Without it, the conversion has nowhere to land for 8 common-on-Awwwards patterns; with it, the realistic native-fidelity ceiling moves from ~85% to ~95%.
+The Widget Pack is the set of custom Elementor widgets + extensions Joist ships to break Elementor's structural walls. It's the prerequisite for the clone-pipeline's **90%+ native fidelity** target. Without it, the conversion has nowhere to land for common-on-Awwwards patterns; with it, the realistic native-fidelity ceiling moves from ~85% to ~95%.
 
 This is also a meaningful product evolution: Joist becomes a *parallel capability layer to Elementor Pro*, not just an editing backbone.
+
+## 2026-05-26 web-platform recheck — what changed
+
+The May 2026 baseline-status review (Wave 0 Stream C) verified per-widget viability against current cross-browser support. Net changes:
+
+- **DELETED:** §2.1 Subgrid toggle — CSS Subgrid Baseline Widely Available 2026-03-15; Elementor 3.26+ exposes native subgrid switches. Plan-Mode mapping flips the existing Elementor control instead.
+- **SIMPLIFIED:** §2.3 View Transitions runtime — Chrome 147 shipped element-scoped `startViewTransition()`. The JS runtime broker collapses to a ~10-line CSS emitter.
+- **SIMPLIFIED:** §2.8 Display-swap — name-only `@container` queries shipped Firefox 149 + Safari 26.4 (March 2026). Container-query CSS handles the entire pattern. ~30 LOC of generated CSS, no JS, no conflict-matrix.
+- **ADDED:** §2.9 Anchored Pop — Anchor Positioning hit Baseline 2026. Pure-CSS tooltips/dropdowns/callouts/sticky labels tethered to any other widget. Biggest current "browsers have it, Elementor doesn't" gap.
+- **AMENDED:** §2.2 Pin-Scroll — Chrome 145+ ships declarative `timeline-trigger` / `animation-trigger`; add `@supports (timeline-trigger: --t)` gate.
+
+Pack count remains 8 (Subgrid out, Anchored Pop in). See [[wave-0-synthesis-2026-05-26]] §4 for full reasoning.
 
 ---
 
@@ -28,25 +40,13 @@ This is also a meaningful product evolution: Joist becomes a *parallel capabilit
 
 ## 2. The 8 capabilities
 
-### 2.1 Subgrid toggle (extension on Grid Container)
+### 2.1 ~~Subgrid toggle~~ — REMOVED 2026-05-26
 
-CSS `subgrid` ships in all modern browsers (Chrome 117+, Safari 16+, Firefox 71+) — Elementor's Grid container just doesn't expose it in the GUI.
+CSS Subgrid hit **Baseline Widely Available 2026-03-15** (~92%+). Elementor 3.26+ exposes native subgrid switches on Container/Section. We no longer ship a widget for this — the Joist Plan-Mode mapping layer flips the existing Elementor control directly.
 
-**Form:** Container extension. Adds a responsive `joist_subgrid` toggle that, when on, emits `grid-template-columns: subgrid; grid-template-rows: subgrid;` on the inner container via Elementor's selector token system.
+What replaces this slot: §2.9 Anchored Pop.
 
-**Public surface:**
-- Container responsive control `joist_subgrid` (boolean, off by default)
-- When parent is a Grid container, the child can opt into inheriting its tracks
-
-**Implementation sketch:**
-- `src/WidgetPack/Subgrid/SubgridControl.php` — registers the control via `elementor/element/container/section_grid_layout_container/after_section_end`
-- `src/WidgetPack/Subgrid/Renderer.php` — hooks `elementor/element/parse_css` to emit the CSS
-
-**Runtime cost:** 0KB (pure CSS via Elementor's existing CSS pipeline).
-**LOC estimate:** ~50 PHP.
-**Native fidelity:** 100%.
-
-### 2.2 Pin-Scroll Container (custom widget)
+### 2.2 Pin-Scroll Container (custom widget — SHIPPED 2026-05-13)
 
 Apple-product-page-style: section pins to viewport while inner content scrolls horizontally as user scrolls vertically.
 
@@ -56,31 +56,34 @@ Apple-product-page-style: section pins to viewport while inner content scrolls h
 - Inner children render as flex-row with auto-sized items; outer wrapper has `position: sticky; height: 100vh; overflow: hidden;`
 - Children authored as Elementor inner containers — full Elementor editing of pinned content
 
-**Implementation sketch:**
-- `src/WidgetPack/PinScroll/Widget.php` — registers `joist-pin-scroll`; uses container's nested children
-- `src/WidgetPack/PinScroll/render.js` — IntersectionObserver + scroll-progress listener; translates inner wrapper via `transform: translate3d()`. Uses CSS `animation-timeline: scroll()` (Chrome 115+, Safari 17+) where supported; vanilla JS fallback for older Safari.
-- ~3KB minified JS, lazy-loaded only when widget is present (Elementor's `wp_enqueue_scripts` per-widget pattern)
+**Implementation sketch (shipped):**
+- `plugin/src/WidgetPack/PinScroll/Widget.php` — registers `joist-pin-scroll`; uses container's nested children
+- `plugin/assets/widget-pack/pin-scroll/pin-scroll.js` — IntersectionObserver + scroll-progress listener; translates inner wrapper via `transform: translate3d()`
+- `plugin/assets/widget-pack/pin-scroll/pin-scroll.css` — CSS `animation-timeline: scroll()` first, with `@supports` gate, JS fallback otherwise
 
-**Runtime cost:** 3KB JS (lazy).
-**LOC estimate:** ~150 PHP + ~3KB JS source.
+**2026-05-26 amendment:** Chrome 145+ ships declarative `timeline-trigger` and `animation-trigger` — replaces IntersectionObserver for pin/unpin. Add `@supports (timeline-trigger: --t)` branch that drops JS payload for Chrome users; keep JS fallback for Safari/Firefox until they ship triggers. ~50 LOC CSS delta to Pin-Scroll asset, ~0 PHP delta.
+
+**Runtime cost:** 3KB JS (lazy) → ~1.5KB on Chrome with new gate.
+**LOC estimate:** ~150 PHP + ~3KB JS source (shipped).
 **Native fidelity:** 100%.
 
-### 2.3 View Transitions runtime (site-wide) + Toggle widget
+### 2.3 View Transitions — thin opt-in CSS emitter (SIMPLIFIED 2026-05-26)
 
-The View Transitions API (`document.startViewTransition`) lets WordPress pages feel SPA-smooth between navigations. Same-page transitions for accordions/tabs.
+Cross-document View Transitions hit 85.5% global support (Chrome 126+, Safari 18.2+, Firefox 144+ partial). **Chrome 147 also shipped element-scoped `element.startViewTransition()`** — meaning per-widget transitions don't need a runtime broker anymore.
+
+The widget collapses to a thin Elementor control that emits CSS — no JS module. Pure progressive enhancement: works where supported, no-op elsewhere.
 
 **Public surface:**
-- Site-wide setting: `joist_view_transitions_enabled` (default off; on adds the navigation hook)
-- Widget: `joist-view-transition-toggle` wrapping tabs/accordions with the API call
-- Auto-stamps `view-transition-name` from Elementor element IDs
+- Site-wide setting: `joist_view_transitions_enabled` (default off; emits `@view-transition { navigation: auto }` in site CSS when on)
+- Widget: `joist-view-transition-name` — minimal control that stamps `view-transition-name: <slug>` on the chosen element via Elementor's selector token system; optional `view-transition-class` for grouping
 
 **Implementation sketch:**
-- `src/WidgetPack/ViewTransitions/Runtime.php` — enqueues `view-transitions.js` site-wide when the option is on; admin toggle in Joist settings page
-- `src/WidgetPack/ViewTransitions/runtime.js` — Navigation API hook (Chrome 102+), intercepts internal `<a>` clicks, calls `document.startViewTransition()`, fetches via `fetch()` + `DOMParser`, swaps `<main>` content. Degrades to instant nav on unsupported browsers (which is fine — no regression).
-- `src/WidgetPack/ViewTransitions/ToggleWidget.php` — Tabs/Accordion wrapper widget
+- `src/WidgetPack/ViewTransitions/Emitter.php` — registers the site-wide setting + per-element control; hooks `elementor/element/parse_css` to emit `view-transition-name` / `view-transition-class` and the site-level `@view-transition` at-rule
+- Optional ~10-line CSS template for default transition timing
+- **No JS runtime.** Browsers without support degrade to instant nav (no regression).
 
-**Runtime cost:** 5KB JS (site-wide when enabled).
-**LOC estimate:** ~330 PHP + ~5KB JS source.
+**Runtime cost:** 0KB JS, ~200 bytes site-wide CSS when enabled.
+**LOC estimate:** ~50 PHP (down from ~330).
 **Native fidelity:** 100% (with progressive degradation).
 
 ### 2.4 Variable Heading (custom widget)
@@ -155,39 +158,67 @@ DOM reparenting per breakpoint. Joist agent's default behavior is "duplicate-and
 **LOC estimate:** ~80 PHP + ~0.6KB JS source.
 **Native fidelity:** 100% functional, ~95% structural (vs. perfect reparent that would require server-side viewport detection — out of scope).
 
-### 2.8 Display-swap extension on Container
+### 2.8 Display-swap extension on Container (SIMPLIFIED 2026-05-26)
 
 Per-breakpoint `display` value — flex on desktop, grid on tablet/mobile (or vice versa). The current Container "Layout" control is single-value.
 
+**2026-05-26 simplification:** Container queries have been Baseline since 2023, and name-only `@container` queries shipped Firefox 149 + Safari 26.4 (March 2026). The entire pattern collapses to ~30 LOC of generated CSS — no conflict-matrix needed at runtime, because container queries scope the per-mode property block automatically.
+
 **Public surface:**
 - Container responsive control `joist_display_mode` with values `flex` / `grid` / `block` per breakpoint
-- Resolves cross-mode property conflicts (justify-content vs grid-template) by emitting properties scoped to active mode at each breakpoint
 
 **Implementation sketch:**
 - `src/WidgetPack/DisplaySwap/Extension.php` — registers the responsive control after Elementor's existing Layout section
-- Emits CSS via `elementor/element/parse_css` filter that, per breakpoint, sets `display:` and namespaces conflicting properties
+- Emits `@container name (min-width: <bp>) { display: <mode>; /* mode-scoped properties */ }` blocks via `elementor/element/parse_css` filter
 
 **Runtime cost:** 0KB (pure CSS).
-**LOC estimate:** ~80 PHP.
+**LOC estimate:** ~30 PHP (down from ~80).
 **Native fidelity:** 100%.
+
+### 2.9 Anchored Pop (NEW 2026-05-26 — replaces Subgrid slot)
+
+Anchor Positioning hit **Baseline 2026** (Chrome 125+, Safari 26+, Firefox 147+ since Jan 13, 2026, ~83% global). Elementor exposes **nothing** for `position-anchor` / `anchor()` / `@position-try`. This is the single biggest "browsers have it, Elementor doesn't" gap right now.
+
+Pure-CSS tooltips, dropdowns, callouts, sticky labels tethered to any other widget — without JS, without absolute-positioning gymnastics, without `position: sticky` workarounds.
+
+**Public surface:**
+- Widget name: `joist-anchored-pop`
+- Settings: `anchor_target` (element selector or sibling-ref), `position` (`top` / `right` / `bottom` / `left` / `top-start` / etc., 12 named positions), `offset` (responsive distance from anchor), `fallback_position` (one or more `@position-try` alternatives), `auto_arrow` (boolean, draws CSS-only triangle pointing at anchor)
+- Optionally tied to `:popover-open` for click-to-open behavior (Baseline 2024)
+- Inner content authored as Elementor inner container — full Elementor editing of the pop content
+
+**Implementation sketch:**
+- `src/WidgetPack/AnchoredPop/Widget.php` — registers `joist-anchored-pop`; renders as `<div popover>` + anchor-positioning CSS
+- `src/WidgetPack/AnchoredPop/render.php` — emits inline-scoped CSS: `position-anchor: --<id>; position-area: <position>; position-try-fallbacks: <list>;`
+- Editor preview shows the pop fixed-open so the designer can edit its content
+- No JS — `popover` attribute drives open/close behavior natively
+
+**Runtime cost:** 0KB JS, ~150 bytes CSS per instance.
+**LOC estimate:** ~120 PHP + 0 JS.
+**Native fidelity:** 100% on Baseline-2026 browsers; degrades to inline-positioned content elsewhere (no regression).
+
+**Why this is the right swap for Subgrid:** Subgrid was a control-exposure problem (Elementor had the data model). Anchored Pop is a missing-capability problem (Elementor has no equivalent at any layer). Strictly higher leverage.
 
 ---
 
-## 3. Roll-up
+## 3. Roll-up (updated 2026-05-26)
 
 | Capability | Form | LOC | Bundle size |
 |---|---|---|---|
-| Subgrid toggle | Container extension | ~50 PHP | 0KB |
-| Pin-Scroll | Custom widget | ~150 + 3KB JS | 3KB lazy |
-| View Transitions | Site-wide runtime + widget | ~330 + 5KB JS | 5KB site-wide if enabled |
+| ~~Subgrid toggle~~ | — | — | — (DELETED — Elementor native) |
+| Pin-Scroll (shipped) | Custom widget | ~150 + 3KB JS | 3KB lazy; ~1.5KB on Chrome with `@supports` gate |
+| View Transitions | Thin CSS emitter | ~50 PHP | 0KB JS, ~200B CSS |
 | Variable Heading | Custom widget | ~120 + 1.5KB JS | 1.5KB lazy |
 | Masonry Grid | Custom widget | ~100 + 4KB JS | 0–4KB |
 | Morph SVG | Custom widget + lazy Flubber | ~90 + 6KB JS | 0–6KB lazy |
 | Reparent | Optional runtime + control | ~80 + 0.6KB JS | 0.6KB conditional |
-| Display-swap | Container extension | ~80 | 0KB |
-| **Total** | | **~1,000 LOC PHP, ~20KB JS sources** | **~15KB worst-case page bundle** |
+| Display-swap | Container extension | ~30 | 0KB (CQ only) |
+| **Anchored Pop** | Custom widget | ~120 + 0 JS | 0KB JS, ~150B CSS/instance |
+| **Total** | | **~740 LOC PHP, ~15KB JS sources** | **~12KB worst-case page bundle** |
 
-**Worst-case page weight contribution** (all 8 capabilities present): ~15KB minified compressed. Typical page (~2 widgets from the pack): ~5KB. Negligible.
+**Worst-case page weight contribution** (all 8 capabilities present): ~12KB minified compressed (was ~15KB). Typical page (~2 widgets from the pack): ~3KB. Negligible.
+
+The 2026-05-26 deltas reduce PHP LOC by ~260 (Subgrid removed, View-Transition + Display-swap simplified, Anchored Pop added) and reduce worst-case JS by ~5KB (View-Transition runtime broker removed).
 
 ---
 
@@ -202,19 +233,18 @@ final class PackBootstrap {
         add_action('elementor/widgets/register', [self::class, 'registerWidgets']);
         add_action('elementor/elements/categories_registered', [self::class, 'registerCategory']);
         // extensions
-        \Joist\WidgetPack\Subgrid\SubgridControl::init();
         \Joist\WidgetPack\DisplaySwap\Extension::init();
         \Joist\WidgetPack\Reparent\Control::init();
-        // site-wide runtime
-        \Joist\WidgetPack\ViewTransitions\Runtime::init();
+        \Joist\WidgetPack\ViewTransitions\Emitter::init();
     }
 
     public static function registerWidgets($widgets_manager): void {
         $widgets_manager->register(new \Joist\WidgetPack\PinScroll\Widget());
-        $widgets_manager->register(new \Joist\WidgetPack\ViewTransitions\ToggleWidget());
         $widgets_manager->register(new \Joist\WidgetPack\VariableHeading\Widget());
         $widgets_manager->register(new \Joist\WidgetPack\Masonry\Widget());
         $widgets_manager->register(new \Joist\WidgetPack\MorphSVG\Widget());
+        $widgets_manager->register(new \Joist\WidgetPack\AnchoredPop\Widget());
+        // ViewTransitions ships as an extension/emitter, not a widget
     }
 
     public static function registerCategory($elementsManager): void {
@@ -244,23 +274,27 @@ Pack widgets are first-class citizens for Joist's `WidgetCatalog::getSchema()`:
 
 ---
 
-## 6. Roadmap & dependencies
+## 6. Roadmap & dependencies (updated 2026-05-26)
 
 | Wave | Capability | Reason for order |
 |---|---|---|
-| v0.9-α | Pin-Scroll, Variable Heading, Display-swap | High-fidelity-impact, scoped, single-widget patterns |
-| v0.9-β | Masonry Grid, Subgrid toggle | Layout primitives — both clone-pipeline-critical |
-| v0.9-γ | Morph SVG, Reparent, View Transitions | Highest-complexity / largest runtime; ship last |
+| v0.9-α (shipped 2026-05-13) | Pin-Scroll | Proof-of-pattern; CSS-first w/ JS fallback |
+| v0.9-β | Anchored Pop, View Transitions emitter, Display-swap simplification, Pin-Scroll `@supports` gate | Net-new capability + simplifications; all near-zero LOC; ships fast |
+| v0.9-γ | Variable Heading, Masonry Grid | Layout primitives + motion proof; share JoistTriggerableHandler |
+| v0.9-δ | Morph SVG, Reparent | Highest-complexity / largest runtime; ship last |
 
-Each wave is ~3–5 days of focused work. Total Widget Pack delivery: ~2–3 weeks.
+Each wave is ~3–5 days of focused work. Total Widget Pack delivery (post Pin-Scroll): ~2 weeks.
 
 **Hard dependencies (must land before):**
-- Elementor 3.21+ (current minimum) — Grid container w/ col/row span
+- Elementor 3.33–3.34.x (current pin per [[architecture-decisions]]) — Grid container w/ col/row span
 - Joist `WidgetCatalog` schema introspection — already in v0.5
+- Elementor 4 atomic adapter ([[failure-mode-constraints]] #17) — must land before any Pack widget is shipped against the V4 schema
 
 **Soft dependencies (improves quality, not blocking):**
-- CSS `animation-timeline` Chrome ≥ 115, Safari ≥ 17 — progressive enhancement
-- CSS Grid Level 3 `masonry` value — eventual transparent upgrade
+- CSS `animation-timeline` Chrome ≥ 115, Safari ≥ 17 — progressive enhancement (shipped)
+- Chrome 145+ `timeline-trigger` — Pin-Scroll CSS-only fast path
+- CSS Grid Level 3 `masonry` — eventual transparent upgrade
+- Element-scoped `startViewTransition()` (Chrome 147+) — already accounted for in §2.3
 
 ---
 
@@ -274,20 +308,21 @@ Each wave is ~3–5 days of focused work. Total Widget Pack delivery: ~2–3 wee
 
 ---
 
-## 8. What this unlocks for the clone pipeline
+## 8. What this unlocks for the clone pipeline (updated 2026-05-26)
 
-With Widget Pack shipped, **CLONE_PIPELINE.md §X (Elementor expressive ceiling)** drops from 8 structural walls to 2:
+With Widget Pack shipped, **CLONE_PIPELINE.md (Elementor expressive ceiling)** drops from 10 structural walls to 2:
 
 | Wall | Status with Widget Pack |
 |---|---|
-| Subgrid | ✅ Joist Subgrid toggle |
-| Scroll-driven horizontal pin | ✅ Joist Pin-Scroll widget |
-| View Transitions | ✅ Joist View Transitions runtime + widget |
+| Subgrid | ✅ Native Elementor 3.26+ (no Joist widget needed) |
+| Scroll-driven horizontal pin | ✅ Joist Pin-Scroll widget (shipped) |
+| View Transitions | ✅ Joist View Transitions emitter |
 | Variable-font axis scroll | ✅ Joist Variable Heading widget |
 | True masonry | ✅ Joist Masonry Grid widget |
 | Animated SVG morph | ✅ Joist Morph SVG widget |
 | DOM reparenting | ✅ Joist Reparent (or duplicate-and-hide fallback) |
 | Flex↔grid swap | ✅ Joist Display-swap extension |
+| Anchor-positioned UI (tooltips, dropdowns, callouts) | ✅ Joist Anchored Pop widget |
 | Container queries crossing widget boundaries | ❌ Genuinely unsolvable (Elementor wrapper divs) |
 | `:has()` crossing widget boundaries | ❌ Same root cause |
 

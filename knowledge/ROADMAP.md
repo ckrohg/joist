@@ -6,15 +6,16 @@
 
 ## Launch target
 
-**v1.0 OSS plugin on wp.org: ~14–16 weeks from start of focused engineering.**
+**v1.0 OSS plugin on wp.org: ~16–18 weeks from start of focused engineering.**
 
-Updated 2026-05-10 after the v1 hardening pass (`specs/HARDENING_v1.md`) — original 12-week target slipped 2–4 weeks to absorb: bulk fleet CLI brought forward from v2, multisite handling, custom `joist_agent` role, PolicyGuard refusals, async I/O refactor, third-party security audit, and the 14 new failure-mode constraints (#17–#30).
+Updated 2026-05-26 after the Wave 0 platform recheck (`specs/WAVE_0_2026-05-26.md`) — original 14–16-week target slipped 2 weeks to absorb v0.85 "WP 7.0 + Elementor 4 compat pass" between v0.7 and v0.9.
 
 - **Weeks 1–6 (v0.5)**: full API surface + all 30 failure-mode constraints + multisite + custom role + PolicyGuard + async I/O
-- **Weeks 7–8 (v0.7 — NEW)**: bulk fleet CLI, observer/quiet/kill-switch modes, client changelog export, Discord channel live
-- **Weeks 9–12 (v0.9)**: Plan Mode end-to-end + anti-slop AI gen + SiteGround GrowBig real-site testing + preview render + iteration context
-- **Week 13 (v0.95 — NEW)**: third-party security audit + remediation pass
-- **Weeks 14–16 (v1.0)**: wp.org submission + public launch
+- **Weeks 7–8 (v0.7 — agency-ready)**: bulk fleet CLI, observer/quiet/kill-switch modes, client changelog export, Discord channel live
+- **Weeks 9–10 (v0.85 — NEW 2026-05-26 — platform compat)**: Elementor 4 atomic schema adapter + V3/V4 detection on connect, WP 7.0 Connectors API registration, iframed-editor compatibility audit, `preference_memory` refactor to `memory_20250818` substrate
+- **Weeks 11–14 (v0.9 — beta)**: Plan Mode end-to-end (DataViews + DataForm + blast-radius column) + anti-slop AI gen + FLUX.2 LoRA pipeline + SiteGround GrowBig real-site testing + preview render + iteration context
+- **Week 15 (v0.95)**: third-party security audit + remediation pass
+- **Weeks 16–18 (v1.0)**: wp.org submission + public launch + public-artifact pass (failure-mode catalogue, acceptance suite become public docs)
 
 ---
 
@@ -31,17 +32,29 @@ Updated 2026-05-10 after the v1 hardening pass (`specs/HARDENING_v1.md`) — ori
        Multisite support. Custom joist_agent role. PolicyGuard
        refuse-list. Async I/O discipline. Custom locks table.
 
-[ ] v0.7 — Agency-ready (2 weeks) — NEW
+[ ] v0.7 — Agency-ready (2 weeks)
     └─ Bulk fleet CLI (`connect --config sites.yaml`).
        Observer / quiet / kill-switch / staging-mandatory modes.
        Client-facing changelog export (HTML/CSV/PDF).
        Discord channel + GitHub Discussions live.
        SiteGround GrowBig compat matrix documented.
 
+[ ] v0.85 — Platform compat pass (2 weeks) — NEW 2026-05-26
+    └─ Elementor 4 atomic schema adapter + V3/V4 detection on connect
+       (failure-mode constraint #17). WP 7.0 Connectors API registration —
+       first-mover advantage on the new core API, Novamira-differentiating.
+       Iframed-editor compatibility audit (#18). `add_meta_box` → PluginSidebar
+       migration (#19). Multi-page chunking under 90s/500MB (#20).
+       `preference_memory` refactor to Anthropic `memory_20250818` substrate.
+       Skill bundle refactor (`context: fork` + CLAUDE_CODE_FORK_SUBAGENT=1).
+
 [ ] v0.9 — Beta (4 weeks)
-    └─ Plan Mode end-to-end with WP-admin React approval UI built on
-       @wordpress/components. Anti-slop AI gen for copy + images.
-       Quality gates. SiteGround real-site testing.
+    └─ Plan Mode end-to-end with WP-admin UI on @wordpress/dataviews +
+       @wordpress/dataform + PluginSidebar (per-step approval + blast-radius
+       column + iframe live preview side-by-side). Anti-slop AI gen for
+       copy (Claude Opus 4.7 + cached brand block + Ozigi two-layer validator)
+       and images (FLUX.2 [dev] + per-site LoRA via fal.ai; Recraft for vector;
+       Ideogram for text-on-image). Quality gates. SiteGround real-site testing.
        POST /preview/render with sandboxed iframe + CSS-diff.
        Iteration context endpoint. Claude Code skill bundle.
 
@@ -122,13 +135,14 @@ Updated 2026-05-10 after the v1 hardening pass (`specs/HARDENING_v1.md`) — ori
 ## Dependencies
 
 ### Blockers (must resolve before v1.0)
-- WordPress 6.9 / Abilities API GA (currently still rolling out)
-- `WordPress/mcp-adapter` v1.0 stability
+- WordPress 7.0.1+ stability (7.0 shipped May 20; wait for first patch)
+- Elementor 4.0 atomic-schema bug fixes (#35888, #35625) OR our adapter handles it
+- `WordPress/mcp-adapter` post-#177 commit pinned
 - Elementor Pro license for development + automated testing
 
 ### External dependencies
-- Elementor 3.21 stability (potential 4.0 Atomic widgets release lurking — version-pin and graceful degrade)
-- Anthropic API availability + pricing
+- Elementor 3.33–3.34.x stability (skip 4.0.x for first smoke test until atomic-save bugs fix)
+- Anthropic API availability + pricing (June 15 billing-split for Agent SDK noted)
 - wp.org plugin review timelines (usually ~5–14 days)
 
 ### Internal dependencies
@@ -191,6 +205,18 @@ Updated 2026-05-10 after the v1 hardening pass (`specs/HARDENING_v1.md`) — ori
 ---
 
 ## Updates log
+
+### 2026-05-26 — Wave 0 platform recheck
+- Six parallel research streams returned with three load-bearing surprises: Novamira Pro shipped May 15 (first direct competitor), WP 7.0 Armstrong shipped May 20 (native AI Client + Connectors API + DataViews + iframed editor), Elementor 4.0 default since March 30 with broken atomic saves
+- Inserted **v0.85 "Platform compat pass"** milestone between v0.7 and v0.9 (2 weeks); v1.0 timeline 14–16 → 16–18 weeks
+- Version pins refreshed: WP 6.9.4 (not 7.0.0), Elementor 3.33–3.34.x (not 3.21, not 4.x), PHP 8.2 (not 8.4), mcp-adapter at specific commit SHA post-#177
+- Failure-mode constraints extended 16 → 20 (added #17 Elementor version detection, #18 no `document.*` from outer admin frame, #19 no `add_meta_box`, #20 chunk multi-page <90s/<500MB)
+- Widget Pack: Subgrid widget DELETED (Elementor native after 3.26), View-Transition + Display-swap SIMPLIFIED, Anchored Pop ADDED (Anchor Positioning Baseline 2026), Pin-Scroll `@supports` gate added
+- Architecture: adopt `memory_20250818` substrate for `preference_memory`, register Joist via WP 7.0 Connectors API, use `context: fork` + CLAUDE_CODE_FORK_SUBAGENT=1, Task tools replace TodoWrite in SDK, document June 15 Agent SDK billing split with `JOIST_USE_API_KEY` escape hatch
+- Plan Mode UI substrate: `@wordpress/dataviews` + `@wordpress/dataform` + PluginSidebar with per-step approval + blast-radius column (open-space differentiator)
+- Brand pipeline: FLUX.2 [dev] + per-site LoRA via fal.ai (image), Claude Opus 4.7 + cached brand block (copy), Ozigi two-layer slop validator
+- Public-artifact commitment added for v1.0: failure-mode catalogue + acceptance suite become public docs (positioning differentiator vs Novamira)
+- Full synthesis in `specs/WAVE_0_2026-05-26.md`
 
 ### 2026-05-10 (later)
 - v1 hardening pass — 5-way red-team critique synthesized into `specs/HARDENING_v1.md`
