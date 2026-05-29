@@ -1,7 +1,7 @@
 # joist
 
 > [!WARNING]
-> **Status: pre-v0.1 — specs only, no plugin code yet.** Do not install on production sites. Target v1.0 OSS launch: ~14–16 weeks of focused engineering from start. Watch the repo if you want to follow along; install on a staging site at v0.5; install on a non-critical client site at v1.0; install on important client sites only after v1.0 has been in the wild for 60+ days.
+> **Status: v0.85 substrate complete — first live-WP smoke test pending.** Plugin code (~16,000 LOC), Plan Mode UI (React on WP 7.0 DataViews / DataForm), Anti-slop validator, image gen pipeline (FLUX.2 + Recraft + Ideogram), and copy gen with Anthropic prompt caching all shipped to `main`. Not yet exercised against a real WP install. Do not install on production sites. Target v1.0 OSS launch on wp.org: ~16–18 weeks from focused engineering start. Watch the repo if you want to follow along; install on a staging site at v0.9; install on a non-critical client site at v1.0; install on important client sites only after v1.0 has been in the wild for 60+ days.
 
 > Open-source agentic backbone for Elementor (WordPress) sites. A plugin + Claude Code skill + CLI that gives an AI agent safe, schema-validated, audit-logged read/write access to any Elementor site — so AI can build new sites, edit existing pages surgically, and refresh content as a trusted teammate, not a magic button.
 
@@ -40,7 +40,7 @@ WordPress site
 Elementor (unchanged) → wp_postmeta._elementor_data → frontend
 ```
 
-The plugin enforces 16 hard product invariants distilled from public bug reports + postmortems of every prior attempt. See [`specs/PLUGIN_API.md §20`](specs/PLUGIN_API.md).
+The plugin enforces **20 hard product invariants** distilled from public bug reports + postmortems of every prior attempt. The full catalogue with citations and verification grep-lines is at [`docs/FAILURE_MODES.md`](docs/FAILURE_MODES.md) — this is our positioning differentiator versus other AI-Elementor tools, none of which publish their own failure-mode catalogue. The specific REST-surface enforcement lives in [`specs/PLUGIN_API.md §20`](specs/PLUGIN_API.md).
 
 ---
 
@@ -71,13 +71,16 @@ docs/                        # user-facing documentation
 
 ## Roadmap (summary)
 
-- **v0.1** — M0 spike. 50-line plugin proves Claude can write an Elementor page and humans can edit it without breaking. (1–2 days)
-- **v0.5** — Plugin alpha. Full API surface §1–§18, all 16 failure-mode constraints enforced. (4–6 weeks)
-- **v0.9** — Beta. Plan Mode end-to-end. Anti-slop AI gen. SiteGround tested. (8–10 weeks)
-- **v1.0** — Production OSS release on wp.org. Documented. CLI for one-shot setup. (~12 weeks)
-- **v2.0** — Hosted SaaS layer for agencies. Multi-site dashboard, post-launch autonomous agents.
+- ✅ **v0.1** — M0 spike. 50-line plugin proves Claude can write an Elementor page and humans can edit it without breaking. (shipped)
+- ✅ **v0.5** — Plugin alpha. Full API surface §1–§22, all 20 failure-mode constraints enforced. Multisite + custom `joist_agent` role + PolicyGuard + async I/O. (shipped)
+- ✅ **v0.7** — Agency-ready. Bulk fleet CLI. Observer / quiet / kill-switch / staging-mandatory modes. Per-site brand-learning eval loop. Pin-Scroll widget. (shipped)
+- ✅ **v0.85** — Platform compat pass. Anthropic `memory_20250818` substrate for preference memory. WP 7.0 Connectors API registration. Elementor V3/V4 atomic schema adapter (refuse-not-corrupt on broken atomic versions). Widget Pack polish (Anchored Pop, View-Transition emitter, Display-swap pure-CSS rewrite, Pin-Scroll Chrome 145+ gate). Plan Mode WP-admin React UI (DataViews + DataForm + blast-radius column + iframe preview). Anti-slop validator + FLUX.2/Recraft/Ideogram image gen + Anthropic Opus 4.7 copy gen with prompt caching. (shipped 2026-05-28)
+- 🔄 **v0.9** — Beta. SiteGround GrowBig real-site smoke test. Real-OCR text-render checks. Backend follow-ups for Plan Mode (blast-radius endpoint, `/preview/render`, per-step execute). (in progress)
+- 📅 **v0.95** — Third-party WP-specialist security audit + remediation. ($5–15k budget)
+- 📅 **v1.0** — Production OSS release on wp.org. CLI for one-shot setup. Public failure-mode catalogue + acceptance suite as launch artifacts.
+- 📅 **v2.0** — Hosted SaaS layer for agencies. Multi-site dashboard, post-launch autonomous agents.
 
-Full plan in [`knowledge/ROADMAP.md`](knowledge/ROADMAP.md).
+Full plan in [`knowledge/ROADMAP.md`](knowledge/ROADMAP.md). Detailed synthesis of the platform deltas that drove v0.85 is in [`specs/WAVE_0_2026-05-26.md`](specs/WAVE_0_2026-05-26.md).
 
 ---
 
@@ -94,7 +97,7 @@ Every prior attempt in this category has shipped with documented silent-failure 
 7. **Anti-slop quality gates** — refuses indigo-500 gradients, "Build the future of X" headlines, generic AI 3D blobs.
 8. **First-class export, always.** No lock-in. Kit `.zip`, Elementor template JSON, WXR, static HTML.
 
-Full list of 16 constraints in [`specs/PLUGIN_API.md §20`](specs/PLUGIN_API.md). The constitutional principles behind them: [`knowledge/CONSTITUTION.md`](knowledge/CONSTITUTION.md).
+Full list of all 20 constraints with citations is in [`docs/FAILURE_MODES.md`](docs/FAILURE_MODES.md). The REST-surface enforcement details are in [`specs/PLUGIN_API.md §20`](specs/PLUGIN_API.md). The constitutional principles behind them: [`knowledge/CONSTITUTION.md`](knowledge/CONSTITUTION.md).
 
 ---
 
@@ -134,6 +137,8 @@ The v1 OSS CLI includes a `--config sites.yaml` bulk-onboarding mode for fleet o
 
 ## Repo status
 
-Private during pre-v0.5 development. Will go public when v0.5 plugin alpha is ready for community feedback. Public OSS launch (v1.0 → wp.org) targeted ~14–16 weeks from focused engineering start.
+Currently private. Public OSS launch (v1.0 → wp.org) targeted ~16–18 weeks from focused engineering start. Will go public earlier if community-feedback value clearly outweighs the keep-private incentive (current call: keep private through v0.95 security audit, go public at v1.0 launch with the failure-mode catalogue + acceptance suite as positioning artifacts).
 
-See `specs/HARDENING_v1.md` for the detailed v1 scope after the 5-way red-team critique pass.
+For evaluators: the public-ready artifacts as of v0.85 are [`docs/FAILURE_MODES.md`](docs/FAILURE_MODES.md) (the 20-invariant catalogue with public citations) and [`plugin/tests/manual/SMOKE_TEST_GUIDE.md`](plugin/tests/manual/SMOKE_TEST_GUIDE.md) (how to run the acceptance suite against your own WP install).
+
+Hardening history: [`specs/HARDENING_v1.md`](specs/HARDENING_v1.md) for the v1 scope after the 5-way red-team critique pass. [`specs/WAVE_0_2026-05-26.md`](specs/WAVE_0_2026-05-26.md) for the May 2026 platform recheck after Novamira Pro shipped + WP 7.0 + Elementor 4.0.
