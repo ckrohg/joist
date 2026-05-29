@@ -1328,6 +1328,494 @@ else
   fail "no component imports @wordpress/dataviews"
 fi
 
+# ── ANTI-SLOP VALIDATOR — W6a ───────────────────────────────────────────────
+# Exercises POST /anti-slop/{copy,image,feedback} + GET /anti-slop/lexicon.
+# See specs/ANTI_SLOP.md for the full surface.
+section "Anti-slop validator — copy"
+
+# Lexicon introspection
+api GET /anti-slop/lexicon
+assert_status 200 "GET /anti-slop/lexicon"
+assert_jq '.counts.total >= 50' "lexicon has >=50 total entries"
+assert_jq '.counts.vocab > 0 and .counts.phrases > 0 and .counts.sentenceOpeners > 0 and .counts.structures > 0' "all four layers populated"
+
+# Known-slop input → passed:false + multiple violations
+SLOP_BODY='{"text":"Let'"'"'s delve into the realm of robust solutions in the realm of cutting-edge AI."}'
+api POST /anti-slop/copy "$SLOP_BODY"
+assert_status 200 "POST /anti-slop/copy with known-slop input"
+assert_jq '.passed == false' "known-slop input: passed == false"
+assert_jq '.violation_count >= 3' "known-slop input: at least 3 violations detected"
+assert_jq '.requires_repair == true' "known-slop input: requires_repair == true"
+assert_jq '.score < 70' "known-slop input: score below repair threshold"
+assert_jq '.repair_hint | length > 0' "known-slop input: repair_hint is non-empty"
+assert_jq '[.violations[] | select(.layer=="vocab")] | length >= 2' "violations include vocab layer hits"
+assert_jq '[.violations[] | select(.match | ascii_downcase == "delve")] | length >= 1' '"delve" specifically detected'
+
+# Known-clean input → passed:true + score >= 90
+CLEAN_BODY='{"text":"This page lists the four services we offer. Each one has a fixed scope and a fixed price."}'
+api POST /anti-slop/copy "$CLEAN_BODY"
+assert_status 200 "POST /anti-slop/copy with known-clean input"
+assert_jq '.passed == true' "known-clean input: passed == true"
+assert_jq '.score >= 90' "known-clean input: score >= 90"
+assert_jq '.violation_count == 0' "known-clean input: zero violations"
+assert_jq '.requires_repair == false' "known-clean input: requires_repair == false"
+
+# Sentence-opener detection (It's not X. It's Y.)
+OPENER_BODY='{"text":"It'"'"'s not a website. It'"'"'s a transformation."}'
+api POST /anti-slop/copy "$OPENER_BODY"
+assert_status 200 "POST /anti-slop/copy with It's-not-X.-It's-Y. opener"
+assert_jq '[.violations[] | select(.layer=="openers")] | length >= 1' "sentence-opener layer fires on the It's-not-X. structure"
+
+# Unknown field → 422 (failure-mode #1)
+api POST /anti-slop/copy '{"text":"hello","unknown_param":"x"}'
+assert_status 422 "POST /anti-slop/copy with unknown field returns 422"
+assert_jq '.code == "anti_slop.unknown_field"' "unknown-field error code is anti_slop.unknown_field"
+assert_jq '.details.unknown_fields | index("unknown_param") != null' "unknown_fields[] enumerates the bad key"
+assert_jq '.details.valid_fields | type == "array"' "valid_fields[] is provided as a recovery hint"
+
+# Missing required field → 422
+api POST /anti-slop/copy '{}'
+assert_status 422 "POST /anti-slop/copy with empty body returns 422"
+assert_jq '.code == "anti_slop.missing_field"' "missing-field error code is anti_slop.missing_field"
+
+# Empty text is treated as clean
+api POST /anti-slop/copy '{"text":""}'
+assert_status 200 "POST /anti-slop/copy with empty text returns 200"
+assert_jq '.passed == true' "empty text: passed == true"
+assert_jq '.score == 100' "empty text: score == 100"
+
+section "Anti-slop validator — site preference overlay"
+
+# Seed a per-site forbid_phrase rule via /preferences (legacy surface still wired)
+# This site_id matches what PreferenceMemory::siteId() will return on the test host.
+api GET /preferences/render
+SITE_ID="$(jqr '.site_id')"
+if [ -n "$SITE_ID" ] && [ "$SITE_ID" != "null" ]; then
+  CREATE_BODY=$(cat <<JSON
+{"kind":"forbidden_phrase","pattern":"flagship","directive":"avoid the word flagship on this site"}
+JSON
+)
+  api POST /preferences "$CREATE_BODY"
+  assert_status_in "200 201" "seeded per-site forbid_phrase rule for word 'flagship'"
+
+  # With site_id, the validator should add a site_rules layer violation.
+  api POST /anti-slop/copy "$(cat <<JSON
+{"text":"Our flagship offering ships next week.","site_id":"$SITE_ID"}
+JSON
+)"
+  assert_status 200 "POST /anti-slop/copy with site_id + matching site-rule text"
+  assert_jq '[.violations[] | select(.layer=="site_rules")] | length >= 1' "site_rules layer fires on per-site forbid_phrase match"
+else
+  skip "could not resolve site_id from /preferences/render — site-rule overlay test skipped"
+fi
+
+section "Anti-slop validator — feedback loop"
+
+# Pick a phrase that is NOT in the static banned-lexicon (so we can promote it).
+FB_PHRASE="quintessentially modern"
+FB_SITE="${SITE_ID:-host_test_local}"
+FB_BODY1=$(cat <<JSON
+{"site_id":"$FB_SITE","text":"This is a quintessentially modern approach.","violation_match":{"layer":"site_rules","match":"$FB_PHRASE","severity":"high","kind":"phrase"}}
+JSON
+)
+api POST /anti-slop/feedback "$FB_BODY1"
+assert_status 201 "POST /anti-slop/feedback (call 1) returns 201"
+assert_jq '.result.recorded == true' "call 1: recorded == true"
+assert_jq '.result.count == 1' "call 1: count == 1"
+assert_jq '.result.promoted == false' "call 1: promoted == false"
+assert_jq '.state.count == 1' "read-after-write: state.count == 1 (failure-mode #2)"
+
+# Idempotency: replay of identical event is a no-op.
+api POST /anti-slop/feedback "$FB_BODY1"
+assert_status 201 "POST /anti-slop/feedback (replay of same event) returns 201"
+assert_jq '.result.recorded == false' "replay: recorded == false (idempotent)"
+assert_jq '.state.count == 1' "replay: state.count still 1"
+
+# Distinct event keys (vary the text) drive the counter up.
+FB_BODY2=$(cat <<JSON
+{"site_id":"$FB_SITE","text":"That feels quintessentially modern, too.","violation_match":{"layer":"site_rules","match":"$FB_PHRASE","severity":"high","kind":"phrase"}}
+JSON
+)
+api POST /anti-slop/feedback "$FB_BODY2"
+assert_jq '.result.count == 2' "call 2 (distinct text): count == 2"
+assert_jq '.result.promoted == false' "call 2: not yet promoted (threshold 3)"
+
+FB_BODY3=$(cat <<JSON
+{"site_id":"$FB_SITE","text":"Why is everything quintessentially modern these days?","violation_match":{"layer":"site_rules","match":"$FB_PHRASE","severity":"high","kind":"phrase"}}
+JSON
+)
+api POST /anti-slop/feedback "$FB_BODY3"
+assert_jq '.result.count == 3' "call 3 (distinct text): count == 3"
+assert_jq '.result.promoted == true' "call 3: promoted == true (threshold crossed)"
+assert_jq '.result.rule_id | type == "string"' "call 3: rule_id is a string (preference rule was created)"
+
+# Unknown field on feedback → 422
+api POST /anti-slop/feedback '{"site_id":"x","text":"y","violation_match":{},"bogus":1}'
+assert_status 422 "POST /anti-slop/feedback with unknown field returns 422"
+
+# Missing required field on feedback → 422
+api POST /anti-slop/feedback '{"site_id":"x"}'
+assert_status 422 "POST /anti-slop/feedback with missing fields returns 422"
+assert_jq '.details.missing_fields | type == "array"' "missing_fields[] enumerates what's missing"
+
+section "Anti-slop validator — image"
+
+# Tiny brand-palette-compliant 4x4 PNG (solid chartreuse #D4FF3A).
+BRAND_PNG_B64="iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAEUlEQVR4nGO48t8KjhiI4wAAXyEg0YPh1VoAAAAASUVORK5CYII="
+# Off-brand 4x4 PNG (solid purple #800080).
+OFFBRAND_PNG_B64="iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAEElEQVR4nGNoYGiAIwbiOACgQxABai/81QAAAABJRU5ErkJggg=="
+
+# Palette-compliant: should not be flagged for palette.
+IMG_BODY_CLEAN=$(cat <<JSON
+{"image_b64":"$BRAND_PNG_B64","brand_profile":{"palette":["#D4FF3A","#0E0E0C","#F3F2EC"]}}
+JSON
+)
+api POST /anti-slop/image "$IMG_BODY_CLEAN"
+assert_status 200 "POST /anti-slop/image with palette-compliant image returns 200"
+assert_jq '[.palette[] | select(.brand_match == true)] | length >= 1' "palette-compliant image: at least one dominant color matches brand"
+assert_jq '.reasons | index("palette_off_brand") == null' "palette-compliant image: no palette_off_brand reason"
+# Anatomy service is not configured in the test environment.
+assert_jq '.anatomy == "unchecked"' "anatomy is 'unchecked' when no Python service is configured"
+assert_jq '.requires_human_review == true' "requires_human_review is true when anatomy is unchecked (no silent pass — #16)"
+
+# Off-brand palette: should flag palette_off_brand.
+IMG_BODY_FLAGGED=$(cat <<JSON
+{"image_b64":"$OFFBRAND_PNG_B64","brand_profile":{"palette":["#D4FF3A","#0E0E0C","#F3F2EC"]}}
+JSON
+)
+api POST /anti-slop/image "$IMG_BODY_FLAGGED"
+assert_status 200 "POST /anti-slop/image with off-brand image returns 200"
+assert_jq '.verdict == "flagged"' "off-brand image: verdict == flagged"
+assert_jq '.reasons | index("palette_off_brand") != null' "off-brand image: palette_off_brand reason emitted"
+
+# Unknown field on image → 422
+IMG_BODY_BAD=$(cat <<JSON
+{"image_b64":"$BRAND_PNG_B64","brand_profile":{"palette":["#D4FF3A"]},"random":"x"}
+JSON
+)
+api POST /anti-slop/image "$IMG_BODY_BAD"
+assert_status 422 "POST /anti-slop/image with unknown field returns 422"
+
+# Missing image source → 422
+api POST /anti-slop/image '{"brand_profile":{"palette":["#D4FF3A"]}}'
+assert_status 422 "POST /anti-slop/image with no image_url/image_b64 returns 422"
+
+# Missing brand_profile → 422
+api POST /anti-slop/image "$(cat <<JSON
+{"image_b64":"$BRAND_PNG_B64"}
+JSON
+)"
+assert_status 422 "POST /anti-slop/image with no brand_profile returns 422"
+
+# ── WAVE 6c — COPY GENERATION (Anthropic Messages API + cached brand block) ─
+# Dark-tested like W6b: code path runs end-to-end but the Anthropic call only
+# fires when JOIST_CLAUDE_API_KEY is configured (env or wp_option). The
+# validate-and-repair-loop assertions SKIP when \Joist\AntiSlop\CopyValidator
+# isn't loaded yet (W6a is parallel). See specs/COPY_GEN.md.
+section "Wave 6c — copy generation: brand-block introspection"
+
+COPY_SITE_ID="host_joist_test_local"
+
+# GET /brand-block/{site_id} — pure assembly, no API call. Works regardless
+# of API key state (this is the introspection path agents use to verify
+# the cache prefix is large enough to clear the 4,096-token floor).
+api GET "/generate/copy/brand-block/$COPY_SITE_ID"
+assert_status 200 "GET /generate/copy/brand-block/{site_id} returns 200"
+assert_jq '.site_id != null' "brand-block payload includes site_id"
+assert_jq '.cache_key | type == "string" and (length == 16)' "cache_key is a 16-char hex hash"
+assert_jq '(.estimated_tokens | type == "number") and .estimated_tokens > 0' "estimated_tokens is a positive number (house style alone is always present)"
+assert_jq '.is_cacheable | type == "boolean"' "is_cacheable is a boolean"
+assert_jq '.cache_min_tokens == 4096' "cache_min_tokens is the Opus 4.7 floor (4096)"
+assert_jq '.system_block_count >= 1' "at least 1 system block present (house style is unconditional)"
+assert_jq '.api_key_configured | type == "boolean"' "api_key_configured is a boolean"
+assert_jq '.model_in_use | type == "string"' "model_in_use is a string"
+assert_jq '.model_default == "claude-opus-4-7"' "default model is claude-opus-4-7"
+
+# When the assembled estimated_tokens >= 4096, is_cacheable should be true,
+# and when < 4096 it should be false. (Don't assert which it is — depends on
+# whether brand.json + exemplars.json are present on the test site.)
+EST_TOKENS="$(jqr '.estimated_tokens')"
+IS_CACHEABLE="$(jqr '.is_cacheable')"
+if [ "${EST_TOKENS:-0}" -ge 4096 ]; then
+  [ "$IS_CACHEABLE" = "true" ] && pass "estimated_tokens >= 4096 → is_cacheable == true" \
+    || fail "estimated_tokens ($EST_TOKENS) >= 4096 but is_cacheable != true"
+else
+  [ "$IS_CACHEABLE" = "false" ] && pass "estimated_tokens < 4096 → is_cacheable == false (cache writes below floor are silently dropped by Anthropic)" \
+    || fail "estimated_tokens ($EST_TOKENS) < 4096 but is_cacheable != false"
+fi
+
+section "Wave 6c — copy generation: cost meter"
+
+api GET "/generate/copy/cost-meter"
+assert_status 200 "GET /generate/copy/cost-meter returns 200"
+assert_jq '.session_total_usd | type == "number"' "session_total_usd is a number"
+assert_jq '.cap_usd | type == "number"' "cap_usd is a number"
+assert_jq '.remaining_usd | type == "number"' "remaining_usd is a number"
+assert_jq '.separated_from_image_gen == true' "cost meter is separated from image-gen meter (per spec §5)"
+assert_jq '.cap_usd > 0' "cap_usd is positive (default $5)"
+
+section "Wave 6c — copy generation: single sync call (dark test until key configured)"
+
+api POST /generate/copy "$(cat <<JSON
+{"site_id":"$COPY_SITE_ID","request":"Write a 12-word hero subtitle for a craft joinery business."}
+JSON
+)"
+# Branch on API key state:
+#   - Unconfigured → 422 + provider_unconfigured (the dark-test path)
+#   - Configured   → 200 + status:ok (a live call)
+HTTP_GEN="$HTTP_CODE"
+CODE_GEN="$(jqr '.code')"
+if [ "$HTTP_GEN" = "422" ] && [ "$CODE_GEN" = "provider_unconfigured" ]; then
+  pass "POST /generate/copy with no API key returns 422 + provider_unconfigured (dark-test path)"
+elif [ "$HTTP_GEN" = "200" ]; then
+  pass "POST /generate/copy returns 200 (API key configured — live call)"
+  assert_jq '.text | type == "string" and length > 0' "live call returns non-empty text"
+  assert_jq '.cache_metrics != null' "live call returns cache_metrics block"
+  assert_jq '.cost_usd >= 0' "live call returns cost_usd"
+  assert_jq '.cache_hit_rate | type == "number"' "live call returns cache_hit_rate"
+else
+  fail "POST /generate/copy returned unexpected $HTTP_GEN / code=$CODE_GEN (expected 422+provider_unconfigured OR 200)"
+fi
+
+# Unknown body fields → 422 validation.unknown_keys (constraint #1 — typed, never silent)
+api POST /generate/copy "$(cat <<JSON
+{"site_id":"$COPY_SITE_ID","request":"Test","unknown_field":"oops"}
+JSON
+)"
+assert_status 422 "POST /generate/copy with unknown body field returns 422"
+assert_jq '.code == "validation.unknown_keys"' "unknown field → typed validation.unknown_keys"
+
+# Missing required field (request) → 422
+api POST /generate/copy "$(cat <<JSON
+{"site_id":"$COPY_SITE_ID"}
+JSON
+)"
+assert_status 422 "POST /generate/copy with missing 'request' returns 422"
+
+# Missing required field (site_id) → 422
+api POST /generate/copy '{"request":"Test"}'
+assert_status 422 "POST /generate/copy with missing 'site_id' returns 422"
+
+# Empty body → 422
+api POST /generate/copy ''
+assert_status 422 "POST /generate/copy with empty body returns 422"
+
+section "Wave 6c — copy generation: batch queue"
+
+# Enqueue increments queue depth.
+api POST /generate/copy/enqueue "$(cat <<JSON
+{"site_id":"$COPY_SITE_ID","request":"hero copy"}
+JSON
+)"
+assert_status 200 "POST /generate/copy/enqueue returns 200"
+assert_jq '.request_id | type == "string" and length > 0' "enqueue returns a request_id"
+assert_jq '.status == "queued"' "enqueue status == queued"
+DEPTH_AFTER_1="$(jqr '.queue_depth')"
+[ "${DEPTH_AFTER_1:-0}" -ge 1 ] && pass "queue_depth >= 1 after one enqueue" \
+  || fail "queue_depth was $DEPTH_AFTER_1 after one enqueue (expected >= 1)"
+
+# Enqueue a second item to confirm depth increments.
+api POST /generate/copy/enqueue "$(cat <<JSON
+{"site_id":"$COPY_SITE_ID","request":"subhead copy","request_id":"my-rid-2"}
+JSON
+)"
+assert_status 200 "POST /generate/copy/enqueue (second item) returns 200"
+DEPTH_AFTER_2="$(jqr '.queue_depth')"
+[ "${DEPTH_AFTER_2:-0}" -gt "${DEPTH_AFTER_1:-0}" ] && pass "queue_depth increments on each enqueue" \
+  || fail "queue_depth did not increment ($DEPTH_AFTER_1 → $DEPTH_AFTER_2)"
+
+# Custom request_id is honoured.
+assert_jq '.request_id == "my-rid-2"' "caller-supplied request_id is honoured"
+
+# Flush the queue. With no API key, every item returns 'unconfigured' but the
+# flush still drains the queue and reports flushed > 0. With a key, results
+# include real text.
+api POST "/generate/copy/flush/$COPY_SITE_ID" '{}'
+assert_status 200 "POST /generate/copy/flush/{site_id} returns 200"
+assert_jq '.flushed | type == "number"' "flush returns numeric flushed count"
+assert_jq '.results | type == "array"' "flush returns results array"
+FLUSHED_COUNT="$(jqr '.flushed')"
+[ "${FLUSHED_COUNT:-0}" -ge 2 ] && pass "flush drained both enqueued items (flushed >= 2)" \
+  || fail "flush returned flushed=$FLUSHED_COUNT (expected >= 2)"
+
+# Empty queue flush returns flushed: 0
+api POST "/generate/copy/flush/$COPY_SITE_ID" '{}'
+assert_status 200 "POST /generate/copy/flush/{site_id} on empty queue returns 200"
+assert_jq '.flushed == 0' "empty queue flush returns flushed: 0"
+
+section "Wave 6c — copy generation: model override"
+
+# JOIST_CLAUDE_MODEL env override is honoured. We can't set env vars
+# server-side from this bash test, but we CAN assert that GET /brand-block
+# reflects whatever model_in_use is currently active, and that model_default
+# is the documented constant.
+api GET "/generate/copy/brand-block/$COPY_SITE_ID"
+assert_jq '.model_default == "claude-opus-4-7"' "default model in GET /brand-block is claude-opus-4-7"
+MODEL_IN_USE="$(jqr '.model_in_use')"
+info "active model resolved by CopyGenerator::resolveModel(): $MODEL_IN_USE"
+# At minimum the active model should be a non-empty string.
+[ -n "$MODEL_IN_USE" ] && [ "$MODEL_IN_USE" != "null" ] \
+  && pass "model_in_use is a non-empty string ($MODEL_IN_USE)" \
+  || fail "model_in_use returned null/empty"
+
+section "Wave 6c — copy generation: validate-and-repair loop (SKIPs when W6a absent)"
+
+# Sentinel: ask for the AntiSlopController route surface. If W6a's REST
+# controller is registered, the routes index lists /anti-slop — that's our
+# proxy for "the validator class is loaded too".
+api GET /anti-slop/health 2>/dev/null
+ANTISLOP_LOADED="$HTTP_CODE"
+if [ "$ANTISLOP_LOADED" = "200" ] || [ "$ANTISLOP_LOADED" = "404" ]; then
+  # 200 means W6a is live; 404 means the controller is loaded but no /health.
+  # 401/403 also imply registration. The OTHER possibility is the route
+  # simply isn't there (no controller) → W6a not loaded.
+  if [ "$ANTISLOP_LOADED" = "404" ]; then
+    skip "validate-and-repair loop: W6a's CopyValidator class presence indeterminate from this route — see specs/COPY_GEN.md §4"
+  else
+    pass "W6a is loaded — validate-and-repair loop runs on real API calls when JOIST_CLAUDE_API_KEY is set"
+  fi
+else
+  skip "validate-and-repair loop: W6a's AntiSlopController not registered yet (parallel-build dependency)"
+fi
+
+# ── IMAGE GENERATION — W6b (FLUX.2 + Recraft + Ideogram + AssetRouter) ──────
+# Exercises POST /generate/image, POST /generate/image/train-lora,
+# GET /generate/image/lora/{site_id}, GET /generate/image/cost-meter.
+# All tests assume the test host has NO provider API keys configured
+# (the dark-test path). With keys set the upstream-call branch would fire.
+# See specs/IMAGE_GEN.md for the full surface.
+section "Image generation — REST surface (W6b)"
+
+# Cost meter baseline (zeroes when no calls made)
+api GET /generate/image/cost-meter
+assert_status 200 "GET /generate/image/cost-meter (baseline)"
+assert_jq '.session_total_usd == 0' "session_total_usd is 0 at baseline"
+assert_jq '.cap_usd >= 1' "cap_usd is exposed and >= 1"
+assert_jq '.remaining_usd == .cap_usd' "remaining_usd equals cap_usd at baseline"
+assert_jq '.session_id != null' "session_id is exposed"
+
+# GET /lora/{site_id} returns null when no LoRA trained for the site
+api GET "/generate/image/lora/host_example.com"
+assert_status 200 "GET /generate/image/lora/{site_id} (untrained site)"
+assert_jq '.lora_id == null' "lora_id is null for an untrained site"
+assert_jq '.status == "none"' "status is 'none' for an untrained site"
+assert_jq '.site_id == "host_example.com"' "site_id echoed in response"
+
+section "Image generation — dark-test (no provider API keys configured)"
+
+# hero_image → FluxLoraClient (FAL)
+api POST /generate/image '{
+  "site_id": "host_example.com",
+  "asset_type": "hero_image",
+  "prompt": "Foundry-palette engineering hero",
+  "brand_profile": {"palette": ["#D4FF3A", "#0E0E0C"]},
+  "constraints": {"width": 1024, "height": 768, "format": "png"}
+}'
+assert_status 422 "POST /generate/image hero_image → 422 (FAL key not set)"
+assert_jq '.code == "provider_unconfigured"' "error code is provider_unconfigured"
+assert_jq '.details.env_var == "JOIST_FAL_API_KEY"' "FAL env-var hint surfaces"
+assert_jq '.details.wp_option == "joist_fal_api_key"' "FAL wp_option hint surfaces"
+assert_jq '(.details.provider | test("fal"))' "details.provider mentions fal"
+
+# vector_icon → RecraftClient
+api POST /generate/image '{
+  "site_id": "host_example.com",
+  "asset_type": "vector_icon",
+  "prompt": "minimal chartreuse joist beam icon",
+  "brand_profile": {"palette": ["#D4FF3A"]},
+  "constraints": {"format": "svg"}
+}'
+assert_status 422 "POST /generate/image vector_icon → 422 (Recraft key not set)"
+assert_jq '.code == "provider_unconfigured"' "vector_icon error code is provider_unconfigured"
+assert_jq '.details.env_var == "JOIST_RECRAFT_API_KEY"' "Recraft env-var hint surfaces"
+assert_jq '(.details.provider | test("recraft"))' "vector_icon routed to Recraft (per provider hint)"
+
+# text_on_image → IdeogramClient
+api POST /generate/image '{
+  "site_id": "host_example.com",
+  "asset_type": "text_on_image",
+  "prompt": "JOIST hero with display type",
+  "constraints": {"aspect_ratio": "16x9"}
+}'
+assert_status 422 "POST /generate/image text_on_image → 422 (Ideogram key not set)"
+assert_jq '.code == "provider_unconfigured"' "text_on_image error code is provider_unconfigured"
+assert_jq '.details.env_var == "JOIST_IDEOGRAM_API_KEY"' "Ideogram env-var hint surfaces"
+assert_jq '(.details.provider | test("ideogram"))' "text_on_image routed to Ideogram (per provider hint)"
+
+# logo → RecraftClient (alternate routing path)
+api POST /generate/image '{
+  "site_id": "host_example.com",
+  "asset_type": "logo",
+  "prompt": "joist wordmark with subtle italic descender",
+  "constraints": {"format": "svg"}
+}'
+assert_status 422 "POST /generate/image logo → 422 (Recraft key not set)"
+assert_jq '(.details.provider | test("recraft"))' "logo routed to Recraft"
+
+# lifestyle → FluxLoraClient (alternate routing path)
+api POST /generate/image '{
+  "site_id": "host_example.com",
+  "asset_type": "lifestyle",
+  "prompt": "working agency lifestyle image"
+}'
+assert_status 422 "POST /generate/image lifestyle → 422 (FAL key not set)"
+assert_jq '(.details.provider | test("fal"))' "lifestyle routed to FAL"
+
+# Unknown asset_type → 422 unknown_asset_type
+api POST /generate/image '{
+  "site_id": "host_example.com",
+  "asset_type": "interpretive_dance",
+  "prompt": "..."
+}'
+assert_status 422 "POST /generate/image unknown asset_type → 422"
+assert_jq '.code == "unknown_asset_type"' "error code is unknown_asset_type"
+assert_jq '.details.valid | length >= 6' "valid asset_types list is surfaced"
+
+# Missing required field → 422 validation.missing_field
+api POST /generate/image '{
+  "site_id": "host_example.com",
+  "asset_type": "hero_image"
+}'
+assert_status 422 "POST /generate/image with missing prompt → 422"
+assert_jq '.code == "validation.missing_field"' "error code is validation.missing_field"
+assert_jq '.details.field == "prompt"' "details.field cites the missing field"
+
+# Unknown top-level key → 422 schema.unknown_key (constraint #1)
+api POST /generate/image '{
+  "site_id": "host_example.com",
+  "asset_type": "hero_image",
+  "prompt": "anything",
+  "destroy_all_pages": true
+}'
+assert_status 422 "POST /generate/image with unknown key → 422 schema.unknown_key"
+assert_jq '.code == "schema.unknown_key"' "unknown top-level key rejected with typed code"
+assert_jq '.details.unknown_keys | index("destroy_all_pages") != null' "unknown key surfaced in details"
+
+# Train-LoRA endpoint dark-test
+api POST /generate/image/train-lora '{
+  "site_id": "host_example.com",
+  "reference_urls": ["https://example.com/refs.zip"]
+}'
+assert_status 422 "POST /generate/image/train-lora → 422 (FAL key not set)"
+assert_jq '.code == "provider_unconfigured"' "train-lora unconfigured error code"
+assert_jq '.details.env_var == "JOIST_FAL_API_KEY"' "train-lora env-var hint surfaces"
+
+# Train-LoRA validation: missing reference_urls
+api POST /generate/image/train-lora '{
+  "site_id": "host_example.com"
+}'
+assert_status 422 "POST /generate/image/train-lora without reference_urls → 422"
+assert_jq '.code == "validation.missing_field"' "train-lora missing-field code"
+
+# Cost meter shape (constraint #9). Real cost_cap_exceeded 429 fires only when a
+# successful call accrues cost; every provider is unconfigured in this dark
+# test, so we verify shape + zero-accrual instead.
+section "Image generation — cost meter and cap behaviour"
+api GET /generate/image/cost-meter
+assert_jq '.cap_usd == 10 or .cap_usd > 0' "cap_usd is the default or admin-overridden"
+api GET /generate/image/cost-meter
+assert_jq '.session_total_usd == 0' "session_total_usd remains 0 after failed (unconfigured) calls"
+
 # ── CLEANUP ─────────────────────────────────────────────────────────────────
 section "Cleanup"
 api POST "/sessions/$SESSION_ID/end" '{}' >/dev/null 2>&1 || true

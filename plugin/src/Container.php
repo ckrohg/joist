@@ -25,6 +25,15 @@ use Joist\Elementor\WidgetCatalog;
 use Joist\Eval\ForbiddenPhraseValidator;
 use Joist\Eval\MemoryToolHandler;
 use Joist\Eval\PreferenceMemory;
+use Joist\Generate\Copy\BatchQueue;
+use Joist\Generate\Copy\BrandBlockAssembler;
+use Joist\Generate\Copy\CopyCostMeter;
+use Joist\Generate\Copy\CopyGenerator;
+use Joist\Generate\Image\AssetRouter;
+use Joist\Generate\Image\FluxLoraClient;
+use Joist\Generate\Image\HttpTransport;
+use Joist\Generate\Image\IdeogramClient;
+use Joist\Generate\Image\RecraftClient;
 use Joist\Host\HostDetector;
 use Joist\Plan\PlanExecutor;
 use Joist\Plan\PlanStore;
@@ -50,6 +59,31 @@ final class Container
         self::$instances[$key] = $obj;
         return $obj;
     }
+
+    /**
+     * Quick existence check used by optional integration paths (e.g. the FLUX
+     * client persisting a lora_id only when preferenceMemory is wired up).
+     * Returns true if the key is in the registered set. Does NOT instantiate.
+     */
+    public static function has(string $key): bool
+    {
+        return in_array($key, self::REGISTERED, true);
+    }
+
+    /** List of every key build() knows about. Keep in sync with the match below. */
+    public const REGISTERED = [
+        'hasher', 'idGen', 'catalog', 'schemaValidator', 'dynamicTags', 'globals',
+        'cssBlocks', 'responsiveFiller', 'layoutMode', 'locks', 'opMode', 'sessions',
+        'rateLimiter', 'urlValidator', 'policy', 'revisions', 'audit', 'cssRegen',
+        'cacheFlusher', 'hostDetector', 'webhookStore', 'webhooks', 'patchEngine',
+        'planStore', 'atomicSchemaProbe', 'atomicDocumentWriter', 'documentWriter',
+        'preferenceMemory', 'forbiddenPhraseValidator', 'memoryToolHandler',
+        'planExecutor',
+        // Wave 6b — image-generation pipeline (FLUX.2 + Recraft + Ideogram + AssetRouter).
+        'imageHttpTransport', 'fluxClient', 'recraftClient', 'ideogramClient', 'assetRouter',
+        // Wave 6c — copy-generation pipeline (Anthropic Messages API + cached brand block + batch queue).
+        'brandBlockAssembler', 'copyCostMeter', 'copyGenerator', 'copyBatchQueue',
+    ];
 
     private static function build(string $key)
     {
@@ -114,6 +148,32 @@ final class Container
                 self::get('sessions'),
                 self::get('webhooks'),
             ),
+            // Wave 6b (2026-05-28): brand-faithful image generation pipeline.
+            // HttpTransport is the single chokepoint that owns timeouts, the
+            // Joist UA, and JSON strict-decode discipline; each provider client
+            // takes it via constructor injection so we can swap a fake in tests.
+            'imageHttpTransport' => new HttpTransport(),
+            'fluxClient' => new FluxLoraClient(self::get('imageHttpTransport')),
+            'recraftClient' => new RecraftClient(self::get('imageHttpTransport')),
+            'ideogramClient' => new IdeogramClient(self::get('imageHttpTransport')),
+            'assetRouter' => new AssetRouter(
+                self::get('fluxClient'),
+                self::get('recraftClient'),
+                self::get('ideogramClient'),
+            ),
+            // Wave 6c (2026-05-28): copy-generation pipeline.
+            // BrandBlockAssembler builds the layered cache prefix from
+            // preference_memory + brand.json; CopyGenerator calls the
+            // Anthropic Messages API with that prefix; CopyCostMeter gates
+            // every call (constraint #9); BatchQueue amortises the 5-min
+            // prompt-cache TTL across multiple per-site requests.
+            'brandBlockAssembler' => new BrandBlockAssembler(self::get('preferenceMemory')),
+            'copyCostMeter' => new CopyCostMeter(),
+            'copyGenerator' => new CopyGenerator(
+                self::get('brandBlockAssembler'),
+                self::get('copyCostMeter'),
+            ),
+            'copyBatchQueue' => new BatchQueue(self::get('copyGenerator')),
             default => throw new \InvalidArgumentException("Unknown service: {$key}"),
         };
     }

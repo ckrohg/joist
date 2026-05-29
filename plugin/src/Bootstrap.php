@@ -60,6 +60,15 @@ final class Bootstrap
 
         // Scheduled events.
         add_action('joist_post_save_verify', [self::class, 'postSaveVerify'], 10, 1);
+        // Wave 6c — deferred copy-gen flush triggered by BatchQueue::flushAfter().
+        if (class_exists(\Joist\Generate\Copy\BatchQueue::class)) {
+            add_action(
+                \Joist\Generate\Copy\BatchQueue::CRON_HOOK,
+                [\Joist\Generate\Copy\BatchQueue::class, 'runScheduled'],
+                10,
+                1,
+            );
+        }
         add_action(WebhookEmitter::HOOK, [self::class, 'webhookDispatch'], 10, 2);
         add_action('joist_daily_maintenance', [self::class, 'dailyMaintenance']);
         if (!wp_next_scheduled('joist_daily_maintenance')) {
@@ -130,6 +139,11 @@ final class Bootstrap
             \Joist\REST\OperatingModeController::class,
             \Joist\REST\PreferencesController::class,
             \Joist\REST\QualityController::class,
+            \Joist\REST\AntiSlopController::class,
+            // Wave 6b — FLUX.2 + Recraft + Ideogram + AssetRouter (image gen pipeline).
+            \Joist\REST\GenerateController::class,
+            // Wave 6c — Anthropic Messages API + cached brand block + batch queue.
+            \Joist\REST\CopyGenController::class,
         ];
         foreach ($controllers as $c) {
             if (class_exists($c)) {
