@@ -79,11 +79,17 @@ final class SchemaValidator
 
             // Skin-aware: if widget has skins and `_skin` is set, validate against that skin.
             // v0.7 deepens this; for v0.5 we just note the warning.
-            // (TODO: walk skin controls when extractSkins fills them.)
 
-            // v0.5: don't deep-validate the value shape (e.g., color hex format).
-            // We trust Elementor's own renderer to reject malformed values.
-            // v0.7 adds value-type validation per control type.
+            // SELECT/SELECT2 enum validation — constraint #1 closure.
+            // Surfaced during Wave 4c (DisplaySwap): the validator was rejecting
+            // unknown keys but accepting any value for SELECT controls, so
+            // `joist_display_mode: "wibble"` would round-trip into postmeta
+            // silently. Now any control declaring an `options` array enforces
+            // its enum; multi-select arrays are walked element-wise.
+            $enumError = $this->validateEnumValue($key, $controlByName[$baseKey], $value);
+            if ($enumError !== null) {
+                $errors[] = $enumError;
+            }
         }
 
         // Constraint #24 — UPDATED 2026-05-13 after research verification:
@@ -168,6 +174,66 @@ final class SchemaValidator
             }
         }
         return $key;
+    }
+
+    /**
+     * Validate a value against a SELECT control's enum. Returns an error
+     * descriptor or null when the value is acceptable.
+     *
+     * Acceptable shapes:
+     *   - Control has no `options` array (free-form input) → always valid
+     *   - Control is not a SELECT-family type → always valid
+     *   - Value is empty string or null → always valid (Elementor defaults
+     *     often allow empty)
+     *   - Value matches an option key (Elementor stores the key, displays
+     *     the label)
+     *   - Multi-select arrays are walked element-wise; the first invalid
+     *     entry is reported
+     */
+    private function validateEnumValue(string $settingKey, array $control, $value): ?array
+    {
+        $type = (string) ($control['type'] ?? '');
+        $enumTypes = ['select', 'select2', 'choose', 'icons'];
+        if (!in_array($type, $enumTypes, true)) {
+            return null;
+        }
+        $options = $control['options'] ?? null;
+        if (!is_array($options) || $options === []) {
+            return null;
+        }
+
+        $allowed = array_map('strval', array_keys($options));
+
+        $checkOne = function ($v) use ($allowed, $settingKey, $type): ?array {
+            if ($v === null || $v === '') return null;
+            $vStr = is_scalar($v) ? (string) $v : '';
+            if ($vStr === '' || in_array($vStr, $allowed, true)) {
+                return null;
+            }
+            return [
+                'path' => "settings.{$settingKey}",
+                'code' => 'schema.invalid_enum',
+                'message' => sprintf(
+                    "'%s' is not one of the %d allowed values for '%s'.",
+                    $vStr,
+                    count($allowed),
+                    $settingKey
+                ),
+                'allowed' => array_slice($allowed, 0, 20),
+                'control_type' => $type,
+            ];
+        };
+
+        // SELECT2 with multiple:true stores an array of keys.
+        if (is_array($value)) {
+            foreach ($value as $item) {
+                $err = $checkOne($item);
+                if ($err !== null) return $err;
+            }
+            return null;
+        }
+
+        return $checkOne($value);
     }
 
     private function suggestControl(string $supplied, array $valid): ?string

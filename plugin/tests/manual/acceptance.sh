@@ -1816,6 +1816,100 @@ assert_jq '.cap_usd == 10 or .cap_usd > 0' "cap_usd is the default or admin-over
 api GET /generate/image/cost-meter
 assert_jq '.session_total_usd == 0' "session_total_usd remains 0 after failed (unconfigured) calls"
 
+# ── SCHEMA VALIDATOR — SELECT enum enforcement (task #16, follow-up to W4c) ─
+section "SchemaValidator — SELECT enum enforcement (constraint #1 closure)"
+
+# Setup: create a container with a deliberately-invalid joist_display_mode.
+# Pre-Wave-4c the unknown-VALUE would silently round-trip into _elementor_data.
+# Post-Task-#16 the validator rejects it at the REST boundary with a typed
+# schema.invalid_enum error envelope listing the allowed values.
+
+api POST "/pages" '{"title":"Joist enum-validator smoke","status":"draft"}'
+if [ "$HTTP_CODE" = "201" ] || [ "$HTTP_CODE" = "200" ]; then
+  ENUM_PAGE_ID="$(jqr '.id')"
+  CREATED_PAGES+=("$ENUM_PAGE_ID")
+  pass "created enum-validator smoke page #$ENUM_PAGE_ID"
+
+  api GET "/pages/$ENUM_PAGE_ID"
+  ENUM_HASH="$(jqr '.elementor.hash')"
+
+  # Unknown VALUE on a SELECT control — must 422 with schema.invalid_enum.
+  api PATCH "/pages/$ENUM_PAGE_ID" "$(cat <<EOF
+{
+  "hash": "$ENUM_HASH",
+  "ops": [{
+    "op": "add",
+    "path": "/elements/-",
+    "value": {
+      "elType": "container",
+      "isInner": false,
+      "settings": { "joist_display_mode": "wibble" }
+    }
+  }]
+}
+EOF
+)"
+  assert_status_in "422 400" "PATCH with invalid SELECT value returns 422"
+  if echo "$RESP" | grep -q "schema.invalid_enum"; then
+    pass "error envelope carries schema.invalid_enum code"
+  else
+    # The validator may also surface this as schema.invalid_settings wrapping
+    # the per-control error array — accept either as long as one path fires.
+    if echo "$RESP" | grep -q "schema.invalid_settings\|invalid_enum"; then
+      pass "error envelope surfaces enum violation (wrapped or direct)"
+    else
+      fail "error envelope missing enum violation marker"
+    fi
+  fi
+  if echo "$RESP" | grep -q '"allowed"'; then
+    pass "error envelope lists allowed values"
+  else
+    info "error envelope does not include 'allowed' list (acceptable if wrapped)"
+  fi
+
+  # Valid VALUE on the same control — must 200/202.
+  api GET "/pages/$ENUM_PAGE_ID"
+  ENUM_HASH2="$(jqr '.elementor.hash')"
+  api PATCH "/pages/$ENUM_PAGE_ID" "$(cat <<EOF
+{
+  "hash": "$ENUM_HASH2",
+  "ops": [{
+    "op": "add",
+    "path": "/elements/-",
+    "value": {
+      "elType": "container",
+      "isInner": false,
+      "settings": { "joist_display_mode": "grid" }
+    }
+  }]
+}
+EOF
+)"
+  assert_status_in "200 202" "PATCH with valid SELECT value (grid) is accepted"
+
+  # Empty string on a SELECT control — must remain valid (Elementor defaults).
+  api GET "/pages/$ENUM_PAGE_ID"
+  ENUM_HASH3="$(jqr '.elementor.hash')"
+  api PATCH "/pages/$ENUM_PAGE_ID" "$(cat <<EOF
+{
+  "hash": "$ENUM_HASH3",
+  "ops": [{
+    "op": "add",
+    "path": "/elements/-",
+    "value": {
+      "elType": "container",
+      "isInner": false,
+      "settings": { "joist_display_mode": "" }
+    }
+  }]
+}
+EOF
+)"
+  assert_status_in "200 202" "PATCH with empty SELECT value (Elementor default path) is accepted"
+else
+  skip "could not create page for enum-validator smoke ($HTTP_CODE)"
+fi
+
 # ── CLEANUP ─────────────────────────────────────────────────────────────────
 section "Cleanup"
 api POST "/sessions/$SESSION_ID/end" '{}' >/dev/null 2>&1 || true
