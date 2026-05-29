@@ -1168,6 +1168,166 @@ else
   skip "per-widget schema endpoint not present (cannot inspect joist_display_mode)"
 fi
 
+# ── ADMIN APP FOUNDATION (Wave 5a) ──────────────────────────────────────────
+# These tests exercise plugin/src/Admin/{AdminPage,AssetEnqueue}.php — the
+# top-level WP admin page that hosts the React Plan Mode UI. The compiled JS
+# bundle itself is NOT required to pass these tests (we explicitly verify
+# the graceful no-build fallback in AssetEnqueue). See specs/WAVE_0_2026-05-26.md §5.
+section "Plan Mode admin app — foundation"
+
+# 1. package.json declares the wp-scripts build pipeline.
+PKG_JSON="$PLUGIN_DIR/package.json"
+if [ -f "$PKG_JSON" ]; then
+  pass "plugin/package.json exists"
+  if jq -e '.scripts.start and .scripts.build' "$PKG_JSON" >/dev/null 2>&1; then
+    pass "package.json declares both 'start' and 'build' scripts"
+  else
+    fail "package.json missing 'start' or 'build' scripts"
+  fi
+  if jq -e '.devDependencies["@wordpress/scripts"]' "$PKG_JSON" >/dev/null 2>&1; then
+    pass "package.json declares @wordpress/scripts as a devDependency"
+  else
+    fail "package.json does not declare @wordpress/scripts"
+  fi
+  if jq -e '.dependencies["@wordpress/api-fetch"] and .dependencies["@wordpress/components"] and .dependencies["@wordpress/element"]' "$PKG_JSON" >/dev/null 2>&1; then
+    pass "package.json declares core WP runtime deps (api-fetch, components, element)"
+  else
+    fail "package.json missing one of the core WP runtime deps"
+  fi
+else
+  fail "plugin/package.json missing — Wave 5a build pipeline not wired"
+fi
+
+# 2. The React source tree is present.
+if [ -f "$PLUGIN_DIR/src/admin-app/index.js" ] && [ -f "$PLUGIN_DIR/src/admin-app/App.jsx" ] && [ -f "$PLUGIN_DIR/src/admin-app/api/plans.js" ]; then
+  pass "src/admin-app/{index.js, App.jsx, api/plans.js} all present"
+else
+  fail "one of src/admin-app/{index.js, App.jsx, api/plans.js} missing"
+fi
+
+# 3. /site advertises the admin.plan_mode_url + menu_slug.
+api GET /site
+assert_status 200 "GET /site (re-read for admin block)"
+assert_jq '.plugin.admin != null' "plugin.admin block is present in /site payload"
+assert_jq '.plugin.admin.plan_mode_url != null and (.plugin.admin.plan_mode_url | type == "string") and (.plugin.admin.plan_mode_url | length > 0)' "plugin.admin.plan_mode_url is a non-empty string"
+assert_jq '.plugin.admin.menu_slug == "joist-plan-mode"' "plugin.admin.menu_slug == 'joist-plan-mode'"
+assert_jq '.plugin.admin.build_present | type == "boolean"' "plugin.admin.build_present is a boolean (true once `npm run build` has run)"
+
+# 4. The admin page renders without a PHP fatal even when the React bundle
+#    is absent (the typical state before `npm install && npm run build`).
+#    A fatal would surface as a 500 or a parse error in the HTML body.
+PLAN_MODE_URL="$(jqr '.plugin.admin.plan_mode_url')"
+if [ -n "$PLAN_MODE_URL" ] && [ "$PLAN_MODE_URL" != "null" ]; then
+  ADMIN_HTTP="$(curl -sS -u "$JOIST_USER:$JOIST_APP_PWD" -o /tmp/joist-admin-html.$$ -w '%{http_code}' "$PLAN_MODE_URL" 2>/dev/null || echo 000)"
+  ADMIN_BODY="$(cat /tmp/joist-admin-html.$$ 2>/dev/null || true)"
+  rm -f /tmp/joist-admin-html.$$
+  # WP admin pages return 200 even when redirected to wp-login (the auth
+  # interstitial). We accept 200 + 302 + 403 here; what we strictly reject
+  # is a 500 (fatal) or a body containing "Fatal error" / "Parse error".
+  case "$ADMIN_HTTP" in
+    200|302|403)
+      pass "Joist admin page responds without a server error ($ADMIN_HTTP)"
+      ;;
+    500|502|503)
+      fail "Joist admin page returned $ADMIN_HTTP — likely PHP fatal in AdminPage/AssetEnqueue"
+      ;;
+    *)
+      info "Joist admin page returned $ADMIN_HTTP (not fatal but unexpected)"
+      pass "Joist admin page did not return a 5xx fatal"
+      ;;
+  esac
+  if echo "$ADMIN_BODY" | grep -q -E "Fatal error|Parse error|Uncaught Error|Stack trace"; then
+    fail "Joist admin page HTML contains a PHP fatal/parse error string"
+  else
+    pass "Joist admin page HTML does not contain a PHP fatal/parse error string"
+  fi
+else
+  skip "plan_mode_url unavailable — cannot probe admin page directly"
+fi
+
+# ── PLAN MODE ADMIN APP — W5b feature surface ───────────────────────────────
+section "Plan Mode admin app — feature components (W5b)"
+
+ADMIN_APP_DIR="$PLUGIN_DIR/src/admin-app"
+COMPONENTS_DIR="$ADMIN_APP_DIR/components"
+LIB_DIR="$ADMIN_APP_DIR/lib"
+HOOKS_DIR="$ADMIN_APP_DIR/hooks"
+SIDEBAR_DIR="$ADMIN_APP_DIR/sidebar"
+
+# Components present
+for f in PlansList.jsx PlanDetail.jsx EditStepModal.jsx StepDiff.jsx JsonTreeDiff.jsx BlastRadiusBadge.jsx StepTargetCell.jsx; do
+  if [ -f "$COMPONENTS_DIR/$f" ]; then
+    pass "component present: $f"
+  else
+    fail "component missing: $COMPONENTS_DIR/$f"
+  fi
+done
+
+# Co-located SCSS
+for f in PlansList.scss EditStepModal.scss StepDiff.scss JsonTreeDiff.scss BlastRadiusBadge.scss; do
+  if [ -f "$COMPONENTS_DIR/$f" ]; then
+    pass "stylesheet present: $f"
+  else
+    fail "stylesheet missing: $COMPONENTS_DIR/$f"
+  fi
+done
+
+# Top-level style.scss (W5b integration)
+if [ -f "$ADMIN_APP_DIR/style.scss" ]; then
+  pass "top-level style.scss present (W5b integration glue)"
+else
+  fail "top-level style.scss missing"
+fi
+
+# Libs
+for f in blastRadius.js stepTypes.js relativeTime.js; do
+  if [ -f "$LIB_DIR/$f" ]; then
+    pass "lib present: $f"
+  else
+    fail "lib missing: $LIB_DIR/$f"
+  fi
+done
+
+# Hooks
+for f in useInterval.js usePlanPolling.js; do
+  if [ -f "$HOOKS_DIR/$f" ]; then
+    pass "hook present: $f"
+  else
+    fail "hook missing: $HOOKS_DIR/$f"
+  fi
+done
+
+# Sidebar (mode indicator)
+if [ -f "$SIDEBAR_DIR/JoistModeIndicator.jsx" ]; then
+  pass "JoistModeIndicator.jsx present"
+else
+  fail "JoistModeIndicator.jsx missing"
+fi
+
+# App.jsx integrates the feature components (W5b integration check)
+if grep -q "import PlansList" "$ADMIN_APP_DIR/App.jsx" \
+  && grep -q "import PlanDetail" "$ADMIN_APP_DIR/App.jsx" \
+  && grep -q "import JoistModeIndicator" "$ADMIN_APP_DIR/App.jsx"; then
+  pass "App.jsx integrates PlansList + PlanDetail + JoistModeIndicator"
+else
+  fail "App.jsx is missing PlansList / PlanDetail / JoistModeIndicator integration"
+fi
+
+# blastRadius classifier exports classifyStep + classifyPlan
+if grep -q "export function classifyStep" "$LIB_DIR/blastRadius.js" \
+  && grep -q "export function classifyPlan" "$LIB_DIR/blastRadius.js"; then
+  pass "blastRadius classifier exports classifyStep + classifyPlan"
+else
+  fail "blastRadius classifier missing classifyStep / classifyPlan exports"
+fi
+
+# DataViews referenced in components
+if grep -rq "@wordpress/dataviews" "$COMPONENTS_DIR"; then
+  pass "components depend on @wordpress/dataviews"
+else
+  fail "no component imports @wordpress/dataviews"
+fi
+
 # ── CLEANUP ─────────────────────────────────────────────────────────────────
 section "Cleanup"
 api POST "/sessions/$SESSION_ID/end" '{}' >/dev/null 2>&1 || true

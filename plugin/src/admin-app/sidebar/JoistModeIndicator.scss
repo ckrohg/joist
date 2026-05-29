@@ -1,0 +1,68 @@
+/* @purpose Mode-indicator pill styling. */
+
+.joist-mode {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 12px;
+	border-radius: 999px;
+	font-size: 12px;
+	line-height: 1.4;
+	font-weight: 500;
+	background: #f0f0f1;
+	color: #1e1e1e;
+	border: 1px solid #ccc;
+}
+
+.joist-mode__dot {
+	display: inline-block;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: currentColor;
+}
+
+.joist-mode__label {
+	font-weight: 600;
+}
+
+.joist-mode__hint {
+	opacity: 0.7;
+	font-weight: 400;
+}
+
+.joist-mode--plan {
+	background: #eef6ff;
+	color: #1a4480;
+	border-color: #b8d4ee;
+}
+
+.joist-mode--plan .joist-mode__dot {
+	background: #1a73e8;
+}
+
+.joist-mode--execute {
+	background: #fff3e0;
+	color: #8a3a00;
+	border-color: #f0b878;
+}
+
+.joist-mode--execute .joist-mode__dot {
+	background: #d97e00;
+	animation: joist-mode-pulse 1.4s ease-in-out infinite;
+}
+
+.joist-mode--observer {
+	background: #e6f2ec;
+	color: #234d34;
+	border-color: #a8cdb8;
+}
+
+.joist-mode--observer .joist-mode__dot {
+	background: #1c7c43;
+}
+
+@keyframes joist-mode-pulse {
+	0%, 100% { opacity: 1; }
+	50%      { opacity: 0.4; }
+}

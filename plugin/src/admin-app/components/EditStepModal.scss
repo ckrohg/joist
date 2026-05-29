@@ -1,0 +1,39 @@
+/* @purpose Edit-step modal layout. */
+
+.joist-editstep-modal {
+	max-width: 640px;
+}
+
+.joist-editstep {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.joist-editstep__fields {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.joist-editstep__color {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.joist-editstep__color-label {
+	font-size: 11px;
+	font-weight: 500;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	color: #1e1e1e;
+}
+
+.joist-editstep__actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	padding-top: 12px;
+	border-top: 1px solid #ddd;
+}

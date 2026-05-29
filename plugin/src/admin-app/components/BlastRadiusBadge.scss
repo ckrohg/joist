@@ -1,0 +1,72 @@
+/* @purpose Chip styling for the blast-radius badge. */
+
+.joist-br {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 2px 8px;
+	border-radius: 10px;
+	font-size: 11px;
+	line-height: 1.4;
+	font-weight: 500;
+	border: 1px solid transparent;
+	background: #f0f0f1;
+	color: #1e1e1e;
+	white-space: nowrap;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.joist-br__dot {
+	display: inline-block;
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: currentColor;
+	opacity: 0.7;
+}
+
+.joist-br__label {
+	font-weight: 600;
+}
+
+.joist-br__scope {
+	opacity: 0.75;
+	font-weight: 400;
+}
+
+.joist-br--low {
+	background: #f0f0f1;
+	color: #1e1e1e;
+	border-color: #ddd;
+}
+
+.joist-br--medium {
+	background: #fff8e5;
+	color: #8a6100;
+	border-color: #f0c33c;
+}
+
+.joist-br--high {
+	background: #fcf0f1;
+	color: #8a2424;
+	border-color: #e3a3a8;
+}
+
+.joist-br--flagged {
+	background: #cc1818;
+	color: #fff;
+	border-color: #a31616;
+	font-weight: 700;
+}
+
+.joist-br--flagged .joist-br__scope {
+	opacity: 0.9;
+	color: #fff;
+}
+
+.joist-br--compact {
+	padding: 1px 6px;
+	font-size: 10px;
+}

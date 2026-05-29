@@ -36,6 +36,16 @@ final class Bootstrap
             \Joist\Platform\PlatformBootstrap::init();
         }
 
+        // WP-admin React app foundation (Wave 5a). Registers the top-level
+        // "Joist" menu + Plan Mode subpage and enqueues the compiled
+        // React bundle from plugin/build/. See specs/WAVE_0_2026-05-26.md §5.
+        if (class_exists(\Joist\Admin\AdminPage::class)) {
+            \Joist\Admin\AdminPage::init();
+        }
+        if (class_exists(\Joist\Admin\AssetEnqueue::class)) {
+            \Joist\Admin\AssetEnqueue::init();
+        }
+
         add_action('rest_api_init', [self::class, 'registerRoutes']);
 
         // Widget Pack — Joist's custom Elementor widgets (v0.9-α).

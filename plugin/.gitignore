@@ -1,0 +1,23 @@
+# Node / build artifacts — produced by `npm install && npm run build`.
+# The compiled bundle (`build/index.js` + `build/index.asset.php`) is what
+# AssetEnqueue reads; it must be regenerated at release time, never committed.
+node_modules/
+build/
+
+# Logs + caches
+*.log
+.cache/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Lockfile policy: we DO track package-lock.json (when it exists) so CI builds
+# are deterministic. No yarn.lock — we standardize on npm for parity with
+# @wordpress/scripts' own examples.
+yarn.lock
+
+# Editor / OS noise
+.DS_Store
+.idea/
+.vscode/
+*.swp

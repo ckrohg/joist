@@ -1,0 +1,31 @@
+{
+  "name": "joist-admin-app",
+  "version": "0.5.0",
+  "description": "Joist WP-admin React app — Plan Mode UI and related Joist admin surfaces. Built with @wordpress/scripts; mounts on the Joist top-level admin page registered by plugin/src/Admin/AdminPage.php.",
+  "private": true,
+  "license": "GPL-2.0-or-later",
+  "author": "Joist maintainers",
+  "engines": {
+    "node": ">=20.10.0",
+    "npm": ">=10.0.0"
+  },
+  "scripts": {
+    "start": "wp-scripts start --webpack-src-dir=src/admin-app --output-path=build",
+    "build": "wp-scripts build --webpack-src-dir=src/admin-app --output-path=build",
+    "lint:js": "wp-scripts lint-js src/admin-app",
+    "format": "wp-scripts format src/admin-app",
+    "packages-update": "wp-scripts packages-update"
+  },
+  "dependencies": {
+    "@wordpress/api-fetch": "^7.30.0",
+    "@wordpress/components": "^29.30.0",
+    "@wordpress/dataviews": "^5.30.0",
+    "@wordpress/edit-post": "^8.30.0",
+    "@wordpress/element": "^6.30.0",
+    "@wordpress/i18n": "^5.30.0",
+    "@wordpress/plugins": "^7.30.0"
+  },
+  "devDependencies": {
+    "@wordpress/scripts": "^30.0.0"
+  }
+}

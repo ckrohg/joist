@@ -1,0 +1,165 @@
+/* @purpose Plans list (DataViews) styling. */
+
+.joist-plans {
+	position: relative;
+}
+
+.joist-plans__busy {
+	padding: 8px 12px;
+	background: #f0f6ff;
+	border: 1px solid #b8d4ee;
+	border-radius: 4px;
+	margin-bottom: 12px;
+	font-size: 13px;
+}
+
+.joist-plans__bulk-errors {
+	margin: 8px 0 0 0;
+	padding-left: 18px;
+	font-size: 12px;
+}
+
+.joist-plans__id {
+	background: transparent;
+	border: 0;
+	padding: 0;
+	cursor: pointer;
+	color: #1a4480;
+	text-decoration: underline;
+	font: inherit;
+}
+
+.joist-plans__id:hover code {
+	color: #0a2956;
+}
+
+.joist-plans__id code {
+	background: #f0f0f1;
+	padding: 1px 6px;
+	border-radius: 3px;
+	font-size: 11px;
+}
+
+.joist-plans__intent {
+	display: inline-block;
+	max-width: 360px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	vertical-align: middle;
+}
+
+.joist-plans__created {
+	color: #555;
+	font-size: 12px;
+	white-space: nowrap;
+}
+
+.joist-plans__steps {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	flex-wrap: wrap;
+}
+
+.joist-plans__count {
+	font-size: 12px;
+	color: #1e1e1e;
+	font-weight: 500;
+}
+
+.joist-plans__chips {
+	display: inline-flex;
+	gap: 4px;
+	flex-wrap: wrap;
+}
+
+.joist-plans__chip {
+	display: inline-block;
+	padding: 1px 6px;
+	border-radius: 3px;
+	background: #f0f0f1;
+	color: #1e1e1e;
+	font-size: 10px;
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+	border: 1px solid #ddd;
+}
+
+.joist-plans__blast-unknown {
+	color: #888;
+}
+
+.joist-statuspill {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 10px;
+	font-size: 11px;
+	font-weight: 600;
+	background: #f0f0f1;
+	color: #1e1e1e;
+	white-space: nowrap;
+}
+
+.joist-statuspill--pending,
+.joist-statuspill--awaiting_approval {
+	background: #fff4e0;
+	color: #8a5b00;
+	border: 1px solid #f0c878;
+}
+
+.joist-statuspill--approved {
+	background: #e8f0ff;
+	color: #1a4480;
+	border: 1px solid #b8d4ee;
+}
+
+.joist-statuspill--executing {
+	background: #eef9f0;
+	color: #1a5a2e;
+	border: 1px solid #a8d4b8;
+}
+
+.joist-statuspill--completed,
+.joist-statuspill--executed {
+	background: #e6f4ea;
+	color: #1c7c43;
+	border: 1px solid #94c8a8;
+}
+
+.joist-statuspill--failed {
+	background: #fcebea;
+	color: #8a2424;
+	border: 1px solid #e3a3a8;
+}
+
+.joist-statuspill--rejected {
+	background: #f0f0f1;
+	color: #555;
+	border: 1px solid #ccc;
+}
+
+.joist-statuspill--expired {
+	background: #fafafa;
+	color: #888;
+	border: 1px solid #ddd;
+}
+
+.joist-plans__empty {
+	padding: 32px 16px;
+	text-align: center;
+	border: 1px dashed #ddd;
+	border-radius: 4px;
+	background: #fafafa;
+}
+
+.joist-plans__empty p {
+	margin: 0 0 8px 0;
+	color: #1e1e1e;
+}
+
+.joist-plans__empty-hint {
+	font-size: 12px;
+	color: #555;
+	max-width: 480px;
+	margin: 0 auto 16px;
+}

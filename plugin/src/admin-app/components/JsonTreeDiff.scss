@@ -1,0 +1,79 @@
+/* @purpose Monospace tree-diff styling. */
+
+.joist-jdiff {
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+	font-size: 12px;
+	line-height: 1.55;
+	background: #1e1e1e;
+	color: #f0f0f1;
+	padding: 12px;
+	margin: 0;
+	border-radius: 4px;
+	max-height: 60vh;
+	overflow: auto;
+	white-space: pre;
+}
+
+.joist-jdiff__line {
+	display: block;
+}
+
+.joist-jdiff__indent {
+	white-space: pre;
+}
+
+.joist-jdiff__sign {
+	display: inline-block;
+	width: 1.25em;
+	font-weight: 700;
+}
+
+.joist-jdiff__key {
+	color: #9cdcfe;
+}
+
+.joist-jdiff__brace {
+	color: #f0f0f1;
+}
+
+.joist-jdiff__val {
+	color: #ce9178;
+}
+
+.joist-jdiff__line--added {
+	background: rgba(46, 204, 113, 0.12);
+	color: #b5e9c1;
+}
+
+.joist-jdiff__line--added .joist-jdiff__sign,
+.joist-jdiff__line--added .joist-jdiff__val {
+	color: #5dd684;
+}
+
+.joist-jdiff__line--removed {
+	background: rgba(231, 76, 60, 0.12);
+	color: #f5b9b9;
+}
+
+.joist-jdiff__line--removed .joist-jdiff__sign,
+.joist-jdiff__line--removed .joist-jdiff__val {
+	color: #ff7a73;
+}
+
+.joist-jdiff__line--changed {
+	background: rgba(240, 195, 60, 0.12);
+}
+
+.joist-jdiff__val--was {
+	color: #ff7a73;
+	text-decoration: line-through;
+}
+
+.joist-jdiff__val--now {
+	color: #5dd684;
+}
+
+.joist-jdiff__arrow {
+	color: #888;
+	margin: 0 4px;
+}

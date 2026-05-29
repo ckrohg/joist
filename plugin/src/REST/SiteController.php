@@ -122,6 +122,20 @@ final class SiteController extends ControllerBase
                         'registered' => $connectorRegistered,
                         'descriptor' => $connectorDescriptor,
                     ],
+                    // Wave 5a (2026-05-28): React admin app surface info.
+                    // Lets external clients (and the acceptance suite)
+                    // discover where the WP-admin Plan Mode UI mounts and
+                    // whether the compiled JS bundle is present on disk.
+                    'admin' => [
+                        'plan_mode_url' => class_exists(\Joist\Admin\AdminPage::class)
+                            ? \Joist\Admin\AdminPage::planModeUrl()
+                            : null,
+                        'menu_slug' => class_exists(\Joist\Admin\AdminPage::class)
+                            ? \Joist\Admin\AdminPage::MENU_SLUG
+                            : null,
+                        'build_present' => file_exists(JOIST_DIR . 'build/index.asset.php')
+                            && file_exists(JOIST_DIR . 'build/index.js'),
+                    ],
                 ],
             ]);
         });

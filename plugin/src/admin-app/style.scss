@@ -1,0 +1,103 @@
+/**
+ * @purpose Top-level styles for the Joist Plan Mode admin app.
+ *
+ * Lean on @wordpress/components defaults; add scoped rules only where the
+ * admin shell defaults are not enough.
+ */
+
+.joist-plan-mode {
+	max-width: 1200px;
+	margin: 16px auto;
+	padding: 0 16px;
+
+	& > * + * {
+		margin-top: 16px;
+	}
+}
+
+.joist-statuspill {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 9999px;
+	font-size: 12px;
+	font-weight: 500;
+	text-transform: lowercase;
+	background: #f0f0f0;
+	color: #3c3c3c;
+
+	&--pending,
+	&--awaiting_approval {
+		background: #fff7e0;
+		color: #8a6300;
+	}
+
+	&--approved {
+		background: #e6f3ff;
+		color: #0a4a8b;
+	}
+
+	&--executing {
+		background: #fff7e0;
+		color: #8a6300;
+	}
+
+	&--completed,
+	&--executed {
+		background: #e7f5ec;
+		color: #1d6f3f;
+	}
+
+	&--failed {
+		background: #fde7e7;
+		color: #9b1e1e;
+	}
+
+	&--rejected,
+	&--expired {
+		background: #ececec;
+		color: #555;
+	}
+}
+
+.joist-plan-detail {
+	&__title {
+		font-size: 14px;
+	}
+
+	&__meta {
+		color: #666;
+		font-weight: normal;
+		margin-left: 6px;
+	}
+}
+
+.joist-stepcell__type {
+	font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+	font-size: 12px;
+}
+
+.joist-step--skipped {
+	color: #999;
+	font-style: italic;
+}
+
+.joist-step--included {
+	color: #1d6f3f;
+}
+
+.joist-plans__steps {
+	display: inline-flex;
+	gap: 4px;
+	align-items: center;
+	flex-wrap: wrap;
+}
+
+.joist-plans__chip {
+	display: inline-block;
+	padding: 1px 6px;
+	border-radius: 4px;
+	background: #f0f0f1;
+	font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+	font-size: 11px;
+	color: #2a2a2a;
+}
