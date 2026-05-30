@@ -48,7 +48,7 @@ Updated 2026-05-26 after the Wave 0 platform recheck (`specs/WAVE_0_2026-05-26.m
        `preference_memory` refactor to Anthropic `memory_20250818` substrate.
        Skill bundle refactor (`context: fork` + CLAUDE_CODE_FORK_SUBAGENT=1).
 
-[ ] v0.9 — Beta (4 weeks)
+[ ] v0.9 — Beta (6-7 weeks) — SCOPE EXPANDED 2026-05-29
     └─ Plan Mode end-to-end with WP-admin UI on @wordpress/dataviews +
        @wordpress/dataform + PluginSidebar (per-step approval + blast-radius
        column + iframe live preview side-by-side). Anti-slop AI gen for
@@ -57,6 +57,35 @@ Updated 2026-05-26 after the Wave 0 platform recheck (`specs/WAVE_0_2026-05-26.m
        Ideogram for text-on-image). Quality gates. SiteGround real-site testing.
        POST /preview/render with sandboxed iframe + CSS-diff.
        Iteration context endpoint. Claude Code skill bundle.
+
+       ADDED 2026-05-29 from Wave 9 research (specs/WAVE_9_2026-05-29.md):
+       - Generator/evaluator skill harness: split /elementor-build into
+         generator + new /elementor-critique sibling skill (Playwright MCP,
+         AesEval-Bench rubric, 5-iteration cap). Anthropic's canonical
+         agentic-design pattern (Mar 24 2026 post).
+       - POST /joist/v1/critique endpoint paired with /preview/render
+       - Forced Optimization gate on Document::save (failure-mode #21):
+         refuse commits where critique score regresses. Cited evidence:
+         VisRefiner empirical regression observation + Patterns paper's
+         12-motif collapse finding.
+       - Plan Mode UI: vision-judged critique-score column with delta
+         and worst-region annotation. Differentiator vs Lovable/v0.
+       - Three-tier taste substrate: joist.constitution.md (~50 rationale
+         -bearing principles, agency-default + per-site override) →
+         preference_memory with rationale + superseded_by fields →
+         exemplar_pack (5-20 approved designs cached). Anthropic's own
+         2026 constitution grew 2,700 → 23,000 words by adopting
+         explanation-with-rationale.
+       - Anti-cliché diversity check (failure-mode #22): cosine sim
+         against last N committed renders.
+       - AGENTS.md emission for generated sites (cross-tool standard).
+       - Safety classifier on Document::save (mirror Cursor 3.6
+         Auto-review): Haiku-cost allow/redirect/ask classifier.
+       - Async preference_memory writes (Mem0 #1 production footgun).
+       - Active-learning choice cards in Plan Mode: max 1/session, info
+         -value gated, 2 consistent answers required before promotion.
+       - Public AesEval-Bench score for /elementor-critique as v1.0
+         credibility artifact alongside docs/FAILURE_MODES.md.
 
 [ ] v0.95 — Security audit (1 week) — NEW
     └─ Third-party WP-specialist security audit + remediation pass.
@@ -205,6 +234,18 @@ Updated 2026-05-26 after the Wave 0 platform recheck (`specs/WAVE_0_2026-05-26.m
 ---
 
 ## Updates log
+
+### 2026-05-29 — Wave 9 design-agent frontier recheck
+- Three focused research streams (G/H/I) surfaced load-bearing v0.9 deltas: Anthropic published the canonical generator/evaluator harness 2026-03-24 ([anthropic.com/engineering/harness-design-long-running-apps](https://www.anthropic.com/engineering/harness-design-long-running-apps)); VisRefiner (Feb 2026) and Patterns / Cell Press 2025 cite-evidence that naive critique loops degrade output unless gated by Forced Optimization; AesEval-Bench (Mar 2026) is the public eval target for design judgment quality; three-tier taste substrate (constitution + rules-with-rationale + exemplar pack) is the 2026 H1 state of the art.
+- 13 v0.9 deltas catalogued in `specs/WAVE_9_2026-05-29.md`
+- Failure-mode constraints extended 20 → 24 (added #21 Forced Optimization gate, #22 anti-cliché diversity check, #23 bounded critique iteration N=5, #24 no autonomous raw-VLM slop filter — each cited)
+- v0.9 timeline 4 → 6-7 weeks (absorbs critique loop + 3-tier substrate + active-learning UX)
+- v1.0 timeline 16-18 → 18-20 weeks accordingly
+- NEW memory: `design_harness_pattern.md` captures the Anthropic two-agent shape + Cursor/Replit/v0/Lovable competitive read
+- Existing memory updated: `preference_memory_pattern.md` (3-tier substrate + rationale/superseded_by/last_reinforced_at + sycophancy + taste-collapse mitigations), `architecture_decisions.md` (generator/evaluator harness + Forced Optimization + Glance MCP + AesEval-Bench + safety classifier + Lovable variants-before-build)
+- AGENTS.md emission added as a v0.9 free-win (cross-tool standard convergence)
+- Public-artifact pass extended: docs/FAILURE_MODES.md gets #21-#24 once the design harness ships
+- v0.85 work is NOT invalidated; Wave 9 is purely additive — layering taste capability on top of the substrate that already shipped
 
 ### 2026-05-26 — Wave 0 platform recheck
 - Six parallel research streams returned with three load-bearing surprises: Novamira Pro shipped May 15 (first direct competitor), WP 7.0 Armstrong shipped May 20 (native AI Client + Connectors API + DataViews + iframed editor), Elementor 4.0 default since March 30 with broken atomic saves
