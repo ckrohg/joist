@@ -97,6 +97,24 @@ api() {
   if [ -n "$body" ]; then args+=( -H 'Content-Type: application/json' --data-binary "$body" ); fi
   HTTP_CODE="$(curl "${args[@]}" -o "$RESP_FILE" -w '%{http_code}' "$BASE$path" 2>/dev/null || echo 000)"
   RESP="$(cat "$RESP_FILE")"
+  # Wave 7 fix: auto-retry on rate-limit with up to 3 attempts and growing
+  # backoff. The server is honest about retry_after, but consecutive writes
+  # in tight loops can hit the limiter repeatedly even after a single retry.
+  local _retries=0
+  while [ "$HTTP_CODE" = "429" ] && [ "$_retries" -lt 3 ]; do
+    local retry_after
+    retry_after="$(echo "$RESP" | jq -r '.details.retry_after // 2' 2>/dev/null || echo 2)"
+    case "$retry_after" in ''|*[!0-9]*) retry_after=2 ;; esac
+    [ "$retry_after" -gt 10 ] && retry_after=10
+    sleep "$(( retry_after + _retries ))"
+    HTTP_CODE="$(curl "${args[@]}" -o "$RESP_FILE" -w '%{http_code}' "$BASE$path" 2>/dev/null || echo 000)"
+    RESP="$(cat "$RESP_FILE")"
+    _retries=$((_retries + 1))
+  done
+  # Pace writes: a small unconditional sleep after every write keeps the
+  # rate limiter from firing on the *next* test in a tight loop. 200ms × ~150
+  # writes ≈ 30s added to wall-clock, traded for far fewer rate-limit cascades.
+  case "$method" in POST|PATCH|PUT|DELETE) sleep 0.2 ;; esac
   if [ "${JOIST_VERBOSE:-0}" = "1" ]; then
     printf '    %b%s %s → %s%b\n' "$c_dim" "$method" "$path" "$HTTP_CODE" "$c_off"
     echo "$RESP" | jq . 2>/dev/null | sed 's/^/      /' || echo "      $RESP" | head -c 500
@@ -143,6 +161,20 @@ fi
 info "WP $(jqr '.wordpress.version') · Elementor $(jqr '.elementor.version') · Pro: $(jqr '.elementor.pro.present') · PHP $(jqr '.hosting.php_version') · host: $(jqr '.hosting.host')"
 info "DB version: $(jqr '.plugin.db_version') · widgets: $(jqr '.elementor.registered_widget_count') · dynamic tags: $(jqr '.elementor.registered_dynamic_tag_count') · layout mode: $(jqr '.elementor.layout_mode')"
 info "operating mode (before test): $(jqr '.operating_mode.mode')"
+
+# Wave 7 fix: start the main session NOW so every subsequent write has a
+# valid X-Joist-Session-Id header. Previously the session-start happened
+# after the Connectors API + V3/V4 routing test sections, causing every
+# write in those sections to fail with auth.session_required.
+api POST /sessions/start '{"agent":"acceptance-test","agent_version":"0.5","intent":"v0.5 acceptance run"}'
+if [ "$HTTP_CODE" = "200" ]; then
+  SESSION_ID="$(jqr '.session_id')"
+  [ -n "$SESSION_ID" ] && [ "$SESSION_ID" != "null" ] \
+    && pass "session started early (id: $SESSION_ID)" \
+    || fail "session-start returned 200 but no session_id in body"
+else
+  fail "session-start failed (HTTP $HTTP_CODE) — every downstream write will fail with auth.session_required"
+fi
 
 # ── WP PLATFORM DETECTION + 7.0 CONNECTORS API (Wave 2b) ────────────────────
 # These tests exercise plugin/src/Platform/* — the WP-version-aware feature
@@ -221,6 +253,9 @@ assert_status 200 "fallback path: GET /health responds on this WP version (auth 
 # touching the real WP install. Only meaningful when JOIST_TEST_WP_VERSION is set
 # on the WP side AND WP_DEBUG is on; the bash test only verifies the surface
 # accepts the env-override source string when it shows up.
+# Wave 7 fix: re-fetch /site so $RESP carries the platform block (intervening
+# connector tests may have left RESP pointing at a different endpoint).
+api GET /site
 case "$(jqr '.wordpress.platform.source')" in
   global|bloginfo|env_override|unknown)
     pass "platform.source value is one of the documented sentinel strings"
@@ -1552,7 +1587,7 @@ assert_jq '.session_total_usd | type == "number"' "session_total_usd is a number
 assert_jq '.cap_usd | type == "number"' "cap_usd is a number"
 assert_jq '.remaining_usd | type == "number"' "remaining_usd is a number"
 assert_jq '.separated_from_image_gen == true' "cost meter is separated from image-gen meter (per spec §5)"
-assert_jq '.cap_usd > 0' "cap_usd is positive (default $5)"
+assert_jq '.cap_usd > 0' "cap_usd is positive (default \$5)"
 
 section "Wave 6c — copy generation: single sync call (dark test until key configured)"
 

@@ -26,15 +26,29 @@ final class DynamicTagValidator
         $manager = \Elementor\Plugin::$instance->dynamic_tags;
         if (!is_object($manager) || !method_exists($manager, 'get_tags')) return [];
 
+        // Elementor 4 lazy-instantiates: get_tags() may return tag info arrays
+        // instead of instance objects, and individual tag class constructors
+        // can throw during introspection. Walk defensively per item.
         $tags = $manager->get_tags();
         $out = [];
         foreach ($tags as $name => $tag) {
-            $out[] = [
-                'name' => (string) $name,
-                'label' => method_exists($tag, 'get_title') ? $tag->get_title() : $name,
-                'category' => $this->primaryCategory($tag),
-                'plugin_source' => $this->pluginSource($tag),
-            ];
+            try {
+                $out[] = [
+                    'name' => (string) $name,
+                    'label' => is_object($tag) && method_exists($tag, 'get_title')
+                        ? (string) $tag->get_title()
+                        : (string) $name,
+                    'category' => $this->primaryCategory($tag),
+                    'plugin_source' => $this->pluginSource($tag),
+                ];
+            } catch (\Throwable $e) {
+                $out[] = [
+                    'name' => (string) $name,
+                    'label' => (string) $name,
+                    'category' => 'unintrospectable',
+                    'plugin_source' => 'unknown',
+                ];
+            }
         }
         return $out;
     }
@@ -129,13 +143,24 @@ final class DynamicTagValidator
 
     private function primaryCategory($tag): string
     {
-        if (method_exists($tag, 'get_group')) return (string) $tag->get_group();
+        if (is_object($tag) && method_exists($tag, 'get_group')) {
+            return (string) $tag->get_group();
+        }
+        if (is_array($tag) && isset($tag['group'])) {
+            return (string) $tag['group'];
+        }
         return 'general';
     }
 
     private function pluginSource($tag): string
     {
-        $class = get_class($tag);
+        $class = '';
+        if (is_object($tag)) {
+            $class = get_class($tag);
+        } elseif (is_array($tag) && isset($tag['class']) && is_string($tag['class'])) {
+            $class = $tag['class'];
+        }
+        if ($class === '') return 'unknown';
         if (str_starts_with($class, 'ElementorPro\\')) return 'elementor-pro';
         if (str_starts_with($class, 'Elementor\\')) return 'elementor';
         if (str_starts_with($class, 'Jet')) return 'jet-engine';
