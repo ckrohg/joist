@@ -1,103 +1,246 @@
 /**
- * @purpose Top-level styles for the Joist Plan Mode admin app.
+ * Joist Plan Mode — top-level shell + global cross-component styles.
  *
- * Lean on @wordpress/components defaults; add scoped rules only where the
- * admin shell defaults are not enough.
+ * design-system.scss owns the tokens. This file owns the layout shell
+ * (.joist-app), shared status pills, and overrides of @wordpress/components
+ * scoped to #joist-plan-mode-root so we don't leak into other WP admin
+ * pages.
  */
 
-.joist-plan-mode {
-	max-width: 1200px;
-	margin: 16px auto;
-	padding: 0 16px;
+/* ── App-level layout ────────────────────────────────────────────────── */
 
-	& > * + * {
-		margin-top: 16px;
-	}
+.joist-app {
+	background: var(--joist-bg-base);
+	color: var(--joist-text-1);
+	min-height: calc(100vh - 32px); /* 32 = WP admin bar */
+	margin: -10px -20px -10px -20px; /* break out of WP-admin's wp-admin padding */
+	padding: var(--joist-s-7) clamp(var(--joist-s-5), 4vw, var(--joist-s-8));
+	display: flex;
+	flex-direction: column;
+	gap: var(--joist-s-7);
 }
 
-.joist-statuspill {
-	display: inline-block;
-	padding: 2px 8px;
-	border-radius: 9999px;
-	font-size: 12px;
-	font-weight: 500;
-	text-transform: lowercase;
-	background: #f0f0f0;
-	color: #3c3c3c;
+.joist-app__header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--joist-s-5);
+	padding-bottom: var(--joist-s-5);
+	border-bottom: 1px solid var(--joist-border);
+}
 
-	&--pending,
-	&--awaiting_approval {
-		background: #fff7e0;
-		color: #8a6300;
+.joist-app__brand {
+	display: flex;
+	align-items: baseline;
+	gap: var(--joist-s-3);
+}
+
+.joist-app__build {
+	font-family: var(--joist-font-mono);
+	font-size: var(--joist-type-micro);
+	color: var(--joist-text-3);
+	letter-spacing: 0.04em;
+}
+
+.joist-app__main {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	gap: var(--joist-s-6);
+}
+
+.joist-app__footer {
+	margin-top: var(--joist-s-7);
+	padding-top: var(--joist-s-4);
+	border-top: 1px solid var(--joist-border);
+	color: var(--joist-text-3);
+	font-size: var(--joist-type-micro);
+}
+
+/* ── Loading state ───────────────────────────────────────────────────── */
+
+.joist-loading {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--joist-s-3);
+	color: var(--joist-text-2);
+	font-size: var(--joist-type-small);
+}
+
+/* ── Status pill (custom, replaces @wordpress/components defaults) ──── */
+
+.joist-statuspill {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 10px 4px 8px;
+	border-radius: var(--joist-r-pill);
+	font-family: var(--joist-font-mono);
+	font-size: var(--joist-type-micro);
+	font-weight: 500;
+	letter-spacing: 0.02em;
+	background: var(--joist-bg-raised);
+	color: var(--joist-text-2);
+	border: 1px solid var(--joist-border);
+
+	&::before {
+		content: '';
+		display: inline-block;
+		width: 6px;
+		height: 6px;
+		border-radius: var(--joist-r-pill);
+		background: currentColor;
+		opacity: 0.8;
+	}
+
+	&--pending, &--awaiting_approval {
+		color: var(--joist-warn);
+		background: rgba(255, 183, 77, 0.08);
+		border-color: rgba(255, 183, 77, 0.2);
 	}
 
 	&--approved {
-		background: #e6f3ff;
-		color: #0a4a8b;
+		color: var(--joist-accent);
+		background: var(--joist-accent-soft);
+		border-color: rgba(212, 255, 58, 0.3);
 	}
 
 	&--executing {
-		background: #fff7e0;
-		color: #8a6300;
+		color: var(--joist-accent);
+		background: var(--joist-accent-soft);
+		border-color: rgba(212, 255, 58, 0.3);
+
+		&::before { animation: joist-statuspill-pulse 1.4s ease-in-out infinite; }
 	}
 
-	&--completed,
-	&--executed {
-		background: #e7f5ec;
-		color: #1d6f3f;
+	&--completed, &--executed {
+		color: var(--joist-success);
+		background: rgba(91, 230, 154, 0.08);
+		border-color: rgba(91, 230, 154, 0.2);
 	}
 
 	&--failed {
-		background: #fde7e7;
-		color: #9b1e1e;
+		color: var(--joist-error);
+		background: rgba(255, 107, 107, 0.08);
+		border-color: rgba(255, 107, 107, 0.2);
 	}
 
-	&--rejected,
-	&--expired {
-		background: #ececec;
-		color: #555;
+	&--rejected, &--expired {
+		color: var(--joist-text-3);
+		background: var(--joist-bg-surface);
 	}
 }
 
-.joist-plan-detail {
-	&__title {
-		font-size: 14px;
-	}
-
-	&__meta {
-		color: #666;
-		font-weight: normal;
-		margin-left: 6px;
-	}
+@keyframes joist-statuspill-pulse {
+	0%, 100% { opacity: 0.4; transform: scale(0.8); }
+	50%      { opacity: 1;   transform: scale(1.1); }
 }
+
+@media (prefers-reduced-motion: reduce) {
+	.joist-statuspill::before { animation: none !important; }
+}
+
+/* ── Plan-detail surface ─────────────────────────────────────────────── */
+
+.joist-plan-detail__title {
+	font-family: var(--joist-font-display);
+	font-feature-settings: 'ss01';
+	font-variation-settings: 'opsz' 144, 'wght' 500;
+	font-size: var(--joist-type-display-2);
+	letter-spacing: -0.02em;
+	line-height: 1.15;
+	color: var(--joist-text-1);
+}
+
+.joist-plan-detail__meta {
+	color: var(--joist-text-3);
+	font-family: var(--joist-font-mono);
+	font-size: var(--joist-type-micro);
+	margin-left: var(--joist-s-3);
+	letter-spacing: 0.02em;
+}
+
+/* ── Step cells ─────────────────────────────────────────────────────── */
 
 .joist-stepcell__type {
-	font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-	font-size: 12px;
+	font-family: var(--joist-font-mono);
+	font-size: var(--joist-type-small);
+	color: var(--joist-text-2);
+	letter-spacing: 0.01em;
 }
 
 .joist-step--skipped {
-	color: #999;
+	color: var(--joist-text-3);
 	font-style: italic;
 }
 
 .joist-step--included {
-	color: #1d6f3f;
+	color: var(--joist-success);
 }
 
 .joist-plans__steps {
 	display: inline-flex;
-	gap: 4px;
+	gap: 6px;
 	align-items: center;
 	flex-wrap: wrap;
 }
 
 .joist-plans__chip {
 	display: inline-block;
-	padding: 1px 6px;
-	border-radius: 4px;
-	background: #f0f0f1;
-	font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-	font-size: 11px;
-	color: #2a2a2a;
+	padding: 2px 8px;
+	border-radius: var(--joist-r-1);
+	background: var(--joist-bg-raised);
+	border: 1px solid var(--joist-border);
+	font-family: var(--joist-font-mono);
+	font-size: var(--joist-type-micro);
+	color: var(--joist-text-2);
+	letter-spacing: 0;
+}
+
+/* ── Override @wordpress/components defaults inside our root ────────── */
+
+#joist-plan-mode-root .components-card {
+	background: var(--joist-bg-surface);
+	border: 1px solid var(--joist-border);
+	border-radius: var(--joist-r-3);
+	box-shadow: none;
+	color: var(--joist-text-1);
+}
+
+#joist-plan-mode-root .components-card__header,
+#joist-plan-mode-root .components-card__body,
+#joist-plan-mode-root .components-card__footer {
+	background: transparent;
+	border-color: var(--joist-border);
+	color: var(--joist-text-1);
+}
+
+#joist-plan-mode-root .components-notice {
+	background: var(--joist-bg-surface);
+	border-left-color: var(--joist-accent);
+	color: var(--joist-text-1);
+}
+
+#joist-plan-mode-root .components-notice.is-error {
+	border-left-color: var(--joist-error);
+}
+
+#joist-plan-mode-root input[type='text'],
+#joist-plan-mode-root input[type='search'],
+#joist-plan-mode-root textarea {
+	background: var(--joist-bg-surface);
+	border: 1px solid var(--joist-border-2);
+	border-radius: var(--joist-r-2);
+	color: var(--joist-text-1);
+	font-family: var(--joist-font-body);
+
+	&:focus {
+		outline: none;
+		border-color: var(--joist-accent);
+		box-shadow: 0 0 0 1px var(--joist-accent);
+	}
+}
+
+#joist-plan-mode-root .components-spinner {
+	color: var(--joist-accent);
 }

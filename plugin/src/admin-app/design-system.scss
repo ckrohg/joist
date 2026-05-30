@@ -1,0 +1,172 @@
+/**
+ * Joist admin design system — Foundry.
+ *
+ * Tokens locked per knowledge/BRAND_BRIEF.md + memory/brand_decisions.md.
+ * Warm dark + electric chartreuse + cream. Editorial-engineering aesthetic.
+ *
+ * Three type families:
+ *   Fraunces  → display headlines (variable opsz + ital + wght)
+ *   Inter     → body + UI (variable)
+ *   JBM       → IDs, hashes, paths, status strings (engineer accent)
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+	/* ── Foundry palette (locked) ─────────────────────────────────────── */
+	--joist-bg-base:     #0E0E0C;
+	--joist-bg-surface:  #1A1A17;
+	--joist-bg-raised:   #22221E;
+	--joist-bg-hover:    #2A2823;
+	--joist-text-1:      #F3F2EC;
+	--joist-text-2:      #A6A39A;
+	--joist-text-3:      #6B675F;
+	--joist-accent:      #D4FF3A;
+	--joist-accent-dim:  #B0D62C;
+	--joist-accent-soft: #D4FF3A1F;
+	--joist-border:      #2A2823;
+	--joist-border-2:    #3A3832;
+	--joist-success:     #5BE69A;
+	--joist-warn:        #FFB74D;
+	--joist-error:       #FF6B6B;
+
+	/* ── Type families ────────────────────────────────────────────────── */
+	--joist-font-display: 'Fraunces', Georgia, serif;
+	--joist-font-body:    'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+	--joist-font-mono:    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+	/* ── Type scale (fluid) ───────────────────────────────────────────── */
+	--joist-type-display-1: clamp(2.5rem, 4vw + 1rem, 4rem);
+	--joist-type-display-2: clamp(1.75rem, 2.5vw + 1rem, 2.5rem);
+	--joist-type-h1:        clamp(1.5rem, 1.5vw + 1rem, 2rem);
+	--joist-type-h2:        clamp(1.125rem, 0.5vw + 1rem, 1.375rem);
+	--joist-type-body:      0.9375rem;
+	--joist-type-small:     0.8125rem;
+	--joist-type-micro:     0.75rem;
+
+	/* ── Spacing (4px grid) ───────────────────────────────────────────── */
+	--joist-s-1: 4px;
+	--joist-s-2: 8px;
+	--joist-s-3: 12px;
+	--joist-s-4: 16px;
+	--joist-s-5: 24px;
+	--joist-s-6: 32px;
+	--joist-s-7: 48px;
+	--joist-s-8: 64px;
+	--joist-s-9: 96px;
+
+	/* ── Radii ────────────────────────────────────────────────────────── */
+	--joist-r-1: 4px;
+	--joist-r-2: 8px;
+	--joist-r-3: 12px;
+	--joist-r-4: 16px;
+	--joist-r-pill: 9999px;
+
+	/* ── Shadows (dark-aware) ─────────────────────────────────────────── */
+	--joist-shadow-1: 0 1px 0 0 var(--joist-border);
+	--joist-shadow-2: 0 4px 12px -2px rgba(0, 0, 0, 0.4), 0 0 0 1px var(--joist-border);
+	--joist-shadow-glow: 0 0 0 1px var(--joist-accent), 0 0 24px -4px var(--joist-accent-soft);
+
+	/* ── Transitions ──────────────────────────────────────────────────── */
+	--joist-ease: cubic-bezier(0.4, 0, 0.2, 1);
+	--joist-dur-quick: 120ms;
+	--joist-dur-base: 200ms;
+}
+
+/* ── Reset what WP admin imposes on us inside our root ───────────────── */
+#joist-plan-mode-root {
+	font-family: var(--joist-font-body);
+	font-size: var(--joist-type-body);
+	font-feature-settings: 'ss01', 'cv11', 'tnum';
+	color: var(--joist-text-1);
+	line-height: 1.5;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Typography primitives ───────────────────────────────────────────── */
+.j-display {
+	font-family: var(--joist-font-display);
+	font-feature-settings: 'ss01', 'tnum';
+	font-variation-settings: 'opsz' 144;
+	letter-spacing: -0.02em;
+	line-height: 1.1;
+}
+
+.j-display--italic {
+	font-style: italic;
+	font-variation-settings: 'opsz' 144, 'SOFT' 50;
+}
+
+.j-mono {
+	font-family: var(--joist-font-mono);
+	font-feature-settings: 'tnum', 'zero';
+	letter-spacing: 0;
+}
+
+.j-eyebrow {
+	font-family: var(--joist-font-mono);
+	font-size: var(--joist-type-micro);
+	font-weight: 500;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--joist-text-3);
+}
+
+/* ── Common layout primitives ───────────────────────────────────────── */
+.j-stack > * + * {
+	margin-top: var(--joist-s-4);
+}
+
+.j-stack-loose > * + * {
+	margin-top: var(--joist-s-6);
+}
+
+.j-row {
+	display: flex;
+	align-items: center;
+	gap: var(--joist-s-3);
+}
+
+.j-row-between {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--joist-s-4);
+}
+
+/* ── Buttons (override @wordpress/components inside our root) ──────── */
+#joist-plan-mode-root .components-button.is-primary {
+	background: var(--joist-accent);
+	color: var(--joist-bg-base);
+	border: none;
+	border-radius: var(--joist-r-2);
+	font-weight: 600;
+	font-family: var(--joist-font-body);
+	box-shadow: none;
+	transition: background var(--joist-dur-quick) var(--joist-ease), transform var(--joist-dur-quick) var(--joist-ease);
+}
+
+#joist-plan-mode-root .components-button.is-primary:hover:not(:disabled) {
+	background: var(--joist-accent-dim);
+	color: var(--joist-bg-base);
+}
+
+#joist-plan-mode-root .components-button.is-primary:focus:not(:disabled) {
+	box-shadow: var(--joist-shadow-glow);
+}
+
+#joist-plan-mode-root .components-button.is-secondary,
+#joist-plan-mode-root .components-button.is-tertiary {
+	color: var(--joist-text-1);
+	background: var(--joist-bg-surface);
+	border: 1px solid var(--joist-border-2);
+	border-radius: var(--joist-r-2);
+	transition: background var(--joist-dur-quick) var(--joist-ease);
+}
+
+#joist-plan-mode-root .components-button.is-secondary:hover:not(:disabled),
+#joist-plan-mode-root .components-button.is-tertiary:hover:not(:disabled) {
+	background: var(--joist-bg-hover);
+	color: var(--joist-text-1);
+}

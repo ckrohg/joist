@@ -1,0 +1,30 @@
+.joist-mark {
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
+	font-family: var(--joist-font-display);
+	font-feature-settings: 'ss01';
+	font-variation-settings: 'opsz' 144, 'wght' 500;
+	letter-spacing: -0.02em;
+	line-height: 1;
+	color: var(--joist-text-1);
+	user-select: none;
+}
+
+.joist-mark__stroke {
+	display: inline-block;
+	background: var(--joist-accent);
+	border-radius: 2px;
+	flex-shrink: 0;
+}
+
+.joist-mark__word {
+	display: inline-block;
+}
+
+.joist-mark__j {
+	font-style: italic;
+	font-variation-settings: 'opsz' 144, 'wght' 500, 'SOFT' 50;
+	display: inline-block;
+	transform: translateY(0.04em); // tiny baseline lift makes the italic descend more deliberately
+}

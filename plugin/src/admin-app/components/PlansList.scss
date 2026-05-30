@@ -1,70 +1,112 @@
-/* @purpose Plans list (DataViews) styling. */
+/* @purpose Plans list — Foundry-themed cards + DataViews overrides. */
 
 .joist-plans {
 	position: relative;
+	display: flex;
+	flex-direction: column;
+	gap: var(--joist-s-5);
+}
+
+.joist-plans__pagetitle {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: var(--joist-s-4);
+	flex-wrap: wrap;
+}
+
+.joist-plans__pagetitle h1 {
+	font-family: var(--joist-font-display);
+	font-feature-settings: 'ss01';
+	font-variation-settings: 'opsz' 144, 'wght' 400;
+	font-size: var(--joist-type-display-2);
+	letter-spacing: -0.025em;
+	line-height: 1.05;
+	color: var(--joist-text-1);
+	margin: 0;
+}
+
+.joist-plans__pagetitle em {
+	font-style: italic;
+	font-variation-settings: 'opsz' 144, 'wght' 400, 'SOFT' 80;
+	color: var(--joist-accent);
 }
 
 .joist-plans__busy {
-	padding: 8px 12px;
-	background: #f0f6ff;
-	border: 1px solid #b8d4ee;
-	border-radius: 4px;
-	margin-bottom: 12px;
-	font-size: 13px;
+	padding: var(--joist-s-3) var(--joist-s-4);
+	background: var(--joist-accent-soft);
+	border: 1px solid rgba(212, 255, 58, 0.3);
+	border-radius: var(--joist-r-2);
+	font-size: var(--joist-type-small);
+	color: var(--joist-text-1);
+	font-family: var(--joist-font-mono);
+	letter-spacing: 0.01em;
 }
 
 .joist-plans__bulk-errors {
-	margin: 8px 0 0 0;
-	padding-left: 18px;
-	font-size: 12px;
+	margin: var(--joist-s-2) 0 0 0;
+	padding-left: var(--joist-s-5);
+	font-size: var(--joist-type-micro);
+	color: var(--joist-error);
 }
 
+/* Plan-row primary cell — clickable ID with mono treatment. */
 .joist-plans__id {
 	background: transparent;
 	border: 0;
 	padding: 0;
 	cursor: pointer;
-	color: #1a4480;
-	text-decoration: underline;
 	font: inherit;
+	color: var(--joist-text-1);
+	transition: color var(--joist-dur-quick) var(--joist-ease);
 }
 
 .joist-plans__id:hover code {
-	color: #0a2956;
+	color: var(--joist-accent);
 }
 
 .joist-plans__id code {
-	background: #f0f0f1;
-	padding: 1px 6px;
-	border-radius: 3px;
-	font-size: 11px;
+	background: var(--joist-bg-raised);
+	border: 1px solid var(--joist-border);
+	padding: 2px 8px;
+	border-radius: var(--joist-r-1);
+	font-family: var(--joist-font-mono);
+	font-size: var(--joist-type-micro);
+	color: var(--joist-text-2);
+	letter-spacing: 0.01em;
+	transition: color var(--joist-dur-quick) var(--joist-ease), border-color var(--joist-dur-quick) var(--joist-ease);
 }
 
 .joist-plans__intent {
 	display: inline-block;
-	max-width: 360px;
+	max-width: 460px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	vertical-align: middle;
+	color: var(--joist-text-1);
+	font-weight: 500;
 }
 
 .joist-plans__created {
-	color: #555;
-	font-size: 12px;
+	color: var(--joist-text-2);
+	font-size: var(--joist-type-small);
 	white-space: nowrap;
+	font-family: var(--joist-font-mono);
+	letter-spacing: 0.01em;
 }
 
 .joist-plans__steps {
 	display: inline-flex;
 	align-items: center;
-	gap: 6px;
+	gap: var(--joist-s-2);
 	flex-wrap: wrap;
 }
 
 .joist-plans__count {
-	font-size: 12px;
-	color: #1e1e1e;
+	font-family: var(--joist-font-mono);
+	font-size: var(--joist-type-small);
+	color: var(--joist-text-2);
 	font-weight: 500;
 }
 
@@ -76,90 +118,107 @@
 
 .joist-plans__chip {
 	display: inline-block;
-	padding: 1px 6px;
-	border-radius: 3px;
-	background: #f0f0f1;
-	color: #1e1e1e;
-	font-size: 10px;
-	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-	border: 1px solid #ddd;
+	padding: 2px 8px;
+	border-radius: var(--joist-r-1);
+	background: var(--joist-bg-raised);
+	color: var(--joist-text-2);
+	font-family: var(--joist-font-mono);
+	font-size: var(--joist-type-micro);
+	border: 1px solid var(--joist-border);
+	letter-spacing: 0;
 }
 
 .joist-plans__blast-unknown {
-	color: #888;
+	color: var(--joist-text-3);
 }
 
-.joist-statuspill {
-	display: inline-block;
-	padding: 2px 8px;
-	border-radius: 10px;
-	font-size: 11px;
-	font-weight: 600;
-	background: #f0f0f1;
-	color: #1e1e1e;
-	white-space: nowrap;
-}
-
-.joist-statuspill--pending,
-.joist-statuspill--awaiting_approval {
-	background: #fff4e0;
-	color: #8a5b00;
-	border: 1px solid #f0c878;
-}
-
-.joist-statuspill--approved {
-	background: #e8f0ff;
-	color: #1a4480;
-	border: 1px solid #b8d4ee;
-}
-
-.joist-statuspill--executing {
-	background: #eef9f0;
-	color: #1a5a2e;
-	border: 1px solid #a8d4b8;
-}
-
-.joist-statuspill--completed,
-.joist-statuspill--executed {
-	background: #e6f4ea;
-	color: #1c7c43;
-	border: 1px solid #94c8a8;
-}
-
-.joist-statuspill--failed {
-	background: #fcebea;
-	color: #8a2424;
-	border: 1px solid #e3a3a8;
-}
-
-.joist-statuspill--rejected {
-	background: #f0f0f1;
-	color: #555;
-	border: 1px solid #ccc;
-}
-
-.joist-statuspill--expired {
-	background: #fafafa;
-	color: #888;
-	border: 1px solid #ddd;
-}
+/* ── Editorial empty state ──────────────────────────────────────────── */
 
 .joist-plans__empty {
-	padding: 32px 16px;
-	text-align: center;
-	border: 1px dashed #ddd;
-	border-radius: 4px;
-	background: #fafafa;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: var(--joist-s-4);
+	padding: var(--joist-s-8) clamp(var(--joist-s-5), 4vw, var(--joist-s-8));
+	border: 1px solid var(--joist-border);
+	border-radius: var(--joist-r-4);
+	background: var(--joist-bg-surface);
+	max-width: 720px;
 }
 
-.joist-plans__empty p {
-	margin: 0 0 8px 0;
-	color: #1e1e1e;
+.joist-plans__empty-glyph {
+	color: var(--joist-text-2);
+	margin-bottom: var(--joist-s-2);
+}
+
+.joist-plans__empty-title {
+	font-size: var(--joist-type-display-1);
+	font-variation-settings: 'opsz' 144, 'wght' 400;
+	color: var(--joist-text-1);
+	margin: 0;
+}
+
+.joist-plans__empty-title em {
+	color: var(--joist-accent);
+	font-style: italic;
+	font-variation-settings: 'opsz' 144, 'wght' 400, 'SOFT' 80;
 }
 
 .joist-plans__empty-hint {
-	font-size: 12px;
-	color: #555;
-	max-width: 480px;
-	margin: 0 auto 16px;
+	font-size: var(--joist-type-h2);
+	color: var(--joist-text-2);
+	max-width: 540px;
+	line-height: 1.5;
+	margin: 0;
+	font-weight: 400;
+}
+
+.joist-plans__empty-reload {
+	margin-top: var(--joist-s-3);
+	color: var(--joist-text-2) !important;
+	background: transparent !important;
+	border: 1px solid var(--joist-border-2) !important;
+	padding: var(--joist-s-2) var(--joist-s-4) !important;
+	font-family: var(--joist-font-mono) !important;
+	font-size: var(--joist-type-small) !important;
+}
+
+.joist-plans__empty-reload:hover {
+	color: var(--joist-text-1) !important;
+	border-color: var(--joist-accent) !important;
+}
+
+/* ── DataViews overrides ────────────────────────────────────────────── */
+
+#joist-plan-mode-root .dataviews-wrapper {
+	background: transparent;
+}
+
+#joist-plan-mode-root .dataviews-view-list {
+	background: transparent;
+}
+
+#joist-plan-mode-root .dataviews-view-list__item {
+	background: var(--joist-bg-surface);
+	border: 1px solid var(--joist-border);
+	border-radius: var(--joist-r-3);
+	margin-bottom: var(--joist-s-3);
+	padding: var(--joist-s-4) var(--joist-s-5);
+	transition: border-color var(--joist-dur-quick) var(--joist-ease), background var(--joist-dur-quick) var(--joist-ease);
+}
+
+#joist-plan-mode-root .dataviews-view-list__item:hover {
+	border-color: var(--joist-border-2);
+	background: var(--joist-bg-raised);
+}
+
+#joist-plan-mode-root .dataviews-view-list__item.is-selected {
+	border-color: var(--joist-accent);
+	background: var(--joist-bg-raised);
+}
+
+#joist-plan-mode-root .dataviews-filters__container input[type='search'] {
+	background: var(--joist-bg-surface);
+	border-color: var(--joist-border-2);
+	color: var(--joist-text-1);
 }

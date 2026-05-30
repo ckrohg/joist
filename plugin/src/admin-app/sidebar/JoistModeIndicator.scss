@@ -1,68 +1,84 @@
-/* @purpose Mode-indicator pill styling. */
-
 .joist-mode {
 	display: inline-flex;
 	align-items: center;
-	gap: 8px;
-	padding: 4px 12px;
-	border-radius: 999px;
-	font-size: 12px;
-	line-height: 1.4;
-	font-weight: 500;
-	background: #f0f0f1;
-	color: #1e1e1e;
-	border: 1px solid #ccc;
+	gap: var(--joist-s-3);
+	padding: var(--joist-s-2) var(--joist-s-4) var(--joist-s-2) var(--joist-s-3);
+	background: var(--joist-bg-surface);
+	border: 1px solid var(--joist-border);
+	border-radius: var(--joist-r-pill);
+	font-family: var(--joist-font-body);
+	transition: border-color var(--joist-dur-base) var(--joist-ease);
+}
+
+.joist-mode__indicator {
+	position: relative;
+	width: 10px;
+	height: 10px;
+	flex-shrink: 0;
 }
 
 .joist-mode__dot {
-	display: inline-block;
-	width: 8px;
-	height: 8px;
-	border-radius: 50%;
-	background: currentColor;
+	position: absolute;
+	margin: auto;
+	width: 6px;
+	height: 6px;
+	border-radius: var(--joist-r-pill);
+	top: 2px;
+	left: 2px;
+	background: var(--joist-accent);
 }
 
-.joist-mode__label {
-	font-weight: 600;
-}
-
-.joist-mode__hint {
-	opacity: 0.7;
-	font-weight: 400;
-}
-
-.joist-mode--plan {
-	background: #eef6ff;
-	color: #1a4480;
-	border-color: #b8d4ee;
-}
-
-.joist-mode--plan .joist-mode__dot {
-	background: #1a73e8;
-}
-
-.joist-mode--execute {
-	background: #fff3e0;
-	color: #8a3a00;
-	border-color: #f0b878;
-}
-
-.joist-mode--execute .joist-mode__dot {
-	background: #d97e00;
-	animation: joist-mode-pulse 1.4s ease-in-out infinite;
-}
-
-.joist-mode--observer {
-	background: #e6f2ec;
-	color: #234d34;
-	border-color: #a8cdb8;
-}
-
-.joist-mode--observer .joist-mode__dot {
-	background: #1c7c43;
+.joist-mode__ring {
+	position: absolute;
+	inset: 0;
+	border-radius: var(--joist-r-pill);
+	background: var(--joist-accent);
+	opacity: 0.3;
+	transform: scale(1);
+	animation: joist-mode-pulse 2.4s ease-out infinite;
 }
 
 @keyframes joist-mode-pulse {
-	0%, 100% { opacity: 1; }
-	50%      { opacity: 0.4; }
+	0%   { transform: scale(0.6); opacity: 0.5; }
+	70%  { transform: scale(2.2); opacity: 0; }
+	100% { transform: scale(2.2); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.joist-mode__ring { animation: none; }
+}
+
+.joist-mode__text {
+	display: inline-flex;
+	align-items: baseline;
+	gap: var(--joist-s-3);
+	min-width: 0;
+}
+
+.joist-mode__label {
+	font-size: var(--joist-type-small);
+	font-weight: 600;
+	color: var(--joist-text-1);
+	white-space: nowrap;
+}
+
+.joist-mode__hint {
+	font-size: var(--joist-type-small);
+	color: var(--joist-text-2);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* Mode-specific accents — chartreuse for plan (read-only is the active mode
+   we want to advertise), warmer warn for execute, muted for observer. */
+.joist-mode--plan {
+	.joist-mode__dot, .joist-mode__ring { background: var(--joist-accent); }
+}
+.joist-mode--execute {
+	.joist-mode__dot, .joist-mode__ring { background: var(--joist-warn); }
+	border-color: rgba(255, 183, 77, 0.25);
+}
+.joist-mode--observer {
+	.joist-mode__dot, .joist-mode__ring { background: var(--joist-text-3); }
 }

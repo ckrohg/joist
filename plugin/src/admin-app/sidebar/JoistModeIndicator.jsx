@@ -1,29 +1,16 @@
 /**
- * @purpose Live "mode" badge — Read-only Plan Mode vs Execute Mode.
+ * @purpose Joist mode indicator — bespoke pill, not the WP-components default.
  *
- * Background — per WAVE_0 §5, Claude Code's plan-mode-leakage bug is the
- * cautionary tale: a sidebar/admin-bar indicator MUST tell the user which
- * mode they're in so writes can't slip out unobserved.
+ * Three modes:
+ *   plan      — read-only browsing. nothing writes until approval.
+ *   execute   — approved plans will write.
+ *   observer  — backend forces dry_run regardless of approval.
  *
- * Implementation choice (documented):
- *   The Wave 5b brief asks for `registerPlugin` + `<PluginSidebar>`. That
- *   SlotFill is provided by the block editor's edit-post UI — it is NOT
- *   available on a standalone admin page (which is what the Joist Plan
- *   Mode page is). We therefore render this component as a status pill at
- *   the top of the Plan Mode page itself (`App.jsx` mounts it inline).
- *
- *   The `registerPlugin` registration in `index.js` is still useful — it
- *   reserves a plugin name and (on WP 7.0+ block-editor pages where Joist
- *   may grow a SlotFill in v0.9) is a no-op-safe call.
- *
- * Mode source-of-truth: derived from `joistConfig.operatingMode`, with a
- * fallback to "plan" when not set. The acceptance suite already covers
- * "operating_mode: observer forces dry_run" — that detection feeds this
- * badge too.
+ * The pill is small, deliberate, sits at the top of every Plan Mode view.
+ * Countermeasure to Claude-Code-style plan-mode-leakage (per WAVE_0 §5).
  */
 
 import { __ } from '@wordpress/i18n';
-
 import './JoistModeIndicator.scss';
 
 function readConfig() {
@@ -31,38 +18,25 @@ function readConfig() {
 	return window.joistConfig || {};
 }
 
-/**
- * Compute mode + label + color from the localized config.
- *
- * Operating-mode values from the backend (Joist\Core\OperatingMode):
- *   observer | live
- * UI mode values:
- *   plan      → read-only, no writes will fire
- *   execute   → an approved plan is being run / mode is `live`
- *   observer  → backend forces dry_run regardless of plan approval
- *
- * @param {object} cfg joistConfig.
- * @return {{key: string, label: string, hint: string}}
- */
 export function modeFromConfig( cfg ) {
 	const operating = String( cfg.operatingMode || cfg.operating_mode || '' );
 	if ( operating === 'observer' ) {
 		return {
 			key: 'observer',
 			label: __( 'Observer mode', 'joist' ),
-			hint: __( 'All writes dry-run. Approve plans for visibility only.', 'joist' ),
+			hint: __( 'Writes dry-run. Approvals are visibility-only.', 'joist' ),
 		};
 	}
 	if ( operating === 'live' ) {
 		return {
 			key: 'execute',
 			label: __( 'Execute mode', 'joist' ),
-			hint: __( 'Approved plans will write to the live site.', 'joist' ),
+			hint: __( 'Approved plans write to the live site.', 'joist' ),
 		};
 	}
 	return {
 		key: 'plan',
-		label: __( 'Plan mode (read-only)', 'joist' ),
+		label: __( 'Plan mode', 'joist' ),
 		hint: __( 'Browsing plans. Nothing writes until you approve.', 'joist' ),
 	};
 }
@@ -75,12 +49,16 @@ export default function JoistModeIndicator( { mode: forced } ) {
 		<div
 			className={ `joist-mode joist-mode--${ mode.key }` }
 			role="status"
-			aria-label={ `${ mode.label } — ${ mode.hint }` }
-			title={ mode.hint }
+			aria-label={ `${ mode.label }. ${ mode.hint }` }
 		>
-			<span className="joist-mode__dot" aria-hidden="true" />
-			<span className="joist-mode__label">{ mode.label }</span>
-			<span className="joist-mode__hint">{ mode.hint }</span>
+			<span className="joist-mode__indicator" aria-hidden="true">
+				<span className="joist-mode__dot" />
+				<span className="joist-mode__ring" />
+			</span>
+			<span className="joist-mode__text">
+				<span className="joist-mode__label">{ mode.label }</span>
+				<span className="joist-mode__hint">{ mode.hint }</span>
+			</span>
 		</div>
 	);
 }

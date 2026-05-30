@@ -297,6 +297,14 @@ export default function PlansList( {
 
 	return (
 		<div className="joist-plans">
+			<div className="joist-plans__pagetitle">
+				<h1>
+					Plan <em>queue</em>
+				</h1>
+				<span className="j-eyebrow">
+					{ data.length } { data.length === 1 ? 'plan' : 'plans' }
+				</span>
+			</div>
 			{ bulkError && (
 				<Notice
 					status="warning"
@@ -347,16 +355,25 @@ export default function PlansList( {
 function EmptyState( { onReload } ) {
 	return (
 		<div className="joist-plans__empty">
-			<p>{ __( 'No plans yet.', 'joist' ) }</p>
+			<div className="joist-plans__empty-glyph" aria-hidden="true">
+				<svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+					<rect x="6" y="14" width="44" height="3" rx="1.5" fill="currentColor" opacity="0.35" />
+					<rect x="6" y="26.5" width="32" height="3" rx="1.5" fill="currentColor" opacity="0.22" />
+					<rect x="6" y="39" width="20" height="3" rx="1.5" fill="currentColor" opacity="0.14" />
+				</svg>
+			</div>
+			<h2 className="joist-plans__empty-title j-display">
+				No plans <em className="j-display--italic">yet</em>.
+			</h2>
 			<p className="joist-plans__empty-hint">
 				{ __(
-					'Plans are created by Joist agents via the REST API. When an agent submits a plan you can approve here, it will appear in this list.',
+					'Plans appear here when an agent submits work. Approve each one before anything writes — no silent execution.',
 					'joist'
 				) }
 			</p>
 			{ onReload && (
-				<Button variant="secondary" onClick={ onReload }>
-					{ __( 'Reload', 'joist' ) }
+				<Button variant="tertiary" onClick={ onReload } className="joist-plans__empty-reload">
+					{ __( '↻ Refresh', 'joist' ) }
 				</Button>
 			) }
 		</div>
