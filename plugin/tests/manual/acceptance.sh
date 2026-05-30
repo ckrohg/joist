@@ -93,6 +93,10 @@ info()    { printf '    %b%s%b\n' "$c_dim" "$1" "$c_off"; }
 api() {
   local method="$1" path="$2" body="${3:-}" sess="${4:-$SESSION_ID}"
   local -a args=( -sS -u "$JOIST_USER:$JOIST_APP_PWD" -X "$method" -H 'Accept: application/json' )
+  # Wave 7: bypass production rate limits during tests. The plugin gates the
+  # bypass on (header present) AND (current_user_can('manage_options')) — a
+  # non-admin caller sending this header has no effect.
+  args+=( -H 'X-Joist-Test-Mode: 1' )
   if [ -n "$sess" ] && [ "$sess" != "NO_SESSION" ]; then args+=( -H "X-Joist-Session-Id: $sess" ); fi
   if [ -n "$body" ]; then args+=( -H 'Content-Type: application/json' --data-binary "$body" ); fi
   HTTP_CODE="$(curl "${args[@]}" -o "$RESP_FILE" -w '%{http_code}' "$BASE$path" 2>/dev/null || echo 000)"

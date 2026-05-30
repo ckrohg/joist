@@ -81,7 +81,19 @@ abstract class ControllerBase
                 }
                 $sessionId = 'anon-' . substr(md5((string) ($request->get_header('X-WP-Nonce') ?: $request->get_route())), 0, 16);
             }
-            Container::get('rateLimiter')->consume($sessionId, $bucketClass);
+            // Wave 7: admin-gated test-mode bypass for the rate limiter. The
+            // acceptance suite fires hundreds of writes in tight loops;
+            // production limits (30 writes/min, burst 10) trip immediately.
+            // Bypass requires BOTH the X-Joist-Test-Mode header AND
+            // manage_options capability — anonymous / editor / agent callers
+            // can never skip the throttle.
+            $testModeHeader = trim((string) $request->get_header('X-Joist-Test-Mode'));
+            $isTestMode = ($testModeHeader === '1' || strtolower($testModeHeader) === 'true')
+                && function_exists('current_user_can')
+                && current_user_can('manage_options');
+            if (!$isTestMode) {
+                Container::get('rateLimiter')->consume($sessionId, $bucketClass);
+            }
 
             $result = $handler($request, $sessionId);
             if ($result instanceof WP_REST_Response) {
