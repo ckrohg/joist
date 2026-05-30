@@ -20,6 +20,7 @@ import { __ } from '@wordpress/i18n';
 import { listPlans, JoistApiError } from './api/plans.js';
 import PlansList from './components/PlansList.jsx';
 import PlanDetail from './components/PlanDetail.jsx';
+import GenerateBox from './components/GenerateBox.jsx';
 import JoistMark from './components/JoistMark.jsx';
 import JoistModeIndicator from './sidebar/JoistModeIndicator.jsx';
 import './design-system.scss';
@@ -56,6 +57,14 @@ export default function App() {
 		setSelectedPlanId( plan?.plan_id || plan?.id || null );
 	}, [] );
 
+	const handlePlanCreated = useCallback(
+		( plan ) => {
+			fetchPlans();
+			if ( plan?.plan_id ) setSelectedPlanId( plan.plan_id );
+		},
+		[ fetchPlans ]
+	);
+
 	const closePlan = useCallback( () => {
 		setSelectedPlanId( null );
 		fetchPlans();
@@ -88,11 +97,14 @@ export default function App() {
 				) }
 
 				{ status === 'ready' && ! selectedPlanId && (
-					<PlansList
-						plans={ plans }
-						onOpenPlan={ openPlan }
-						onReload={ fetchPlans }
-					/>
+					<div className="joist-stack">
+						<GenerateBox onPlanCreated={ handlePlanCreated } />
+						<PlansList
+							plans={ plans }
+							onOpenPlan={ openPlan }
+							onReload={ fetchPlans }
+						/>
+					</div>
 				) }
 
 				{ status === 'ready' && selectedPlanId && (
@@ -105,16 +117,24 @@ export default function App() {
 			</main>
 
 			<footer className="joist-app__footer">
-				<span className="j-eyebrow">
-					Joist · WP{ ' ' }
-					<span className="j-mono">
-						{ ( window.joistConfig || {} ).wpVersion || '7.0' }
-					</span>
-					{ ' · ' }
-					<span className="j-mono">
-						{ ( window.joistConfig || {} ).joistVersion || '0.5.0-alpha' }
-					</span>
-				</span>
+				{ ( () => {
+					const cfg = window.joistConfig || {};
+					return (
+						<span className="j-eyebrow">
+							Joist <span className="j-mono">{ cfg.joistVersion || '0.5.0-alpha' }</span>
+							{ ' · build ' }
+							<span className="j-mono">{ cfg.buildSha || 'dev' }</span>
+							{ ' · WP ' }
+							<span className="j-mono">{ cfg.wpVersion || '?' }</span>
+							{ cfg.elementorVersion && (
+								<>
+									{ ' · Elementor ' }
+									<span className="j-mono">{ cfg.elementorVersion }</span>
+								</>
+							) }
+						</span>
+					);
+				} )() }
 			</footer>
 		</div>
 	);

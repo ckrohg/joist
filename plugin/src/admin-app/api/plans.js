@@ -201,6 +201,41 @@ export function executePlan( id, body ) {
 }
 
 /**
+ * DELETE /plans/{id} — admin-only. Permanently removes the row. Used by the
+ * Plan Mode UI to clean up test plans and cancelled drafts.
+ *
+ * @param {string} id Plan id.
+ * @return {Promise<object>}
+ */
+export function deletePlan( id ) {
+	return call( {
+		path: `/${ NAMESPACE }/plans/${ encodeURIComponent( id ) }`,
+		method: 'DELETE',
+	} );
+}
+
+/**
+ * POST /plans/generate — translate a natural-language intent into a Plan.
+ *
+ * Body: { intent: string, page_id?: number }
+ * Returns: the freshly-created Plan row + step_count.
+ *
+ * When no Anthropic API key is configured on the server, the generator falls
+ * back to a deterministic template so the loop can be demoed without paid
+ * API calls.
+ *
+ * @param {object} body { intent, page_id? }
+ * @return {Promise<object>}
+ */
+export function generatePlan( body ) {
+	return call( {
+		path: `/${ NAMESPACE }/plans/generate`,
+		method: 'POST',
+		data: body || {},
+	} );
+}
+
+/**
  * POST /plans/{id}/steps/{index} — patch a single step's structured fields.
  *
  * This endpoint does NOT yet exist on the backend (W5b open question).

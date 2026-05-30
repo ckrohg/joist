@@ -9,15 +9,46 @@
 
 /* ── App-level layout ────────────────────────────────────────────────── */
 
+/* Takeover wrapper rendered by AdminPage::renderPlanModePage — strips the
+   default WP .wrap and any preceding chrome inside #wpcontent. */
+#wpcontent:has(.joist-takeover) {
+	padding-left: 0 !important;
+}
+
+#wpbody-content:has(.joist-takeover) {
+	padding-bottom: 0 !important;
+}
+
+#wpbody-content:has(.joist-takeover) > div.update-nag,
+#wpbody-content:has(.joist-takeover) > .notice {
+	display: none; /* WP nag bars off our canvas */
+}
+
+/* Make sure no stray sibling at the top of #wpbody-content survives. */
+.joist-takeover {
+	margin: 0;
+}
+
 .joist-app {
 	background: var(--joist-bg-base);
 	color: var(--joist-text-1);
 	min-height: calc(100vh - 32px); /* 32 = WP admin bar */
-	margin: -10px -20px -10px -20px; /* break out of WP-admin's wp-admin padding */
+	margin: 0;
 	padding: var(--joist-s-7) clamp(var(--joist-s-5), 4vw, var(--joist-s-8));
 	display: flex;
 	flex-direction: column;
 	gap: var(--joist-s-7);
+	font-family: var(--joist-font-body);
+
+	/* Make sure every descendant inherits the cream text color cleanly —
+	   without this, WP admin's body color leaks into <p>, <li>, etc. */
+	p, h1, h2, h3, h4, h5, h6, label, span, li, td, th, dt, dd, em, strong, a {
+		color: inherit;
+	}
+
+	a {
+		color: var(--joist-accent);
+	}
 }
 
 .joist-app__header {
@@ -44,6 +75,12 @@
 
 .joist-app__main {
 	flex: 1;
+	display: flex;
+	flex-direction: column;
+	gap: var(--joist-s-6);
+}
+
+.joist-stack {
 	display: flex;
 	flex-direction: column;
 	gap: var(--joist-s-6);

@@ -12,3 +12,6 @@ hint: Disable this message with "git config set advice.addIgnoredFile false"
 [17:12:14] Push failed after 2 attempts - will retry next cycle
 [17:12:14] Committed: auto: auto-save (.tenet/config.json)
 [17:12:14] Shutdown complete.
+[13:04:26] Parent process died (PPID 1) - running cleanup...
+[13:04:26] Received shutdown signal - saving final changes...
+[13:04:26] Shutdown complete.

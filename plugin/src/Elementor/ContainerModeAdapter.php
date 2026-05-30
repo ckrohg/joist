@@ -100,7 +100,18 @@ final class ContainerModeAdapter
     {
         if ($force) return;
 
-        $siteMode = $this->current()['mode'];
+        $current = $this->current();
+        $siteMode = $current['mode'];
+        $sampleSize = (int) ($current['sample_size'] ?? 0);
+
+        // Wave 11 fix (2026-05-30): if we have zero sample evidence for the
+        // mode inference, don't refuse on a heuristic. The autodetect
+        // defaults to containers_only with confidence 0.5 / sample_size 0
+        // when the site has no Elementor pages yet — refusing in that state
+        // makes the very first generated plan impossible to apply.
+        if ($sampleSize === 0) {
+            return;
+        }
 
         // Inspect the proposed root elements.
         $rootTypes = [];

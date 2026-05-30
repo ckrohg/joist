@@ -84,6 +84,23 @@ final class PlanStore
         return $this->get($planId);
     }
 
+    /**
+     * Permanently delete a plan row. Admin-only; for UI-side cleanup of test
+     * plans and cancelled drafts. The audit log entries that referenced this
+     * plan are untouched (audit is the immutable record).
+     */
+    public function delete(string $planId): void
+    {
+        global $wpdb;
+        $deleted = $wpdb->delete($wpdb->prefix . 'joist_plans', ['id' => $planId]);
+        if ($deleted === false) {
+            throw new WriteException('plan.delete_failed', "Failed to delete plan {$planId}.", 500);
+        }
+        if ($deleted === 0) {
+            throw new WriteException('not_found.plan', "Plan {$planId} not found.", 404);
+        }
+    }
+
     public function reject(string $planId, string $approvalToken, ?string $note = null): void
     {
         $plan = $this->get($planId);

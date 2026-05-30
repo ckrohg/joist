@@ -40,6 +40,7 @@ import {
 	approvePlan,
 	rejectPlan,
 	executePlan,
+	deletePlan,
 	JoistApiError,
 } from '../api/plans.js';
 import './PlansList.scss';
@@ -254,6 +255,24 @@ export default function PlansList( {
 							note: reason,
 						} )
 					);
+				},
+			},
+			{
+				id: 'delete',
+				label: __( 'Delete', 'joist' ),
+				supportsBulk: true,
+				icon: 'trash',
+				isDestructive: true,
+				callback: async ( items ) => {
+					const count = items.length;
+					const ok = window.confirm(
+						count === 1
+							? __( 'Permanently delete this plan? This cannot be undone.', 'joist' )
+							: `Permanently delete ${ count } plans? This cannot be undone.`
+					);
+					if ( ! ok ) return;
+					await runBulk( items, ( i ) => deletePlan( i.id ) );
+					if ( onReload ) await onReload();
 				},
 			},
 		],

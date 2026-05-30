@@ -23,7 +23,8 @@ final class PlansController extends ControllerBase
             ['methods' => WP_REST_Server::READABLE, 'callback' => [$this, 'list'], 'permission_callback' => [$this, 'permissionsCheck']],
         ]);
         register_rest_route(self::NAMESPACE, '/plans/(?P<id>[A-Za-z0-9_-]+)', [
-            'methods' => WP_REST_Server::READABLE, 'callback' => [$this, 'get'], 'permission_callback' => [$this, 'permissionsCheck'],
+            ['methods' => WP_REST_Server::READABLE, 'callback' => [$this, 'get'], 'permission_callback' => [$this, 'permissionsCheck']],
+            ['methods' => 'DELETE', 'callback' => [$this, 'delete'], 'permission_callback' => [$this, 'permissionsAdmin']],
         ]);
         register_rest_route(self::NAMESPACE, '/plans/(?P<id>[A-Za-z0-9_-]+)/approve', [
             'methods' => WP_REST_Server::CREATABLE, 'callback' => [$this, 'approve'], 'permission_callback' => [$this, 'permissionsAdmin'],
@@ -34,6 +35,42 @@ final class PlansController extends ControllerBase
         register_rest_route(self::NAMESPACE, '/plans/(?P<id>[A-Za-z0-9_-]+)/execute', [
             'methods' => WP_REST_Server::CREATABLE, 'callback' => [$this, 'execute'], 'permission_callback' => [$this, 'permissionsCheck'],
         ]);
+        register_rest_route(self::NAMESPACE, '/plans/generate', [
+            'methods' => WP_REST_Server::CREATABLE, 'callback' => [$this, 'generate'], 'permission_callback' => [$this, 'permissionsCheck'],
+        ]);
+    }
+
+    /**
+     * POST /plans/generate — translate a natural-language intent into a Plan.
+     *
+     * Body: { intent: string, page_id?: int }
+     * Returns: the freshly-created Plan row (same shape as POST /plans).
+     *
+     * Falls back to a deterministic template plan when no Anthropic API key
+     * is configured so the loop can be demoed without a paid call.
+     */
+    public function generate(WP_REST_Request $req)
+    {
+        return $this->handle($req, 'reads', function (WP_REST_Request $req, string $sessionId) {
+            $body = $req->get_json_params();
+            $intent = trim((string) ($body['intent'] ?? ''));
+            $pageId = isset($body['page_id']) ? (int) $body['page_id'] : null;
+            if ($intent === '') {
+                throw new WriteException('validation.intent_required', 'intent is required.', 422);
+            }
+            $generator = new \Joist\Plan\PlanGenerator();
+            $steps = $generator->generate($intent, $pageId);
+            $plan = Container::get('planStore')->create($sessionId, $pageId, $intent, $steps);
+            Container::get('webhooks')->emit('plan.created', [
+                'plan_id' => $plan['plan_id'],
+                'page_id' => $pageId,
+                'intent' => $intent,
+                'step_count' => count($steps),
+                'generated' => true,
+                'source' => 'plan_generator',
+            ]);
+            return $this->ok(array_merge($plan, ['step_count' => count($steps)]), 201);
+        });
     }
 
     public function create(WP_REST_Request $req)
@@ -54,6 +91,21 @@ final class PlansController extends ControllerBase
                 'approval_url' => $plan['approval_url'],
             ]);
             return $this->ok($plan, 201);
+        });
+    }
+
+    /**
+     * DELETE /plans/{id} — admin-only permanent delete. Used by the Plan Mode
+     * UI to clean up test plans and cancelled drafts. Returns 204-shape ok
+     * envelope after the row is gone.
+     */
+    public function delete(WP_REST_Request $req)
+    {
+        return $this->handle($req, 'reads', function (WP_REST_Request $req) {
+            $planId = (string) $req['id'];
+            Container::get('planStore')->delete($planId);
+            Container::get('webhooks')->emit('plan.deleted', ['plan_id' => $planId]);
+            return $this->ok(['deleted' => true, 'plan_id' => $planId]);
         });
     }
 

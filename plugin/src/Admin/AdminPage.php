@@ -87,10 +87,10 @@ final class AdminPage
         if (!current_user_can(self::PAGE_CAPABILITY)) {
             wp_die(esc_html__('You do not have permission to access this page.', 'joist'));
         }
-        echo '<div class="wrap joist-admin">';
-        echo '<h1 class="wp-heading-inline">' . esc_html__('Joist Plan Mode', 'joist') . '</h1>';
-        echo '<div id="joist-plan-mode-root"></div>';
-        echo '</div>';
+        // We render NO WP-standard chrome — no <h1>, no wp-heading-inline,
+        // no .wrap. The React app is the page. It owns the full available
+        // content area (#wpcontent inset by the left admin menu).
+        echo '<div id="joist-plan-mode-root" class="joist-takeover"></div>';
     }
 
     /**

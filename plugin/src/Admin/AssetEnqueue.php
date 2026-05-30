@@ -108,6 +108,18 @@ final class AssetEnqueue
     private static function buildConfig(): array
     {
         $user = wp_get_current_user();
+        // Read the build asset's version hash — wp-scripts emits this hash on
+        // every build, so it's our deterministic "build SHA" for the React
+        // bundle. Surfaces as version pill in the admin UI so progress is
+        // visible (the SHA changes on every commit-then-build).
+        $buildSha = 'dev';
+        $assetPhp = JOIST_DIR . 'build/index.asset.php';
+        if (file_exists($assetPhp)) {
+            $asset = include $assetPhp;
+            if (is_array($asset) && isset($asset['version'])) {
+                $buildSha = substr((string) $asset['version'], 0, 8);
+            }
+        }
         return [
             'apiUrl' => esc_url_raw(rest_url('joist/v1/')),
             'restRoot' => esc_url_raw(rest_url()),
@@ -117,6 +129,9 @@ final class AssetEnqueue
                 'name' => (string) $user->display_name,
             ],
             'joistVersion' => defined('JOIST_VERSION') ? JOIST_VERSION : 'unknown',
+            'buildSha' => $buildSha,
+            'wpVersion' => get_bloginfo('version'),
+            'elementorVersion' => defined('ELEMENTOR_VERSION') ? ELEMENTOR_VERSION : null,
             'planModeUrl' => AdminPage::planModeUrl(),
         ];
     }
