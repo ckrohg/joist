@@ -15,7 +15,7 @@ namespace Joist\DB;
  */
 final class MigrationRunner
 {
-    public const DB_VERSION = 11;
+    public const DB_VERSION = 13;
 
     public static function run(): void
     {
@@ -36,6 +36,8 @@ final class MigrationRunner
             9 => [self::class, 'migration009CreatePreferences'],
             10 => [self::class, 'migration010CreateEvalEvents'],
             11 => [self::class, 'migration011CreateEvalRollups'],
+            12 => [self::class, 'migration012AddRuleV09Fields'],
+            13 => [self::class, 'migration013CreateExemplarPack'],
         ];
 
         foreach ($steps as $version => $callable) {
@@ -310,11 +312,104 @@ final class MigrationRunner
         ) {$charset};");
     }
 
+    /**
+     * Wave 10a (v0.9) — Rule rationale-bearing fields.
+     *
+     * Adds rationale / superseded_by-extended / last_reinforced_at to the
+     * preferences table (the existing 009 schema already carries
+     * superseded_by; we add the two new columns and a helper index on
+     * last_reinforced_at for the confidence-decay job's site-scoped sweep).
+     *
+     * Existing rows get NULL for all three — acceptable for v0.85 → v0.9
+     * upgrade per WAVE_9_2026-05-29.md §5.
+     *
+     * Idempotency: dbDelta() handles CREATE/ADD COLUMN diffing, but the
+     * helper index needs an ADD-INDEX guard since dbDelta won't add a
+     * KEY clause to an already-existing table.
+     */
+    public static function migration012AddRuleV09Fields(): void
+    {
+        global $wpdb;
+        $charset = $wpdb->get_charset_collate();
+        $table = self::tableName('preferences');
+
+        // dbDelta-compatible re-declaration: same shape as 009 + the new columns.
+        self::exec("CREATE TABLE {$table} (
+            id VARCHAR(64) NOT NULL,
+            site_id VARCHAR(64) NOT NULL,
+            kind VARCHAR(32) NOT NULL,
+            scope VARCHAR(100) NOT NULL DEFAULT 'global',
+            pattern TEXT NOT NULL,
+            directive TEXT NOT NULL,
+            provenance LONGTEXT NULL,
+            confidence DECIMAL(3,2) NOT NULL DEFAULT 1.00,
+            status VARCHAR(20) NOT NULL DEFAULT 'active',
+            created_at DATETIME NOT NULL,
+            last_invoked_at DATETIME NULL,
+            superseded_by VARCHAR(64) NULL,
+            rationale TEXT NULL,
+            last_reinforced_at DATETIME NULL DEFAULT NULL,
+            PRIMARY KEY  (id),
+            KEY idx_site_status (site_id, status),
+            KEY idx_site_kind (site_id, kind),
+            KEY idx_site_reinforced (site_id, last_reinforced_at)
+        ) {$charset};");
+
+        // dbDelta will not add a new KEY to an existing table that already has
+        // the other indexes — add the helper index defensively. Safe to swallow
+        // a duplicate-key error (1061) since the CREATE above is idempotent for
+        // fresh installs.
+        $indexExists = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(1) FROM information_schema.statistics
+             WHERE table_schema = DATABASE()
+               AND table_name = %s
+               AND index_name = %s",
+            $table,
+            'idx_site_reinforced'
+        ));
+        if ((int) $indexExists === 0) {
+            // Suppress errors — dbDelta may have already added it on a fresh install.
+            $wpdb->hide_errors();
+            $wpdb->query("ALTER TABLE {$table} ADD INDEX idx_site_reinforced (site_id, last_reinforced_at)");
+            $wpdb->show_errors();
+        }
+    }
+
+    /**
+     * Wave 10c (v0.9) — Exemplar pack (taste substrate layer 3).
+     *
+     * 5-20 approved design references per site stored as cached message-
+     * history examples. Refreshed on Plan approval; pruned daily via the
+     * joist_exemplar_pack_purge cron unless marked pinned. See
+     * plugin/src/ExemplarPack/ExemplarPackManager.php and
+     * specs/WAVE_9_2026-05-29.md §1.3 + §3.3 for the substrate design.
+     */
+    public static function migration013CreateExemplarPack(): void
+    {
+        global $wpdb;
+        $charset = $wpdb->get_charset_collate();
+        $table = self::tableName('exemplars');
+        self::exec("CREATE TABLE {$table} (
+            exemplar_id VARCHAR(64) NOT NULL,
+            site_id VARCHAR(64) NOT NULL,
+            plan_id BIGINT NULL,
+            kind VARCHAR(16) NOT NULL,
+            rendered_summary TEXT NULL,
+            rendered_html LONGTEXT NULL,
+            brand_tokens_signature VARCHAR(128) NULL,
+            pinned TINYINT(1) NOT NULL DEFAULT 0,
+            captured_at DATETIME NOT NULL,
+            PRIMARY KEY  (exemplar_id),
+            KEY idx_site_kind_captured (site_id, kind, captured_at),
+            KEY idx_pinned_captured (pinned, captured_at)
+        ) {$charset};");
+    }
+
     /** Drop all custom tables. Called ONLY from uninstall.php when user opts in. */
     public static function dropAll(): void
     {
         global $wpdb;
-        $suffixes = ['revisions', 'audit', 'plans', 'sessions', 'locks', 'rate_limits', 'backlog', 'webhooks', 'preferences', 'eval_events', 'eval_rollups'];
+        $suffixes = ['revisions', 'audit', 'plans', 'sessions', 'locks', 'rate_limits', 'backlog', 'webhooks', 'preferences', 'eval_events', 'eval_rollups', 'exemplars'];
         foreach ($suffixes as $s) {
             $wpdb->query("DROP TABLE IF EXISTS {$wpdb->prefix}joist_{$s}");
         }

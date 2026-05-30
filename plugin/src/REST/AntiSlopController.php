@@ -120,7 +120,7 @@ final class AntiSlopController extends ControllerBase
 
     public function recordFeedback(WP_REST_Request $req)
     {
-        return $this->handle($req, 'writes', function (WP_REST_Request $req) {
+        return $this->handle($req, 'writes', function (WP_REST_Request $req, string $sessionId) {
             $body = $this->jsonBody($req);
             $this->rejectUnknownFields($body, self::ALLOWED_FEEDBACK_FIELDS, 'feedback');
 
@@ -154,11 +154,14 @@ final class AntiSlopController extends ControllerBase
             }
 
             $feedback = new SlopFeedback(Container::get('preferenceMemory'));
+            // v0.9 Wave 10a: thread the session id through so the
+            // cross-session/day promotion gate can run.
             $result = $feedback->record(
                 (string) $body['site_id'],
                 (string) $body['text'],
                 (array) $body['violation_match'],
-                $threshold
+                $threshold,
+                $sessionId !== '' ? $sessionId : null
             );
             // #2 read-after-write: return the post-record state.
             $state = $feedback->getState(

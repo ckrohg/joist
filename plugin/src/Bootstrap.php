@@ -83,6 +83,28 @@ final class Bootstrap
             }
         }
 
+        // Wave 9 (W10a) — daily confidence decay on preference_memory rules.
+        // Rules whose last_reinforced_at is > 90 days old decay linearly;
+        // confidence <= 0 marks the rule as archived. Stops 2025-era brand
+        // preferences from hardening into law indefinitely.
+        if (class_exists(\Joist\Eval\ConfidenceDecayJob::class)) {
+            add_action(
+                \Joist\Eval\ConfidenceDecayJob::HOOK,
+                [\Joist\Eval\ConfidenceDecayJob::class, 'cronEntry']
+            );
+            if (!wp_next_scheduled(\Joist\Eval\ConfidenceDecayJob::HOOK)) {
+                wp_schedule_event(time() + 86400, 'daily', \Joist\Eval\ConfidenceDecayJob::HOOK);
+            }
+        }
+
+        // Wave 9 (W10c) — exemplar pack auto-capture hooks + daily purge.
+        // Wires joist_plan_executed + joist_plan_rejected listeners; the
+        // do_action callsites are upcoming (W11/W12). PackBootstrap::init()
+        // also schedules the daily purge of stale exemplars > 180 days.
+        if (class_exists(\Joist\ExemplarPack\PackBootstrap::class)) {
+            \Joist\ExemplarPack\PackBootstrap::init();
+        }
+
         // Recovery: any plan stuck in 'executing' > 5 min is marked failed.
         add_action('init', [self::class, 'recoverStaleExecutingPlans']);
 
@@ -115,6 +137,13 @@ final class Bootstrap
         // Don't delete data; just unschedule events.
         wp_clear_scheduled_hook('joist_daily_maintenance');
         wp_clear_scheduled_hook('joist_eval_rollup');
+        // Wave 9 cron cleanup.
+        if (class_exists(\Joist\Eval\ConfidenceDecayJob::class)) {
+            wp_clear_scheduled_hook(\Joist\Eval\ConfidenceDecayJob::HOOK);
+        }
+        if (class_exists(\Joist\ExemplarPack\PackBootstrap::class)) {
+            wp_clear_scheduled_hook(\Joist\ExemplarPack\PackBootstrap::PURGE_HOOK);
+        }
     }
 
     public static function registerRoutes(): void
@@ -144,6 +173,13 @@ final class Bootstrap
             \Joist\REST\GenerateController::class,
             // Wave 6c — Anthropic Messages API + cached brand block + batch queue.
             \Joist\REST\CopyGenController::class,
+            // Wave 9 (v0.9) — three-tier taste substrate + generator/evaluator harness.
+            // W10b: agency constitution + per-site override GET/PUT/DELETE.
+            \Joist\REST\ConstitutionController::class,
+            // W10c: exemplar pack (5-20 approved designs as cached messages + negative anchors).
+            \Joist\REST\ExemplarPackController::class,
+            // W11: /critique endpoint + cost-meter + rubric introspection.
+            \Joist\REST\CritiqueController::class,
         ];
         foreach ($controllers as $c) {
             if (class_exists($c)) {

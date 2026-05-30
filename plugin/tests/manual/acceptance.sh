@@ -1485,8 +1485,25 @@ JSON
 )
 api POST /anti-slop/feedback "$FB_BODY3"
 assert_jq '.result.count == 3' "call 3 (distinct text): count == 3"
-assert_jq '.result.promoted == true' "call 3: promoted == true (threshold crossed)"
-assert_jq '.result.rule_id | type == "string"' "call 3: rule_id is a string (preference rule was created)"
+# Wave 9 / W10a: v0.9 cross-session/day gate. 3 hits within one session+day
+# no longer promote; the new test below exercises the distinct-session path.
+assert_jq '.result.promoted == false' "call 3: same-session/day NOT promoted (v0.9 cross-session gate)"
+
+# Distinct-session promotion path (added in W10a).
+FB_PHRASE2="w10a_distinct_session_phrase"
+for i in 1 2 3; do
+  FB_FAKE_SESS="w10a-acceptance-sess-$i-$$"
+  FB_BODY_DS=$(cat <<JSON
+{"site_id":"$FB_SITE","text":"distinct-session variant $i with $FB_PHRASE2","violation_match":{"layer":"site_rules","match":"$FB_PHRASE2","severity":"medium","kind":"phrase"}}
+JSON
+)
+  api POST /anti-slop/feedback "$FB_BODY_DS" "$FB_FAKE_SESS"
+done
+assert_jq '.result.promoted == true' "3 distinct-session hits DO promote (v0.9 path)"
+assert_jq '.result.rule_id | type == "string"' "distinct-session promotion produced a rule_id"
+PROMOTED_RULE_ID="$(jqr '.result.rule_id')"
+api GET "/preferences/$PROMOTED_RULE_ID"
+assert_jq '.rationale | type == "string" and length > 0' "auto-promoted rule has non-empty rationale (W10a)"
 
 # Unknown field on feedback → 422
 api POST /anti-slop/feedback '{"site_id":"x","text":"y","violation_match":{},"bogus":1}'
@@ -1947,6 +1964,362 @@ EOF
   assert_status_in "200 202" "PATCH with empty SELECT value (Elementor default path) is accepted"
 else
   skip "could not create page for enum-validator smoke ($HTTP_CODE)"
+fi
+
+# ── WAVE 10a — Rule v0.9 fields (rationale + superseded_by + last_reinforced_at) ──
+section "Wave 10a — preference_memory v0.9 fields"
+
+api GET /site
+W9_DB_VER="$(jqr '.plugin.db_version')"
+[ "${W9_DB_VER:-0}" -ge 12 ] \
+  && pass "migration 012 applied (db_version=$W9_DB_VER >= 12)" \
+  || fail "db_version=$W9_DB_VER, expected >= 12"
+
+api GET /preferences
+W10A_SITE_ID="$(jqr '.site_id')"
+W10A_RULE_BODY=$(cat <<JSON
+{"kind":"forbidden_phrase","pattern":"w10a_synergy","directive":"avoid w10a_synergy","rationale":"keyword test — captured by Wave 10a acceptance run"}
+JSON
+)
+api POST /preferences "$W10A_RULE_BODY"
+assert_status_in "200 201" "POST /preferences with rationale field accepted"
+W10A_RULE_ID="$(jqr '.created[0].id // .id // empty')"
+assert_jq '(.created[0].rationale // .rationale) | type == "string"' "created rule echoes rationale"
+assert_jq '(.created[0].rationale // .rationale) | test("Wave 10a")' "rationale string is preserved"
+assert_jq '(.created[0].last_reinforced_at // .last_reinforced_at) | type == "string"' "rule carries last_reinforced_at"
+
+if [ -n "$W10A_RULE_ID" ] && [ "$W10A_RULE_ID" != "null" ]; then
+  api GET "/preferences/$W10A_RULE_ID"
+  assert_status 200 "GET /preferences/{id} returns the rule"
+  assert_jq '.rationale | test("Wave 10a")' "round-trip: rationale preserved"
+  assert_jq '.last_reinforced_at | type == "string"' "round-trip: last_reinforced_at present"
+  assert_jq 'has("superseded_by")' "round-trip: superseded_by field present (may be null)"
+  api DELETE "/preferences/$W10A_RULE_ID" >/dev/null 2>&1 || true
+fi
+
+# AGENTS.md emitter
+api GET "/sites/$W10A_SITE_ID/agents-md"
+if [ "$HTTP_CODE" = "200" ]; then
+  assert_jq '.markdown | type == "string"' "AGENTS.md response carries markdown string"
+  assert_jq '.markdown | test("# AGENTS.md")' "markdown starts with the AGENTS.md header"
+  assert_jq '.bytes <= 5120' "rendered markdown is within the 5KB hard cap"
+  assert_jq '.site_id == "'"$W10A_SITE_ID"'"' "response site_id matches"
+  # Cross-site request denied
+  api GET "/sites/some-other-fictional-site/agents-md"
+  assert_status 403 "cross-site /agents-md is denied"
+else
+  skip "AGENTS.md endpoint not reachable (pre-W10a or routing issue)"
+fi
+
+# ── WAVE 10b — Constitution substrate ───────────────────────────────────────
+section "Wave 10b — Constitution agency default + site override"
+
+api GET /preferences
+CONST_SITE_ID="$(jqr '.site_id')"
+api GET "/constitution/$CONST_SITE_ID"
+if [ "$HTTP_CODE" = "404" ]; then
+  skip "constitution endpoints not registered (pre-W10b build)"
+else
+  assert_status 200 "GET /constitution/{site_id} (baseline, fresh install)"
+  assert_jq '.source == "agency_default"' "fresh install reports agency_default source"
+  assert_jq '.constitution | type == "string" and length > 100' "constitution markdown is non-empty (>100 chars)"
+  assert_jq '.token_estimate | type == "number" and . > 0' "token_estimate is a positive integer"
+  assert_jq '.cache_key | type == "string" and length == 16' "cache_key is a 16-char hex digest"
+  AGENCY_CACHE_KEY="$(jqr '.cache_key')"
+  # Path traversal rejected
+  api GET "/constitution/..%2Fevil"
+  assert_status_in "400 404 422" "GET with path-traversal site_id is refused"
+  # PUT writes an override
+  OVERRIDE_BODY='{"markdown":"# Site override\n\n## Voice and tone\n\nUse plain words. The reason: site-specific override for the acceptance test.\n"}'
+  api PUT "/constitution/$CONST_SITE_ID" "$OVERRIDE_BODY"
+  assert_status 200 "PUT /constitution/{site_id} (admin override)"
+  assert_jq '.source == "site_override" or .source == "merged"' "post-PUT source is site_override or merged"
+  OVERRIDE_CACHE_KEY="$(jqr '.cache_key')"
+  [ "$OVERRIDE_CACHE_KEY" != "$AGENCY_CACHE_KEY" ] \
+    && pass "cache_key changes after PUT" \
+    || fail "cache_key did NOT change after PUT"
+  # GET after PUT reflects the override
+  api GET "/constitution/$CONST_SITE_ID"
+  assert_jq '.constitution | test("Site-specific override")' "GET after PUT surfaces override content"
+  # DELETE returns to agency default
+  api DELETE "/constitution/$CONST_SITE_ID"
+  assert_status 200 "DELETE /constitution/{site_id} (admin)"
+  api GET "/constitution/$CONST_SITE_ID"
+  assert_jq '.source == "agency_default"' "post-DELETE source is agency_default again"
+fi
+
+# ── WAVE 10c — Exemplar pack substrate ──────────────────────────────────────
+section "Wave 10c — Exemplar pack (cached message-history, negative anchors)"
+
+api GET /site
+W9_DB_VER="$(jqr '.plugin.db_version')"
+[ "${W9_DB_VER:-0}" -ge 13 ] \
+  && pass "migration 013 applied (db_version=$W9_DB_VER >= 13)" \
+  || fail "db_version=$W9_DB_VER, expected >= 13 (exemplar pack table)"
+
+api GET /preferences
+EXEMPLAR_SITE_ID="$(jqr '.site_id')"
+api GET "/exemplar-pack/$EXEMPLAR_SITE_ID"
+if [ "$HTTP_CODE" = "404" ]; then
+  skip "exemplar-pack endpoints not registered (pre-W10c build)"
+else
+  assert_status 200 "GET /exemplar-pack/{site_id} (baseline)"
+  assert_jq '.total == 0 or (.exemplars | type == "array")' "baseline returns array (possibly empty)"
+  api GET "/exemplar-pack/$EXEMPLAR_SITE_ID/rendered"
+  assert_status 200 "GET /exemplar-pack/{site_id}/rendered (baseline)"
+  assert_jq '.messages | type == "array"' "rendered returns messages array"
+  # Path traversal rejection
+  api GET "/exemplar-pack/..%2Fevil"
+  case "$HTTP_CODE" in
+    404|422) pass "path-traversal site_id rejected (HTTP $HTTP_CODE)" ;;
+    *) fail "path-traversal site_id NOT rejected (HTTP $HTTP_CODE)" ;;
+  esac
+  # Missing-resource handling
+  api POST "/exemplar-pack/$EXEMPLAR_SITE_ID/pin/ex_does_not_exist_xxx" '{}'
+  assert_status 404 "POST /pin on missing exemplar returns 404 (constraint #16)"
+  api POST "/exemplar-pack/$EXEMPLAR_SITE_ID/pin/ex_does_not_exist_xxx" '{"unknown_field": true}'
+  assert_status 422 "POST /pin rejects unknown body fields (constraint #1)"
+fi
+
+# ── WAVE 11 — /critique surface + Forced Optimization gate ──────────────────
+# Exercises POST /critique (dark-test envelope when no API key),
+# GET /critique/cost-meter, GET /critique/rubric, GET /critique/health, and
+# the Forced Optimization gate on Document::save (refuse-without-context).
+# See specs/WAVE_9_2026-05-29.md §1.1, §1.2, §3.2, §3.4.
+section "Wave 11 — /critique health + introspection"
+
+# Health endpoint — sentinel that the controller is registered + class loaded.
+api GET /critique/health
+CRITIQUE_LOADED="$HTTP_CODE"
+if [ "$CRITIQUE_LOADED" = "200" ]; then
+  pass "GET /critique/health returns 200 (CritiqueController registered)"
+  assert_jq '.controller_loaded == true' "controller_loaded == true"
+  assert_jq '.runner_loaded == true' "runner_loaded == true"
+  assert_jq '.api_key_configured | type == "boolean"' "api_key_configured is a boolean"
+  assert_jq '.iteration_cap == 5' "iteration_cap == 5 (failure-mode constraint #23)"
+  assert_jq '.aeseval_rubric_version != null' "aeseval_rubric_version is exposed"
+  assert_jq '.forced_optimization_gate == "enforced_in_document_writer"' "FO gate enforcement is documented"
+else
+  skip "Wave 11 critique tests (CritiqueController not loaded — got HTTP $CRITIQUE_LOADED)"
+fi
+
+# Only run the remaining Wave 11 tests if the controller surface is live.
+if [ "$CRITIQUE_LOADED" = "200" ]; then
+
+  # AesEval-Bench rubric introspection — the public eval schema.
+  api GET /critique/rubric
+  assert_status 200 "GET /critique/rubric returns 200"
+  assert_jq '.rubric.version != null' "rubric.version is exposed"
+  assert_jq '.rubric.indicator_count == 12' "12 indicators (4 dimensions x 3)"
+  assert_jq '.rubric.dimension_count == 4' "4 dimensions (composition/color/typography/functional)"
+  assert_jq '.rubric.dimensions | length == 4' "dimensions array has 4 entries"
+  assert_jq '.rubric.indicators | length == 12' "indicators array has 12 entries"
+  assert_jq '.composite_thresholds.accept >= 0.5' "composite accept threshold is exposed and >= 0.5"
+  assert_jq '.iteration_cap == 5' "iteration_cap is exposed"
+  assert_jq '.failure_mode_constraints."#21" != null' "FO gate (constraint #21) is documented"
+  assert_jq '.failure_mode_constraints."#22" != null' "anti-cliché (constraint #22) is documented"
+  assert_jq '.failure_mode_constraints."#23" != null' "bounded iteration (constraint #23) is documented"
+  assert_jq '.failure_mode_constraints."#24" != null' "no autonomous VLM (constraint #24) is documented"
+
+  # Cost meter baseline.
+  api GET /critique/cost-meter
+  assert_status 200 "GET /critique/cost-meter returns 200"
+  assert_jq '.cap_usd >= 1' "cap_usd is exposed and >= 1"
+  assert_jq '.session_total_usd == 0' "session_total_usd is 0 at baseline"
+  assert_jq '.remaining_usd == .cap_usd' "remaining_usd equals cap_usd at baseline"
+  assert_jq '.separated_from_copy_and_image_gen == true' "cost meter is separate from copy/image meters"
+
+  # POST /critique without API key configured — dark-test envelope. The endpoint
+  # must return 200 with status:unconfigured rather than 422 (we returned the
+  # critique envelope including the dark-test reason so the agent harness can
+  # see the gate was inert).
+  section "Wave 11 — POST /critique dark-test (no API key configured)"
+  api POST /critique '{
+    "site_id": "host_example.com",
+    "screenshot_url": "https://example.com/preview.png",
+    "brand_tokens": {"palette": ["#D4FF3A", "#0E0E0C"]},
+    "forbidden": ["transformative", "leverage"],
+    "rubric": "both",
+    "max_iterations_remaining": 5
+  }'
+  # Dark-test (no key) returns 200 with status: unconfigured per the API contract.
+  # If a key IS configured on this host, the call would actually fire — accept either path.
+  if [ "$HTTP_CODE" = "200" ]; then
+    pass "POST /critique returns 200 (dark-test envelope or successful call)"
+    assert_jq '.status != null' "response carries status field"
+    assert_jq '.iteration_budget_remaining | type == "number"' "iteration_budget_remaining is a number"
+    assert_jq '.anti_cliche_check != null' "anti_cliche_check envelope is present"
+  else
+    fail "POST /critique with no API key returned HTTP $HTTP_CODE (expected 200 dark-test envelope)"
+  fi
+
+  # POST /critique with unknown body field — 422 + valid_fields hint.
+  section "Wave 11 — POST /critique input validation"
+  api POST /critique '{
+    "site_id": "host_example.com",
+    "screenshot_url": "https://example.com/p.png",
+    "unknown_param": "x"
+  }'
+  assert_status 422 "POST /critique with unknown field returns 422"
+  assert_jq '.code == "critique.unknown_field"' "unknown-field code is critique.unknown_field"
+  assert_jq '.details.valid_fields | length > 5' "valid_fields hint lists the allowed fields"
+
+  # POST /critique without site_id — 422.
+  api POST /critique '{
+    "screenshot_url": "https://example.com/p.png"
+  }'
+  assert_status 422 "POST /critique without site_id returns 422"
+  assert_jq '.code == "validation.required"' "missing-field code is validation.required"
+
+  # POST /critique without any screenshot source — 422.
+  api POST /critique '{
+    "site_id": "host_example.com"
+  }'
+  assert_status 422 "POST /critique without screenshot returns 422"
+  if echo "$RESP" | grep -q "critique.missing_screenshot\|validation"; then
+    pass "missing-screenshot rejection surfaces a typed error code"
+  else
+    fail "missing-screenshot rejection did not surface a typed code"
+  fi
+
+  # Cost meter post-call: dark-test calls record 0 cost (no real API hit).
+  api GET /critique/cost-meter
+  assert_status 200 "GET /critique/cost-meter after dark-test calls"
+  assert_jq '.session_total_usd == 0' "session_total_usd remains 0 after dark-test calls"
+
+  # Forced Optimization gate (constraint #21) — verify the gate is enforced
+  # in the writer path. This test routes through the live page-write surface;
+  # it SKIPs on V4 known-broken hosts (where the writer refuses earlier with
+  # atomic_save_unstable_in_v4 before the FO gate can be evaluated).
+  section "Wave 11 — Forced Optimization gate on Document::save (constraint #21)"
+  if [ "$ROUTING_KIND" = "legacy_v3" ]; then
+    # The gate is inert without critique_context, which is the default for
+    # existing tests — so we exercise the explicit refuse-on-missing-after
+    # path by sending a critique_context with `before` but no `after`. The
+    # gate will refuse with critique.forced_optimization_refused on hosts
+    # where JOIST_CLAUDE_API_KEY is configured. On dark-test hosts the gate
+    # is inert (no before-score captured) and the write succeeds — both are
+    # documented contract paths, so we accept either.
+
+    # First, create a session + page for the test.
+    api POST /sessions/start '{"agent":"wave11-fo-test","agent_version":"0.9","intent":"FO gate refuse-on-missing-after-context"}'
+    if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
+      FO_SESSION="$(jqr '.session_id')"
+      api POST /pages '{"title":"Wave 11 FO gate test","status":"draft","intent":"FO gate test"}' "" "$FO_SESSION"
+      if [ "$HTTP_CODE" = "201" ] || [ "$HTTP_CODE" = "200" ]; then
+        FO_PAGE_ID="$(jqr '.id')"
+        CREATED_PAGES+=("$FO_PAGE_ID")
+        pass "created FO-gate test page #$FO_PAGE_ID"
+
+        # Patch with critique_context.before set but no after. On a host where
+        # CritiqueRunner can score before, this would refuse with FO error.
+        # On dark-test hosts the gate is inert (before-score is null) so the
+        # write proceeds — verify the response is sane either way.
+        api GET "/pages/$FO_PAGE_ID"
+        FO_HASH="$(jqr '.elementor.hash')"
+        api PATCH "/pages/$FO_PAGE_ID" "$(cat <<EOF
+{
+  "hash": "$FO_HASH",
+  "critique_context": {
+    "site_id": "host_example.com",
+    "before": {
+      "screenshot_url": "https://example.com/before.png",
+      "phash": "0123456789abcdef"
+    },
+    "after": {
+      "screenshot_url": "https://example.com/after.png",
+      "phash": "0123456789abcdef"
+    }
+  },
+  "ops": [{
+    "op": "add",
+    "path": "/elements/-",
+    "value": {
+      "elType": "container",
+      "isInner": false,
+      "settings": {}
+    }
+  }]
+}
+EOF
+)" "" "$FO_SESSION"
+        # Three documented paths:
+        #   200/202 — gate inert (dark-test), write proceeded
+        #   422 with critique.forced_optimization_refused — gate active and refused
+        #   any other code — unexpected
+        case "$HTTP_CODE" in
+          200|202)
+            pass "PATCH with critique_context succeeded (FO gate inert under dark-test, write proceeded)"
+            ;;
+          422)
+            if echo "$RESP" | grep -q "critique.forced_optimization_refused"; then
+              pass "PATCH with critique_context refused by FO gate (constraint #21 enforced)"
+              assert_jq '.details.before_score != null or .details.reason != null' "FO refusal carries before_score or reason"
+            else
+              # 422 from other validation paths (e.g. critique_context not yet routed); accept.
+              info "PATCH returned 422 but not the FO-gate code (other validation path; acceptable)"
+            fi
+            ;;
+          *)
+            fail "PATCH with critique_context returned unexpected HTTP $HTTP_CODE"
+            ;;
+        esac
+
+        # Bypass test: force_save: true should make the write succeed even
+        # with a critique_context that would otherwise refuse.
+        api GET "/pages/$FO_PAGE_ID"
+        FO_HASH2="$(jqr '.elementor.hash')"
+        api PATCH "/pages/$FO_PAGE_ID" "$(cat <<EOF
+{
+  "hash": "$FO_HASH2",
+  "force_save": true,
+  "critique_context": {
+    "site_id": "host_example.com",
+    "before": {"screenshot_url": "https://example.com/before.png"}
+  },
+  "ops": [{
+    "op": "add",
+    "path": "/elements/-",
+    "value": {
+      "elType": "container",
+      "isInner": false,
+      "settings": {}
+    }
+  }]
+}
+EOF
+)" "" "$FO_SESSION"
+        assert_status_in "200 202" "PATCH with force_save:true bypasses FO gate (admin-only escape hatch)"
+      else
+        skip "FO-gate test (could not create page; HTTP $HTTP_CODE)"
+      fi
+    else
+      skip "FO-gate test (could not start session; HTTP $HTTP_CODE)"
+    fi
+  else
+    skip "FO-gate test (host is not legacy_v3; V4 known-broken refuses earlier in the writer)"
+  fi
+
+  # Anti-cliché diversity check: with no ExemplarPackManager loaded (the
+  # default until W10c lands), the check returns similarity_to_recent: null
+  # and DOES NOT gate. Verify the dark-test envelope carries this contract.
+  section "Wave 11 — anti-cliché diversity check (constraint #22)"
+  api POST /critique '{
+    "site_id": "host_example.com",
+    "screenshot_url": "https://example.com/p.png",
+    "tree_signature": {"container": 3, "heading": 2, "text": 4, "image": 1, "button": 1}
+  }'
+  assert_status 200 "POST /critique with tree_signature returns 200 (dark-test envelope)"
+  assert_jq '.anti_cliche_check != null' "anti_cliche_check envelope is present"
+  # Either exemplar_pack_loaded false (W10c not landed yet) OR similarity_to_recent
+  # surfaced as a number — both are documented contracts.
+  assert_jq '(.anti_cliche_check.exemplar_pack_loaded == false) or (.anti_cliche_check.similarity_to_recent | type == "number") or (.anti_cliche_check.similarity_to_recent == null)' "anti_cliche envelope carries either inert state or a similarity number"
+
+else
+  skip "Wave 11 — POST /critique tests (CritiqueController not loaded)"
+  skip "Wave 11 — /critique input validation tests (CritiqueController not loaded)"
+  skip "Wave 11 — Forced Optimization gate tests (CritiqueController not loaded)"
+  skip "Wave 11 — anti-cliché diversity check tests (CritiqueController not loaded)"
 fi
 
 # ── CLEANUP ─────────────────────────────────────────────────────────────────

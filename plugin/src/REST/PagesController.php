@@ -255,6 +255,11 @@ final class PagesController extends ControllerBase
                 'force_layout_cross_mode' => (bool) ($body['force'] ?? false),
                 'prefer_literals' => (bool) ($body['prefer_literals'] ?? false),
                 'fill_responsive' => (bool) ($body['fill_responsive'] ?? false),
+                // Wave 11: Forced Optimization gate (constraint #21) — pass
+                // through the bypass flag and the critique context the gate
+                // needs to score before/after states.
+                'force_save' => (bool) ($body['force_save'] ?? false),
+                'critique_context' => is_array($body['critique_context'] ?? null) ? $body['critique_context'] : null,
             ]));
 
             return $this->ok([

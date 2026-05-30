@@ -74,6 +74,15 @@ use Joist\Core\Logger;
  *   - #5  Auto-flush Elementor CSS post-write
  *   - #16 Refuse silently-failing operations (atomic_save_silent_failure)
  *   - #17 V3/V4 routing — refuse-or-adapt on detected major
+ *   - #21 Forced Optimization gate (Wave 11; enforced upstream in
+ *         DocumentWriter::save when invoked through the normal path. This
+ *         class adds a defensive *direct-invocation* check: if a caller
+ *         constructs and invokes AtomicDocumentWriter directly WITHOUT the
+ *         `_fo_gate_handled_upstream` sentinel, AND a CritiqueRunner is
+ *         loaded AND a critique_context is supplied, we run a local gate.
+ *         When the sentinel is set OR there's no critique_context OR the
+ *         runner is missing, the gate is inert — DocumentWriter has already
+ *         enforced it OR the caller is in a dark-test environment.)
  */
 final class AtomicDocumentWriter
 {
@@ -168,7 +177,130 @@ final class AtomicDocumentWriter
         // outside our known-broken range as of 2026-05-28). Code is in place
         // so the moment Elementor ships a safe 4.x, narrowing the known-broken
         // range is the only change needed.
-        return $this->doSafeWrite($decision, $req);
+
+        // Wave 11: Forced Optimization gate (constraint #21).
+        // Inert when DocumentWriter has already enforced it upstream (the
+        // normal call path sets _fo_gate_handled_upstream=true). Active only
+        // when a caller invokes this writer directly AND supplies critique
+        // context AND the runner is loaded.
+        $beforeScore = $this->forcedOptimizationBefore($req);
+
+        $result = $this->doSafeWrite($decision, $req);
+
+        $this->forcedOptimizationAfter($req, $beforeScore);
+
+        return $result;
+    }
+
+    /**
+     * Wave 11: capture before-score for direct-invocation Forced Optimization
+     * gate. Returns null when the gate is inert (which is the common case).
+     *
+     * @param array<string,mixed> $req
+     */
+    private function forcedOptimizationBefore(array $req): ?float
+    {
+        if (!empty($req['_fo_gate_handled_upstream'])) {
+            return null; // DocumentWriter is enforcing.
+        }
+        if (!empty($req['force_save'])) {
+            return null; // Bypass set.
+        }
+        if (!class_exists('\\Joist\\Critique\\CritiqueRunner')) {
+            return null;
+        }
+        $ctx = is_array($req['critique_context'] ?? null) ? $req['critique_context'] : null;
+        if ($ctx === null) {
+            return null; // No context, no gate (refuse-not-corrupt).
+        }
+        $before = is_array($ctx['before'] ?? null) ? $ctx['before'] : null;
+        if ($before === null || (!isset($before['screenshot_url']) && !isset($before['screenshot_b64']))) {
+            return null;
+        }
+        try {
+            if (!class_exists('\\Joist\\Container')) {
+                return null;
+            }
+            $runner = \Joist\Container::get('critiqueRunner');
+            $payload = $before + [
+                'site_id' => (string) ($ctx['site_id'] ?? ''),
+                'session_id' => (string) ($req['session_id'] ?? ''),
+            ];
+            return $runner->scoreOnly($payload);
+        } catch (\Throwable $e) {
+            Logger::warn('joist.atomic.fo_gate_before_failed', ['error' => $e->getMessage()]);
+            return null;
+        }
+    }
+
+    /**
+     * Wave 11: after-score check for direct-invocation Forced Optimization.
+     * Throws WriteException on refusal.
+     *
+     * @param array<string,mixed> $req
+     */
+    private function forcedOptimizationAfter(array $req, ?float $beforeScore): void
+    {
+        if ($beforeScore === null) {
+            return; // Gate was inert.
+        }
+        $ctx = is_array($req['critique_context'] ?? null) ? $req['critique_context'] : null;
+        $after = is_array($ctx['after'] ?? null) ? $ctx['after'] : null;
+        if ($after === null || (!isset($after['screenshot_url']) && !isset($after['screenshot_b64']))) {
+            throw new WriteException(
+                'critique.forced_optimization_refused',
+                'V4 atomic writer: Forced Optimization gate enforced but no after-context supplied. Constraint #21.',
+                422,
+                [
+                    'before_score' => $beforeScore,
+                    'after_score' => null,
+                    'reason' => 'missing_after_context',
+                    'writer' => 'atomic_v4_direct',
+                ]
+            );
+        }
+        try {
+            $runner = \Joist\Container::get('critiqueRunner');
+            $payload = $after + [
+                'site_id' => (string) ($ctx['site_id'] ?? ''),
+                'session_id' => (string) ($req['session_id'] ?? ''),
+                'previous_score' => $beforeScore,
+            ];
+            $afterScore = $runner->scoreOnly($payload);
+        } catch (\Throwable $e) {
+            throw new WriteException(
+                'critique.forced_optimization_refused',
+                'V4 atomic writer: Forced Optimization gate could not score after-state: ' . $e->getMessage(),
+                502,
+                ['before_score' => $beforeScore, 'reason' => 'after_critique_threw'],
+            );
+        }
+        if ($afterScore === null) {
+            throw new WriteException(
+                'critique.forced_optimization_refused',
+                'V4 atomic writer: Forced Optimization gate could not produce an after-score.',
+                422,
+                ['before_score' => $beforeScore, 'reason' => 'after_critique_unavailable'],
+            );
+        }
+        if ($afterScore <= $beforeScore) {
+            throw new WriteException(
+                'critique.forced_optimization_refused',
+                sprintf(
+                    'V4 atomic writer: Forced Optimization gate refused: after-score (%s) not strictly greater than before-score (%s). Constraint #21.',
+                    (string) round($afterScore, 4),
+                    (string) round($beforeScore, 4),
+                ),
+                422,
+                [
+                    'before_score' => round($beforeScore, 4),
+                    'after_score' => round($afterScore, 4),
+                    'delta' => round($afterScore - $beforeScore, 4),
+                    'reason' => 'score_did_not_improve',
+                    'writer' => 'atomic_v4_direct',
+                ]
+            );
+        }
     }
 
     /**

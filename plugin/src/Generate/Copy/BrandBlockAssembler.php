@@ -11,6 +11,11 @@ use Joist\Eval\Rule;
  * @purpose Build the layered, cache-friendly prompt prefix for a given site.
  *
  * Layout (stable -> volatile, matching Anthropic prompt-caching guidance):
+ *   0. Joist constitution (W10b, v0.9): ~50 rationale-bearing principles
+ *      from plugin/joist.constitution.md plus optional per-site overrides at
+ *      $WP_UPLOADS/joist/sites/<site_id>/constitution.md. Most stable layer;
+ *      appears first so changes downstream don't bust its cache.
+ *      — wrapped in cache_control: {type: 'ephemeral'}
  *   1. Joist house style (forbidden + preferred vocab from taste_anti_slop_rules)
  *      — wrapped in cache_control: {type: 'ephemeral'}
  *   2. Site-specific brand.json (palette names, type names, voice rules, taboo
@@ -24,9 +29,10 @@ use Joist\Eval\Rule;
  * The per-page request is NOT part of the BrandBlock — that's the delta the
  * CopyGenerator adds per call.
  *
- * Anthropic max cache_control breakpoints: 4 per request. We use 3 here
- * (house-style, brand.json, last exemplar) leaving one slot for the
- * CopyGenerator if it later wants to cache something else.
+ * Anthropic max cache_control breakpoints: 4 per request. As of Wave 10b
+ * (v0.9) we use up to 4 (constitution, house-style, brand.json, last
+ * exemplar). When the constitution layer is absent (W6c-only deploys) the
+ * count drops to 3, leaving one slot for the CopyGenerator.
  *
  * See specs/COPY_GEN.md §2 + specs/WAVE_0_2026-05-26.md §6.
  */
@@ -87,10 +93,47 @@ TXT;
 
     /**
      * Build a BrandBlock for the given site. Pure: no DB writes, no API calls.
+     *
+     * @param string $siteId
+     * @param string $modelHint
+     * @param bool $includeExemplars Wave 10c (v0.9). When true, prepend the
+     *        site's recent approved exemplars + negative anchors to the
+     *        voice-exemplar message history (cached prefix). Default true
+     *        for Plan Mode burst calls; pass false for cron-driven scheduled
+     *        rebuilds where the 5-min cache TTL won't pay off.
      */
-    public function assemble(string $siteId, string $modelHint = 'claude-opus-4-7'): BrandBlock
+    public function assemble(string $siteId, string $modelHint = 'claude-opus-4-7', bool $includeExemplars = true): BrandBlock
     {
         $systemBlocks = [];
+
+        // Layer 0 — Joist constitution (Wave 10b, v0.9). The most-stable layer:
+        // ~50 rationale-bearing principles that change rarely (months between
+        // edits). Putting it FIRST in the cached prefix maximises hit-rate
+        // across calls, because anything cached above it survives all changes
+        // to lower layers. Gracefully no-ops if the v0.9 substrate hasn't
+        // landed yet (W6c-only deploys won't have ConstitutionLoader).
+        if (class_exists(\Joist\Constitution\ConstitutionLoader::class)) {
+            try {
+                $loader = new \Joist\Constitution\ConstitutionLoader();
+                $constitution = $loader->effective($siteId);
+                if ($constitution !== '') {
+                    $systemBlocks[] = [
+                        'type' => 'text',
+                        'text' => $constitution,
+                        'cache_control' => ['type' => 'ephemeral'],
+                    ];
+                }
+            } catch (\Throwable $e) {
+                // Constitution failures must never break copy gen — log and
+                // proceed without the layer. The downstream cache key changes
+                // anyway when the file content changes, so a missing layer
+                // simply means a cache miss, not a corrupt prompt.
+                Logger::warn('joist.copy.constitution_load_failed', [
+                    'site_id' => $siteId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
 
         // Layer 1 — Joist house style (always present, always cached).
         $systemBlocks[] = [
@@ -111,6 +154,56 @@ TXT;
 
         // Layer 3 — voice exemplars (6-10 paired turns).
         $exemplars = $this->loadExemplars($siteId);
+
+        // Wave 10c (v0.9) — Layer 4: per-site approved exemplar pack (5-20
+        // accepted renderings + negative anchors). The pack messages share
+        // the message-history channel with the voice exemplars; we prepend
+        // them so the voice-exemplar block stays as the trailing context
+        // closest to the per-call request. Gated on $includeExemplars so
+        // out-of-loop runs (scheduled rebuilds) don't burn the cache-write
+        // multiplier on a TTL window they won't use. Gracefully no-ops if
+        // the W10c substrate hasn't landed (no ExemplarPackManager class,
+        // no exemplar table, or empty pack for this site).
+        if ($includeExemplars && class_exists(\Joist\ExemplarPack\ExemplarPackManager::class)) {
+            try {
+                global $wpdb;
+                $exemplarManager = new \Joist\ExemplarPack\ExemplarPackManager($wpdb);
+                $packMessages = $exemplarManager->renderForPrompt($siteId, [
+                    'include' => true,
+                    'limit' => \Joist\ExemplarPack\ExemplarPackManager::DEFAULT_RENDER_LIMIT,
+                ]);
+                if (!empty($packMessages)) {
+                    // Reduce to the {role, content-string} shape that
+                    // loadExemplars() returns — BrandBlock::exemplarsAsMessages()
+                    // re-applies cache_control on the LAST turn, so we strip
+                    // the per-message cache_control here to avoid exceeding
+                    // Anthropic's 4-breakpoint cap.
+                    $flat = [];
+                    foreach ($packMessages as $m) {
+                        $role = (string) ($m['role'] ?? 'user');
+                        $content = $m['content'] ?? '';
+                        if (is_array($content)) {
+                            $text = '';
+                            foreach ($content as $block) {
+                                if (is_array($block) && isset($block['text']) && is_string($block['text'])) {
+                                    $text .= $block['text'];
+                                }
+                            }
+                            $content = $text;
+                        }
+                        $flat[] = ['role' => $role, 'content' => (string) $content];
+                    }
+                    // Pack messages come FIRST in the message history (oldest
+                    // context); voice exemplars stay closest to the request.
+                    $exemplars = array_merge($flat, $exemplars);
+                }
+            } catch (\Throwable $e) {
+                Logger::warn('joist.copy.exemplar_pack_load_failed', [
+                    'site_id' => $siteId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
 
         $estTokens = $this->estimateTokens($systemBlocks, $exemplars);
 

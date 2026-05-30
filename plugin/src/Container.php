@@ -83,6 +83,15 @@ final class Container
         'imageHttpTransport', 'fluxClient', 'recraftClient', 'ideogramClient', 'assetRouter',
         // Wave 6c — copy-generation pipeline (Anthropic Messages API + cached brand block + batch queue).
         'brandBlockAssembler', 'copyCostMeter', 'copyGenerator', 'copyBatchQueue',
+        // Wave 9 (v0.9) — three-tier taste substrate + generator/evaluator harness.
+        // W10a: confidence decay + AGENTS.md emitter.
+        'confidenceDecayJob', 'agentsMdEmitter',
+        // W10b: constitution loader (Layer 1 of cached prefix).
+        'constitutionLoader',
+        // W10c: exemplar pack (Layer 3 of cached prefix).
+        'exemplarPackManager',
+        // W11: critique substrate + Forced Optimization gate.
+        'critiqueCostMeter', 'diversityCheck', 'critiqueRunner',
     ];
 
     private static function build(string $key)
@@ -174,6 +183,17 @@ final class Container
                 self::get('copyCostMeter'),
             ),
             'copyBatchQueue' => new BatchQueue(self::get('copyGenerator')),
+            // Wave 9 (v0.9) — three-tier taste substrate + generator/evaluator harness.
+            'confidenceDecayJob' => new \Joist\Eval\ConfidenceDecayJob(),
+            'agentsMdEmitter' => new \Joist\Eval\AgentsMdEmitter(self::get('preferenceMemory')),
+            'constitutionLoader' => new \Joist\Constitution\ConstitutionLoader(),
+            'exemplarPackManager' => new \Joist\ExemplarPack\ExemplarPackManager($GLOBALS['wpdb']),
+            'critiqueCostMeter' => new \Joist\Critique\CritiqueCostMeter(),
+            'diversityCheck' => new \Joist\Critique\DiversityCheck(),
+            'critiqueRunner' => new \Joist\Critique\CritiqueRunner(
+                self::get('critiqueCostMeter'),
+                self::get('diversityCheck'),
+            ),
             default => throw new \InvalidArgumentException("Unknown service: {$key}"),
         };
     }

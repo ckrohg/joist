@@ -5,6 +5,7 @@ namespace Joist\REST;
 
 use Joist\Container;
 use Joist\Elementor\WriteException;
+use Joist\Eval\AgentsMdEmitter;
 use Joist\Eval\ForbiddenPhraseValidator;
 use Joist\Eval\MemoryToolHandler;
 use Joist\Eval\PreferenceMemory;
@@ -92,6 +93,17 @@ final class PreferencesController extends ControllerBase
             ['methods' => WP_REST_Server::READABLE,  'callback' => [$this, 'get'],     'permission_callback' => [$this, 'permissionsCheck']],
             ['methods' => WP_REST_Server::EDITABLE,  'callback' => [$this, 'update'],  'permission_callback' => [$this, 'permissionsCheck']],
             ['methods' => 'DELETE',                  'callback' => [$this, 'delete'],  'permission_callback' => [$this, 'permissionsCheck']],
+        ]);
+
+        // ── v0.9 Wave 10a — AGENTS.md emission per site ──
+        // GET /joist/v1/sites/{site_id}/agents-md returns a markdown/plain-text
+        // rendering of the site's effective rules in the cross-tool AGENTS.md
+        // standard. Downstream agents (Cursor, Claude Code, Codex, Aider,
+        // Cline) read this to inherit Joist's per-site brand rules.
+        register_rest_route(self::NAMESPACE, '/sites/(?P<site_id>[A-Za-z0-9_.\-]+)/agents-md', [
+            'methods' => WP_REST_Server::READABLE,
+            'callback' => [$this, 'agentsMd'],
+            'permission_callback' => [$this, 'permissionsCheck'],
         ]);
     }
 
@@ -209,6 +221,19 @@ final class PreferencesController extends ControllerBase
                 } catch (\InvalidArgumentException $e) {
                     throw new WriteException('validation.invalid_kind', $e->getMessage(), 400);
                 }
+                // v0.9 Wave 10a: rationale is RECOMMENDED on manually-authored
+                // rules and REQUIRED on SlopFeedback-promoted ones. Manually
+                // authored = no SlopFeedback source string in provenance, so
+                // warn (don't fail) when the field is absent.
+                $rationale = isset($item['rationale']) ? (string) $item['rationale'] : null;
+                if ($rationale === null || trim($rationale) === '') {
+                    \Joist\Core\Logger::warn('preferences.rule_missing_rationale', [
+                        'session_id' => $sessionId,
+                        'kind'       => (string) $item['kind'],
+                        'pattern'    => (string) $item['pattern'],
+                        'source'     => $item['provenance']['source'] ?? 'unknown',
+                    ]);
+                }
                 $rule = Rule::create(
                     siteId: $mem->siteId(),
                     kind: (string) $item['kind'],
@@ -221,6 +246,7 @@ final class PreferencesController extends ControllerBase
                     scope: (string) ($item['scope'] ?? 'global'),
                     confidence: (float) ($item['confidence'] ?? 1.0),
                     status: (string) ($item['status'] ?? Rule::STATUS_ACTIVE),
+                    rationale: $rationale,
                 );
                 $created[] = $mem->add($rule)->toApi();
             }
@@ -245,6 +271,22 @@ final class PreferencesController extends ControllerBase
             }
             if (isset($body['confidence'])) {
                 $rule->confidence = max(0.0, min(1.0, (float) $body['confidence']));
+            }
+            // v0.9: rationale + superseded_by are editable through this surface.
+            if (isset($body['rationale'])) {
+                $rule->rationale = $body['rationale'] !== null
+                    ? trim((string) $body['rationale'])
+                    : null;
+            }
+            if (array_key_exists('superseded_by', $body)) {
+                $rule->supersededBy = $body['superseded_by'] !== null && $body['superseded_by'] !== ''
+                    ? (string) $body['superseded_by']
+                    : null;
+                // If the rule is being marked superseded explicitly via the
+                // field, set status too unless caller already specified it.
+                if (!isset($body['status']) && $rule->supersededBy !== null) {
+                    $rule->status = Rule::STATUS_SUPERSEDED;
+                }
             }
             Rule::assertValidStatus($rule->status);
             $mem->update($rule);
@@ -285,6 +327,38 @@ final class PreferencesController extends ControllerBase
     {
         return $this->handle($req, 'writes', function () {
             return $this->ok(Container::get('preferenceMemory')->compact());
+        });
+    }
+
+    /**
+     * v0.9 Wave 10a — render the site's effective rules as AGENTS.md.
+     *
+     * GET /sites/{site_id}/agents-md
+     *
+     * Cross-site isolation is enforced via PreferenceMemory::siteId() —
+     * callers can only request their own site_id.
+     */
+    public function agentsMd(WP_REST_Request $req)
+    {
+        return $this->handle($req, 'reads', function (WP_REST_Request $req) {
+            $requestedSiteId = (string) $req->get_param('site_id');
+            if ($requestedSiteId === '') {
+                throw new WriteException('agents_md.missing_site_id', 'site_id is required.', 400);
+            }
+            $mem = Container::get('preferenceMemory');
+            $currentSiteId = $mem->siteId();
+            if ($requestedSiteId !== $currentSiteId) {
+                // failure-mode: site_id is a hard partition key.
+                throw new WriteException(
+                    'agents_md.cross_site_denied',
+                    'Cannot read AGENTS.md for a different site.',
+                    403,
+                    ['requested' => $requestedSiteId, 'current' => $currentSiteId]
+                );
+            }
+            $emitter = new AgentsMdEmitter($mem);
+            $rendered = $emitter->render($requestedSiteId);
+            return $this->ok($rendered);
         });
     }
 

@@ -57,6 +57,12 @@ final class PreferenceMemory
                 0,
                 10
             );
+            // v0.9: a fresh add() of an existing rule is a reinforcement event —
+            // reset the decay clock. Also prefer the new rationale when supplied.
+            if ($rule->rationale !== null && $rule->rationale !== '') {
+                $existing->rationale = $rule->rationale;
+            }
+            $existing->reinforce();
             $this->update($existing);
             return $existing;
         }
@@ -69,6 +75,8 @@ final class PreferenceMemory
     public function update(Rule $rule): void
     {
         global $wpdb;
+        // v0.9: any explicit update is a reinforcement event — stops decay.
+        $rule->reinforce();
         $row = $rule->toRow();
         unset($row['id']);
         $wpdb->update($this->tableName(), $row, ['id' => $rule->id]);
@@ -188,7 +196,12 @@ final class PreferenceMemory
             if (empty($byKind[$kind])) continue;
             $section = ["", "**{$label}:**"];
             foreach ($byKind[$kind] as $r) {
+                // v0.9: surface rationale inline when present — explanation
+                // generalises better than the rule directive alone.
                 $line = '- ' . $r->directive;
+                if ($r->rationale !== null && $r->rationale !== '') {
+                    $line .= ' _(' . $r->rationale . ')_';
+                }
                 $section[] = $line;
             }
             $sectionText = implode("\n", $section);
@@ -206,10 +219,13 @@ final class PreferenceMemory
     public function recordInvocation(string $id): void
     {
         global $wpdb;
+        $now = gmdate('Y-m-d H:i:s');
         $wpdb->update(
             $this->tableName(),
             [
-                'last_invoked_at' => gmdate('Y-m-d H:i:s'),
+                'last_invoked_at' => $now,
+                // v0.9: an invocation is also a reinforcement signal.
+                'last_reinforced_at' => $now,
                 'confidence' => min(1.0, $this->get($id)?->confidence + 0.05 ?? 1.0),
             ],
             ['id' => $id]
