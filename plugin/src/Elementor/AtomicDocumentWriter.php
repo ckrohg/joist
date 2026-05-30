@@ -148,12 +148,24 @@ final class AtomicDocumentWriter
             );
         }
 
-        // Refuse on known-broken V4 — constraint #16.
-        if ($decision->knownBroken) {
+        // Wave 11 architecture fix (2026-05-30): the known_broken flag is now
+        // a WARNING + attempt-with-hash-defense by default, not a hard refusal.
+        // The read-after-write hash check in doSafeWrite() is the actual safety
+        // mechanism — if Elementor's #35888 silent-corruption bug fires, the
+        // hash mismatch detects it and we throw atomic_save_silent_failure,
+        // restore the snapshot, and surface the typed error. Refusing
+        // preemptively on every released V4 made the plugin unusable on the
+        // default Elementor install for any new WP site since 2026-03-30.
+        // The hash check is the contract; the version range was a heuristic.
+        //
+        // Paranoid opt-in: set wp_option 'joist_strict_v4_refusal' = '1' to
+        // preserve the previous refuse-preemptively behavior. Off by default.
+        $strictV4Refusal = get_option('joist_strict_v4_refusal', false);
+        if ($decision->knownBroken && (bool) $strictV4Refusal === true) {
             throw new WriteException(
                 'atomic_save_unstable_in_v4',
                 sprintf(
-                    'Elementor %s is in the known-broken range (%s..%s). Open upstream bugs cause atomic-element saves to fail silently or corrupt state. Joist refuses writes against this version per failure-mode constraint #16.',
+                    'Elementor %s is in the known-broken range (%s..%s) AND joist_strict_v4_refusal is enabled. Disable strict refusal to attempt the write with read-after-write hash defense.',
                     $decision->version,
                     VersionRouter::KNOWN_BROKEN_MIN,
                     VersionRouter::KNOWN_BROKEN_MAX
@@ -167,16 +179,21 @@ final class AtomicDocumentWriter
                         'https://github.com/elementor/elementor/issues/36008',
                         'https://github.com/orgs/elementor/discussions/35627',
                     ],
-                    'guidance' => 'Downgrade Elementor to 3.33–3.34.x for the v0.5 smoke test, or wait for an Elementor release outside the known-broken range. Joist will broaden the safe range once upstream fixes ship.',
+                    'guidance' => "delete_option('joist_strict_v4_refusal') to use the default attempt-with-hash-defense behavior.",
                 ]
             );
         }
-
-        // Happy path — atomic_v4 + not known_broken. This block is currently
-        // exercised only via JOIST_TEST_ELEMENTOR_VERSION (no released 4.x is
-        // outside our known-broken range as of 2026-05-28). Code is in place
-        // so the moment Elementor ships a safe 4.x, narrowing the known-broken
-        // range is the only change needed.
+        // Default path on known_broken: log a warning so operators see it,
+        // then proceed to the safe-write path. doSafeWrite()'s read-after-write
+        // hash check is the actual safety net.
+        if ($decision->knownBroken && class_exists(\Joist\Core\Logger::class)) {
+            \Joist\Core\Logger::warn('atomic_v4.known_broken_attempt', [
+                'version' => $decision->version,
+                'broken_range' => VersionRouter::KNOWN_BROKEN_MIN . '..' . VersionRouter::KNOWN_BROKEN_MAX,
+                'open_issues' => ['#35888', '#35625', '#36008'],
+                'defense' => 'read_after_write_hash_compare',
+            ]);
+        }
 
         // Wave 11: Forced Optimization gate (constraint #21).
         // Inert when DocumentWriter has already enforced it upstream (the
@@ -319,6 +336,12 @@ final class AtomicDocumentWriter
         $pageSettings = is_array($req['page_settings'] ?? null) ? $req['page_settings'] : [];
         $warnings = [];
 
+        // Wave 11 debugging (2026-05-30): defensive tracing through the V4
+        // happy path. Each step logs a breadcrumb so we can pinpoint where
+        // failures occur without needing WP_DEBUG enabled on production.
+        $trace = ['v4_path' => 'enter', 'post_id' => $postId, 'elements_count' => count($elements)];
+        Logger::info('joist.atomic.dosafewrite_start', $trace);
+
         if ($postId <= 0) {
             throw new WriteException(
                 'validation.post_id_required',
@@ -335,7 +358,21 @@ final class AtomicDocumentWriter
             );
         }
 
-        $document = \Elementor\Plugin::$instance->documents->get($postId);
+        try {
+            $document = \Elementor\Plugin::$instance->documents->get($postId);
+        } catch (\Throwable $e) {
+            Logger::error('joist.atomic.documents_get_threw', [
+                'post_id' => $postId,
+                'error' => $e->getMessage(),
+                'class' => get_class($e),
+            ]);
+            throw new WriteException(
+                'atomic_documents_get_failed',
+                sprintf('Elementor documents->get(%d) threw: %s', $postId, $e->getMessage()),
+                500,
+                ['post_id' => $postId, 'error_class' => get_class($e)]
+            );
+        }
         if (!$document) {
             throw new WriteException(
                 'not_found.page',
@@ -343,6 +380,17 @@ final class AtomicDocumentWriter
                 404
             );
         }
+        Logger::info('joist.atomic.document_loaded', ['post_id' => $postId, 'doc_class' => get_class($document)]);
+
+        // Always include both keys — Document::save expects elements present
+        // even when empty. (My earlier omit-on-empty change was wrong for
+        // legacy V3 documents; V4 atomic might still want a populated tree
+        // but for empty + legacy V3 doc the right shape is elements: [].)
+        $savePayload = [
+            'elements' => $elements,
+            'settings' => $pageSettings,
+        ];
+        $docClass = get_class($document);
 
         // Hash the intended state BEFORE the save so we can compare deterministically
         // after the read-back. We hash the canonicalized intended tree.
@@ -350,12 +398,21 @@ final class AtomicDocumentWriter
 
         // The write. Same public API on 3.x and 4.x; the divergence is in
         // the tree shape (legacy element types vs. atomic e-* slugs).
+        Logger::info('joist.atomic.about_to_save', [
+            'post_id' => $postId,
+            'doc_class' => $docClass,
+            'elements_count' => count($elements),
+        ]);
         try {
-            $document->save([
-                'elements' => $elements,
-                'settings' => $pageSettings,
-            ]);
+            $document->save($savePayload);
+            Logger::info('joist.atomic.save_returned', ['post_id' => $postId]);
         } catch (\Throwable $e) {
+            Logger::error('joist.atomic.save_threw', [
+                'post_id' => $postId,
+                'doc_class' => $docClass,
+                'error' => $e->getMessage(),
+                'class' => get_class($e),
+            ]);
             // Constraint #16 — surface upstream save failures as typed errors
             // rather than swallowing.
             throw new WriteException(
@@ -373,7 +430,26 @@ final class AtomicDocumentWriter
         // Constraint #2: read-after-write. The #35888 failure mode is that
         // the save APPEARS to succeed but the data isn't persisted; we
         // confirm by re-reading and comparing canonical hashes.
-        $verified = $document->get_elements_data();
+        try {
+            $verified = $document->get_elements_data();
+        } catch (\Throwable $e) {
+            Logger::error('joist.atomic.get_elements_data_threw', [
+                'post_id' => $postId,
+                'error' => $e->getMessage(),
+                'class' => get_class($e),
+            ]);
+            throw new WriteException(
+                'atomic_get_elements_data_failed',
+                sprintf('Elementor get_elements_data() threw after save: %s', $e->getMessage()),
+                500,
+                ['post_id' => $postId, 'error_class' => get_class($e)]
+            );
+        }
+        Logger::info('joist.atomic.elements_read_back', [
+            'post_id' => $postId,
+            'verified_type' => gettype($verified),
+            'verified_count' => is_array($verified) ? count($verified) : 0,
+        ]);
         $verified = is_array($verified) ? $verified : [];
         $verifiedHash = $this->hasher->forElements($verified);
 

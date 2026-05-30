@@ -138,11 +138,17 @@ final class DocumentWriter
                 ]
             );
         }
-        if ($routing->isAtomicV4() && $routing->knownBroken) {
+        // Wave 11 architecture fix (2026-05-30): see AtomicDocumentWriter.php
+        // for the full rationale. Default is attempt-with-hash-defense; the
+        // read-after-write hash check downstream is the actual safety net.
+        // Set wp_option 'joist_strict_v4_refusal' = '1' to restore preemptive
+        // refusal (paranoid opt-in for sites that have already lost data to
+        // #35888 and want to wait for the upstream fix).
+        if ($routing->isAtomicV4() && $routing->knownBroken && (bool) get_option('joist_strict_v4_refusal', false) === true) {
             throw new WriteException(
                 'atomic_save_unstable_in_v4',
                 sprintf(
-                    'Elementor %s is in the known-broken range (%s..%s). Atomic-element saves fail silently or corrupt state. Refused per failure-mode constraint #16.',
+                    'Elementor %s is in the known-broken range (%s..%s) AND joist_strict_v4_refusal is enabled. The default behavior is attempt-with-hash-defense; only the explicit option enables this refusal.',
                     $routing->version,
                     VersionRouter::KNOWN_BROKEN_MIN,
                     VersionRouter::KNOWN_BROKEN_MAX
@@ -155,7 +161,7 @@ final class DocumentWriter
                         'https://github.com/elementor/elementor/issues/35625',
                         'https://github.com/elementor/elementor/issues/36008',
                     ],
-                    'guidance' => 'Downgrade Elementor to 3.33–3.34.x (v0.5 smoke-test pin) until upstream fixes ship.',
+                    'guidance' => "Run delete_option('joist_strict_v4_refusal') to disable strict refusal and let the hash-check defense run.",
                 ]
             );
         }
@@ -484,7 +490,7 @@ final class DocumentWriter
      * @param array<string,mixed> $req
      * @throws WriteException when after-score does not strictly improve
      */
-    private function enforceForcedOptimizationGate(array $state, array $req, int $postId, ?string $revisionId): void
+    private function enforceForcedOptimizationGate(array $state, array $req, int $postId, ?int $revisionId): void
     {
         if (!$state['enforced']) {
             return; // Inert gate (no runner, no context, or bypass).

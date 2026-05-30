@@ -96,12 +96,26 @@ final class RoutingDecision
     }
 
     /**
-     * Convenience: this host should refuse all writes. True for unsupported
-     * majors AND for known-broken V4 versions. Centralizing this in one
-     * predicate keeps the refusal policy single-sourced.
+     * Convenience: this host should refuse all writes.
+     *
+     * Wave 11 architecture fix (2026-05-30): known_broken alone no longer
+     * triggers refusal. The read-after-write hash check in AtomicDocumentWriter
+     * is the actual safety mechanism — if upstream #35888 fires we detect
+     * silent corruption and refuse atomically. Preemptive refusal made the
+     * plugin unusable on the default Elementor install for every new WP site
+     * since 2026-03-30 (V4 default ship date).
+     *
+     * Strict refusal is now an explicit opt-in via wp_option
+     * 'joist_strict_v4_refusal' = '1'. Off by default.
      */
     public function shouldRefuseWrites(): bool
     {
-        return $this->isUnsupported() || ($this->isAtomicV4() && $this->knownBroken);
+        if ($this->isUnsupported()) {
+            return true;
+        }
+        if ($this->isAtomicV4() && $this->knownBroken) {
+            return (bool) get_option('joist_strict_v4_refusal', false) === true;
+        }
+        return false;
     }
 }

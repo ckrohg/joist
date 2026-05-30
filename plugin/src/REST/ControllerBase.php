@@ -111,6 +111,21 @@ abstract class ControllerBase
                 'recovery_suggestions' => $this->recoveryFor($e->errorCode, $e->errorDetails),
             ], 422);
         } catch (\Throwable $e) {
+            // Wave 11 fix (2026-05-30): always log the actual exception via our
+            // own Logger so /diagnostics.recent_log surfaces the message even
+            // when WP_DEBUG is off. Without this, "internal.unhandled" with no
+            // body makes triage on production hosts (no filesystem access)
+            // very hard. The full trace is still gated on WP_DEBUG so we don't
+            // leak internals to the API response.
+            if (class_exists(\Joist\Core\Logger::class)) {
+                $traceLines = explode("\n", $e->getTraceAsString());
+                \Joist\Core\Logger::error('controllerbase.unhandled_throw', [
+                    'exception_class' => get_class($e),
+                    'message' => $e->getMessage(),
+                    'file' => basename($e->getFile()) . ':' . $e->getLine(),
+                    'trace_head' => array_slice($traceLines, 0, 5),
+                ]);
+            }
             return new WP_REST_Response([
                 'code' => 'internal.unhandled',
                 'message' => (defined('WP_DEBUG') && WP_DEBUG) ? $e->getMessage() : 'Internal error.',
