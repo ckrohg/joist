@@ -94,7 +94,12 @@ define('JOIST_FILE', __FILE__);
 define('JOIST_DIR', plugin_dir_path(__FILE__));
 define('JOIST_URL', plugin_dir_url(__FILE__));
 define('JOIST_MIN_ELEMENTOR_VERSION', '3.18.0');
-define('JOIST_MAX_TESTED_ELEMENTOR_VERSION', '3.21.99');
+// Updated 2026-05-29 (Wave 7 live smoke): bumped from 3.21.99 to 4.1.99 to
+// reflect current pins. Wave 1 / WAVE_0_2026-05-26.md updated the V3 happy
+// path to 3.33-3.34.x; Wave 3 added the AtomicDocumentWriter so V4 atomic
+// installs are also "supported" — the VersionRouter decides whether writes
+// proceed (legacy_v3 / atomic_v4) or refuse (known_broken / unsupported).
+define('JOIST_MAX_TESTED_ELEMENTOR_VERSION', '4.1.99');
 
 /**
  * PSR-4 autoloader (no Composer dependency in M0 — keep the plugin self-contained).

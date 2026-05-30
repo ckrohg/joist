@@ -38,9 +38,13 @@ final class HealthController extends ControllerBase
             $elVersion = defined('ELEMENTOR_VERSION') ? ELEMENTOR_VERSION : '0';
             $supported = version_compare($elVersion, JOIST_MIN_ELEMENTOR_VERSION, '>=')
                 && version_compare($elVersion, JOIST_MAX_TESTED_ELEMENTOR_VERSION, '<=');
-            $checks[] = $this->check('elementor.version_supported', $supported, "Elementor {$elVersion} is within the tested range ("
-                . JOIST_MIN_ELEMENTOR_VERSION . '–' . JOIST_MAX_TESTED_ELEMENTOR_VERSION . ').',
-                ['version' => $elVersion]);
+            // Wave 7 fix: differentiate the pass/fail message so a failing
+            // check doesn't read like a passing one. Previously: "is within
+            // the tested range" was emitted on both pass and fail.
+            $versionMsg = $supported
+                ? sprintf('Elementor %s is within the tested range (%s–%s).', $elVersion, JOIST_MIN_ELEMENTOR_VERSION, JOIST_MAX_TESTED_ELEMENTOR_VERSION)
+                : sprintf('Elementor %s is OUTSIDE the tested range (%s–%s). See elementor.routing check for adapter status.', $elVersion, JOIST_MIN_ELEMENTOR_VERSION, JOIST_MAX_TESTED_ELEMENTOR_VERSION);
+            $checks[] = $this->check('elementor.version_supported', $supported, $versionMsg, ['version' => $elVersion]);
 
             // Wave 3: V3/V4 routing health check (failure-mode constraint #17).
             // Refusal-to-write is a 'warn', not a 'fail' — the plugin itself
@@ -64,9 +68,42 @@ final class HealthController extends ControllerBase
             $checks[] = $this->check('pro.present', defined('ELEMENTOR_PRO_VERSION'), 'Elementor Pro is present (required for full-site builds).');
 
             // DB writable.
+            // Wave 7 fix: check ALL Joist tables, not just joist_audit. Use
+            // information_schema directly — SHOW TABLES LIKE with $wpdb->prepare
+            // had a placeholder-vs-LIKE-wildcard interaction that returned 0
+            // matches even when tables existed (the rate limiter, audit, and
+            // preferences endpoints all worked, proving tables were there).
+            // Report which exist / are missing in details so failures are
+            // actionable; differentiate the pass/fail message text.
             global $wpdb;
-            $tablesPresent = (int) $wpdb->get_var("SHOW TABLES LIKE '{$wpdb->prefix}joist_audit'") > 0;
-            $checks[] = $this->check('db.tables_present', $tablesPresent, 'Joist custom tables exist.', ['db_version' => (int) get_option('joist_db_version', 0)]);
+            $expectedTables = ['joist_audit', 'joist_rate_limits', 'joist_preferences', 'joist_plans', 'joist_webhooks', 'joist_revisions'];
+            $prefix = $wpdb->prefix;
+            $dbName = (string) $wpdb->get_var('SELECT DATABASE()');
+            $actualTables = $wpdb->get_col($wpdb->prepare(
+                'SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = %s AND TABLE_NAME LIKE %s',
+                $dbName,
+                $prefix . 'joist\_%'  // backslash escapes the LIKE underscore wildcard
+            ));
+            $actualTables = is_array($actualTables) ? array_map('strval', $actualTables) : [];
+            $existing = [];
+            $missing = [];
+            foreach ($expectedTables as $t) {
+                if (in_array($prefix . $t, $actualTables, true)) {
+                    $existing[] = $t;
+                } else {
+                    $missing[] = $t;
+                }
+            }
+            $tablesPresent = count($missing) === 0;
+            $tablesMsg = $tablesPresent
+                ? sprintf('All %d Joist tables present.', count($existing))
+                : sprintf('Joist tables missing: %s.', implode(', ', $missing));
+            $checks[] = $this->check('db.tables_present', $tablesPresent, $tablesMsg, [
+                'db_version' => (int) get_option('joist_db_version', 0),
+                'prefix' => $prefix,
+                'existing' => $existing,
+                'missing' => $missing,
+            ]);
 
             // Uploads writable.
             $uploadDir = wp_upload_dir();
