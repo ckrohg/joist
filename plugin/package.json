@@ -17,15 +17,15 @@
     "packages-update": "wp-scripts packages-update"
   },
   "dependencies": {
-    "@wordpress/api-fetch": "^7.30.0",
-    "@wordpress/components": "^29.30.0",
-    "@wordpress/dataviews": "^5.30.0",
-    "@wordpress/edit-post": "^8.30.0",
-    "@wordpress/element": "^6.30.0",
-    "@wordpress/i18n": "^5.30.0",
-    "@wordpress/plugins": "^7.30.0"
+    "@wordpress/api-fetch": "^7.47.0",
+    "@wordpress/components": "^34.0.0",
+    "@wordpress/dataviews": "^15.0.0",
+    "@wordpress/edit-post": "^8.47.0",
+    "@wordpress/element": "^7.0.0",
+    "@wordpress/i18n": "^6.20.0",
+    "@wordpress/plugins": "^7.47.0"
   },
   "devDependencies": {
-    "@wordpress/scripts": "^30.0.0"
+    "@wordpress/scripts": "^32.0.0"
   }
 }

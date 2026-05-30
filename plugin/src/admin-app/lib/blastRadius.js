@@ -46,32 +46,122 @@ import { stepTypeKey } from './stepTypes.js';
  */
 const TABLE = {
 	// Tree-mutation (single-page, reversible via plan rollback)
-	update_settings: { severity: 'low',    reversibility: 'reversible',   visibility: 'page', count: 1 },
-	replace_element: { severity: 'low',    reversibility: 'reversible',   visibility: 'page', count: 1 },
-	insert:          { severity: 'low',    reversibility: 'reversible',   visibility: 'page', count: 1 },
-	delete:          { severity: 'medium', reversibility: 'reversible',   visibility: 'page', count: 1 },
-	move:            { severity: 'low',    reversibility: 'reversible',   visibility: 'page', count: 1 },
-	duplicate:       { severity: 'low',    reversibility: 'reversible',   visibility: 'page', count: 1 },
-	wrap:            { severity: 'low',    reversibility: 'reversible',   visibility: 'page', count: 1 },
-	unwrap:          { severity: 'low',    reversibility: 'reversible',   visibility: 'page', count: 1 },
+	update_settings: {
+		severity: 'low',
+		reversibility: 'reversible',
+		visibility: 'page',
+		count: 1,
+	},
+	replace_element: {
+		severity: 'low',
+		reversibility: 'reversible',
+		visibility: 'page',
+		count: 1,
+	},
+	insert: {
+		severity: 'low',
+		reversibility: 'reversible',
+		visibility: 'page',
+		count: 1,
+	},
+	delete: {
+		severity: 'medium',
+		reversibility: 'reversible',
+		visibility: 'page',
+		count: 1,
+	},
+	move: {
+		severity: 'low',
+		reversibility: 'reversible',
+		visibility: 'page',
+		count: 1,
+	},
+	duplicate: {
+		severity: 'low',
+		reversibility: 'reversible',
+		visibility: 'page',
+		count: 1,
+	},
+	wrap: {
+		severity: 'low',
+		reversibility: 'reversible',
+		visibility: 'page',
+		count: 1,
+	},
+	unwrap: {
+		severity: 'low',
+		reversibility: 'reversible',
+		visibility: 'page',
+		count: 1,
+	},
 
 	// Widget-pack-friendly aliases
-	add_widget:      { severity: 'low',    reversibility: 'reversible',   visibility: 'page', count: 1 },
-	delete_widget:   { severity: 'medium', reversibility: 'reversible',   visibility: 'page', count: 1 },
+	add_widget: {
+		severity: 'low',
+		reversibility: 'reversible',
+		visibility: 'page',
+		count: 1,
+	},
+	delete_widget: {
+		severity: 'medium',
+		reversibility: 'reversible',
+		visibility: 'page',
+		count: 1,
+	},
 
 	// Page-level
-	create_page:     { severity: 'low',    reversibility: 'reversible',   visibility: 'page', count: 1 },
-	update_page:     { severity: 'low',    reversibility: 'reversible',   visibility: 'page', count: 1 },
-	delete_page:     { severity: 'high',   reversibility: 'irreversible', visibility: 'public', count: 1 },
+	create_page: {
+		severity: 'low',
+		reversibility: 'reversible',
+		visibility: 'page',
+		count: 1,
+	},
+	update_page: {
+		severity: 'low',
+		reversibility: 'reversible',
+		visibility: 'page',
+		count: 1,
+	},
+	delete_page: {
+		severity: 'high',
+		reversibility: 'irreversible',
+		visibility: 'public',
+		count: 1,
+	},
 
 	// Site/kit-level — site-wide, count unknown without backend
-	update_global_color: { severity: 'medium', reversibility: 'reversible',   visibility: 'site', count: null },
-	update_global_font:  { severity: 'medium', reversibility: 'reversible',   visibility: 'site', count: null },
-	delete_global_token: { severity: 'high',   reversibility: 'irreversible', visibility: 'public', count: null },
-	apply_kit:           { severity: 'high',   reversibility: 'irreversible', visibility: 'public', count: null },
+	update_global_color: {
+		severity: 'medium',
+		reversibility: 'reversible',
+		visibility: 'site',
+		count: null,
+	},
+	update_global_font: {
+		severity: 'medium',
+		reversibility: 'reversible',
+		visibility: 'site',
+		count: null,
+	},
+	delete_global_token: {
+		severity: 'high',
+		reversibility: 'irreversible',
+		visibility: 'public',
+		count: null,
+	},
+	apply_kit: {
+		severity: 'high',
+		reversibility: 'irreversible',
+		visibility: 'public',
+		count: null,
+	},
 
 	// Template-level
-	delete_template:     { severity: 'high',   reversibility: 'irreversible', visibility: 'public', count: null },
+	delete_template: {
+		severity: 'high',
+		reversibility: 'irreversible',
+		visibility: 'public',
+		count: null,
+	},
 };
 
 /**
@@ -87,7 +177,7 @@ const DEFAULT_VERDICT = {
 /**
  * Classify a step's blast radius.
  *
- * @param {object} step A plan step object.
+ * @param {Object} step A plan step object.
  * @return {{
  *   severity: 'low'|'medium'|'high',
  *   reversibility: 'reversible'|'irreversible',
@@ -176,7 +266,9 @@ export function classifyPlan( steps ) {
 	const anyUnknown = verdicts.some( ( v ) => v.affectedCount == null );
 	return {
 		severity: top.severity,
-		reversibility: verdicts.some( ( v ) => v.reversibility === 'irreversible' )
+		reversibility: verdicts.some(
+			( v ) => v.reversibility === 'irreversible'
+		)
 			? 'irreversible'
 			: 'reversible',
 		visibility: verdicts.some( ( v ) => v.visibility === 'public' )

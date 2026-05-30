@@ -11,8 +11,8 @@
 import { useEffect, useRef } from '@wordpress/element';
 
 /**
- * @param {Function} callback Function invoked every `delay` ms.
- * @param {number|null} delay  Interval in ms; falsy = paused.
+ * @param {Function}    callback Function invoked every `delay` ms.
+ * @param {number|null} delay    Interval in ms; falsy = paused.
  */
 export function useInterval( callback, delay ) {
 	const savedCallback = useRef( callback );
@@ -22,8 +22,12 @@ export function useInterval( callback, delay ) {
 	}, [ callback ] );
 
 	useEffect( () => {
-		if ( ! delay && delay !== 0 ) return undefined;
-		if ( delay <= 0 ) return undefined;
+		if ( ! delay && delay !== 0 ) {
+			return undefined;
+		}
+		if ( delay <= 0 ) {
+			return undefined;
+		}
 		const id = setInterval( () => {
 			try {
 				savedCallback.current();

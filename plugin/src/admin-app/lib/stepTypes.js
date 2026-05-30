@@ -30,44 +30,138 @@
  */
 export const STEP_TYPES = {
 	// Tree-mutation (backend-supported today via PlanExecutor)
-	update_settings: { label: 'Update settings', short: 'Update', icon: 'edit', surface: 'tree' },
-	replace_element: { label: 'Replace element', short: 'Replace', icon: 'controls-repeat', surface: 'tree' },
-	insert:          { label: 'Insert element', short: 'Insert', icon: 'plus-alt2', surface: 'tree' },
-	delete:          { label: 'Delete element', short: 'Delete', icon: 'trash', surface: 'tree' },
-	move:            { label: 'Move element', short: 'Move', icon: 'move', surface: 'tree' },
-	duplicate:       { label: 'Duplicate element', short: 'Duplicate', icon: 'admin-page', surface: 'tree' },
-	wrap:            { label: 'Wrap element', short: 'Wrap', icon: 'archive', surface: 'tree' },
-	unwrap:          { label: 'Unwrap element', short: 'Unwrap', icon: 'open-folder', surface: 'tree' },
+	update_settings: {
+		label: 'Update settings',
+		short: 'Update',
+		icon: 'edit',
+		surface: 'tree',
+	},
+	replace_element: {
+		label: 'Replace element',
+		short: 'Replace',
+		icon: 'controls-repeat',
+		surface: 'tree',
+	},
+	insert: {
+		label: 'Insert element',
+		short: 'Insert',
+		icon: 'plus-alt2',
+		surface: 'tree',
+	},
+	delete: {
+		label: 'Delete element',
+		short: 'Delete',
+		icon: 'trash',
+		surface: 'tree',
+	},
+	move: {
+		label: 'Move element',
+		short: 'Move',
+		icon: 'move',
+		surface: 'tree',
+	},
+	duplicate: {
+		label: 'Duplicate element',
+		short: 'Duplicate',
+		icon: 'admin-page',
+		surface: 'tree',
+	},
+	wrap: {
+		label: 'Wrap element',
+		short: 'Wrap',
+		icon: 'archive',
+		surface: 'tree',
+	},
+	unwrap: {
+		label: 'Unwrap element',
+		short: 'Unwrap',
+		icon: 'open-folder',
+		surface: 'tree',
+	},
 
 	// Tree-mutation with widget-pack-friendly aliases
-	add_widget:      { label: 'Add widget', short: 'Add', icon: 'plus-alt2', surface: 'tree' },
-	delete_widget:   { label: 'Delete widget', short: 'Delete widget', icon: 'trash', surface: 'tree' },
+	add_widget: {
+		label: 'Add widget',
+		short: 'Add',
+		icon: 'plus-alt2',
+		surface: 'tree',
+	},
+	delete_widget: {
+		label: 'Delete widget',
+		short: 'Delete widget',
+		icon: 'trash',
+		surface: 'tree',
+	},
 
 	// Page-level (forward-looking)
-	create_page:     { label: 'Create page', short: 'Create page', icon: 'admin-page', surface: 'page' },
-	update_page:     { label: 'Update page', short: 'Update page', icon: 'edit-page', surface: 'page' },
-	delete_page:     { label: 'Delete page', short: 'Delete page', icon: 'trash', surface: 'page' },
+	create_page: {
+		label: 'Create page',
+		short: 'Create page',
+		icon: 'admin-page',
+		surface: 'page',
+	},
+	update_page: {
+		label: 'Update page',
+		short: 'Update page',
+		icon: 'edit-page',
+		surface: 'page',
+	},
+	delete_page: {
+		label: 'Delete page',
+		short: 'Delete page',
+		icon: 'trash',
+		surface: 'page',
+	},
 
 	// Site/kit-level (forward-looking)
-	update_global_color: { label: 'Update global color', short: 'Color', icon: 'art', surface: 'kit' },
-	update_global_font:  { label: 'Update global font', short: 'Font', icon: 'editor-textcolor', surface: 'kit' },
-	delete_global_token: { label: 'Delete global token', short: 'Delete token', icon: 'trash', surface: 'kit' },
-	apply_kit:           { label: 'Apply Kit', short: 'Apply kit', icon: 'archive', surface: 'kit' },
+	update_global_color: {
+		label: 'Update global color',
+		short: 'Color',
+		icon: 'art',
+		surface: 'kit',
+	},
+	update_global_font: {
+		label: 'Update global font',
+		short: 'Font',
+		icon: 'editor-textcolor',
+		surface: 'kit',
+	},
+	delete_global_token: {
+		label: 'Delete global token',
+		short: 'Delete token',
+		icon: 'trash',
+		surface: 'kit',
+	},
+	apply_kit: {
+		label: 'Apply Kit',
+		short: 'Apply kit',
+		icon: 'archive',
+		surface: 'kit',
+	},
 
 	// Template-level (forward-looking)
-	delete_template:     { label: 'Delete template', short: 'Delete template', icon: 'trash', surface: 'template' },
+	delete_template: {
+		label: 'Delete template',
+		short: 'Delete template',
+		icon: 'trash',
+		surface: 'template',
+	},
 };
 
 /**
  * Normalize a step's type/op field to a canonical key.
  *
- * @param {object} step Step object from a plan.
+ * @param {Object} step Step object from a plan.
  * @return {string} Canonical step type key, or 'unknown'.
  */
 export function stepTypeKey( step ) {
-	if ( ! step || typeof step !== 'object' ) return 'unknown';
+	if ( ! step || typeof step !== 'object' ) {
+		return 'unknown';
+	}
 	const raw = String( step.op || step.type || step.step_type || '' ).trim();
-	if ( raw === '' ) return 'unknown';
+	if ( raw === '' ) {
+		return 'unknown';
+	}
 	return raw;
 }
 
@@ -79,7 +173,9 @@ export function stepTypeKey( step ) {
  * @return {{label: string, short: string, icon: string, surface: string}}
  */
 export function stepTypeMeta( key ) {
-	if ( STEP_TYPES[ key ] ) return STEP_TYPES[ key ];
+	if ( STEP_TYPES[ key ] ) {
+		return STEP_TYPES[ key ];
+	}
 	return {
 		label: key && key !== 'unknown' ? key : 'Unknown step',
 		short: key && key !== 'unknown' ? key : 'Unknown',
@@ -91,6 +187,7 @@ export function stepTypeMeta( key ) {
 /**
  * Short human label for the step's primary action verb. Used in chip badges
  * on the plan-list rows ("first 2 step types" column).
+ * @param step
  */
 export function stepShortLabel( step ) {
 	return stepTypeMeta( stepTypeKey( step ) ).short;

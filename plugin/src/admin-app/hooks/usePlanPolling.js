@@ -24,7 +24,7 @@ const ACTIVE_STATUSES = [ 'executing' ];
 const DEFAULT_POLL_MS = 2500;
 
 /**
- * @param {string|null} planId Plan id to track. Null pauses the hook.
+ * @param {string|null}                         planId  Plan id to track. Null pauses the hook.
  * @param {{initial?: object, pollMs?: number}} options
  * @return {{
  *   plan: object|null,
@@ -41,7 +41,9 @@ export function usePlanPolling( planId, options = {} ) {
 	const [ error, setError ] = useState( null );
 
 	const fetcher = useCallback( async () => {
-		if ( ! planId ) return null;
+		if ( ! planId ) {
+			return null;
+		}
 		try {
 			const fresh = await getPlan( planId );
 			setPlan( fresh );
@@ -65,7 +67,9 @@ export function usePlanPolling( planId, options = {} ) {
 		let cancelled = false;
 		( async () => {
 			const fresh = await fetcher();
-			if ( cancelled ) return;
+			if ( cancelled ) {
+				return;
+			}
 			void fresh;
 		} )();
 		return () => {

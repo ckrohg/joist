@@ -32,13 +32,17 @@ const NAMESPACE = 'joist/v1';
  * needs it. AssetEnqueue.php localizes it on the `joist-admin-app` script.
  */
 function readConfig() {
-	if ( typeof window === 'undefined' ) return {};
+	if ( typeof window === 'undefined' ) {
+		return {};
+	}
 	return window.joistConfig || {};
 }
 
 let nonceConfigured = false;
 function ensureNonce() {
-	if ( nonceConfigured ) return;
+	if ( nonceConfigured ) {
+		return;
+	}
 	const { nonce, restRoot } = readConfig();
 	if ( nonce ) {
 		apiFetch.use( apiFetch.createNonceMiddleware( nonce ) );
@@ -60,7 +64,9 @@ function ensureNonce() {
 export class JoistApiError extends Error {
 	constructor( payload, fallback ) {
 		const message =
-			( payload && payload.message ) || fallback || 'Unknown Joist API error';
+			( payload && payload.message ) ||
+			fallback ||
+			'Unknown Joist API error';
 		super( message );
 		this.name = 'JoistApiError';
 		this.code = ( payload && payload.code ) || 'unknown';
@@ -77,7 +83,7 @@ export class JoistApiError extends Error {
 /**
  * Internal: call apiFetch, normalize errors to JoistApiError.
  *
- * @param {object} options apiFetch options.
+ * @param {Object} options apiFetch options.
  * @return {Promise<*>}
  */
 async function call( options ) {
@@ -92,7 +98,10 @@ async function call( options ) {
 			throw new JoistApiError( e );
 		}
 		throw new JoistApiError(
-			{ code: 'network_error', message: ( e && e.message ) || String( e ) },
+			{
+				code: 'network_error',
+				message: ( e && e.message ) || String( e ),
+			},
 			'Network or transport error'
 		);
 	}
@@ -116,7 +125,10 @@ export function listPlans() {
 export function getPlan( id ) {
 	if ( ! id ) {
 		return Promise.reject(
-			new JoistApiError( { code: 'validation.id_required', message: 'plan id is required' } )
+			new JoistApiError( {
+				code: 'validation.id_required',
+				message: 'plan id is required',
+			} )
 		);
 	}
 	return call( {
@@ -142,7 +154,7 @@ export function createPlan( body ) {
 /**
  * POST /plans/{id}/approve — approve a plan (requires approval_token).
  *
- * @param {string} id
+ * @param {string}                   id
  * @param {{approval_token: string}} body
  * @return {Promise<object>}
  */
@@ -157,7 +169,7 @@ export function approvePlan( id, body ) {
 /**
  * POST /plans/{id}/reject — reject a plan.
  *
- * @param {string} id
+ * @param {string}                                                    id
  * @param {{approval_token?: string, note?: string, reason?: string}} body
  * @return {Promise<object>}
  */
@@ -172,12 +184,12 @@ export function rejectPlan( id, body ) {
 /**
  * POST /plans/{id}/execute — execute an approved plan.
  *
- * @param {string} id
+ * @param {string}                    id
  * @param {{step_indices?: number[]}} [body]
- *   Optional. If the backend grows to support per-step execution it will
- *   accept a `step_indices` array — in W5b we forward the body if provided
- *   so the UI is forward-compatible. The current PlansController does not
- *   yet read step_indices (see open question in W5b status report).
+ *                                           Optional. If the backend grows to support per-step execution it will
+ *                                           accept a `step_indices` array — in W5b we forward the body if provided
+ *                                           so the UI is forward-compatible. The current PlansController does not
+ *                                           yet read step_indices (see open question in W5b status report).
  * @return {Promise<object>}
  */
 export function executePlan( id, body ) {
@@ -197,9 +209,9 @@ export function executePlan( id, body ) {
  * modal will refuse-not-corrupt rather than fall back to a full-plan
  * replace. See WAVE_5b §D and failure_mode_constraints.md #16.
  *
- * @param {string} id Plan id.
+ * @param {string} id    Plan id.
  * @param {number} index Step index (0-based).
- * @param {object} patch Partial step body to merge.
+ * @param {Object} patch Partial step body to merge.
  * @return {Promise<object>}
  */
 export function updatePlanStep( id, index, patch ) {

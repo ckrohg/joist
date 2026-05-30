@@ -27,7 +27,9 @@ const RTF = ( () => {
  * @return {Date|null}
  */
 function parseMySQL( mysql ) {
-	if ( ! mysql || typeof mysql !== 'string' ) return null;
+	if ( ! mysql || typeof mysql !== 'string' ) {
+		return null;
+	}
 	const m = mysql.match(
 		/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/
 	);
@@ -55,9 +57,14 @@ function parseMySQL( mysql ) {
  */
 export function relativeTime( when ) {
 	let d = null;
-	if ( when instanceof Date ) d = when;
-	else if ( typeof when === 'string' ) d = parseMySQL( when );
-	if ( ! d ) return '';
+	if ( when instanceof Date ) {
+		d = when;
+	} else if ( typeof when === 'string' ) {
+		d = parseMySQL( when );
+	}
+	if ( ! d ) {
+		return '';
+	}
 
 	const deltaSec = Math.round( ( d.getTime() - Date.now() ) / 1000 );
 	const abs = Math.abs( deltaSec );
@@ -83,12 +90,11 @@ export function relativeTime( when ) {
 	}
 
 	if ( RTF ) {
-		return RTF.format(
-			deltaSec < 0 ? -value : value,
-			chosenUnit
-		);
+		return RTF.format( deltaSec < 0 ? -value : value, chosenUnit );
 	}
 	// Manual fallback if Intl.RelativeTimeFormat isn't available.
 	const direction = deltaSec < 0 ? 'ago' : 'from now';
-	return `${ value } ${ chosenUnit }${ value === 1 ? '' : 's' } ${ direction }`;
+	return `${ value } ${ chosenUnit }${
+		value === 1 ? '' : 's'
+	} ${ direction }`;
 }
