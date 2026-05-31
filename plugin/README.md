@@ -62,6 +62,64 @@ See `joist.php` header comment for the full mapping, or `specs/PLUGIN_API.md §2
 
 WP-admin React Plan Review UI (REST exists, UI is v0.7) · MCP adapter wiring (REST standalone works; Abilities bridge v0.7) · per-skin control validation depth · Kit .zip import/export · Theme Builder display-condition priority · CIEDE2000 (using CIE76) · DNS-rebinding curl handler · GDPR DSR exporters · live preview rendering · multisite per-site migration loop · WooCommerce/Forms endpoints.
 
+## Autonomous clone via the `joist-clone` Claude skill
+
+Joist ships with a **Claude Code skill** that automates the full clone-a-website workflow against your Joist-equipped WordPress site. The skill runs a generator/grader loop: source analysis → motion detection → plan author → execute → screenshot → vision-grade → revise → iterate until ≥target_score or max_iterations.
+
+### 30-second install
+
+The skill files live at `plugin/skills/joist-clone/` (bundled inside this plugin's zip). To activate:
+
+```bash
+# 1. Copy the skill to your Claude skills directory
+cp -R wp-content/plugins/joist/skills/joist-clone ~/.claude/skills/
+
+# 2. Install Playwright CLI (the skill uses it for screenshots + DOM inspection)
+npx playwright install chromium
+
+# 3. Verify the skill loaded (start a fresh Claude Code session)
+#    `/joist-clone` should appear as an available command
+```
+
+That's it. The skill is now available in any Claude Code session running in this WP site's project.
+
+### Use the skill
+
+```
+> clone https://stripe.com/
+> /joist-clone https://linear.app target_score=85
+> build a page like https://vercel.com on my site
+```
+
+The skill will:
+1. Fetch + analyze the source URL (palette, typography, layout — and motion: parallax/scroll/hover/3D detection)
+2. Show you a **pre-flight summary**: what motion was detected, what tier (free / Pro / library) can author it, projected fidelity
+3. Author the V3 plan, submit via Joist MCP, publish the page
+4. Screenshot the result, vision-grade against the source with a structured rubric
+5. Apply ranked-gaps fixes, re-author, re-grade — up to `max_iterations`
+6. Return the final live page URL + grade trajectory + uncloneable-effects report
+
+### Honest fidelity caps
+
+| Source type | V3 free | V3 + custom CSS | V3 + Pro Motion Effects | V3 + libraries |
+|---|---|---|---|---|
+| Static editorial / marketing | 90-95% | 92-97% | 95-98% | 95-98% |
+| Standard SaaS (mild motion) | 75-85% | 85-92% | 92-96% | 93-97% |
+| Motion-heavy (parallax + scroll-triggers) | 50-65% | 70-80% | 88-94% | 92-96% |
+| Interactive / 3D / WebGL | 30-45% | 45-60% | 55-70% | 80-90% |
+| Webflow/Framer-level interactive | 25-40% | 40-55% | 50-65% | 70-85% |
+
+The skill reports uncloneable effects honestly (e.g. "Stripe's WebGL gradient hero canvas is not authorable in Elementor V3 at any tier — closest approximation is a static gradient image") rather than pretending.
+
+### Skill files
+
+- `plugin/skills/joist-clone/SKILL.md` — the 6-phase workflow (~15 KB)
+- `plugin/skills/joist-clone/LESSONS.md` — accumulated session lessons that compound across runs (~13 KB)
+
+Knowledge artifacts the skill references (in this repo's `knowledge/` dir): CLONE_AUTHORING_PLAYBOOK.md, ELEMENTOR_V3_WIDGET_REFERENCE.md (1895 lines), MOTION_PLAYBOOK.md + 6 motion-research source files (parallax, scroll, hover, 3D, libraries, competitive landscape).
+
+---
+
 ## Install (manual, for dev only)
 
 1. Install [Local](https://localwp.com), spin up a site — WordPress 6.5+, PHP 8.0+.

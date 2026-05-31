@@ -28,10 +28,18 @@ final class PageFactory
      *
      * @param string $intent Used to derive a title when $title is empty.
      * @param string $title  Explicit title, optional.
+     * @param string $status Post status. Default `publish` so anonymous viewers
+     *                       (including Playwright-driven grader screenshots) can
+     *                       see the page immediately. Set to `draft` if the
+     *                       caller wants editor-only preview before publishing.
+     *                       Bug fix 2026-05-31: was `draft` by default, which
+     *                       hid every Joist-created page from non-admins and
+     *                       broke the autonomous grader loop (Playwright fetch
+     *                       returned theme 404 instead of the rendered clone).
      * @return int           New post ID.
      * @throws WriteException On wp_insert_post failure or 0-return.
      */
-    public static function createBlankElementorPage(string $intent, string $title = ''): int
+    public static function createBlankElementorPage(string $intent, string $title = '', string $status = 'publish'): int
     {
         // Derive a title — explicit > intent-derived > generic fallback.
         if ($title === '') {
@@ -55,9 +63,15 @@ final class PageFactory
             $template = 'default';
         }
 
+        // Validate status — accept only known WP page statuses.
+        $allowedStatuses = ['publish', 'draft', 'private', 'pending'];
+        if (!in_array($status, $allowedStatuses, true)) {
+            $status = 'publish';
+        }
+
         $insert = [
             'post_type' => 'page',
-            'post_status' => 'draft',
+            'post_status' => $status,
             'post_title' => $title,
             'post_author' => (int) get_current_user_id(),
             'post_content' => '',
