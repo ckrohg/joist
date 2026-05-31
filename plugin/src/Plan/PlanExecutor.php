@@ -106,11 +106,22 @@ final class PlanExecutor
                     ]);
                 }
             }
-            $this->store->updateStatus($planId, 'failed', [
+            // Wave 1 (2026-05-31): preserve WriteException::$data so structured
+            // diagnostics (e.g. AtomicDocumentWriter's structural_diff for
+            // #35888 silent-save failures) actually reach callers via the
+            // stored plan result. Previously only the message survived.
+            $errorPayload = [
                 'error' => $e->getMessage(),
                 'failed_at_step' => count($stepResults) + 1,
                 'completed_steps' => $stepResults,
-            ]);
+            ];
+            if ($e instanceof WriteException) {
+                $errorPayload['error_code'] = $e->errorCode;
+                if ($e->errorDetails !== []) {
+                    $errorPayload['error_details'] = $e->errorDetails;
+                }
+            }
+            $this->store->updateStatus($planId, 'failed', $errorPayload);
             $this->webhooks->emit('plan.failed', [
                 'plan_id' => $planId,
                 'page_id' => $pageId,

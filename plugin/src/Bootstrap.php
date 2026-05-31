@@ -180,6 +180,10 @@ final class Bootstrap
             \Joist\REST\ExemplarPackController::class,
             // W11: /critique endpoint + cost-meter + rubric introspection.
             \Joist\REST\CritiqueController::class,
+            // v0.9.5: admin settings UI so users never need SSH or wp-config to set the Claude key.
+            \Joist\REST\SettingsController::class,
+            // v0.10: MCP server — Joist as a tool surface for Claude Code (and any MCP client).
+            \Joist\REST\McpController::class,
         ];
         foreach ($controllers as $c) {
             if (class_exists($c)) {

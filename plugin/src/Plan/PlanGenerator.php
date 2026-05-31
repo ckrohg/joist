@@ -44,7 +44,7 @@ final class PlanGenerator
         if ($apiKey === '') {
             // Fallback path — produce a structured template so the user can
             // see the loop work end-to-end without spending Anthropic money.
-            return $this->templateSteps($intent);
+            return $this->templateSteps($intent, $pageId);
         }
 
         return $this->callClaude($intent, $pageId, $apiKey);
@@ -60,13 +60,32 @@ final class PlanGenerator
     }
 
     /** Build the steps the generator produces when no API key is available. */
-    private function templateSteps(string $intent): array
+    private function templateSteps(string $intent, ?int $pageId = null): array
     {
         $headline = $this->extractTopic($intent);
+
+        // Edit-mode stub: if a real page is targeted, prefer the smallest
+        // possible diff — retitle the first heading widget on the page if one
+        // exists, otherwise fall through to the build-mode insert.
+        if ($pageId !== null && $pageId > 0) {
+            $summary = $this->summarizeExistingPage($pageId);
+            if ($summary !== null && $summary['first_heading_id'] !== null) {
+                return [
+                    [
+                        'op' => 'update_settings',
+                        'element_id' => $summary['first_heading_id'],
+                        'settings' => [
+                            'title' => $headline,
+                        ],
+                    ],
+                ];
+            }
+        }
+
         return [
             [
                 'op' => 'insert',
-                'path' => '/elements/-',
+                'position' => 999, // append at end; array_splice clamps to size
                 'element' => [
                     'elType' => 'container',
                     'settings' => [
@@ -138,19 +157,51 @@ final class PlanGenerator
      */
     private function callClaude(string $intent, ?int $pageId, string $apiKey): array
     {
-        $system = $this->buildSystemPrompt();
+        $editMode = ($pageId !== null && $pageId > 0);
+        $treeSummary = null;
+        if ($editMode) {
+            $summary = $this->summarizeExistingPage((int) $pageId);
+            $treeSummary = $summary !== null ? $summary['text'] : null;
+        }
+
+        // Edit mode is only meaningful when we actually have a tree to anchor
+        // the diff against. If the post has no usable Elementor data, fall
+        // back to build-mode behavior so Claude isn't asked to edit a void.
+        if ($editMode && ($treeSummary === null || $treeSummary === '')) {
+            $editMode = false;
+        }
+
+        $system = $this->buildSystemPrompt($editMode);
+
+        $systemBlocks = [
+            ['type' => 'text', 'text' => $system, 'cache_control' => ['type' => 'ephemeral']],
+        ];
+        if ($editMode && is_string($treeSummary) && $treeSummary !== '') {
+            $systemBlocks[] = [
+                'type' => 'text',
+                'text' => "EXISTING PAGE STRUCTURE (page_id={$pageId}):\n" . $treeSummary,
+                'cache_control' => ['type' => 'ephemeral'],
+            ];
+        }
+
+        $userText = 'Produce the Plan JSON for the following intent. Output JSON only, no prose, no markdown fence.';
+        if ($editMode) {
+            $userText .= "\n\nEDIT MODE — see existing structure in the system context. INTENT: " . $intent;
+        } else {
+            $userText .= "\n\nINTENT: " . $intent;
+            if ($pageId) {
+                $userText .= "\n\nPAGE_ID (existing page being edited): " . $pageId;
+            }
+        }
+
         $body = [
             'model' => self::MODEL,
             'max_tokens' => 2048,
-            'system' => [
-                ['type' => 'text', 'text' => $system, 'cache_control' => ['type' => 'ephemeral']],
-            ],
+            'system' => $systemBlocks,
             'messages' => [
                 [
                     'role' => 'user',
-                    'content' => 'Produce the Plan JSON for the following intent. Output JSON only, no prose, no markdown fence.'
-                        . "\n\nINTENT: " . $intent
-                        . ($pageId ? "\n\nPAGE_ID (existing page being edited): " . $pageId : ''),
+                    'content' => $userText,
                 ],
             ],
         ];
@@ -215,9 +266,67 @@ final class PlanGenerator
     /**
      * Construct the system prompt. Brand-aware, forbids slop, constrains the
      * output to V3-compatible shapes the rest of Joist's pipeline understands.
+     *
+     * Two modes:
+     *   - Build mode ($editMode = false): page is being generated from scratch;
+     *     emits a stack of root containers via `insert` ops.
+     *   - Edit mode ($editMode = true):  an existing page tree is supplied in
+     *     a second system block and Claude must target real element IDs and
+     *     prefer the smallest possible diff.
      */
-    private function buildSystemPrompt(): string
+    private function buildSystemPrompt(bool $editMode): string
     {
+        if ($editMode) {
+            return <<<PROMPT
+You are Joist's plan generator in EDIT MODE. You are editing an existing Elementor page. The current page structure is provided to you in a separate system block — read it carefully and use the real element IDs from that block. Do not invent IDs.
+
+OUTPUT CONTRACT
+Return strict JSON with this exact top-level shape (no prose, no markdown fence):
+{
+  "steps": [
+    { "op": "<op>", … },
+    …
+  ]
+}
+
+ALLOWED OPS — these are the only ops permitted in edit mode:
+
+1. `update_settings` — tweak an existing element's settings (most common edit).
+   { "op": "update_settings", "element_id": "<id>", "settings": { "<key>": <value>, … } }
+   Conceptually a JSON-pointer update at `/elements/<id>/settings/<key>` with the given value. Use this for retitling a heading, changing button text, swapping link URLs, etc.
+
+2. `replace_element` — swap an entire element subtree at a given ID.
+   { "op": "replace_element", "element_id": "<id>", "element": { "elType": …, "settings": …, … } }
+   Conceptually `/elements/<id>` ← new element. Use only when the user asks to fundamentally change a section.
+
+3. `insert` — add a new top-level container (or a new child of a container).
+   { "op": "insert", "parent_id": "<container_id_or_empty>", "position": <int>, "element": { … } }
+   Empty `parent_id` (or omitting it) inserts at root. `position` is the index among siblings.
+
+4. `delete` — remove an element by ID.
+   { "op": "delete", "element_id": "<id>" }
+
+ELEMENT SHAPE — V3-compatible only (containers + the 12 widget slugs):
+- Containers: `{ "elType": "container", "settings": {...}, "elements": [...] }`
+- Widgets:   `{ "elType": "widget", "widgetType": "<slug>", "settings": {...} }`
+- Allowed widget slugs: heading, text-editor, button, image, icon, divider, spacer, video, html, social-icons, icon-list, star-rating
+- Common settings: heading → title, header_size, align; text-editor → editor (HTML); button → text, align, link({url,is_external}); image → image({url,alt})
+
+DIFF DISCIPLINE — the single most important rule in edit mode:
+- Prefer the smallest possible diff. If the user asks for one change, produce one step.
+- Target existing element IDs from the provided structure. Do not invent IDs.
+- Do NOT regenerate the whole page. Do NOT insert a sweeping new hero unless the intent explicitly asks for one.
+- Do NOT emit build-mode-style "4–7 stacked containers" output. This is editing, not building.
+
+DESIGN VOICE (when you do write new copy):
+- Editorial-engineering. Direct sentences, concrete nouns, scannable hierarchy.
+- Forbidden: "Empower your", "Revolutionize", "Unleash", "Build the future of", "next-gen", "synergy", "leverage", "game-changing", AI-stock-photo aesthetics.
+- Preferred: propositions over labels. Specific over generic.
+
+OUTPUT ONLY THE JSON OBJECT. NO PROSE. NO MARKDOWN FENCE.
+PROMPT;
+        }
+
         return <<<PROMPT
 You are Joist's plan generator. You turn a one-sentence intent into a structured Elementor Plan — a JSON object the rest of Joist's pipeline executes through schema-validated, audited, hash-checked saves.
 
@@ -225,10 +334,17 @@ OUTPUT CONTRACT
 Return strict JSON with this exact top-level shape (no prose, no markdown fence):
 {
   "steps": [
-    { "op": "insert", "path": "/elements/-", "element": { … } },
+    { "op": "insert", "position": <int>, "element": { … } },
     …
   ]
 }
+
+OP SHAPE — build mode produces only `insert` ops appending top-level containers to the page:
+- `op` MUST be the string "insert"
+- `parent_id` MUST be omitted (inserts at the page root)
+- `position` is the insertion index among siblings. Use 999 to append at the end (PHP's array_splice clamps to the array size). Sequential steps with position:999 will stack in the order you emit them.
+- `element` is the new element subtree to insert. Do NOT include element IDs — the engine generates IDs.
+- Do NOT include a `path` field. JSON-Patch paths are not supported.
 
 ELEMENT SHAPE — use V3-compatible Elementor structures only:
 - Root nodes are containers: `{ "elType": "container", "settings": {...}, "elements": [...] }`
@@ -237,8 +353,16 @@ ELEMENT SHAPE — use V3-compatible Elementor structures only:
 - Heading settings: `title` (string), `header_size` (h1|h2|h3|h4|h5|h6), `align` (left|center|right)
 - Text-editor settings: `editor` (HTML string)
 - Button settings: `text` (string), `align`, `link` ({ url, is_external })
-- Image settings: `image` ({ url, alt })
+- Image settings: `image` ({ url, alt }). See IMAGE POLICY below.
 - Container settings should include `content_width` (boxed|full) and reasonable `padding` ({ unit:"px", top, right, bottom, left, isLinked:false })
+
+IMAGE POLICY — generated images must not 404:
+- You have NO access to a real image library. Do NOT invent stock-photo URLs or guess CDN paths.
+- For every image widget, set `settings.image` to one of:
+  (a) `{ "url": "https://placehold.co/{w}x{h}/0E0E0C/F3F2EC?text=<short+label>", "alt": "<descriptive alt>" }` — Foundry palette placeholders, valid sizes like 1600x900, 800x600, 600x400.
+  (b) `{ "url": "", "alt": "<descriptive alt>" }` — leave blank so the user can fill it in via Elementor's media library.
+- Prefer (a) for hero/banner images, (b) for body/inline images and where the user is likely to upload their own brand asset.
+- NEVER use unsplash.com, pexels.com, pixabay.com, or any real photo URL.
 
 DESIGN AESTHETIC — Joist's Foundry brand language:
 - Editorial-engineering: confident wordmark-grade typography, generous whitespace, warm dark surfaces (although we don't set background colors at the element level)
@@ -263,5 +387,153 @@ EXAMPLES OF BAD HEADLINES (do not produce)
 
 OUTPUT ONLY THE JSON OBJECT. NO PROSE. NO MARKDOWN FENCE.
 PROMPT;
+    }
+
+    /**
+     * Load and compactly summarize the existing Elementor tree for `$pageId`.
+     *
+     * No PageTreeSummarizer service exists in this codebase yet, so we read
+     * `_elementor_data` directly and walk it inline once, producing both:
+     *   - `text`: a flat, line-per-element listing capped at ~8KB. Each row is
+     *     `[path] id=<id> <elType-or-widgetType> — k=v, k=v` with aggressive
+     *     truncation. Only diff-relevant keys per widget type are emitted.
+     *     Claude needs structure, not exhaustive settings.
+     *   - `first_heading_id`: the element_id of the first `heading` widget
+     *     encountered, for use by the template-mode fallback to emit a
+     *     minimal-diff `update_settings` step instead of blind-appending.
+     *
+     * Returns null when the page has no usable Elementor data — callers treat
+     * that as "fall back to build-mode behavior".
+     *
+     * @return array{text: string, first_heading_id: ?string}|null
+     */
+    private function summarizeExistingPage(int $pageId): ?array
+    {
+        if (!function_exists('get_post_meta')) {
+            return null; // Outside of WP runtime (e.g. unit-test harness) — skip.
+        }
+        $raw = get_post_meta($pageId, '_elementor_data', true);
+        if (!is_string($raw) || $raw === '') {
+            return null;
+        }
+        $tree = json_decode($raw, true);
+        if (!is_array($tree) || $tree === []) {
+            return null;
+        }
+
+        // Per-widget allowlist of diff-relevant setting keys.
+        $keysByWidget = [
+            'heading'      => ['title', 'header_size', 'align'],
+            'text-editor'  => ['editor'],
+            'button'       => ['text', 'align', 'link'],
+            'image'        => ['image', 'alt'],
+            'icon'         => ['selected_icon'],
+            'video'        => ['video_type', 'youtube_url', 'vimeo_url'],
+            'html'         => ['html'],
+            'social-icons' => ['social_icon_list'],
+            'icon-list'    => ['icon_list'],
+            'star-rating'  => ['rating', 'unmarked_style'],
+        ];
+        $containerKeys = ['content_width', 'flex_direction', 'flex_wrap'];
+
+        $shortStr = static function (string $s, int $max): string {
+            $stripped = function_exists('wp_strip_all_tags') ? wp_strip_all_tags($s) : strip_tags($s);
+            $clean = (string) preg_replace('/\s+/', ' ', trim($stripped));
+            if (mb_strlen($clean) <= $max) return $clean;
+            return mb_substr($clean, 0, $max - 1) . '…';
+        };
+
+        $summarizeSettings = static function (array $settings, string $elType, string $widgetType) use (
+            $keysByWidget, $containerKeys, $shortStr
+        ): string {
+            $picked = [];
+            $keys = $elType === 'container' ? $containerKeys : ($keysByWidget[$widgetType] ?? []);
+            foreach ($keys as $k) {
+                if (!array_key_exists($k, $settings)) continue;
+                $v = $settings[$k];
+                if (is_array($v)) {
+                    if (isset($v['url']) && is_string($v['url'])) {
+                        $picked[] = $k . '=' . $shortStr((string) $v['url'], 60);
+                        continue;
+                    }
+                    $picked[] = $k . '=[…]';
+                    continue;
+                }
+                if (is_scalar($v)) {
+                    $picked[] = $k . '=' . $shortStr((string) $v, 60);
+                }
+            }
+            return implode(', ', $picked);
+        };
+
+        $lines = [];
+        $maxBytes = 8 * 1024;
+        $bytesUsed = 0;
+        $truncated = false;
+        $counter = 0;
+        $firstHeadingId = null;
+
+        $walk = function (array $nodes, int $depth, string $parentPath) use (
+            &$walk, &$lines, &$bytesUsed, &$truncated, &$counter, &$firstHeadingId,
+            $maxBytes, $summarizeSettings
+        ): void {
+            foreach ($nodes as $idx => $node) {
+                if ($truncated) return;
+                if (!is_array($node)) continue;
+                $counter++;
+                if ($counter > 400) { // hard cap on row count
+                    $truncated = true;
+                    return;
+                }
+
+                $id = (string) ($node['id'] ?? '');
+                $elType = (string) ($node['elType'] ?? '');
+                $widgetType = (string) ($node['widgetType'] ?? '');
+                $path = $parentPath === '' ? (string) $idx : ($parentPath . '.' . $idx);
+
+                if ($firstHeadingId === null && $elType === 'widget' && $widgetType === 'heading' && $id !== '') {
+                    $firstHeadingId = $id;
+                }
+
+                $summary = $summarizeSettings(
+                    is_array($node['settings'] ?? null) ? $node['settings'] : [],
+                    $elType,
+                    $widgetType
+                );
+
+                $indent = str_repeat('  ', min($depth, 6));
+                $label = $elType === 'widget'
+                    ? ($widgetType !== '' ? $widgetType : 'widget')
+                    : ($elType !== '' ? $elType : '?');
+                $line = $indent . '[' . $path . '] id=' . ($id !== '' ? $id : '?') . ' ' . $label;
+                if ($summary !== '') {
+                    $line .= ' — ' . $summary;
+                }
+
+                $lineBytes = strlen($line) + 1;
+                if ($bytesUsed + $lineBytes > $maxBytes) {
+                    $truncated = true;
+                    return;
+                }
+                $lines[] = $line;
+                $bytesUsed += $lineBytes;
+
+                $children = $node['elements'] ?? null;
+                if (is_array($children) && $children !== []) {
+                    $walk($children, $depth + 1, $path);
+                }
+            }
+        };
+
+        $walk($tree, 0, '');
+
+        if ($truncated) {
+            $lines[] = '… (tree truncated — only the first ' . count($lines) . ' rows shown)';
+        }
+
+        return [
+            'text' => implode("\n", $lines),
+            'first_heading_id' => $firstHeadingId,
+        ];
     }
 }

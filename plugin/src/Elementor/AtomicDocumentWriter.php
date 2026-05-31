@@ -395,6 +395,27 @@ final class AtomicDocumentWriter
         // Hash the intended state BEFORE the save so we can compare deterministically
         // after the read-back. We hash the canonicalized intended tree.
         $intendedHash = $this->hasher->forElements($elements);
+        // Wave 2 (2026-05-31) — also compute the lenient hash that ignores
+        // V4 auto-added fields (isInner, id). The silent-save check uses
+        // the lenient hash; the strict one is logged for observability.
+        $intendedShape = $this->hasher->forElementsLenient($elements);
+
+        // Wave 2: capture the *pre-save* state so we can detect the true
+        // #35888 symptom (save returns success but tree is unchanged). The
+        // strict intended==verified check could not tell silent-drop from
+        // benign normalization apart; before-vs-after disambiguates.
+        $beforeShape = null;
+        try {
+            $beforeData = $document->get_elements_data();
+            $beforeShape = $this->hasher->forElementsLenient(is_array($beforeData) ? $beforeData : []);
+        } catch (\Throwable $e) {
+            // Pre-save snapshot is best-effort; if it fails we still attempt
+            // the write and fall back to Check B (intended==verified lenient).
+            Logger::warn('joist.atomic.presave_snapshot_failed', [
+                'post_id' => $postId,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         // The write. Same public API on 3.x and 4.x; the divergence is in
         // the tree shape (legacy element types vs. atomic e-* slugs).
@@ -452,30 +473,107 @@ final class AtomicDocumentWriter
         ]);
         $verified = is_array($verified) ? $verified : [];
         $verifiedHash = $this->hasher->forElements($verified);
+        // Wave 2: lenient hash strips V4 auto-fields. Drives the actual
+        // silent-save check below; strict $verifiedHash is informational.
+        $verifiedShape = $this->hasher->forElementsLenient($verified);
 
-        if ($verifiedHash !== $intendedHash) {
+        // Wave 2 — two-layer silent-save check (replaces the old strict
+        // intended==verified equality).
+        //
+        // Check A (silent-drop detection, when pre-save snapshot succeeded):
+        //   shape_after must differ from shape_before when intended is
+        //   non-empty. If shape_after == shape_before, the save was a no-op
+        //   — the canonical #35888 symptom.
+        //
+        // Check B (silent-corruption detection):
+        //   shape_after must equal shape_intended (lenient). If lenient
+        //   shapes differ, V4 mutated something beyond the known-benign
+        //   auto-fields list; we refuse and surface the structural_diff
+        //   so we can extend V4_AUTO_FIELDS or design Wave 3 properly.
+        $checkAFailed = false;
+        $checkBFailed = false;
+        if ($beforeShape !== null && count($elements) > 0 && $beforeShape === $verifiedShape) {
+            // Save had no effect AND we were trying to write content.
+            // This is the genuine #35888 silent-drop.
+            $checkAFailed = true;
+        }
+        if ($verifiedShape !== $intendedShape) {
+            $checkBFailed = true;
+        }
+
+        if ($checkAFailed || $checkBFailed) {
             // This is the #35888 class — save returned without error but
             // the state isn't what we wrote. Refuse silently-failing
             // operations (constraint #16).
+            //
+            // Wave 1 diagnostic (2026-05-31): hash mismatch alone tells us
+            // 'different' but not 'how'. We compute a compact structural
+            // diff so callers can see what V4's transformer mutated. This
+            // unblocks designing the V4-aware hash check (Wave 2).
+            $structuralDiff = $this->structuralDiff($elements, $verified);
+            // Wave 2.1 (2026-05-31): when Check B trips, also include the
+            // *full* first-root subtrees so we can see every field V4
+            // mutated, including deep nested settings the structural_diff
+            // root-level view doesn't surface. Capped at 20 KB total to
+            // stay polite to the error envelope.
+            $fullTreeSample = null;
+            if ($checkBFailed) {
+                $fullTreeSample = [
+                    'intended_root_0' => $this->truncateForEnvelope($elements[0] ?? null, 8192),
+                    'verified_root_0' => $this->truncateForEnvelope($verified[0] ?? null, 8192),
+                ];
+            }
+            $failureReason = $checkAFailed
+                ? 'silent_drop_check_a'   // save returned ok but tree unchanged
+                : 'shape_divergence_check_b'; // verified shape != intended shape (V4 mutated beyond known auto-fields)
             Logger::error('joist.atomic.silent_save_failure', [
                 'post_id' => $postId,
+                'failure_reason' => $failureReason,
                 'intended_hash' => $intendedHash,
                 'verified_hash' => $verifiedHash,
+                'intended_shape' => $intendedShape,
+                'verified_shape' => $verifiedShape,
+                'before_shape' => $beforeShape,
                 'elementor_version' => $decision->version,
+                'structural_diff' => $structuralDiff,
             ]);
+            $message = $checkAFailed
+                ? 'Elementor Document::save() returned without error but the page tree is unchanged. This is the #35888 silent-drop failure mode; refused per failure-mode constraint #16.'
+                : 'Elementor Document::save() returned without error but the post-save read-back diverges from the intended state beyond known-benign V4 normalizations. Refused per failure-mode constraint #16; extend Hasher::V4_AUTO_FIELDS if structural_diff shows a new V4-introduced field.';
             throw new WriteException(
                 'atomic_save_silent_failure',
-                'Elementor Document::save() returned without error but the post-save read-back does not match the intended state. This is the #35888 failure mode; refused per failure-mode constraint #16.',
+                $message,
                 422,
                 [
                     'routing_decision' => $decision->toArray(),
                     'post_id' => $postId,
+                    'failure_reason' => $failureReason,
                     'intended_hash' => $intendedHash,
                     'verified_hash' => $verifiedHash,
+                    'intended_shape' => $intendedShape,
+                    'verified_shape' => $verifiedShape,
+                    'before_shape' => $beforeShape,
+                    'structural_diff' => $structuralDiff,
+                    'full_tree_sample' => $fullTreeSample,
                     'open_upstream_issue' => 'https://github.com/elementor/elementor/issues/35888',
-                    'guidance' => 'This is an upstream Elementor V4 bug. The write was attempted but did not persist correctly; the page is in the pre-save state. Investigate Elementor logs for the specific failure (see js error: this.view.container is undefined).',
+                    'guidance' => $checkAFailed
+                        ? 'Save returned success but the tree on disk is unchanged from the pre-save state. Investigate Elementor logs for the JS error (this.view.container is undefined).'
+                        : 'V4 transformer added or modified fields beyond the known-benign list. Compare full_tree_sample.intended_root_0 vs verified_root_0 to identify new V4-added fields; extend Hasher::V4_AUTO_FIELDS and re-deploy.',
                 ]
             );
+        }
+
+        // Wave 2: log when strict hashes differ but lenient passed — useful
+        // for surfacing what V4 normalized on successful saves. Informational
+        // only; not an error.
+        if ($verifiedHash !== $intendedHash) {
+            Logger::info('joist.atomic.benign_v4_normalization', [
+                'post_id' => $postId,
+                'intended_hash' => $intendedHash,
+                'verified_hash' => $verifiedHash,
+                'lenient_match' => true,
+                'elementor_version' => $decision->version,
+            ]);
         }
 
         // Constraint #5: regenerate CSS post-write AND verify success.
@@ -487,6 +585,208 @@ final class AtomicDocumentWriter
             'css_regenerated' => $cssRegenerated,
             'atomic_warnings' => $warnings,
         ];
+    }
+
+    /**
+     * Wave 1 (2026-05-31) — compute a compact structural diff between the
+     * intended elements tree and the post-save read-back. The hash check
+     * alone tells us 'different'; this tells us *how*.
+     *
+     * Output budget ~5-10 KB. Surfaces:
+     *   - root_count: intended vs verified
+     *   - root_shape: per-index elType + widgetType for both sides
+     *   - per_root_settings_diff: which keys were added/removed/changed,
+     *     with sample diverging values truncated to 200 chars
+     *   - children_count_per_root
+     *   - widget_type_summary: counts of each widgetType in both trees
+     *
+     * The point is to feed Wave-2 design. We're looking for patterns like:
+     *   - "V4 always strips key X"
+     *   - "V4 renames widgetType heading → e-heading"
+     *   - "V4 wraps top-level widgets in containers"
+     *   - "V4 normalizes padding shape to nested object"
+     *
+     * @param list<array<string,mixed>> $intended
+     * @param list<array<string,mixed>> $verified
+     * @return array<string, mixed>
+     */
+    private function structuralDiff(array $intended, array $verified): array
+    {
+        $diff = [
+            'root_count' => [
+                'intended' => count($intended),
+                'verified' => count($verified),
+            ],
+            'root_shape' => [],
+            'per_root_settings_diff' => [],
+            'children_count_per_root' => [],
+            'widget_type_summary' => [
+                'intended' => $this->summarizeWidgetTypes($intended),
+                'verified' => $this->summarizeWidgetTypes($verified),
+            ],
+        ];
+
+        $maxRoots = max(count($intended), count($verified));
+        // Cap at 5 roots to keep envelope small. Real plans rarely have
+        // >5 top-level containers; if they do the first 5 are diagnostic
+        // enough to find the pattern.
+        $maxRoots = min($maxRoots, 5);
+
+        for ($i = 0; $i < $maxRoots; $i++) {
+            $intendedRoot = $intended[$i] ?? null;
+            $verifiedRoot = $verified[$i] ?? null;
+
+            $diff['root_shape'][] = [
+                'index' => $i,
+                'intended' => $this->describeNode($intendedRoot),
+                'verified' => $this->describeNode($verifiedRoot),
+            ];
+
+            $diff['children_count_per_root'][] = [
+                'index' => $i,
+                'intended' => is_array($intendedRoot['elements'] ?? null) ? count($intendedRoot['elements']) : 0,
+                'verified' => is_array($verifiedRoot['elements'] ?? null) ? count($verifiedRoot['elements']) : 0,
+            ];
+
+            $intendedSettings = is_array($intendedRoot['settings'] ?? null) ? $intendedRoot['settings'] : [];
+            $verifiedSettings = is_array($verifiedRoot['settings'] ?? null) ? $verifiedRoot['settings'] : [];
+            $diff['per_root_settings_diff'][] = [
+                'index' => $i,
+                'settings_diff' => $this->keysDiff($intendedSettings, $verifiedSettings),
+            ];
+        }
+
+        return $diff;
+    }
+
+    /**
+     * Compact node descriptor: elType, widgetType (if widget), settings-key
+     * count, children count. Used in root_shape.
+     *
+     * @param array<string,mixed>|null $node
+     * @return array<string, mixed>|null
+     */
+    private function describeNode(?array $node): ?array
+    {
+        if ($node === null) return null;
+        return [
+            'elType' => $node['elType'] ?? null,
+            'widgetType' => $node['widgetType'] ?? null,
+            'settings_key_count' => is_array($node['settings'] ?? null) ? count($node['settings']) : 0,
+            'children_count' => is_array($node['elements'] ?? null) ? count($node['elements']) : 0,
+            'top_level_keys' => is_array($node) ? array_keys($node) : [],
+        ];
+    }
+
+    /**
+     * Diff two assoc arrays by key: added (in B not A), removed (in A not B),
+     * changed (in both, value differs). For changed keys, attach a truncated
+     * sample of both values so the V4 transformer's behavior is visible.
+     *
+     * @param array<string, mixed> $a intended
+     * @param array<string, mixed> $b verified
+     * @return array<string, mixed>
+     */
+    private function keysDiff(array $a, array $b): array
+    {
+        $aKeys = array_keys($a);
+        $bKeys = array_keys($b);
+        $added = array_values(array_diff($bKeys, $aKeys));
+        $removed = array_values(array_diff($aKeys, $bKeys));
+        $common = array_values(array_intersect($aKeys, $bKeys));
+
+        $changed = [];
+        foreach ($common as $k) {
+            if ($a[$k] !== $b[$k]) {
+                $changed[] = [
+                    'key' => $k,
+                    'intended_sample' => $this->truncSample($a[$k]),
+                    'verified_sample' => $this->truncSample($b[$k]),
+                ];
+            }
+        }
+        // Cap changed-key sample at 8 to keep envelope bounded.
+        if (count($changed) > 8) {
+            $changed = array_slice($changed, 0, 8);
+            $changed[] = ['key' => '__truncated__', 'note' => 'additional changed keys omitted'];
+        }
+
+        return [
+            'added_in_verified' => $added,
+            'removed_from_intended' => $removed,
+            'changed_values' => $changed,
+            'intended_key_count' => count($aKeys),
+            'verified_key_count' => count($bKeys),
+        ];
+    }
+
+    /**
+     * Truncate a value to a JSON snippet ≤200 chars so error envelopes
+     * stay bounded even when transformer output is verbose.
+     */
+    private function truncSample(mixed $val): string
+    {
+        $json = wp_json_encode($val, JSON_UNESCAPED_SLASHES);
+        if (!is_string($json)) {
+            return '[unencodable]';
+        }
+        if (strlen($json) > 200) {
+            return substr($json, 0, 197) . '...';
+        }
+        return $json;
+    }
+
+    /**
+     * Wave 2.1: serialize a subtree as JSON with a soft size cap. When the
+     * JSON exceeds the cap, returns a wrapper with `{__truncated_at: N,
+     * sample: '…first N chars…'}` so the caller still sees the start.
+     *
+     * @param mixed $val
+     * @return mixed JSON-decodable structure (array/string)
+     */
+    private function truncateForEnvelope(mixed $val, int $maxBytes): mixed
+    {
+        $json = wp_json_encode($val, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if (!is_string($json)) {
+            return ['__unencodable' => true];
+        }
+        if (strlen($json) <= $maxBytes) {
+            // Decode back so it nests as structured data in the envelope.
+            $decoded = json_decode($json, true);
+            return $decoded ?? $val;
+        }
+        return [
+            '__truncated_at' => $maxBytes,
+            '__total_bytes' => strlen($json),
+            'sample' => substr($json, 0, $maxBytes),
+        ];
+    }
+
+    /**
+     * Walk a tree and count occurrences of each widgetType (or elType for
+     * non-widget nodes). Reveals slug renames like heading → e-heading.
+     *
+     * @param array<int, mixed> $tree
+     * @return array<string, int>
+     */
+    private function summarizeWidgetTypes(array $tree): array
+    {
+        $counts = [];
+        $walk = function ($nodes) use (&$walk, &$counts) {
+            if (!is_array($nodes)) return;
+            foreach ($nodes as $n) {
+                if (!is_array($n)) continue;
+                $elType = (string) ($n['elType'] ?? '');
+                $widgetType = (string) ($n['widgetType'] ?? '');
+                $key = $elType === 'widget' ? "widget:{$widgetType}" : ($elType !== '' ? "el:{$elType}" : 'unknown');
+                $counts[$key] = ($counts[$key] ?? 0) + 1;
+                if (isset($n['elements']) && is_array($n['elements'])) {
+                    $walk($n['elements']);
+                }
+            }
+        };
+        $walk($tree);
+        return $counts;
     }
 
     /**

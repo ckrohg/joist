@@ -21,10 +21,14 @@ import { listPlans, JoistApiError } from './api/plans.js';
 import PlansList from './components/PlansList.jsx';
 import PlanDetail from './components/PlanDetail.jsx';
 import GenerateBox from './components/GenerateBox.jsx';
+import UrlCloneBox from './components/UrlCloneBox.jsx';
+import CloneBox from './components/CloneBox.jsx';
+import SettingsStrip from './components/SettingsStrip.jsx';
 import JoistMark from './components/JoistMark.jsx';
 import JoistModeIndicator from './sidebar/JoistModeIndicator.jsx';
 import './design-system.scss';
 import './components/JoistMark.scss';
+import './components/SettingsStrip.scss';
 import './style.scss';
 
 export default function App() {
@@ -32,6 +36,14 @@ export default function App() {
 	const [ plans, setPlans ] = useState( [] );
 	const [ error, setError ] = useState( null );
 	const [ selectedPlanId, setSelectedPlanId ] = useState( null );
+	const [ keyStatus, setKeyStatus ] = useState(
+		( window.joistConfig && window.joistConfig.claudeKey ) || {
+			configured: false,
+			source: 'none',
+			tail: null,
+		}
+	);
+	const keyConfigured = !! keyStatus?.configured;
 
 	const fetchPlans = useCallback( async () => {
 		try {
@@ -98,7 +110,20 @@ export default function App() {
 
 				{ status === 'ready' && ! selectedPlanId && (
 					<div className="joist-stack">
+						<SettingsStrip
+							keyStatus={ keyStatus }
+							onChange={ setKeyStatus }
+						/>
+						{ ! keyConfigured && (
+							<div className="joist-key-banner">
+								<strong>Claude API key not configured.</strong> AI
+								generation falls back to a template stub. Paste a key
+								above to enable real plans.
+							</div>
+						) }
 						<GenerateBox onPlanCreated={ handlePlanCreated } />
+						<UrlCloneBox onPlanCreated={ handlePlanCreated } />
+						<CloneBox onPlanCreated={ handlePlanCreated } />
 						<PlansList
 							plans={ plans }
 							onOpenPlan={ openPlan }

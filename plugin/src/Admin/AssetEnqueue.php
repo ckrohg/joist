@@ -133,7 +133,28 @@ final class AssetEnqueue
             'wpVersion' => get_bloginfo('version'),
             'elementorVersion' => defined('ELEMENTOR_VERSION') ? ELEMENTOR_VERSION : null,
             'planModeUrl' => AdminPage::planModeUrl(),
+            'claudeKey' => self::claudeKeyStatus(),
         ];
+    }
+
+    /**
+     * Redacted Claude-key status surfaced on initial render so the UI doesn't
+     * need a round-trip to know whether to show a "key not configured" banner.
+     * Mirrors the redacted shape from SettingsController::claudeKeyStatus().
+     *
+     * @return array{configured: bool, source: string, tail: string|null}
+     */
+    private static function claudeKeyStatus(): array
+    {
+        $env = getenv('JOIST_CLAUDE_API_KEY');
+        if (is_string($env) && $env !== '') {
+            return ['configured' => true, 'source' => 'env', 'tail' => '…' . substr(trim($env), -4)];
+        }
+        $opt = get_option('joist_claude_api_key', '');
+        if (is_string($opt) && $opt !== '') {
+            return ['configured' => true, 'source' => 'option', 'tail' => '…' . substr(trim($opt), -4)];
+        }
+        return ['configured' => false, 'source' => 'none', 'tail' => null];
     }
 
     /**

@@ -236,6 +236,60 @@ export function generatePlan( body ) {
 }
 
 /**
+ * POST /plans/clone-from-url — fetch a URL server-side and synthesise a Plan
+ * via Claude in text-mode (HTML extract, not vision). Lower fidelity than
+ * the screenshot path but no headless browser required and it's a single
+ * button rather than a manual screenshot workflow.
+ *
+ * Body: { url: string, intent?: string, page_id?: number, title?: string }
+ *
+ * @param {object} body
+ * @return {Promise<object>}
+ */
+export function cloneFromUrl( body ) {
+	return call( {
+		path: `/${ NAMESPACE }/plans/clone-from-url`,
+		method: 'POST',
+		data: body || {},
+	} );
+}
+
+/**
+ * POST /plans/clone-from-screenshots — cheap-substitute clone path.
+ *
+ * Uploads 1-3 PNG/JPG screenshots (≤ 5 MB each) plus an optional `intent`
+ * note as multipart/form-data. The server hands the images to Claude Opus
+ * 4.7 with vision and returns a freshly-created V3 Plan row.
+ *
+ * Why a separate function (vs. extending generatePlan)? — multipart payload
+ * does not flow through apiFetch's JSON-by-default `data:` parameter; we
+ * pass FormData via `body:` and let the browser set the correct
+ * Content-Type with boundary. The middleware chain still applies the
+ * X-WP-Nonce header and rest root.
+ *
+ * @param {FormData} formData FormData containing one or more `images[]`
+ *                            File entries, plus optional `intent` and
+ *                            `page_id` string fields.
+ * @return {Promise<object>}  Plan row + step_count + image_count.
+ */
+export function cloneFromScreenshots( formData ) {
+	if ( ! ( formData instanceof FormData ) ) {
+		return Promise.reject(
+			new JoistApiError( {
+				code: 'validation.formdata_required',
+				message:
+					'cloneFromScreenshots expects a FormData instance.',
+			} )
+		);
+	}
+	return call( {
+		path: `/${ NAMESPACE }/plans/clone-from-screenshots`,
+		method: 'POST',
+		body: formData,
+	} );
+}
+
+/**
  * POST /plans/{id}/steps/{index} — patch a single step's structured fields.
  *
  * This endpoint does NOT yet exist on the backend (W5b open question).
@@ -311,6 +365,9 @@ export default {
 	approvePlan,
 	rejectPlan,
 	executePlan,
+	generatePlan,
+	cloneFromScreenshots,
+	deletePlan,
 	updatePlanStep,
 	getBlastRadius,
 	JoistApiError,

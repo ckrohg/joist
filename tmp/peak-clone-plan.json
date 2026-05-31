@@ -1,0 +1,253 @@
+{
+  "intent": "Clone of peakinteractive.io homepage (hand-built via WebFetch + Claude — proves the loop on a real URL before the headless-Chromium pipeline ships)",
+  "steps": [
+    {
+      "op": "insert",
+      "position": 999,
+      "element": {
+        "elType": "container",
+        "settings": {
+          "content_width": "boxed",
+          "padding": {"unit": "px", "top": "120", "right": "20", "bottom": "120", "left": "20", "isLinked": false}
+        },
+        "elements": [
+          {
+            "elType": "widget",
+            "widgetType": "heading",
+            "settings": {
+              "title": "We create custom digital solutions for traditional businesses.",
+              "header_size": "h1",
+              "align": "center"
+            }
+          },
+          {
+            "elType": "widget",
+            "widgetType": "button",
+            "settings": {
+              "text": "Book a call",
+              "align": "center",
+              "link": {"url": "https://calendly.com/", "is_external": "on"}
+            }
+          },
+          {
+            "elType": "widget",
+            "widgetType": "button",
+            "settings": {
+              "text": "View Our Work",
+              "align": "center",
+              "link": {"url": "/work/", "is_external": ""}
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "insert",
+      "position": 999,
+      "element": {
+        "elType": "container",
+        "settings": {
+          "content_width": "boxed",
+          "padding": {"unit": "px", "top": "60", "right": "20", "bottom": "60", "left": "20", "isLinked": false}
+        },
+        "elements": [
+          {
+            "elType": "widget",
+            "widgetType": "heading",
+            "settings": {
+              "title": "Trusted by the best in the business.",
+              "header_size": "h3",
+              "align": "center"
+            }
+          },
+          {
+            "elType": "widget",
+            "widgetType": "html",
+            "settings": {
+              "html": "<div style=\"display:grid;grid-template-columns:repeat(5,1fr);gap:24px;align-items:center;justify-items:center;padding:32px 0;opacity:0.65;font-family:system-ui,-apple-system,sans-serif;font-size:14px;letter-spacing:0.04em;\"><span>AFP Acillo</span><span>JP Sons Inc.</span><span>Wessell Construction</span><span>Quinn Iron</span><span>MDiStasio Inc.</span><span>Lily</span><span>Mystic Paving</span><span>La Puopolo</span><span>Boston Demolition</span><span>Tint Pros Plus</span></div>"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "insert",
+      "position": 999,
+      "element": {
+        "elType": "container",
+        "settings": {
+          "content_width": "boxed",
+          "padding": {"unit": "px", "top": "80", "right": "20", "bottom": "80", "left": "20", "isLinked": false}
+        },
+        "elements": [
+          {
+            "elType": "widget",
+            "widgetType": "heading",
+            "settings": {"title": "What we do.", "header_size": "h2", "align": "center"}
+          },
+          {
+            "elType": "widget",
+            "widgetType": "text-editor",
+            "settings": {
+              "editor": "<p style=\"text-align:center;max-width:720px;margin:0 auto;font-size:18px;line-height:1.55;\">Peak Interactive provides custom tailored digital solutions &amp; improvements to traditional American businesses. From website design &amp; development to full-scale automation services, we're here to simplify your digital life so you can focus on what matters most within your business.</p>"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "insert",
+      "position": 999,
+      "element": {
+        "elType": "container",
+        "settings": {
+          "content_width": "boxed",
+          "padding": {"unit": "px", "top": "80", "right": "20", "bottom": "80", "left": "20", "isLinked": false}
+        },
+        "elements": [
+          {
+            "elType": "container",
+            "settings": {"content_width": "boxed", "flex_direction": "row", "flex_wrap": "wrap"},
+            "elements": [
+              {
+                "elType": "container",
+                "settings": {"content_width": "boxed"},
+                "elements": [
+                  {"elType": "widget", "widgetType": "heading", "settings": {"title": "Website design & development", "header_size": "h3", "align": "center"}},
+                  {"elType": "widget", "widgetType": "button", "settings": {"text": "Learn more", "align": "center", "link": {"url": "/services/web/", "is_external": ""}}}
+                ]
+              },
+              {
+                "elType": "container",
+                "settings": {"content_width": "boxed"},
+                "elements": [
+                  {"elType": "widget", "widgetType": "heading", "settings": {"title": "Search engine optimization", "header_size": "h3", "align": "center"}},
+                  {"elType": "widget", "widgetType": "button", "settings": {"text": "Learn more", "align": "center", "link": {"url": "/services/seo/", "is_external": ""}}}
+                ]
+              },
+              {
+                "elType": "container",
+                "settings": {"content_width": "boxed"},
+                "elements": [
+                  {"elType": "widget", "widgetType": "heading", "settings": {"title": "Automation", "header_size": "h3", "align": "center"}},
+                  {"elType": "widget", "widgetType": "button", "settings": {"text": "Learn more", "align": "center", "link": {"url": "/services/automation/", "is_external": ""}}}
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "op": "insert",
+      "position": 999,
+      "element": {
+        "elType": "container",
+        "settings": {
+          "content_width": "boxed",
+          "padding": {"unit": "px", "top": "80", "right": "20", "bottom": "80", "left": "20", "isLinked": false}
+        },
+        "elements": [
+          {"elType": "widget", "widgetType": "heading", "settings": {"title": "50+ businesses enhanced.", "header_size": "h2", "align": "center"}},
+          {"elType": "widget", "widgetType": "text-editor", "settings": {"editor": "<p style=\"text-align:center;max-width:640px;margin:0 auto;font-size:18px;line-height:1.55;\">Bringing American businesses to life with custom tailored website and marketing solutions.</p>"}}
+        ]
+      }
+    },
+    {
+      "op": "insert",
+      "position": 999,
+      "element": {
+        "elType": "container",
+        "settings": {
+          "content_width": "boxed",
+          "padding": {"unit": "px", "top": "80", "right": "20", "bottom": "80", "left": "20", "isLinked": false}
+        },
+        "elements": [
+          {
+            "elType": "widget",
+            "widgetType": "heading",
+            "settings": {"title": "Recent work.", "header_size": "h2", "align": "center"}
+          },
+          {
+            "elType": "container",
+            "settings": {"content_width": "boxed", "flex_direction": "row", "flex_wrap": "wrap"},
+            "elements": [
+              {
+                "elType": "container",
+                "settings": {"content_width": "boxed"},
+                "elements": [
+                  {"elType": "widget", "widgetType": "image", "settings": {"image": {"url": "https://placehold.co/600x400/0E0E0C/F3F2EC?text=Tint+Pros+Plus", "alt": "Tint Pros Plus website mockup"}}},
+                  {"elType": "widget", "widgetType": "heading", "settings": {"title": "Tint Pros Plus", "header_size": "h4", "align": "left"}},
+                  {"elType": "widget", "widgetType": "text-editor", "settings": {"editor": "<p style=\"font-size:14px;color:#666;\">Automotive Window Tinting<br>Website + SEO package</p>"}},
+                  {"elType": "widget", "widgetType": "button", "settings": {"text": "View Project Breakdown", "align": "left", "link": {"url": "/work/tint-pros-plus/", "is_external": ""}}}
+                ]
+              },
+              {
+                "elType": "container",
+                "settings": {"content_width": "boxed"},
+                "elements": [
+                  {"elType": "widget", "widgetType": "image", "settings": {"image": {"url": "https://placehold.co/600x400/0E0E0C/F3F2EC?text=Wessell", "alt": "Wessell Construction website mockup"}}},
+                  {"elType": "widget", "widgetType": "heading", "settings": {"title": "Wessell Construction", "header_size": "h4", "align": "left"}},
+                  {"elType": "widget", "widgetType": "text-editor", "settings": {"editor": "<p style=\"font-size:14px;color:#666;\">Hardscaping & Construction<br>Website + SEO package</p>"}},
+                  {"elType": "widget", "widgetType": "button", "settings": {"text": "View Project Breakdown", "align": "left", "link": {"url": "/work/wessell/", "is_external": ""}}}
+                ]
+              },
+              {
+                "elType": "container",
+                "settings": {"content_width": "boxed"},
+                "elements": [
+                  {"elType": "widget", "widgetType": "image", "settings": {"image": {"url": "https://placehold.co/600x400/0E0E0C/F3F2EC?text=Quinn+Brothers", "alt": "Quinn Brothers website mockup"}}},
+                  {"elType": "widget", "widgetType": "heading", "settings": {"title": "Quinn Brothers", "header_size": "h4", "align": "left"}},
+                  {"elType": "widget", "widgetType": "text-editor", "settings": {"editor": "<p style=\"font-size:14px;color:#666;\">Structural Steel & Fabrication<br>Website package</p>"}},
+                  {"elType": "widget", "widgetType": "button", "settings": {"text": "View Project Breakdown", "align": "left", "link": {"url": "/work/quinn/", "is_external": ""}}}
+                ]
+              },
+              {
+                "elType": "container",
+                "settings": {"content_width": "boxed"},
+                "elements": [
+                  {"elType": "widget", "widgetType": "image", "settings": {"image": {"url": "https://placehold.co/600x400/0E0E0C/F3F2EC?text=JP+%26+Sons", "alt": "JP & Sons website mockup"}}},
+                  {"elType": "widget", "widgetType": "heading", "settings": {"title": "JP & Sons Inc.", "header_size": "h4", "align": "left"}},
+                  {"elType": "widget", "widgetType": "text-editor", "settings": {"editor": "<p style=\"font-size:14px;color:#666;\">Demolition Contractors<br>Website + SEO package</p>"}},
+                  {"elType": "widget", "widgetType": "button", "settings": {"text": "View Project Breakdown", "align": "left", "link": {"url": "/work/jp-sons/", "is_external": ""}}}
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "op": "insert",
+      "position": 999,
+      "element": {
+        "elType": "container",
+        "settings": {
+          "content_width": "boxed",
+          "padding": {"unit": "px", "top": "80", "right": "20", "bottom": "80", "left": "20", "isLinked": false}
+        },
+        "elements": [
+          {"elType": "widget", "widgetType": "heading", "settings": {"title": "What our clients say.", "header_size": "h2", "align": "center"}},
+          {"elType": "widget", "widgetType": "text-editor", "settings": {"editor": "<blockquote style=\"max-width:720px;margin:32px auto;padding:24px;border-left:3px solid #D4FF3A;font-size:18px;line-height:1.55;\"><p><em>\"Working with Peak Interactive transformed how we present ourselves online. The team delivered a site that actually drives leads.\"</em></p><p style=\"font-size:14px;color:#666;margin-top:16px;\">— Ricky MacDonald, Owner, Tint Pros Plus</p></blockquote>"}},
+          {"elType": "widget", "widgetType": "text-editor", "settings": {"editor": "<blockquote style=\"max-width:720px;margin:32px auto;padding:24px;border-left:3px solid #D4FF3A;font-size:18px;line-height:1.55;\"><p><em>\"Professional, responsive, and they understood our industry. Best decision we made this year.\"</em></p><p style=\"font-size:14px;color:#666;margin-top:16px;\">— Jacob Coughlin, Project Manager, Quinn Brothers</p></blockquote>"}},
+          {"elType": "widget", "widgetType": "text-editor", "settings": {"editor": "<blockquote style=\"max-width:720px;margin:32px auto;padding:24px;border-left:3px solid #D4FF3A;font-size:18px;line-height:1.55;\"><p><em>\"They listened, they delivered, and they kept us in the loop the whole way through. Our new site speaks for the business.\"</em></p><p style=\"font-size:14px;color:#666;margin-top:16px;\">— Andrew Wessell, Owner, Wessell Construction</p></blockquote>"}}
+        ]
+      }
+    },
+    {
+      "op": "insert",
+      "position": 999,
+      "element": {
+        "elType": "container",
+        "settings": {
+          "content_width": "boxed",
+          "padding": {"unit": "px", "top": "120", "right": "20", "bottom": "120", "left": "20", "isLinked": false}
+        },
+        "elements": [
+          {"elType": "widget", "widgetType": "heading", "settings": {"title": "Ready to get sorted?", "header_size": "h2", "align": "center"}},
+          {"elType": "widget", "widgetType": "button", "settings": {"text": "Let's get started", "align": "center", "link": {"url": "/contact/", "is_external": ""}}}
+        ]
+      }
+    }
+  ]
+}

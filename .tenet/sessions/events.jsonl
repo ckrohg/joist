@@ -7,3 +7,8 @@
 {"session":"session-christian-krohg-20260525-1708-3fe51a","event":"session:unregister","ts":"2026-05-26T04:51:18.744Z"}
 {"session":"session-christian-krohg-20260525-1708-3fe51a","event":"session:unregister","ts":"2026-05-26T04:51:19.601Z"}
 {"session":"session-christian-krohg-20260530-1304-2dde6e","event":"session:register","user":"christian-krohg","branch":"main","ts":"2026-05-30T20:04:22.665Z"}
+{"session":"session-christian-krohg-20260530-1304-2dde6e","event":"session:unregister","ts":"2026-05-30T20:06:16.319Z"}
+{"session":"session-christian-krohg-20260530-1304-2dde6e","event":"session:unregister","ts":"2026-05-30T20:06:17.253Z"}
+{"session":"session-christian-krohg-20260530-1657-f52416","event":"session:register","user":"christian-krohg","branch":"main","ts":"2026-05-30T23:57:02.929Z"}
+{"session":"session-christian-krohg-20260530-1657-f52416","event":"session:unregister","ts":"2026-05-30T23:58:54.521Z"}
+{"session":"session-christian-krohg-20260530-1657-f52416","event":"session:unregister","ts":"2026-05-30T23:58:55.446Z"}
