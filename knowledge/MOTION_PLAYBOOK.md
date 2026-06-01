@@ -17,6 +17,43 @@ This is the navigator. It points the joist-clone skill at the 6 source artifacts
 
 ---
 
+## ⚡ 2026 Verified Update — The GSAP Escape-Hatch (read before choosing a tier)
+
+**Date:** 2026-05-31 · **Status:** deep-research verified (22/25 claims confirmed 3-0; 3 killed). This section overrides earlier assumptions about Tier 4 ("V3 + JS library embed"). Sources cited inline.
+
+**Bottom line:** Injecting free GSAP/ScrollTrigger into Elementor is a *validated, shipping technique* — not a fringe hack — and is *licensing-clear*. But it is **shippability-fragile**: it must be engineered around documented CMS failure modes, not assumed to "just work." Tier 4 is promoted from documented-fallback to **first-class authoring path**, with the rules below.
+
+### Delivery method — enqueue via PHP, NOT a CDN `<script>` tag
+- 🔴 **Refuted (0-3):** loading GSAP from a CDN tag inside an Elementor HTML widget is NOT the right method. GSAP's own guidance is `wp_enqueue_script` with `gsap-js` dependency ordering (`https://gsap.com/resources/Wordpress/`).
+- **Why it matters:** WP Rocket's "Delay JavaScript Execution" defers **all in-HTML scripts until user interaction** — so a CDN tag in an HTML widget **won't run on initial load** (`https://docs.wp-rocket.me/article/1349-delay-javascript-execution`). A CDN-injected payload silently fails on any site running a common caching plugin.
+- **Joist rule:** the escape-hatch enqueues GSAP + plugins via PHP through the Joist plugin (proper handle + dependency order), and emits only the *scoped init JS* into the page. Never ship a bare CDN `<script>` as the load mechanism.
+
+### Verified failure-mode checklist (all 3-0) — the init MUST handle these
+1. **Ancestor transforms break pinning.** ScrollTrigger pinning silently breaks if any ancestor has a CSS `transform`/`will-change` — and Elementor sections *routinely* carry transforms from entrance/motion effects. Check the ancestor chain before pinning (`https://gsap.com/docs/v3/Plugins/ScrollTrigger/`).
+2. **Lazy-load staleness.** ScrollTrigger start/end are computed at creation; lazy-loaded images/fonts shift layout and break positions. Call `ScrollTrigger.refresh()` after load/layout changes.
+3. **Editor re-renders & nested-element loading.** The Elementor editor re-renders nodes; init must be idempotent and re-bindable (productized fixes for exactly this exist in Animation Addons changelog v2.3.12/v2.6.0).
+4. **jQuery / nav-menu conflicts.** Prefer pure JS; jQuery interop is a documented conflict source (Animation Addons v2.4.3, v2.5.8).
+5. **Core-builder override risk.** Elementor v3.25 added native CSS smooth-scroll *active by default*, which collided with injected Lenis/Locomotive and broke ~20 sites, **no disable filter** (`github.com/elementor/elementor/issues/29122`, `/29103`, `/discussions/29132`). Treat injected smooth-scroll as fragile to core updates; gate/feature-flag it.
+6. **Scope every selector.** None of the upstream skill examples scope queries (global `.box`/`document`). Constrain to a `data-anim-scope` container or it collides with theme/Elementor-Pro animations.
+7. **Cleanup is mandatory:** `ScrollTrigger.getAll().forEach(t=>t.kill())`, `gsap.ticker.remove(cb)`, `lenis.destroy()`.
+
+### Performance (CWV/INP)
+Animate **`transform`/`opacity` only** — they composite without layout/paint. Layout-touching props (width/height/top/left) force reflow and degrade INP (`web.dev/articles/animations-and-performance`). No independent CWV benchmark of GSAP-in-Elementor exists yet — treat perf as an *open risk to measure in eval*, not a solved problem.
+
+### Lenis + GSAP init — the one detail everyone gets wrong
+`autoRaf: false` on Lenis, delegate `lenis.raf` to `gsap.ticker` (ticker time is seconds → multiply by 1000), `gsap.ticker.lagSmoothing(0)`. Without `autoRaf:false` you get double-RAF: scrub breaks and trigger positions go wrong. *(Fold this correction into `THIRD_PARTY_MOTION_LIBRARIES.md`'s GSAP/Lenis section during the "bake" step.)*
+
+### Licensing — clear, with one note
+GSAP (incl. all formerly Club-only plugins: ScrollTrigger, SplitText, MorphSVG, DrawSVG, Draggable) is 100% free for commercial use, effective Apr 30 2025, current May 2026 (`gsap.com/community/standard-license/`, `gsap.com/pricing/`). The only residual restriction: a "Prohibited Uses / Competitive Products" clause barring GSAP inside a *no-code visual animation builder that competes with Webflow*. Joist injects **authored** GSAP into delivered client sites → "Permitted Uses"; FAQ explicitly states AI-generated GSAP code is not prohibited. **Action:** one-line legal note in the escape-hatch spec re-reading this clause against Joist's exact framing before shipping. Not a blocker.
+
+### The 3D wall (sharpened)
+The research validated **GSAP injection only** — it did **not** validate Three.js injection. The single-file 3D pattern uses a `position:fixed; z-index:0` canvas that prepends to body and expects to own the viewport — this fights Elementor's stacking contexts and full-width sections. **3D needs a dedicated full-bleed section type, not a widget**, and carries unvalidated extra risk (WebGL context limits, mobile GPU/memory). Keep 3D in the "hard wall / ~75% cap" tier; the reclaimable gap is **2D scroll motion**, not WebGL.
+
+### Competitive reframe
+GSAP going free **undercuts Elementor Pro's own Motion Effects** ($199/yr) for the motion use-case — the docs below still gate timeline/scroll-scrub motion behind Pro; that calculus has flipped. Elementor's own GitHub feature requests (#31839, #27748) demand native GSAP, benchmarking against Webflow. *Gap: the named AI builders (Framer/Lovable/v0/Spline) were not directly compared — revisit if positioning against them.*
+
+---
+
 ## The 5-phase motion-aware clone workflow
 
 This replaces / extends the basic 6-phase workflow in `joist-clone/SKILL.md`. Use this when the source has any motion.

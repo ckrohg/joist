@@ -28,6 +28,7 @@ final class PackBootstrap
 
         \Joist\WidgetPack\ViewTransitions\Emitter::init();
         \Joist\WidgetPack\DisplaySwap\Extension::init();
+        \Joist\WidgetPack\Motion\Emitter::init();
     }
 
     public static function registerCategory($elements_manager): void

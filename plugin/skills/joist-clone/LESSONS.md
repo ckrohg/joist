@@ -1,5 +1,10 @@
 # joist-clone — Accumulated Lessons (the "tenet within")
 
+> **Canonical corpus moved.** Lessons now live in `plugin/skills/lessons/` split into
+> `LESSONS_MECHANICAL.md` (shared across clone/build/edit) + `LESSONS_CLONE.md` (clone-specific).
+> Write new lessons there. This file is retained for the existing skill reference until the
+> skill is repointed. Mechanical gotchas → the shared file, so build and edit inherit them.
+
 Every generation gotcha discovered through the iteration loop lands here. Future runs of the skill consult this file FIRST so they don't rediscover the same issues. This is the seed of the cross-session learning corpus — eventually fed by `joist_log_iteration` telemetry across all installations.
 
 Format per lesson:
@@ -167,3 +172,33 @@ Format per lesson:
 **Discovered:** 2026-05-31 | MOTION_PLAYBOOK synthesis  
 **Insight:** Per Stream 1 research, 67% of top 100 SaaS pages use scroll-triggered reveals. 70%+ use sticky scroll headers. Common patterns dominate. Hand-implementing 10 reusable T1 patterns (scroll reveals, hover lift, sticky headers, bento grids, marquee, image swap, glassmorphism, Lottie, counters, smooth scroll) closes the majority of typical-site motion gaps.  
 **Fix:** When time-boxed, prioritize T1 effects. Defer T3 (Three.js scenes, magnetic cursors, scrollytelling) explicitly.
+
+## GSAP escape-hatch: deliver via plugin runtime (Path A) or content fallback (Path B), gated on capability
+
+**Discovered:** 2026-05-31 | escape-hatch Slice 1, verified live on georges232  
+**Insight:** Joist can reclaim 2D scroll motion (reveals/parallax/pin/split-text) with free GSAP. Two delivery paths: **A** — the plugin enqueues vendored GSAP+ScrollTrigger when a page contains `joist-reveal` classes (robust, delay-JS-safe; needs a runtime-bearing plugin build on the site); **B** — inject GSAP+harness as an `html` widget (works on any install, no deploy, but fragile under WP Rocket delay-JS). Pick via `joist_get_site_info` → `capabilities.motion`.  
+**Fix:** Author `joist-reveal joist-reveal--<effect>` on the widget's `_css_classes`. If `capabilities.motion` present → Path A only. If absent → also inject `joist-motion-fallback.html`. Same classes drive both, so a Path-B page upgrades to A automatically when the plugin updates.
+
+## Never deliver GSAP as a CDN `<script>` and expect it to run (WP Rocket delay-JS)
+
+**Discovered:** 2026-05-31 | deep-research (22/25 claims @3-0)  
+**Insight:** A CDN `<script>` in an HTML widget is the intuitive approach but is REFUTED: WP Rocket "Delay JavaScript Execution" defers ALL in-HTML scripts until user interaction, so it never runs on load. GSAP's own guidance is `wp_enqueue_script`.  
+**Fix:** Path A enqueues vendored GSAP via PHP (excludable from delay-JS). Path B is the knowing-fragile fallback only. Verified separately: injected `<script>` blocks DO survive Joist's round-trip hash verbatim (transformations:[]) — so authoring them is safe; *executing* them under caching plugins is the risk.
+
+## Injected scripts survive Joist round-trip; watch for site-level Mixed Content
+
+**Discovered:** 2026-05-31 | Slice 1 live verify  
+**Insight:** On georges232 (Elementor 4.0.9, V4) an authored `html`-widget `<script>` + `joist-reveal` classes round-tripped verbatim and the harness ran live (GSAP loaded, all elements bound + revealed). A *separate, pre-existing* site bug surfaced: Elementor's `base-desktop.css` is served over `http://` on an `https://` page → Mixed Content block. Not a motion issue, but it degrades the page; flag site-URL/SSL config to the user.  
+**Fix:** Don't conflate site-config errors with motion failures during grading. Check console errors' source before attributing.
+
+## Container `_css_classes` doesn't render to the DOM on V4; widget classes do
+
+**Discovered:** 2026-05-31 | Slice 3 guardrail test, Elementor 4.0.9 (V4)  
+**Insight:** A CONTAINER authored with `_css_classes: "joist-xform"` persisted in plan data but the rendered container carried only Elementor's own classes — the custom class never reached the DOM class list. WIDGET `_css_classes` (e.g. `joist-pin`/`joist-reveal`/`joist-count` on headings) DID render. So container-level scoping/utility classes silently don't apply on V4.  
+**Fix:** For motion/scoping that targets a CONTAINER on V4, don't rely on its `_css_classes` — put the class on a widget, or target the auto-generated `.elementor-element-<id>` class (which is always present). Re-check on V3 sites; this may be V4-specific. Relevant to the GSAP escape-hatch `data-anim-scope`/container-scoping plans.
+
+## ScrollTrigger pin guardrail: detect transformed ancestor, degrade to sticky
+
+**Discovered:** 2026-05-31 | Slice 3, verified live  
+**Insight:** ScrollTrigger `pin:true` silently breaks if any ancestor has a CSS `transform`/`perspective`/`filter`/`will-change:transform` (the ancestor becomes the fixed-positioning containing block). Elementor sections routinely carry transforms from entrance/motion effects, so this WILL hit real clones. Verified: a pin under a transformed ancestor degrades cleanly to `position:sticky` + a console.warn naming the offending ancestor; a pin in a clean container pins normally.  
+**Fix:** Before pinning, walk the ancestor chain for transform/perspective/filter/will-change; if found, fall back to `position:sticky` rather than ship a broken pin. Implemented in joist-motion.js `transformedAncestor()`/`bindPins()`.

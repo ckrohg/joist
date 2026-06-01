@@ -13,3 +13,8 @@
 {"session":"session-christian-krohg-20260530-1657-f52416","event":"session:unregister","ts":"2026-05-30T23:58:54.521Z"}
 {"session":"session-christian-krohg-20260530-1657-f52416","event":"session:unregister","ts":"2026-05-30T23:58:55.446Z"}
 {"session":"session-christian-krohg-20260531-0024-f0774b","event":"session:register","user":"christian-krohg","branch":"main","ts":"2026-05-31T07:24:37.492Z"}
+{"session":"session-christian-krohg-20260531-0024-f0774b","event":"session:unregister","ts":"2026-05-31T22:48:23.555Z"}
+{"session":"session-christian-krohg-20260531-0024-f0774b","event":"session:unregister","ts":"2026-05-31T22:48:24.747Z"}
+{"session":"session-christian-krohg-20260531-1625-afae4b","event":"session:register","user":"christian-krohg","branch":"main","ts":"2026-05-31T23:25:35.176Z"}
+{"session":"session-christian-krohg-20260531-1625-afae4b","event":"session:unregister","ts":"2026-05-31T23:28:54.116Z"}
+{"session":"session-christian-krohg-20260531-1625-afae4b","event":"session:unregister","ts":"2026-05-31T23:28:55.286Z"}

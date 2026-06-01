@@ -1493,6 +1493,16 @@ Check Elementor's controls first before reaching for a third-party library.
 
 ---
 
-**Last Updated:** May 2026  
+## ⚡ Verified corrections (2026-05-31, escape-hatch Slice 1) — supersede the GSAP/Lenis sections above where they conflict
+
+- **Deliver GSAP via `wp_enqueue_script`, NOT a CDN `<script>` in an html widget.** WP Rocket "Delay JS" defers all in-HTML scripts until interaction → CDN-in-html never runs on load (deep-research, 3-0). Joist's **Path A** vendors GSAP and enqueues it (delay-JS-excluded); **Path B** (content-injected CDN+harness) is the knowing-fragile fallback only. Full design: `GSAP_ESCAPE_HATCH_SPEC.md` §11.
+- **Lenis+GSAP linchpin:** `new Lenis({ autoRaf:false })` + delegate `lenis.raf(time*1000)` to `gsap.ticker.add(...)` + `gsap.ticker.lagSmoothing(0)`. Without `autoRaf:false` → double-RAF, scrub breaks. Feature-flag Lenis OFF by default (Elementor v3.25 native CSS smooth-scroll collision, no disable filter).
+- **ScrollTrigger guardrails (verified):** ancestor CSS `transform` silently breaks pinning (Elementor sections routinely carry transforms); call `ScrollTrigger.refresh()` after image/font load; idempotent re-bind for editor re-renders; `transform`/`opacity` only (INP); cleanup via `getAll().kill()`.
+- **Licensing:** GSAP incl. all plugins is 100% free for commercial use (Webflow, eff. 2026-04-30); only residual is the "no competing no-code visual animation builder" clause — Joist's authored injection is a Permitted Use.
+- **Canonical harness:** `plugin/assets/widget-pack/motion/joist-motion.js` (Path A) ↔ `joist-motion-fallback.html` (Path B). Keep in sync.
+
+---
+
+**Last Updated:** May 2026 (verified-corrections appended 2026-05-31)  
 **Status:** Reference guide for Joist v1.0 clone skill enhancement  
 **Maintainer:** Joist team

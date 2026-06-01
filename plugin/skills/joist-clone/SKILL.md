@@ -112,6 +112,13 @@ With Elementor Pro: ~88%. With JS library embeds: ~92%.
 Proceed?
 ```
 
+**Phase 1d — Motion delivery: pick Path A or B (GSAP escape-hatch).** For 2D scroll motion that V3 widget settings can't author (scroll reveals, parallax, pinning, split-text), Joist has a free-GSAP escape-hatch. Choose delivery per the hybrid model (see `knowledge/GSAP_ESCAPE_HATCH_SPEC.md`):
+
+1. Call `joist_get_site_info`; read `capabilities.motion`.
+2. **`capabilities.motion.scroll_reveal === true` → Path A:** author the effect by adding `joist-reveal joist-reveal--<effect>` to the target widget's `_css_classes` (effects: `fade-in`/`fade-up`/`fade-down`/`slide-left`/`slide-right`/`scale-in`). The installed plugin enqueues GSAP+ScrollTrigger and animates them — inject nothing else.
+3. **`capabilities.motion` absent/null (older build) → Path B:** author the same classes AND inject the content-fallback runtime once per page as an `html` widget (source: `assets/widget-pack/motion/joist-motion-fallback.html`). Knowingly accepts caching-plugin (delay-JS) fragility.
+4. Either path uses the **same `joist-reveal` classes**, so a Path-B page silently upgrades to Path A once the site's plugin gains the runtime. Per-element tuning: `data-reveal-duration` / `data-reveal-delay` / `data-reveal-start`. Scope is the `joist-` class namespace. NOT for 3D/WebGL (hard wall) or effects free CSS already covers.
+
 ### Phase 2 — Author initial plan (v1)
 
 For each top-level section from Phase 1, author a step in the Joist plan format. Use the V3 widget reference catalogue exhaustively — typography_*, background_*, border_*, flex_*, responsive `_tablet`/`_mobile` variants.
@@ -120,13 +127,17 @@ For each top-level section from Phase 1, author a step in the Joist plan format.
 1. **No bare `settings: {}` on containers or widgets** — wireframe-grade.
 2. **No placeholder image URLs with descriptive caption text.** Use `?text=+` to render invisible OR use real source-CDN images when available.
 3. **Real images from source CDN** when accessible (verified via `curl -sI` returning 200). Hotlinking usually works.
-4. **Multi-column grids:** outer `flex_direction:row + flex_wrap:wrap + flex_gap`. Inner children use explicit `width: {unit:%, size:N}` — **NOT `_flex_basis`** (Elementor V3 doesn't compile `_flex_basis` to CSS reliably — see LESSONS.md).
+4. **Multi-column grids:** outer `flex_direction:row + flex_wrap:wrap + flex_gap`. Inner children use explicit `width: {unit:%, size:N}`. As of v0.10.11 the plugin auto-injects the flex CSS — you do NOT hand-write custom_css for columns. **BUT the auto-inject only fires when the parent container has an explicit `flex_direction:row`** — so ALWAYS set `flex_direction:row` on the parent of any `width:%` columns, **including inside cards** (text-left/image-right splits). Don't rely on the default direction. (See LESSONS_MECHANICAL.)
 5. **Every heading >24px gets a `_mobile` variant** for typography_font_size.
 6. **Alternate section backgrounds** for rhythm. Two adjacent same-bg containers read as one accidental section.
 7. **Brand accent ≤3 places per page.** Spread thin = unbranded.
 8. **Real source logo in header** when accessible (the actual image, not your own SVG).
 9. **No marketing-speak in copy substitutions.** Forbidden: "Empower", "Revolutionize", "Unleash", "Leverage", "Synergy".
 10. **Lorem ipsum → plausible direct prose** in the source's voice.
+11. **COMPLETENESS — author EVERY top-level source section.** The #1 clone-score killer (wave 1) was truncation: agents authored ~5–8 sections and stopped while the source had ~15 (stripe clone = 14% of page height = score 34). In Phase 1, COUNT the source's top-level sections by scrolling the full page; author one plan step per section; treat "all N covered?" as a hard gate before grading. Long SaaS/marketing pages routinely have 12–18 sections.
+12. **CHROME — always author the nav HEADER (step 1) and the FOOTER (step N).** Graders flagged both as CRITICAL on every long-page clone in wave 1. Header = sticky flex row (logo left, nav menu + CTA right). Footer = multi-column link lists + social row.
+13. **IMAGERY — hotlink REAL source-CDN images** wherever `curl -sI` returns 200; only fall back to a sized `placehold.co` block on 404. Text-only sections read as a grayscale wireframe (wave 1: imagery scored 8–12/100 when skipped; C6 scored far higher by hotlinking real images). Never leave an image slot empty.
+14. **GRADIENTS are authorable — don't skip them as "motion."** A static multi-stop gradient fill IS V3-authorable via `background_background:gradient` + `background_color`/`_color_b`/`background_gradient_angle`. Only the *animation* of a gradient is out of reach. Author the fill (high visual payoff, e.g. Stripe's hero).
 
 ### Phase 3 — Submit + publish
 
@@ -220,7 +231,7 @@ Open both screenshots with Read tool. Compare with your own vision. Return a str
 If `overall_score >= target_score`, OR if all remaining gaps are in `uncloneable_in_v3`, OR if `iteration_count >= max_iterations`, STOP. Otherwise:
 
 1. Take the top 3-5 `ranked_gaps` by severity
-2. Apply `suggested_fix` for each as a plan patch (create a new plan, don't try to edit page 195 in place — Joist's executor is insert-only)
+2. Apply `suggested_fix` for each as a plan patch. (NOTE: the "executor is insert-only" claim is **stale** — verified 2026-05-31. `PatchEngine` supports surgical `update_settings`/`delete`/`move`/`replace_element` targeting a node by `element_id`, with whole-plan snapshot+rollback. For clone *revision* you may still prefer a fresh page per iteration to keep score trajectory clean, but in-place edit is fully supported. See `plugin/skills/lessons/LESSONS_EDIT.md`.)
 3. New page (Joist auto-creates), execute, publish, screenshot, grade → loop
 
 Track the score trajectory: `[v1: 45, v2: 60, v3: 78, ...]`. If score doesn't improve between iterations, STOP and report — you've found the V3 ceiling.

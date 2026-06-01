@@ -110,6 +110,22 @@ final class Tools
                 'description' => 'Run canonical create→approve→execute round-trip tests against the live site and report pass/fail per shape. Tests V3 container shape always; tests V4 e-flexbox hybrid shape when site is V4. Use after any Joist deploy to verify the hash defense + V4_AUTO_FIELDS strip-list still covers the live Elementor version. Each test creates a real draft page; the pages remain after the test so they can be visually verified in Elementor.',
                 'inputSchema' => $this->objectSchema([], []),
             ],
+            [
+                'name' => 'joist_validate_widget',
+                'description' => 'PRE-FLIGHT a single widget\'s settings against the LIVE schema validator BEFORE putting it in a plan. Returns {valid, errors[]} — each error names the offending setting key. Call this when unsure whether a control name is accepted (common wrong guesses: text_align→align, padding→_padding, button text_color→button_text_color, divider_color→color, star_size on star-rating). Catching a bad key here costs one cheap call; catching it in execute_plan costs a full atomic rollback + re-author. Cheaper to validate than to retry.',
+                'inputSchema' => $this->objectSchema([
+                    'widget_type' => ['type' => 'string', 'description' => 'Widget slug, e.g. heading, button, image, icon-list.'],
+                    'settings' => ['type' => 'object', 'description' => 'The settings object you intend to author for this widget.'],
+                ], ['widget_type', 'settings']),
+            ],
+            [
+                'name' => 'joist_get_widget_schema',
+                'description' => 'Return the LIVE list of accepted control names for a widget (ground truth from the running Elementor + theme registration). Use to discover the correct control name when authoring. The full set is large (370–590 controls/widget on JupiterX); pass name_filter to narrow (substring match, e.g. "typography", "background", "border", "flex", "padding").',
+                'inputSchema' => $this->objectSchema([
+                    'widget_type' => ['type' => 'string', 'description' => 'Widget slug, e.g. heading, button, image.'],
+                    'name_filter' => ['type' => 'string', 'description' => 'Optional substring to filter control names (case-insensitive).'],
+                ], ['widget_type']),
+            ],
         ];
     }
 
@@ -132,6 +148,8 @@ final class Tools
             case 'joist_execute_plan':      return $this->toolExecutePlan($args);
             case 'joist_introspect_atomic_schema': return $this->toolIntrospectAtomicSchema();
             case 'joist_smoke_test_roundtrip': return $this->toolSmokeTestRoundtrip();
+            case 'joist_validate_widget':   return $this->toolValidateWidget($args);
+            case 'joist_get_widget_schema': return $this->toolGetWidgetSchema($args);
             default:
                 throw new ToolException("Unknown tool: {$name}");
         }
@@ -150,6 +168,13 @@ final class Tools
             'site_url' => get_site_url(),
             'page_count' => (int) wp_count_posts('page')->publish + (int) wp_count_posts('page')->draft,
             'plan_count_recent' => count(Container::get('planStore')->listRecent()),
+            // Capability descriptors so the agent can pick motion delivery
+            // Path A (plugin runtime present) vs Path B (content fallback).
+            'capabilities' => [
+                'motion' => class_exists('\\Joist\\WidgetPack\\Motion\\Emitter')
+                    ? \Joist\WidgetPack\Motion\Emitter::capabilities()
+                    : null,
+            ],
         ];
         return $this->resultText('Site info:', $info);
     }
@@ -354,6 +379,63 @@ final class Tools
      * returns: {ok: true, elements: [...]} on success or
      * {ok: false, code: '...', message: '...', details: {...}} on failure.
      */
+    /**
+     * Pre-flight validate a widget's settings against the live SchemaValidator.
+     * Mirrors REST /widgets/validate but on the MCP surface so agents can check
+     * a control name BEFORE it costs a full execute_plan rollback.
+     *
+     * @param array<string, mixed> $args
+     */
+    private function toolValidateWidget(array $args): array
+    {
+        $this->requireCap('read');
+        $type = (string) ($args['widget_type'] ?? '');
+        $settings = is_array($args['settings'] ?? null) ? $args['settings'] : [];
+        if ($type === '') {
+            throw new ToolException("widget_type is required.");
+        }
+        try {
+            $warnings = Container::get('schemaValidator')->validateWidget($type, $settings);
+            return $this->resultText(
+                "✓ '{$type}' settings are valid" . ($warnings ? ' (with warnings)' : '') . '.',
+                ['valid' => true, 'errors' => [], 'warnings' => $warnings]
+            );
+        } catch (\Joist\Elementor\InvalidSettingsException $e) {
+            $errors = $e->errorDetails['errors'] ?? [['message' => $e->getMessage()]];
+            return $this->resultText(
+                "✗ '{$type}' settings are INVALID — fix the keys below before authoring.",
+                ['valid' => false, 'errors' => $errors, 'warnings' => []]
+            );
+        }
+    }
+
+    /**
+     * Return the live accepted control names for a widget (ground truth), optionally
+     * substring-filtered. Use to discover the correct control name.
+     *
+     * @param array<string, mixed> $args
+     */
+    private function toolGetWidgetSchema(array $args): array
+    {
+        $this->requireCap('read');
+        $type = (string) ($args['widget_type'] ?? '');
+        if ($type === '') {
+            throw new ToolException("widget_type is required.");
+        }
+        $names = Container::get('catalog')->controlNames($type);
+        if ($names === []) {
+            return $this->resultText("Widget '{$type}' is not registered on this site.", ['controls' => []]);
+        }
+        $filter = strtolower((string) ($args['name_filter'] ?? ''));
+        if ($filter !== '') {
+            $names = array_values(array_filter($names, fn($n) => str_contains(strtolower($n), $filter)));
+        }
+        return $this->resultText(
+            sprintf("%d control name(s) for '%s'%s.", count($names), $type, $filter !== '' ? " matching '{$filter}'" : ''),
+            ['widget_type' => $type, 'count' => count($names), 'controls' => $names]
+        );
+    }
+
     private function toolIntrospectAtomicSchema(): array
     {
         $this->requireCap('read');

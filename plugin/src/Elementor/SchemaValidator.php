@@ -238,11 +238,42 @@ final class SchemaValidator
 
     private function suggestControl(string $supplied, array $valid): ?string
     {
-        // First: try flex_ prefix (catches the msrbuilds #32 case directly).
+        // 1. flex_ prefix (catches the msrbuilds #32 case directly).
         if (in_array('flex_' . $supplied, $valid, true)) {
             return 'flex_' . $supplied;
         }
-        // Then: Levenshtein-1 match.
+        // 2. Underscore-prefixed variant: padding → _padding, margin → _margin
+        //    (Elementor's flex-child wrapper controls; a top source of wrong guesses).
+        if (in_array('_' . $supplied, $valid, true)) {
+            return '_' . $supplied;
+        }
+        // 3. Token-suffix: supplied is a more-verbose form whose meaningful tail IS a valid
+        //    control — text_align → align, divider_color → color. Prefer the longest tail.
+        $suffixBest = null;
+        foreach ($valid as $v) {
+            if (strlen($v) >= 3 && str_ends_with($supplied, '_' . $v)) {
+                if ($suffixBest === null || strlen($v) > strlen($suffixBest)) {
+                    $suffixBest = $v;
+                }
+            }
+        }
+        if ($suffixBest !== null) {
+            return $suffixBest;
+        }
+        // 4. Inverse: a valid control is a more-specific form of the supplied key —
+        //    text_color → button_text_color. Prefer the shortest (closest) such key.
+        $superBest = null;
+        foreach ($valid as $v) {
+            if (str_ends_with($v, '_' . $supplied)) {
+                if ($superBest === null || strlen($v) < strlen($superBest)) {
+                    $superBest = $v;
+                }
+            }
+        }
+        if ($superBest !== null) {
+            return $superBest;
+        }
+        // 5. Levenshtein-≤2 fallback (real typos).
         $best = null;
         $bestDist = 99;
         foreach ($valid as $v) {

@@ -21,6 +21,10 @@
 # Worktrees
 worktrees/
 
+# Throwaway: eval screenshots + playwright cache
+tmp/
+.playwright-mcp/
+
 # Node
 node_modules/
 dist/
@@ -32,6 +36,8 @@ build/
 .env.*
 !.env.example
 !.env.required
+.tenet/*.local
+.tenet/wp-credentials.local
 
 # OS
 .DS_Store

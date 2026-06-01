@@ -68,6 +68,7 @@ final class DocumentWriter
         private WebhookEmitter $webhooks,
         private ?ResponsiveFiller $responsiveFiller = null,
         private ?AtomicDocumentWriter $atomicWriter = null,
+        private ?FlexWidthFiller $flexWidthFiller = null,
     ) {}
 
     /**
@@ -216,6 +217,16 @@ final class DocumentWriter
                 );
             }
 
+            // Atomic-Elementor column fix (2026-05-31): child width:% / _flex_basis
+            // don't compile to CSS on Elementor 4.0.9, so multi-column rows stack.
+            // Auto-inject the proven custom_css flex rule for %-sized flex-row children
+            // so the agent never hand-writes <style>. Always-on correctness fix (not
+            // opt-in). See Joist\Elementor\FlexWidthFiller + eval/BASELINE.md.
+            $flexWidthFills = [];
+            if ($this->flexWidthFiller !== null) {
+                [$elements, $flexWidthFills] = $this->flexWidthFiller->fill($elements);
+            }
+
             // Constraint #10: ID generation for any missing/temp.
             $elements = $this->idGen->fillMissing($elements);
 
@@ -259,6 +270,7 @@ final class DocumentWriter
                     'generated_ids' => $this->idGen->lastGeneratedMap(),
                     'transformations' => $transformations,
                     'responsive_fills' => $responsiveFills,
+                    'flex_width_fills' => $flexWidthFills,
                     'warnings' => $warnings,
                 ];
             }

@@ -19,6 +19,7 @@ use Joist\Elementor\DocumentWriter;
 use Joist\Elementor\DynamicTagValidator;
 use Joist\Elementor\GlobalRefPreferrer;
 use Joist\Elementor\PatchEngine;
+use Joist\Elementor\FlexWidthFiller;
 use Joist\Elementor\ResponsiveFiller;
 use Joist\Elementor\SchemaValidator;
 use Joist\Elementor\WidgetCatalog;
@@ -105,6 +106,7 @@ final class Container
             'globals' => new GlobalRefPreferrer(),
             'cssBlocks' => new CustomCSSBlockManager(),
             'responsiveFiller' => new ResponsiveFiller(self::get('catalog')),
+            'flexWidthFiller' => new FlexWidthFiller(),
             'layoutMode' => new ContainerModeAdapter(),
             'locks' => new LockManager(),
             'opMode' => new OperatingMode(),
@@ -144,6 +146,7 @@ final class Container
                 self::get('webhooks'),
                 self::get('responsiveFiller'),
                 self::get('atomicDocumentWriter'),
+                self::get('flexWidthFiller'),
             ),
             'preferenceMemory' => new PreferenceMemory(),
             'forbiddenPhraseValidator' => new ForbiddenPhraseValidator(self::get('preferenceMemory')),

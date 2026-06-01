@@ -1,0 +1,77 @@
+# .distignore — paths that must NOT ship to a production Joist install.
+#
+# @purpose Single source of truth for what is excluded when assembling the
+#          deployable plugin dist. Consumed by deploy-plugin.sh via
+#          `rsync --exclude-from` (rsync mode) and as a filter list when
+#          staging the dist before an lftp/sftp mirror.
+#
+# Format: one rsync-style pattern per line. Leading/trailing whitespace and
+# blank lines are ignored; lines starting with '#' are comments. Patterns are
+# matched relative to the plugin root (the dir containing joist.php).
+#
+# WHAT SHIPS (for reference — do NOT add these here):
+#   joist.php, uninstall.php, README.md, joist.constitution.md
+#   src/            (PSR-4 PHP — EXCEPT src/admin-app, see below)
+#   assets/         (front-end JS/CSS incl. assets/widget-pack/motion runtime)
+#   build/          (compiled wp-scripts bundle — this is what AssetEnqueue reads)
+#   languages/      (if present)
+#
+# ---------------------------------------------------------------------------
+# Dev dependencies & build inputs (never ship)
+# ---------------------------------------------------------------------------
+node_modules/
+package.json
+package-lock.json
+.npmrc
+
+# React admin-app SOURCE. The COMPILED output lives in build/ and DOES ship.
+# Only the un-compiled source tree is excluded here.
+src/admin-app/
+
+# ---------------------------------------------------------------------------
+# Tests & fixtures (never ship)
+# ---------------------------------------------------------------------------
+tests/
+phpunit.xml
+phpunit.xml.dist
+.phpunit.result.cache
+
+# ---------------------------------------------------------------------------
+# Source maps & build noise (never ship — leaks source, bloats payload)
+# ---------------------------------------------------------------------------
+*.map
+*.log
+.cache/
+
+# ---------------------------------------------------------------------------
+# VCS, tooling, CI, repo scaffolding (never ship)
+# ---------------------------------------------------------------------------
+.git/
+.gitignore
+.gitattributes
+.github/
+.distignore
+scripts/
+.tenet/
+.editorconfig
+.eslintrc*
+.prettierrc*
+.stylelintrc*
+composer.json
+composer.lock
+
+# ---------------------------------------------------------------------------
+# Editor / OS noise (never ship)
+# ---------------------------------------------------------------------------
+.DS_Store
+.idea/
+.vscode/
+*.swp
+Thumbs.db
+
+# ---------------------------------------------------------------------------
+# In-repo developer docs that are not end-user plugin docs.
+# README.md DOES ship; the skills/ knowledge tree does not.
+# ---------------------------------------------------------------------------
+skills/
+LESSONS.md
