@@ -289,13 +289,38 @@ const NATIVE = { headings: 0, buttons: 0, images: 0 };
 // captured-box size cap on the native image widget so it never paints intrinsic/full (the 6.057x-height bug).
 const NATIVEIMG_CSS = [];
 let _nimgSeq = 0;
+// STRUCT_IMGFIT (default OFF ⇒ byte-identical) — SOURCE-CLIP image clamp. The native-image cap above pins max-height
+// to the CAPTURED box height (recipe #33 size). But some sections show a DOMINANT image whose captured box is far
+// TALLER than the section band the source paints it into — the source CLIPS/scales it to the visible band crop (e.g.
+// supabase #8: a 620px-tall mockup inside a 261px band; the source shows only ~150px of it). The contain-to-620 cap
+// then renders it full-height and the section balloons (hRatio 3.3). IMGFIT lets buildSection register an OVERRIDE
+// max-height (the available band height) for that one leaf, keyed by the resolved leaf object; nativeImageWidget then
+// emits max-height:<availH> + object-fit:COVER (fill+crop, matching the source clip) instead of contain-to-capturedH.
+// REVERSIBILITY: with IMGFIT unset the map is never populated, so every nativeImageWidget takes the unchanged path.
+const IMGFIT = process.env.STRUCT_IMGFIT === '1';
+const IMGFIT_CLAMP = new Map();   // resolved-leaf object → clamped available band height (px)
+const IMGFITSTATS = { clamped: 0 };
 // build a native IMAGE widget capped to its captured box. settings.image={url,id?} + image_size + width pin + a
 // scoped #nimg-N custom_css rule (max-width:100%;height:auto;max-height:<h>;aspect-ratio) = recipe #33 size, native.
-function nativeImageWidget(url, box) {
+// `leaf` (optional) = the resolved source leaf; if STRUCT_IMGFIT tagged it as a source-clipped dominant image, the
+// cap is rewritten to clamp height to the available band + object-fit:cover (the visible source crop).
+function nativeImageWidget(url, box, leaf) {
   const w = round(box.w), h = Math.max(1, round(box.h));
   const id = localId(url);
   const image = id ? { url, id } : { url };               // PROVEN shape: {url,id}; NO top-level alt (stripped on this stack)
   const eid = `nimg-${_nimgSeq++}`;
+  // STRUCT_IMGFIT clamp (only ever set when IMGFIT=1 AND buildSection registered this leaf): the image's captured box
+  // overflows its section band, so the source clips it. Clamp the rendered height to the available band height and use
+  // object-fit:COVER (fill the box, crop the overflow) — matching the source's visible crop, NOT the full image.
+  const clampH = (IMGFIT && leaf) ? IMGFIT_CLAMP.get(leaf) : undefined;
+  if (clampH != null) {
+    const ch = Math.max(1, round(clampH));
+    // width:Wpx;max-width:100% keeps the no-h-scroll invariant (validateTree IMGCAP exception). height:Hpx + object-
+    // fit:cover crops the tall image into the band crop. NO aspect-ratio (it would re-derive the full height).
+    NATIVEIMG_CSS.push(`#${eid} img{display:block!important;width:${w}px!important;max-width:100%!important;height:${ch}px!important;max-height:${ch}px!important;object-fit:cover!important;object-position:center top!important}`);
+    NATIVE.images++; IMGFITSTATS.clamped++;
+    return { elType: 'widget', widgetType: 'image', settings: { image, image_size: 'full', width: { unit: 'px', size: w }, _element_id: eid } };
+  }
   // CAP: pin the rendered width to the captured px + scope a rule that caps height/aspect to the captured box. This
   // gives the EXACT size recipe #33's html<img> gets (display:block;width:Wpx;max-width:100%;height:auto;
   // max-height:Hpx;aspect-ratio:W/H;object-fit:contain) — never intrinsic/full → kills the 6x-height balloon.
@@ -328,8 +353,8 @@ function leafWidget(n) {
   };
   // NATIVE IMAGE promotion (default ON): an <img> / svg-raster leaf → a real native `image` widget, CAPPED to the
   // captured box (settings.width + scoped #nimg-N custom_css) so it renders at recipe #33 size, NOT intrinsic/full.
-  if (!NO_NATIVE && n.kind === 'image') return nativeImageWidget(localSrc(n.src), box);
-  if (!NO_NATIVE && (n.kind === 'svg' || n.kind === 'mockup') && n.raster && n.raster !== 'SKIP') return nativeImageWidget(localSrc(n.raster), box);
+  if (!NO_NATIVE && n.kind === 'image') return nativeImageWidget(localSrc(n.src), box, n);
+  if (!NO_NATIVE && (n.kind === 'svg' || n.kind === 'mockup') && n.raster && n.raster !== 'SKIP') return nativeImageWidget(localSrc(n.raster), box, n);
   if (n.kind === 'image') return sizedImg(localSrc(n.src));
   if ((n.kind === 'svg' || n.kind === 'mockup') && n.raster && n.raster !== 'SKIP') return sizedImg(localSrc(n.raster));
   if (n.kind === 'svg' || n.kind === 'mockup') return null; // SKIP / no-raster decorative
@@ -360,6 +385,20 @@ function leafWidget(n) {
     const cc = colorCss(n);
     const items = (n.items || []).map((it) => { const t = stripEmoji(it.text); if (!t) return ''; return `<li>${it.href ? `<a href="${esc(it.href)}"${styleAttr(cc)}>${esc(t)}</a>` : esc(t)}</li>`; }).filter(Boolean).join('');
     if (!items) return null; const tagName = n.ordered ? 'ol' : 'ul';
+    // STRUCT_LINKCOLS (default OFF) — a LONG BARE-ANCHOR index list (≥8 short anchors, ≥80% with href) renders as a
+    // CSS MULTI-COLUMN block so it occupies the SAME compact band the source <ul> did (basecamp footer: 27 anchors in
+    // ~6 columns @143px) instead of stacking 1-per-row into a tall single column (the +743px footer inflator). The
+    // scoped #linkcols-N{columns:<colW>px;column-gap:32px} rule auto-flows the <li> anchors into as many columns as
+    // fit width:100%; each <li> is display:block;break-inside:avoid so an anchor never splits across a column. CSS
+    // multi-column ADDS columns (never width) → kses-safe, cannot cause horizontal scroll. OFF ⇒ byte-identical.
+    const lq = linkListQualify(n);
+    if (lq.ok) {
+      const eid = `linkcols-${++_linkcolsId}`;
+      const colW = linkColWidth(lq.boxW, lq.K);
+      LINKCOLSCSS.push(`#${eid}{columns:${colW}px;column-gap:${LINKCOL_GAP}px;list-style:none;margin:0;padding:0;width:100%;max-width:100%}#${eid} li{display:block;break-inside:avoid;-webkit-column-break-inside:avoid;page-break-inside:avoid;margin:0 0 4px}#${eid} li a{display:block;text-decoration:none}`);
+      LINKCOLSSTATS.lists++;
+      return { elType: 'widget', widgetType: 'text-editor', settings: { editor: `<${tagName} id="${eid}" style="${textCss(n)}">${items}</${tagName}>`, ...globalRefSettings(n, 'text_color') } };
+    }
     return { elType: 'widget', widgetType: 'text-editor', settings: { editor: `<${tagName} style="${textCss(n)}">${items}</${tagName}>`, ...globalRefSettings(n, 'text_color') } };
   }
   // TABS — real role=tablist/tab/tabpanel in an html widget.
@@ -436,6 +475,7 @@ function nativeTypoSettings(n) {
   else if (lh) s.typography_line_height = { unit: 'px', size: round(lh) };
   const ls = px(t.letterSpacing); if (ls !== null && t.letterSpacing !== 'normal') s.typography_letter_spacing = { unit: 'px', size: +ls.toFixed(1) };
   if (t.transform && t.transform !== 'none') s.typography_text_transform = t.transform;
+  if (t.style && t.style !== 'normal') s.typography_font_style = t.style.startsWith('oblique') ? 'oblique' : 'italic';
   return s;
 }
 
@@ -523,8 +563,43 @@ function clusterRows(members) {
 // X-split the members of ONE row into ordered (left→right) COLUMNS. Members whose x-intervals overlap (within a
 // small tolerance) share a column; a real horizontal gap opens a new column. Tighter tolerance than clusterColumns
 // (1.2%-of-section, min 12px) so tightly-packed logos in a strip each become their own column (12 logos → 12 cols).
+const GRIDFIX = process.env.STRUCT_GRIDFIX === '1'; // default OFF ⇒ byte-identical. Recovers dense mixed-size card grids.
 function rowColumns(rowMembers, sectionW) {
   const sw = Math.max(1, sectionW || VW);
+  // GRIDFIX (default OFF) — dense MIXED-SIZE card grids (a feature grid of icon+heading+body cells beside WIDE
+  // mockups/screenshots) collapse to ONE column under the naive x-overlap merge below: the wide media overlaps the
+  // narrow text columns AND each other, chaining everything into a single column → RAM-grid can't qualify (<2 cells)
+  // → the section becomes a tall full-width vertical stack (the measured supabase root cause: heightRatio 2.05).
+  // FIX: derive the column STRUCTURE from the NARROW members (text/headings/icons align to the real grid columns),
+  // then assign EVERY member (incl wide media) to its nearest column center. ≥2 recovered columns are tagged
+  // ._gridfix so ramGridQualify trusts them as a grid (the narrow-member alignment IS the grid evidence — bypasses
+  // the comparable-width gate that wide media would otherwise fail). A logo strip (1 narrow cell per column) does
+  // NOT trigger this (it needs ≥2 narrow cells per column) and falls through to the unchanged legacy path.
+  if (GRIDFIX) {
+    const narrow = rowMembers.filter((m) => m.box && m.box.w > 0 && m.box.w < sw * 0.45);
+    if (narrow.length >= 4) {
+      const cgap = Math.max(24, sw * 0.04);                       // a real inter-column gutter measured on CENTERS
+      const centers = narrow.map((m) => m.box.x + m.box.w / 2).sort((a, b) => a - b);
+      const cc = []; let g = null;
+      for (const c of centers) { if (!g || c > g.max + cgap) { g = { sum: c, n: 1, max: c }; cc.push(g); } else { g.sum += c; g.n++; g.max = c; } }
+      const colCenters = cc.filter((k) => k.n >= 2).map((k) => k.sum / k.n).sort((a, b) => a - b); // a real column repeats ≥2 narrow cells
+      if (colCenters.length >= 2) {
+        const cols = colCenters.map((cx) => ({ cx, x0: Infinity, x1: -Infinity, members: [] }));
+        for (const m of rowMembers) {
+          const mcx = m.box.x + m.box.w / 2;
+          let bi = 0, bd = Infinity; for (let i = 0; i < colCenters.length; i++) { const d = Math.abs(mcx - colCenters[i]); if (d < bd) { bd = d; bi = i; } }
+          const col = cols[bi]; col.members.push(m); col.x0 = Math.min(col.x0, m.box.x); col.x1 = Math.max(col.x1, m.box.x + m.box.w);
+        }
+        const used = cols.filter((c) => c.members.length);
+        if (used.length >= 2) {
+          for (const col of used) col.members.sort((a, b) => a.box.y - b.box.y || a.box.x - b.box.x);
+          used.sort((a, b) => a.cx - b.cx);
+          used._gridfix = true;                                   // trusted grid → ramGridQualify bypasses comparable-width gate
+          return used;
+        }
+      }
+    }
+  }
   const GAP = Math.max(12, sw * 0.012);
   const sorted = [...rowMembers].sort((a, b) => a.box.x - b.box.x || a.box.y - b.box.y);
   const cols = [];
@@ -676,6 +751,527 @@ const RAMSTATS = { gridRows: 0 };
 const RAMCSS = []; // scoped #id{display:grid;…} rules, injected page-wide via custom_css alongside the nav fallback.
 let _ramId = 0; const idCounter = () => (++_ramId);
 const NO_RAMGRID = process.env.STRUCT_NO_RAMGRID === '1' || process.env.FLOW_NO_RAMGRID === '1';
+
+// ===========================================================================
+// STRUCT_BENTOGRID (default OFF ⇒ byte-identical) — TILE-BENTO recipe. THE DOMINANT CLONE RESIDUAL: a dense
+// feature-BENTO section (an N-col × M-row tile grid of icon/heading/body/mockup cells) stacks TALL under the
+// clusterRows→rowColumns→flex path: the wide media in one tile overlaps the narrow text columns, chaining the row
+// X-cluster into a single column, so each TILE stacks vertically and the M source rows render as one tall column
+// (supabase #2: hRatio 3.08, +2182px = 42% of the page overage). RAM-grid (#35) only fires on a SINGLE row of
+// comparable-width cells (M=1); GRIDFIX recovers ONE row's columns but still emits ONE flex row — neither places
+// the 7 tiles across 2 ROWS. THE FIX: detect a true tile-grid (N≥2 cols × M≥2 rows × ≥4 headings) from the section
+// HEADINGS (each tile is anchored by its heading), GROUP every non-heading member to its nearest heading (→ a tile
+// = heading + its body/image stacked in a column), then EMIT ALL tiles into ONE CSS GRID (reusing the RAM-grid kses-
+// safe channel: container_type:grid + grid_columns_grid custom unit + #ramgrid-N display:grid custom_css) so the
+// tiles sit M rows × N cols instead of stacking → recovers the ~855px. A col-span-2 tile (its content ≈2× a column
+// pitch, e.g. supabase's Postgres tile) gets grid-column:span 2. Track = auto-fit minmax(min(<colpitch>px,100%),1fr)
+// so it reflows N→1 on narrow (no media query, no h-scroll — the min(...,100%) guard caps every track to the
+// container). A hero/cta (no tile grid) or a single-ROW feature row (M=1, the RAM-grid case) NEVER qualifies.
+// REVERSIBILITY: STRUCT_BENTOGRID unset ⇒ buildSection takes the unchanged clusterRows path → byte-identical.
+const BENTOGRID = process.env.STRUCT_BENTOGRID === '1';
+const BENTOSTATS = { sections: 0, tiles: 0 };
+const BENTO_HEAD_TOL = 28;     // x/y snap tolerance for clustering heading anchors into column/row anchors
+const BENTO_MIN_HEADINGS = 4;  // a real tile grid has ≥4 heading-anchored tiles
+// is THIS member a tile-anchoring heading? a captured heading, or a SHORT large-ish text leaf that reads as a tile
+// title (segment.mjs often tags tile titles kind:'text' with no hN). We accept kind 'heading', plus a short text
+// whose typo size is heading-ish (≥15px) and which is short (≤40 chars, single line h<56) — the tile-title shape.
+function bentoIsHeading(m) {
+  if (!m || !m.box) return false;
+  if (m.kind === 'heading') return !!stripEmoji(m.text || '');
+  return false; // conservative: only true headings anchor tiles (avoids hijacking body/label text)
+}
+// 1-D anchor clustering: snap values into anchor groups within tol; returns sorted group-mean anchors.
+function clusterAnchors(vals, tol) {
+  const sorted = [...vals].sort((a, b) => a - b);
+  const groups = [];
+  for (const v of sorted) {
+    const g = groups[groups.length - 1];
+    if (g && v <= g.max + tol) { g.sum += v; g.n++; g.max = v; g.min = Math.min(g.min, v); }
+    else groups.push({ sum: v, n: 1, max: v, min: v });
+  }
+  return groups.map((g) => ({ mean: g.sum / g.n, n: g.n, min: g.min, max: g.max }));
+}
+// DETECT a tile-bento from a section's members. Returns { ok, colAnchors[], rowAnchors[], headings[], pitch } or
+// { ok:false }. Qualify iff N(cols)≥2 AND M(rows)≥2 AND headings≥4 (a real N×M tile grid). A single-ROW feature
+// row (M=1) is the RAM-grid case — NOT hijacked. A hero/cta (no tile grid) fails (too few headings / no 2nd row).
+function bentoDetect(members) {
+  if (!BENTOGRID) return { ok: false };
+  const ms = (members || []).filter((m) => m && m.box && m.box.w > 0 && m.box.h > 0);
+  const headings = ms.filter(bentoIsHeading);
+  if (headings.length < BENTO_MIN_HEADINGS) return { ok: false };
+  const colAnchors = clusterAnchors(headings.map((h) => h.box.x), BENTO_HEAD_TOL).map((g) => g.mean);
+  const rowAnchors = clusterAnchors(headings.map((h) => h.box.y), BENTO_HEAD_TOL).map((g) => g.mean);
+  if (colAnchors.length < 2 || rowAnchors.length < 2) return { ok: false };  // N≥2 AND M≥2 (M=1 is the RAM-grid case)
+  // column pitch = median inter-anchor spacing (used for the auto-fit minmax track + col-span detection).
+  const gaps = []; for (let i = 1; i < colAnchors.length; i++) gaps.push(colAnchors[i] - colAnchors[i - 1]);
+  const pitch = gaps.length ? median(gaps) : 283;
+  return { ok: true, colAnchors, rowAnchors, headings, pitch, N: colAnchors.length, M: rowAnchors.length };
+}
+// snap a value to the nearest anchor index in a sorted anchor list.
+function snapAnchor(v, anchors) {
+  let bi = 0, bd = Infinity; for (let i = 0; i < anchors.length; i++) { const d = Math.abs(v - anchors[i]); if (d < bd) { bd = d; bi = i; } }
+  return bi;
+}
+// GROUP members into TILES. Each heading is a tile seed (assigned to its (col,row) anchor cell). Each NON-heading
+// member is assigned to its NEAREST heading by CENTER distance, biased to the SAME column (a member in heading H's
+// column is pulled to H even if a heading in the next column is geometrically a hair closer). Returns an ordered
+// (row-major: top→bottom, then left→right) array of tiles, each { col, row, members:[…in y-order], heading }.
+function bentoTiles(det, members) {
+  const ms = (members || []).filter((m) => m && m.box && m.box.w > 0 && m.box.h > 0);
+  const { colAnchors, rowAnchors, headings } = det;
+  // seed one tile per heading at its (col,row) CELL.
+  const tiles = headings.map((h) => {
+    const col = snapAnchor(h.box.x, colAnchors), row = snapAnchor(h.box.y, rowAnchors);
+    return { col, row, heading: h, members: [h], cx: colAnchors[col], cy: rowAnchors[row], hx: h.box.x };
+  });
+  const headSet = new Set(headings);
+  // assign each non-heading member to the heading that OWNS its (col,row) CELL. A tile owns its own column AND every
+  // empty column to its right up to the next heading in the SAME ROW (this is the col-span case: the Postgres tile
+  // heading sits at col0 with NO heading at col1, so it owns col0+col1 — its wide mockup, which centers in col1,
+  // belongs to Postgres, not to the col2 Authentication heading). Algorithm: snap the member to its (col,row); among
+  // the tiles IN THAT ROW, pick the one whose column is the nearest-at-or-LEFT of the member's column (the tile that
+  // "starts" the member's column run). If no tile is at-or-left in that row, fall back to the nearest-center tile
+  // (handles a member that drifts above its row band or a degenerate row). This makes wide media span-aware WITHOUT
+  // raw center distance pulling it to a geometrically-closer neighbour in the next column.
+  for (const m of ms) {
+    if (headSet.has(m)) continue;
+    const mcx = m.box.x + m.box.w / 2, mcy = m.box.y + m.box.h / 2;
+    // a WIDE member (≥1.5× the column pitch) is span-bearing — anchor it by its LEFT-EDGE column (where the span
+    // STARTS); a narrow member is anchored by its CENTER column. This is what keeps a 2-pitch mockup with the tile
+    // it sits beneath (left edge) instead of the column its center happens to land in.
+    const wide = m.box.w >= det.pitch * 1.5;
+    const mcol = snapAnchor(wide ? m.box.x : mcx, colAnchors);
+    const mrow = snapAnchor(mcy, rowAnchors);
+    const inRow = tiles.filter((t) => t.row === mrow).sort((a, b) => a.col - b.col);
+    let best = null;
+    // OWNER = the tile in the member's row whose column is the nearest-at-or-LEFT of the member's column (the tile
+    // that starts the column run containing the member — owns its own column + empty columns to its right).
+    for (const t of inRow) if (t.col <= mcol && (!best || t.col > best.col)) best = t;
+    if (!best) { // no at-or-left tile in this row → nearest-center across all tiles (degenerate fallback)
+      let bd = Infinity; for (const t of tiles) { const d = Math.hypot(t.cx - mcx, t.cy - mcy); if (d < bd) { bd = d; best = t; } }
+    }
+    if (best) best.members.push(m);
+  }
+  // TILE-INTERNAL IMAGE-LAYER COLLAPSE — a source tile composites its mockup as several OVERLAPPING image/svg/mockup
+  // layers in the SAME visual band (e.g. supabase's Data APIs tile: 3 images at y≈1211-1248 all overlapping). A
+  // vertical tile stack would render those 3 layers as 3 stacked ~390px images → a ~1180px tile (the residual that
+  // kept sec-2 hRatio ~2.0). Since the source paints them ON TOP of each other (one visual), keep only the LARGEST
+  // image-layer per overlapping cluster and drop the rest. Strictly image-kind layers that VERTICALLY OVERLAP (their
+  // y-spans intersect by >50% of the smaller) collapse; text/heading/list are never touched. This recovers the row-2
+  // height without changing the tile's visual (the dominant layer is the one the source shows on top).
+  for (const t of tiles) {
+    const imgs = t.members.filter((m) => m.kind === 'image' || m.kind === 'svg' || m.kind === 'mockup');
+    if (imgs.length < 2) continue;
+    const drop = new Set();
+    const byArea = [...imgs].sort((a, b) => (b.box.w * b.box.h) - (a.box.w * a.box.h));
+    for (let i = 0; i < byArea.length; i++) {
+      if (drop.has(byArea[i])) continue;
+      const A = byArea[i].box, ay0 = A.y, ay1 = A.y + A.h;
+      for (let j = i + 1; j < byArea.length; j++) {
+        if (drop.has(byArea[j])) continue;
+        const B = byArea[j].box, by0 = B.y, by1 = B.y + B.h;
+        const ov = Math.max(0, Math.min(ay1, by1) - Math.max(ay0, by0));
+        const minH = Math.max(1, Math.min(A.h, B.h));
+        if (ov / minH > 0.5) drop.add(byArea[j]);          // a smaller layer overlapping the larger → it is a layer, drop it
+      }
+    }
+    if (drop.size) t.members = t.members.filter((m) => !drop.has(m));
+  }
+  for (const t of tiles) t.members.sort((a, b) => a.box.y - b.box.y || a.box.x - b.box.x);
+  // row-major DOM order so grid auto-flow:row places them across N columns, M rows (top row left→right, then next).
+  tiles.sort((a, b) => a.row - b.row || a.col - b.col);
+  return tiles;
+}
+// BUILD the tile-bento as ONE CSS GRID (reuses the RAM-grid kses-safe channel). Each tile → a column stack (its
+// heading + body/image, via columnContainer gridChild=true so no width pin). A tile that owns an EMPTY column to its
+// right (i.e. there is a GAP between its heading column and the next heading column IN ITS ROW, e.g. supabase's
+// Postgres tile at col0 in a row whose next heading is col2 → it spans col0+col1) gets grid-column:span 2 via a
+// scoped per-tile #bento-N-K{grid-column:span 2} rule. Track = repeat(auto-fit, minmax(min(<pitch>px,100%),1fr)) so
+// N tiles fit the content width AND it reflows N→1 on narrow (no media query, no h-scroll: the min(…,100%) inner
+// guard caps every track to the container). Returns the grid container element, or null if <2 tiles survive.
+function buildBentoGrid(det, members, sectionW, ctaCtx) {
+  const tiles = bentoTiles(det, members);
+  const built = tiles.map((t) => ({ t, el: columnContainer({ members: t.members, x0: 0, x1: 1 }, sectionW, tiles.length, ctaCtx, true) })).filter((x) => x.el);
+  if (built.length < 2) return null;
+  const gridId = `ramgrid-${idCounter()}`;          // REUSE the RAM-grid scoped channel (#ramgrid-N display:grid)
+  // TIGHT gaps for a tile-bento: the source tiles pack densely (a row pitch barely larger than one tile's media),
+  // so a generous 24px grid gap inflates each of the M rows. A 16px grid gap separates tiles without padding rows.
+  const gap = 16;
+  const N = det.N;
+  // TRACK FLOOR — size the auto-fit minmax floor so EXACTLY N columns fit the boxed content width (NOT the raw source
+  // pitch). The source heading-anchor pitch (~283px on supabase) INCLUDES the inter-column gap; using it as the track
+  // floor makes 4×283 + 3×gap > the ~1140px boxed content → only 3 tracks fit → the span-2 + singles WRAP into >2 rows
+  // → staggered, inflated height (the residual that kept hRatio ~2.0). Deriving the floor from contentW/N − gap fits N
+  // tracks reliably AND the min(…,100%) guard still reflows N→fewer→1 on narrow (no media query, no h-scroll).
+  const contentW = Math.min(CONTENT_MAXW, round(sectionW));
+  const fitFloor = Math.floor((contentW - (N - 1) * gap) / N);     // px per track so N fit the content width
+  const colPitch = Math.max(140, Math.min(fitFloor, round(sectionW * 0.45)));
+  const track = `repeat(auto-fit, minmax(min(${colPitch}px, 100%), 1fr))`;
+  // COL-SPAN from the GRID STRUCTURE (not raw member extent — a stray overflow image must not widen a tile): per
+  // ROW, the sorted heading-occupied columns; a tile spans from its column to the NEXT occupied column in its row
+  // (or to N if it is the last). span = nextCol − ownCol; a span ≥2 → grid-column:span <span>. Row1 here is fully
+  // occupied {0,1,2,3} → every span=1 (no spurious spans); Row0 is {0,2,3} → col0 spans 2 (Postgres), col2/col3 span 1.
+  const occByRow = {};
+  for (const { t } of built) { (occByRow[t.row] = occByRow[t.row] || []).push(t.col); }
+  for (const r in occByRow) occByRow[r].sort((a, b) => a - b);
+  const spanRules = [];
+  for (const { t, el } of built) {
+    BENTOSTATS.tiles++;
+    const occ = occByRow[t.row] || [t.col];
+    const idxInRow = occ.indexOf(t.col);
+    const nextCol = (idxInRow >= 0 && idxInRow < occ.length - 1) ? occ[idxInRow + 1] : N;
+    const span = Math.max(1, Math.min(nextCol - t.col, N));      // columns this tile occupies before the next heading
+    if (span >= 2) {
+      const tid = `bento-${gridId}-${spanRules.length}`;
+      el.settings._element_id = tid;
+      spanRules.push(`#${tid}{grid-column:span ${span}}`);
+    }
+  }
+  const gridChildren = built.map((x) => x.el);
+  const gridEl = container({
+    content_width: 'full', container_type: 'grid',
+    grid_columns_grid: { unit: 'custom', size: track },
+    grid_rows_grid: { unit: 'fr', size: 'auto' },
+    grid_gaps: { column: String(gap), row: String(gap), unit: 'px', isLinked: false },
+    grid_auto_flow: 'row', flex_align_items: 'flex-start',
+    width: { unit: '%', size: 100 },
+    padding: { unit: 'px', top: '0', right: '0', bottom: '0', left: '0', isLinked: true },
+    _element_id: gridId,
+  }, gridChildren);
+  RAMSTATS.gridRows++;
+  RAMCSS.push(`#${gridId}{display:grid !important;grid-template-columns:${track} !important;gap:${gap}px !important;align-items:start}`);
+  for (const r of spanRules) RAMCSS.push(r);
+  return gridEl;
+}
+
+// ===========================================================================
+// STRUCT_CARDWALL (default OFF ⇒ byte-identical) — HEADING-LESS MASONRY CARD-WALL recipe. A dense, heading-light
+// wall of many comparable-WIDTH cards laid out at regularly-pitched x-anchors (supabase #9: 14 cards across the
+// "Build in a weekend / Scale to billions" feature wall; #10: 6 cards). Under the clusterRows→rowColumns→flex path
+// these stack TALL (#9 hRatio 1.60, #10 1.46) because a wide member chains the x-cluster into one column. THE FIX:
+// detect the wall (≥6 comparable-width cards at ≥3 REGULARLY-pitched x-anchors — the pitch-regularity CV guard is the
+// LOAD-BEARING discriminator that produced ZERO corpus false-positives), then emit ALL cards as ONE CSS MULTI-COLUMN
+// block (#cardwall-N{columns:<pitch>px;column-gap} + per-card break-inside:avoid). CSS columns auto-flow N→…→1 by
+// width with NO media query, NO fixed-px container width (columns:<pitch>px is a track HINT not a width) → no h-scroll.
+// A full-bleed member (≥85% section width, e.g. #9's mockup backdrop) is EXCLUDED from the card set and instead
+// rendered BEHIND the cards via the scoped custom_css background-image channel (#<secId>{background-image:url(...)}),
+// the SAME kses-safe channel as RAMCSS/COLWCSS/LINKCOLS — the element-tree background_image setting is kses-STRIPPED
+// on this 4.0.9 stack, but custom_css is not. REVERSIBILITY: STRUCT_CARDWALL unset ⇒ buildSection takes the unchanged
+// path → byte-identical.
+const CARDWALL = process.env.STRUCT_CARDWALL === '1';
+const CARDWALLCSS = []; // scoped #cardwall-N{columns:<pitch>px;column-gap} + #cardwall-N>*{break-inside:avoid} + #<secId>{background-image:…} rules, injected page-wide via custom_css.
+const CARDWALLSTATS = { walls: 0, cards: 0, backdrops: 0 };
+const CARDWALL_GAP = 24;           // column-gap between masonry tracks (matches the inner flex gap)
+const CARDWALL_CARD_GAP_Y = 56;    // a vertical gap > this within a column opens a new CARD (matches proto)
+// DETECT a heading-less masonry card-wall from a section's resolved members. Returns { ok, pitch, cols[], backdrop }
+// where cols[] = ordered (left→right) column buckets of card members and backdrop = the excluded full-bleed member
+// (or null). Qualify iff: ≥6 cards, ≥3 columns at REGULARLY-pitched x-anchors (gap-CV ≤ 0.25 — the guard), heading-
+// light (≤30% of cards carry a heading), ≥1.3 cards/column. A hero, a feature-tile bento (heading-heavy), a logo
+// strip (few cards), an irregular image-mosaic (high pitch-CV, e.g. supabase #4) all FAIL → fall through unchanged.
+function cardwallDetect(members, sb, isHero) {
+  if (!CARDWALL || isHero) return { ok: false };
+  const sectionW = (sb && sb.w) || VW;
+  const ms = (members || []).filter((m) => m && m.box && m.box.w > 0 && m.box.h > 0);
+  // EXCLUDE any full-bleed member (≥85% section width) from the card set — it is a backdrop/banner, not a card.
+  const fullBleed = ms.filter((m) => m.box.w >= 0.85 * sectionW);
+  const backdrop = fullBleed.filter((m) => m.kind === 'image' || m.kind === 'svg' || m.kind === 'mockup')
+    .sort((a, b) => (b.box.w * b.box.h) - (a.box.w * a.box.h))[0] || null;
+  let cand = ms.filter((m) => m.box.w < 0.85 * sectionW);
+  if (cand.length < 8) return { ok: false };
+  const wides = cand.filter((m) => m.box.w >= 100).map((m) => m.box.w);
+  if (wides.length < 6) return { ok: false };
+  const cardW = median(wides);
+  // drop SPAN-bearing members (>1.4× card width) — they are not single cards (a banner/wide media chains the cluster).
+  cand = cand.filter((m) => m.box.w <= cardW * 1.4);
+  if (cand.length < 6) return { ok: false };
+  const bodies = cand.filter((m) => Math.abs(m.box.w - cardW) <= 0.25 * cardW);
+  if (bodies.length < 3) return { ok: false };
+  // X-ANCHOR clustering of the body-width members → the column anchors of the wall.
+  const atol = Math.max(40, cardW * 0.25);
+  const aGroups = [];
+  for (const m of [...bodies].sort((a, b) => a.box.x - b.box.x)) {
+    let g = aGroups.find((G) => Math.abs(G.x - m.box.x) <= atol);
+    if (!g) { g = { x: m.box.x, n: 0, sum: 0 }; aGroups.push(g); }
+    g.n++; g.sum += m.box.x; g.x = g.sum / g.n;
+  }
+  const anchors = aGroups.map((g) => g.x).sort((a, b) => a - b);
+  if (anchors.length < 3) return { ok: false };
+  // PITCH-REGULARITY (THE GUARD): inter-anchor gaps must be UNIFORM (a real masonry grid). CV = stdev/mean of gaps.
+  // An irregular layout (image mosaic, mixed-width hero collage — supabase #4 gcv≈0.47) has a high CV → rejected.
+  const gaps = []; for (let i = 1; i < anchors.length; i++) gaps.push(anchors[i] - anchors[i - 1]);
+  const gm = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+  const gv = gaps.reduce((a, b) => a + (b - gm) * (b - gm), 0) / gaps.length;
+  const gcv = gm ? Math.sqrt(gv) / gm : 99;
+  // assign each candidate card to its nearest anchor (within 1.5× tol) → column buckets.
+  const cols = anchors.map((a) => ({ x: a, members: [] }));
+  for (const m of cand) { let bi = 0, bd = Infinity; for (let i = 0; i < anchors.length; i++) { const d = Math.abs(m.box.x - anchors[i]); if (d < bd) { bd = d; bi = i; } } if (bd <= atol * 1.5) cols[bi].members.push(m); }
+  const realCols = cols.filter((c) => c.members.length >= 2);
+  if (realCols.length < 3) return { ok: false };
+  // count CARDS per column (a vertical gap > CARD_GAP_Y opens a new card) + how many carry a heading (heading-light).
+  let totalCards = 0, headingCards = 0;
+  for (const c of realCols) {
+    const sorted = [...c.members].sort((a, b) => a.box.y - b.box.y);
+    let card = null;
+    for (const m of sorted) {
+      if (!card || (m.box.y - card.y1) > CARDWALL_CARD_GAP_Y) { card = { y1: m.box.y + m.box.h, hasH: m.kind === 'heading' }; totalCards++; }
+      else { card.y1 = Math.max(card.y1, m.box.y + m.box.h); card.hasH = card.hasH || m.kind === 'heading'; }
+      if (card.hasH && card._counted !== true) { /* count once per card below */ }
+    }
+    // recount heading-cards cleanly (a card with ≥1 heading member)
+    let cc = null; const cardsArr = [];
+    for (const m of sorted) { if (!cc || (m.box.y - cc.y1) > CARDWALL_CARD_GAP_Y) { cc = { y1: m.box.y + m.box.h, hasH: false }; cardsArr.push(cc); } else cc.y1 = Math.max(cc.y1, m.box.y + m.box.h); cc.hasH = cc.hasH || m.kind === 'heading'; }
+    for (const cd of cardsArr) if (cd.hasH) headingCards++;
+  }
+  const cardsPerCol = totalCards / realCols.length;
+  const headingLight = headingCards <= Math.max(1, Math.floor(totalCards * 0.30));
+  const ok = totalCards >= 6 && realCols.length >= 3 && headingLight && cardsPerCol >= 1.3 && gcv <= 0.25;
+  if (!ok) return { ok: false };
+  // pitch for the CSS columns track = the median inter-anchor gap (the natural card pitch).
+  const pitch = Math.max(160, Math.round(median(gaps)));
+  return { ok: true, pitch, cols: realCols, cardW: Math.round(cardW), totalCards, backdrop, gcv };
+}
+// BUILD the card-wall as ONE CSS MULTI-COLUMN block. Each card member is emitted as a leaf widget; cards are wrapped
+// per-card so break-inside:avoid keeps a card intact across column breaks. The container is given #cardwall-N and a
+// scoped #cardwall-N{columns:<pitch>px;column-gap:<gap>px} rule auto-flows them into as many tracks as fit width:100%
+// (reflows N→…→1 with no media query, no fixed-px width). Returns the container element, or null if <2 cards survive.
+function buildCardwall(det, sectionW, ctaCtx) {
+  // re-derive cards in DOM order (column-major: each column top→bottom, columns left→right) — masonry CSS columns
+  // fill column-by-column, so emitting column-major preserves the source reading order within each track.
+  const cardEls = [];
+  for (const c of det.cols) {
+    const sorted = [...c.members].sort((a, b) => a.box.y - b.box.y);
+    let cur = null; const cards = [];
+    for (const m of sorted) {
+      if (!cur || (m.box.y - cur.y1) > CARDWALL_CARD_GAP_Y) { cur = { y1: m.box.y + m.box.h, members: [m] }; cards.push(cur); }
+      else { cur.y1 = Math.max(cur.y1, m.box.y + m.box.h); cur.members.push(m); }
+    }
+    for (const cd of cards) {
+      cd.members.sort((a, b) => a.box.y - b.box.y || a.box.x - b.box.x);
+      // each card = a flex column of its widgets (no width pin — the CSS column track governs width). gridChild=true
+      // reuses columnContainer's pin-free shape so break-inside:avoid is the only width constraint.
+      const el = columnContainer({ members: cd.members, x0: 0, x1: 1 }, sectionW, det.cols.length, ctaCtx, true);
+      if (el) cardEls.push(el);
+    }
+  }
+  if (cardEls.length < 2) return null;
+  const wallId = `cardwall-${idCounter()}`;
+  // tag each card so break-inside:avoid applies per card (keeps a card from splitting across a column break).
+  for (let i = 0; i < cardEls.length; i++) {
+    const cid = `${wallId}-c${i}`;
+    cardEls[i].settings._element_id = cid;
+    CARDWALLCSS.push(`#${cid}{break-inside:avoid;-webkit-column-break-inside:avoid;margin:0 0 ${CARDWALL_GAP}px}`);
+    CARDWALLSTATS.cards++;
+  }
+  // the wall container: a plain full-width block; the scoped rule turns it into a CSS multi-column track. NEVER a
+  // bare fixed-px width — columns:<pitch>px is a track-size HINT (the browser fits as many <pitch>px columns as the
+  // width allows), so it reflows down to 1 column on narrow with no horizontal scroll.
+  const wallEl = container({
+    content_width: 'full', flex_direction: 'column',
+    width: { unit: '%', size: 100 },
+    padding: { unit: 'px', top: '0', right: '0', bottom: '0', left: '0', isLinked: true },
+    _element_id: wallId,
+  }, cardEls);
+  CARDWALLCSS.push(`#${wallId}{display:block !important;columns:${det.pitch}px;column-gap:${CARDWALL_GAP}px}`);
+  CARDWALLSTATS.walls++;
+  return wallEl;
+}
+
+// ===========================================================================
+// STRUCT_LINKCOLS (default OFF ⇒ byte-identical) — CSS MULTI-COLUMN recipe for LONG BARE-ANCHOR LINK LISTS
+// (footer sitemaps, index lists, "And there's more" link grids). THE BUG (measured on basecamp, the dominant
+// height inflator): the source footer index is one COMPACT CSS-columns <ul> (box 1257×143: 27 short anchors auto-
+// flowed into ~6 short columns). The builder renders that <ul> as a PLAIN block list — every <li> stacks 1-per-row
+// into ONE tall full-width column → the 143px source list becomes ~27 rows (~770px) → footer 492→1235px (ratio
+// 2.51, +743px). RAM-grid (#35) only fires on comparable-width card/GRID cells (≥2 cells per X-cluster), NEVER on a
+// bare-anchor list (it has no columns to compare), so there is NO multi-column-list recipe — until this one.
+//
+// THE FIX: detect a LINK-LIST and emit it as a CSS MULTI-COLUMN block instead of a vertical stack. Two source shapes:
+//   (a) LIST-WIDGET (the basecamp shape): a `list` leaf whose items[] are ≥8 SHORT bare anchors (≥80% have href) —
+//       render the <ul> with a scoped #linkcols-N{columns:<colW>px;column-gap:32px} rule (CSS multi-column auto-flows
+//       the <li> anchors into as many columns as fit). Each <li> is display:block;break-inside:avoid.
+//   (b) ANCHOR-CLUSTER (the spec shape): a run of ≥8 bare-anchor MEMBERS (kind button+href OR tag a), each SHORT
+//       (h<56), with little/no large non-anchor text interleaved, currently stacking into a single x-column (a tall
+//       narrow run) — wrap them into ONE container carrying the same #linkcols-N columns rule.
+// A nav ROW (few links, one y-row) NEVER triggers: require ≥8 members AND a multi-ROW stack (≥3 distinct y-rows).
+//
+// colW derivation: if the source anchors sit in K distinct x-clusters (the list already flowed into K columns), set
+// colW so ~K columns fit (colW ≈ containerWidth/K − gap). For the list-widget shape K is inferred from the box
+// (rowsPerCol ≈ box.h/lineHeight → K ≈ ceil(nItems/rowsPerCol)). Else default colW ≈ 200px (a typical sitemap col).
+//
+// NO-H-SCROLL: columns + column-gap inside a width:100% container is kses-safe and CANNOT overflow horizontally —
+// CSS multi-column ADDS columns, never width. No bare fixed-px width is ever emitted (validateTree's guard untouched;
+// the `columns:<N>px` property is a column-WIDTH hint, not an element width — the column count flexes to fit 100%).
+// REVERSIBILITY: STRUCT_LINKCOLS unset ⇒ leafWidget's list path + buildSection/buildFooter are byte-identical.
+const LINKCOLS = process.env.STRUCT_LINKCOLS === '1';
+const LINKCOLSCSS = []; // scoped #linkcols-N{columns:<colW>px;column-gap:32px} rules, injected page-wide via custom_css.
+const LINKCOLSSTATS = { lists: 0, clusters: 0 };
+let _linkcolsId = 0;
+const LINKCOL_GAP = 32;          // inter-column gap (px) — a generous sitemap gutter
+const LINKCOL_DEFAULT_W = 200;   // default column width when no source column structure is recoverable
+const LINKCOL_MIN_MEMBERS = 8;   // conservative floor — fewer links is a nav row, not an index list
+const LINKCOL_SHORT_H = 56;      // an anchor taller than this is a card/CTA, not a bare list link
+// derive the column-WIDTH hint for a link list from the source. Given the container width + (optional) inferred
+// source column count K, colW ≈ containerW/K − gap (so ~K columns fit); clamped to [120, 320] and never wider than
+// the container. K<=1 (or unknown) → the typical sitemap default (200px). Returns an integer px.
+function linkColWidth(containerW, K) {
+  const cw = Math.max(120, Math.round(containerW || VW));
+  if (K && K >= 2) { const w = Math.floor(cw / K) - LINKCOL_GAP; return Math.max(120, Math.min(320, Math.max(w, 120))); }
+  return Math.min(LINKCOL_DEFAULT_W, Math.max(120, cw - LINKCOL_GAP));
+}
+// is THIS list leaf a long bare-anchor index list? ≥LINKCOL_MIN_MEMBERS items, ≥80% with an href, none very tall.
+// Returns { ok, n, anchors, K } where K = the inferred source column count (box.h / lineHeight rows-per-col).
+function linkListQualify(n) {
+  if (!LINKCOLS || !n || n.kind !== 'list') return { ok: false };
+  const items = (n.items || []).filter((it) => stripEmoji(it.text || ''));
+  if (items.length < LINKCOL_MIN_MEMBERS) return { ok: false };
+  const anchors = items.filter((it) => it.href);
+  if (anchors.length / items.length < 0.8) return { ok: false };       // ≥80% bare anchors (else mixed text content)
+  // infer the source column count K from the captured box: a multi-column <ul> is WIDE (box.w near a content column)
+  // and SHORT (box.h ≈ rowsPerCol × lineHeight). rowsPerCol = round(box.h / lineHeight); K = ceil(nItems / rowsPerCol).
+  const lh = px(n.typo && n.typo.lineHeight) || Math.max(18, Math.round((n.typo && n.typo.size) || 16) * 1.4);
+  const box = n.box || { w: VW, h: lh };
+  const rowsPerCol = Math.max(1, Math.round(box.h / Math.max(1, lh)));
+  const K = Math.max(1, Math.ceil(items.length / rowsPerCol));
+  return { ok: true, n: items.length, anchors: anchors.length, K, boxW: box.w };
+}
+// ANCHOR-CLUSTER detector (the spec shape) — a run of bare-anchor MEMBERS that currently stack into one tall narrow
+// x-column. Conservative so it never mis-fires on real stacked content: from a band's members, find the LARGEST set
+// that (1) are bare anchors (kind button+href OR tag a), (2) are SHORT (h<LINKCOL_SHORT_H), (3) share one x-column
+// (left edges within a tolerance), AND (4) span ≥3 distinct y-rows (a multi-row STACK, never a single nav row). The
+// set must be ≥LINKCOL_MIN_MEMBERS and dominate its x-column (no large non-anchor text interleaved at that x). Returns
+// { ok, members:[…in y-order], rest:[…everything else], box } or { ok:false }.
+function isBareAnchor(m) {
+  if (!m || !m.box) return false;
+  const tagA = (m.tag || '').toLowerCase() === 'a';
+  const btnHref = m.kind === 'button' && !!m.href;
+  if (!tagA && !btnHref) return false;
+  if (m.box.h >= LINKCOL_SHORT_H) return false;       // a tall anchor is a card/CTA, not a bare list link
+  return !!stripEmoji(m.text || '');
+}
+function anchorClusterQualify(members) {
+  if (!LINKCOLS) return { ok: false };
+  const ms = (members || []).filter((m) => m && m.box && m.box.w > 0 && m.box.h > 0);
+  const anchors = ms.filter(isBareAnchor);
+  if (anchors.length < LINKCOL_MIN_MEMBERS) return { ok: false };
+  // group anchors by left-edge x-cluster (tolerance ~ 6% of viewport): a single stacked sitemap column shares ~one x.
+  const xtol = Math.max(24, VW * 0.06);
+  const groups = [];
+  for (const a of [...anchors].sort((p, q) => p.box.x - q.box.x)) {
+    let g = groups.find((G) => Math.abs(G.x - a.box.x) <= xtol);
+    if (!g) { g = { x: a.box.x, members: [] }; groups.push(g); }
+    g.members.push(a); g.x = (g.x * (g.members.length - 1) + a.box.x) / g.members.length;
+  }
+  // pick the largest x-group that is a MULTI-ROW stack (≥3 distinct y-rows) and meets the member floor.
+  let best = null;
+  for (const g of groups) {
+    if (g.members.length < LINKCOL_MIN_MEMBERS) continue;
+    const ys = [...new Set(g.members.map((m) => Math.round(m.box.y / 10)))];
+    if (ys.length < 3) continue;                       // a single y-row (nav strip) NEVER qualifies
+    if (!best || g.members.length > best.members.length) best = g;
+  }
+  if (!best) return { ok: false };
+  // GUARD against mis-firing on real stacked content: no LARGE non-anchor text may sit inside the cluster's x-band +
+  // y-extent (a heading/paragraph interleaved means this is real content, not a bare link index).
+  const set = new Set(best.members);
+  const y0 = Math.min(...best.members.map((m) => m.box.y)), y1 = Math.max(...best.members.map((m) => m.box.y + m.box.h));
+  const colX0 = Math.min(...best.members.map((m) => m.box.x)), colX1 = Math.max(...best.members.map((m) => m.box.x + m.box.w));
+  for (const m of ms) {
+    if (set.has(m)) continue;
+    if (isBareAnchor(m)) continue;
+    const mcx = m.box.x + m.box.w / 2, mcy = m.box.y + m.box.h / 2;
+    const inBand = mcx >= colX0 - 8 && mcx <= colX1 + 8 && mcy >= y0 && mcy <= y1;
+    if (inBand && (m.box.h >= LINKCOL_SHORT_H || stripEmoji(m.text || '').length > 40)) return { ok: false }; // large content interleaved
+  }
+  const ordered = best.members.slice().sort((a, b) => a.box.y - b.box.y || a.box.x - b.box.x);
+  const box = { x: colX0, y: y0, w: Math.max(1, colX1 - colX0), h: Math.max(1, y1 - y0) };
+  const rest = ms.filter((m) => !set.has(m));
+  return { ok: true, members: ordered, rest, box };
+}
+// build a CSS multi-column CONTAINER from a set of bare-anchor members. Each anchor → an inline <a> in a text-editor
+// li-less; the wrapper carries a scoped #linkcols-N{columns:<colW>px;column-gap:32px} rule that auto-flows them. We
+// derive K (source column count) from the band geometry: the band is one tall narrow column → K columns should fit
+// the FULL content width, so colW = content-column / (a sane K). Here the source already collapsed to 1 column, so we
+// target the typical sitemap default width (200px) which fits ~ contentW/200 columns. width:100% → no h-scroll.
+function buildAnchorColsContainer(members, containerW) {
+  const eid = `linkcols-${++_linkcolsId}`;
+  const colW = linkColWidth(containerW, 0);            // default-width path (the stacked source gives no K signal)
+  const lis = members.map((m) => { const t = stripEmoji(m.text || ''); if (!t) return ''; const cc = textColor(m) ? `color:${textColor(m)}` : ''; return `<li>${m.href ? `<a href="${esc(m.href)}"${cc ? ` style="${cc}"` : ''}>${esc(t)}</a>` : esc(t)}</li>`; }).filter(Boolean).join('');
+  if (!lis) return null;
+  LINKCOLSCSS.push(`#${eid}{columns:${colW}px;column-gap:${LINKCOL_GAP}px;list-style:none;margin:0;padding:0;width:100%;max-width:100%}#${eid} li{display:block;break-inside:avoid;-webkit-column-break-inside:avoid;page-break-inside:avoid;margin:0 0 4px}#${eid} li a{display:block;text-decoration:none}`);
+  LINKCOLSSTATS.clusters++;
+  const widget = { elType: 'widget', widgetType: 'text-editor', settings: { editor: `<ul id="${eid}" style="${WRAP}">${lis}</ul>` } };
+  return container({ content_width: 'full', flex_direction: 'column', width: { unit: '%', size: 100 }, padding: { unit: 'px', top: '0', right: '0', bottom: '0', left: '0', isLinked: true } }, [widget]);
+}
+
+// ===========================================================================
+// STRUCT_COLWIDTH (default OFF ⇒ byte-identical) — HEIGHT-SAFE per-section CONTENT-COLUMN narrowing. By default the
+// inner content wrapper is content_width:'boxed' (the theme's wide boxed cap, ~1280). The source frequently lays its
+// content into a NARROWER column (a hero copy block at 672, a centered body band at ~700). Narrowing the inner box to
+// the source content-column width recovers the horizontal-fidelity / area-coverage that a too-wide boxed inner loses.
+//
+// WHY HEIGHT-SAFE (the v1 regression): v1 narrowed EVERY section incl. the HERO, whose heading nearly FILLS its source
+// column — at the clone's font (renders ~10-15% wider than the source) a narrowed hero heading wrapped to 2 lines,
+// +1.2% whole-page height → auto-reverted. Fix: SKIP narrowing for any section whose widest single TEXT/heading
+// member nearly fills its content column (wText >= targetWidth * COLW_SKIP_RATIO). A near-full heading is the wrap
+// risk; a body block well inside the column is safe. This keeps the area-win on the safe sections (#3/#5/#7/#8/#11 on
+// supabase) with NO height regression (those sections had ZERO height change in v1; the hero was the sole regressor).
+//
+// NO-H-SCROLL INVARIANT: the narrowing is a SCOPED #colw-N{max-width:<targetW>px;width:100%;margin:auto} rule injected
+// via page custom_css — NEVER a bare fixed-px width. max-width + width:100% means the column shrinks below targetW on
+// narrow viewports (no overflow) and centers within the full-bleed section band. validateTree's bare-width guard is
+// untouched (it scans the element tree, not page_settings; and the rule uses max-width, which that guard excludes).
+const COLWIDTH = process.env.STRUCT_COLWIDTH === '1';
+// a heading/text whose width is >= this fraction of its content column nearly FILLS the column → narrowing it risks a
+// new wrap (clone font renders wider than source). 0.85 skips the supabase hero (ratio 1.0) + the dense-heading band
+// (#2, ratio 0.875) while still narrowing every well-inside body band. Tunable via STRUCT_COLW_SKIP_RATIO.
+const COLW_SKIP_RATIO = (() => { const v = parseFloat(process.env.STRUCT_COLW_SKIP_RATIO || ''); return (v > 0 && v <= 1) ? v : 0.85; })();
+const COLWCSS = []; // scoped #colw-N{max-width:Wpx;width:100%;margin:auto} rules, injected page-wide via custom_css.
+const COLWSTATS = { narrowed: 0, skipped: 0, heroSkipped: false };
+let _colwId = 0;
+// HEIGHT-SAFE colwidth decision for ONE section. Returns { apply, targetW, align } where apply=false ⇒ leave the
+// inner full-width/legacy (byte-identical). Offline-computable from the segment members + bbox alone.
+//   targetW = the source CONTENT-COLUMN width = the section's own boxed bbox width (the boxed content extent), capped
+//             to the viewport. A FULL-BLEED section (bbox spans ~the whole viewport) has no narrower content column to
+//             recover → not narrowed (its background already runs edge-to-edge; the inner is the boxed cap already).
+//   wText   = the widest single TEXT/button member (the wrap-risk element). Images/svg/mockups are excluded (they
+//             scale with max-width:100% and never wrap).
+//   SKIP iff wText >= targetW * COLW_SKIP_RATIO (a near-full heading → wrap risk) — this is the hero guard.
+//   align   = derived from where the content extent sits vs the section center: a clearly LEFT-anchored column keeps
+//             its left edge (margin-right:auto); else centered (margin:auto) — matching the boxed inner's centering.
+// height (px) above which the widest text reads as a LARGE/already-multi-line display heading — the wrap-sensitive
+// case where narrowing risks an extra line. A short single-line body/label (height below this) cannot grow taller
+// when the box shrinks to its own rendered width, so it is height-safe even at ratio ~1.0. Tunable.
+const COLW_WRAP_TEXT_H = (() => { const v = parseFloat(process.env.STRUCT_COLW_WRAP_H || ''); return v > 0 ? v : 60; })();
+function colwidthDecision(sec, sb, idx) {
+  const ms = (sec.members || []).filter((m) => m && m.box && m.box.w > 0 && m.box.h > 0);
+  if (!ms.length) return { apply: false };
+  // CONTENT-COLUMN width = extent (min member.x .. max member.x1) over the NON-FULL-BLEED members (a member that spans
+  // ~the whole viewport is a background/full-bleed strip and would force the extent to the full width). This is the
+  // source's boxed content band — the column we narrow the inner box to.
+  const nfb = ms.filter((m) => m.box.w < VW * 0.92);
+  const xs = nfb.length ? nfb : ms;
+  const minX = Math.min(...xs.map((m) => m.box.x)), maxX1 = Math.max(...xs.map((m) => m.box.x + m.box.w));
+  const targetW = Math.round(Math.min(maxX1 - minX, VW));
+  // FULL-BLEED / no-narrowing guard: nothing to recover when the content column already ≈ the boxed cap (the inner is
+  // already capped there) or ≈ the viewport. A targetW within ~2% of min(CONTENT_MAXW,VW) is a byte-churning no-op.
+  if (targetW >= Math.min(CONTENT_MAXW, VW) - 2) return { apply: false, noNarrowing: true };
+  if (targetW < 80) return { apply: false, tooSmall: true }; // degenerate extent → leave legacy boxed inner
+  // widest single TEXT/button member — the wrap-risk element (images scale with max-width:100%, never wrap).
+  const texts = xs.filter((m) => m.kind === 'text' || m.kind === 'button' || /^h[1-6]$/i.test(m.tag || ''));
+  const widest = texts.length ? texts.slice().sort((a, b) => b.box.w - a.box.w)[0] : null;
+  const wText = widest ? Math.round(widest.box.w) : 0;
+  const wTextH = widest ? Math.round(widest.box.h) : 0;
+  // HERO/WRAP guard (HEIGHT-SAFE) — SKIP iff the widest text NEARLY FILLS the column (wText >= targetW*ratio) AND that
+  // text is a LARGE/already-multi-line display heading (height >= COLW_WRAP_TEXT_H). Such a heading, re-boxed to the
+  // narrower column at the clone's wider font, gains a line → +page height (the v1 hero regression). A SHORT single-
+  // line text that fills the column is safe: shrinking the box to its own rendered width cannot make it taller.
+  if (wText >= targetW * COLW_SKIP_RATIO && wTextH >= COLW_WRAP_TEXT_H) return { apply: false, wrapRisk: true, targetW, wText, wTextH };
+  // source alignment: content extent center vs section center. A column whose left edge hugs the section's left edge
+  // (and whose right edge stops well short of the section's right) is LEFT-anchored; else centered.
+  const secCx = (sb.x || 0) + (sb.w || VW) / 2, extCx = (minX + maxX1) / 2;
+  const leftAnchored = (minX - (sb.x || 0)) < (sb.w || VW) * 0.06 && ((maxX1 - minX) < (sb.w || VW) * 0.85) && (extCx < secCx - (sb.w || VW) * 0.08);
+  return { apply: true, targetW, wText, wTextH, align: leftAnchored ? 'left' : 'center' };
+}
 // RAM-GRID QUALIFIER — is this row a multi-column GRID/CARD row (>=2 comparable-width cells)? A real grid/card row
 // has >=2 cells whose widths are within ~25% of the narrowest (the SAME comparable-cell notion build-flow's RAM
 // branch keys off). A hero|sidebar split (one cell 3-4x another) or a logo-strip mix never qualifies — those stay
@@ -688,6 +1284,9 @@ function ramGridQualify(cols) {
   const mn = Math.min(...cellWs), mx = Math.max(...cellWs);
   const comparable = mx <= mn * 1.25; // comparable-width gate (mixed-width rows excluded — stay flex)
   const medianCellPx = round(median(cellWs));
+  // GRIDFIX-recovered grids are trusted as grids (the narrow-member column alignment is the evidence) — bypass the
+  // comparable-width gate, which a wide-media-bearing cell would otherwise fail. Only set on the GRIDFIX path.
+  if (cols._gridfix && medianCellPx > 0) return { ok: true, medianCellPx: Math.max(160, Math.min(medianCellPx, round(VW * 0.32))), n: cols.length };
   if (!comparable || medianCellPx <= 0) return { ok: false };
   return { ok: true, medianCellPx, n: cols.length };
 }
@@ -973,6 +1572,43 @@ function specTitle(specSec, fallback) {
   return fallback;
 }
 
+// STRUCT_IMGFIT — register the band's DOMINANT source-clipped image (if any) for height-clamping. Offline-computable
+// from the segment members + band height alone. The DOMINANT image is the largest-AREA media member (image/svg/
+// mockup). AVAILABLE height = the band height minus the summed heights of the stacked NON-image members (the heading
+// + body text the image sits behind/around). FIRE only when the dominant image's captured height is far taller than
+// that available height (overflow ratio >= IMGFIT_MIN_RATIO, default 1.8) — the source must be clipping it. The clamp
+// value = the available height (what the source band actually shows). Tunables: STRUCT_IMGFIT_MIN_RATIO (overflow
+// trigger), STRUCT_IMGFIT_MIN_AREA_FRAC (the image must dominate — its area >= this fraction of the band's area box).
+const IMGFIT_MIN_RATIO = (() => { const v = parseFloat(process.env.STRUCT_IMGFIT_MIN_RATIO || ''); return v > 0 ? v : 1.8; })();
+const IMGFIT_MIN_AREA_FRAC = (() => { const v = parseFloat(process.env.STRUCT_IMGFIT_MIN_AREA_FRAC || ''); return v > 0 ? v : 0.55; })();
+function imgfitTagDominant(members, sb, minH) {
+  const ms = (members || []).map(resolveMember).filter((m) => m && m.box && m.box.w > 2 && m.box.h > 2);
+  if (!ms.length) return;
+  const isMedia = (m) => m.kind === 'image' || m.kind === 'mockup' || (m.kind === 'svg' && m.raster && m.raster !== 'SKIP');
+  const media = ms.filter(isMedia);
+  if (!media.length) return;
+  // dominant = largest captured AREA media member.
+  const dom = media.slice().sort((a, b) => (b.box.w * b.box.h) - (a.box.w * a.box.h))[0];
+  const domArea = dom.box.w * dom.box.h;
+  const bandH = Math.max(1, round(minH));
+  const bandArea = (sb.w || VW) * bandH;
+  // it must genuinely DOMINATE the band (a small avatar/logo never qualifies) — area >= a fraction of the band box.
+  if (domArea < bandArea * IMGFIT_MIN_AREA_FRAC) return;
+  const domH = round(dom.box.h);
+  // TRIGGER (the source-clip test): the captured image must be far TALLER than the BAND ITSELF. If domH ≈ bandH (or
+  // shorter), the image FITS the band — the source is NOT clipping it, so we leave it (the contain-cap is correct).
+  // Comparing to bandH (not the text-deflated availH) is what keeps a full-bleed band-screenshot — e.g. the tweet-wall
+  // mockup whose 524px ≈ its 572px band — from being wrongly crushed: 524 < 572*1.8, so it never fires.
+  if (domH < bandH * IMGFIT_MIN_RATIO) return;
+  // CLAMP value = the visible band crop: the band height minus the stacked NON-image members (the heading + body text
+  // the clipped image backs/sits beside). Floored at HALF the band so a text-misread can never crush the crop to a
+  // sliver; capped at the band height. For supabase #8: 261 band − 83px text → ~178px crop (matches the source).
+  const nonMedia = ms.filter((m) => !isMedia(m) && (m.kind === 'heading' || m.kind === 'text' || m.kind === 'button'));
+  const stackedH = nonMedia.reduce((s, m) => s + Math.max(0, round(m.box.h)), 0);
+  const availH = Math.min(bandH, Math.max(Math.round(bandH * 0.5), bandH - stackedH));
+  IMGFIT_CLAMP.set(dom, availH);
+}
+
 function buildSection(sec, idx) {
   const sb = sec.bbox || { x: 0, y: sec.y0 || 0, w: VW, h: (sec.y1 || 0) - (sec.y0 || 0) };
   const sectionW = sb.w || VW;
@@ -1012,20 +1648,112 @@ function buildSection(sec, idx) {
   // role (so a mis-placed first band, or a tall hero past 700px, is classified correctly); else the y<700 heuristic.
   const isHero = specSec ? specSec.role === 'hero' : ((sb.y || 0) < 700);
   const ctaCtx = isHero;
+  // STRUCT_IMGFIT (default OFF) — SOURCE-CLIP image clamp pre-pass. Find the DOMINANT image (largest captured area)
+  // in this band. If its captured height is far taller (>~1.8x) than the band's AVAILABLE height (the section band
+  // height minus the stacked NON-image heading/text member heights), the source clips/scales it into the band crop
+  // and the contain-cap would otherwise render it full-height → the section balloons. Register an override clamp
+  // (the available band height) for that leaf so nativeImageWidget emits max-height:<availH> + object-fit:cover.
+  // CONSERVATIVE: only one dominant image per band, only when it CLEARLY overflows; normally-sized images untouched.
+  if (IMGFIT) imgfitTagDominant(ded.members || [], sb, minH);
+  // STRUCT_LINKCOLS (default OFF) — ANCHOR-CLUSTER pre-pass: pull a tall narrow run of ≥8 short bare-anchor members
+  // out of the band, emit it as ONE CSS multi-column container (instead of 8+ stacked rows), and run the REST through
+  // the unchanged row machinery. The cluster container is re-inserted by its y-position so the stack order holds.
+  let secMembers = ded.members, linkClusterEl = null, linkClusterY = Infinity;
+  if (LINKCOLS) {
+    const fullMs = (ded.members || []).map(resolveMember).filter(Boolean);
+    const acq = anchorClusterQualify(fullMs);
+    if (acq.ok) {
+      linkClusterEl = buildAnchorColsContainer(acq.members, sectionW);
+      if (linkClusterEl) { linkClusterY = acq.box.y; const keep = new Set(acq.rest); secMembers = ded.members.filter((m) => { const f = resolveMember(m); return keep.has(f); }); }
+    }
+  }
+  // STRUCT_BENTOGRID (default OFF) — TILE-BENTO pre-pass, BEFORE the clusterRows/rowColumns path. Detect a true
+  // N≥2-col × M≥2-row tile grid (≥4 headings) from the section's resolved members; if it qualifies, group the
+  // members into per-heading TILES and emit ALL tiles into ONE CSS GRID (M rows × N cols) instead of the flex path
+  // that stacks them tall. A col-span-2 tile (content ≈2× the column pitch) gets grid-column:span 2. A hero/cta or a
+  // single-ROW feature row (M=1, the RAM-grid case) does NOT qualify → falls through to the unchanged path below.
+  const innerEls = [];
+  let bentoApplied = false;
+  if (BENTOGRID && !isHero) {
+    const fullMs = (secMembers || []).map(resolveMember).filter(Boolean);
+    const det = bentoDetect(fullMs);
+    if (det.ok) {
+      const gridEl = buildBentoGrid(det, fullMs, sectionW, ctaCtx);
+      if (gridEl) {
+        BENTOSTATS.sections++;
+        // preserve the linkcols cluster (if any pre-pass pulled one) by y-order around the grid; else just the grid.
+        if (linkClusterEl && linkClusterY < (det.rowAnchors[0] || 0)) { innerEls.push(linkClusterEl); innerEls.push(gridEl); }
+        else if (linkClusterEl) { innerEls.push(gridEl); innerEls.push(linkClusterEl); }
+        else innerEls.push(gridEl);
+        bentoApplied = true;
+      }
+    }
+  }
+  // STRUCT_CARDWALL (default OFF) — HEADING-LESS MASONRY pre-pass, AFTER the bento check. Detect a dense, heading-
+  // light wall of ≥6 comparable-width cards at ≥3 regularly-pitched x-anchors (the pitch-CV guard); if it qualifies,
+  // emit ALL cards as ONE CSS multi-column block instead of the flex path that stacks them tall. Any full-bleed
+  // backdrop is EXCLUDED from the cards and rendered behind them via the scoped custom_css background-image channel
+  // (#sec-N{background-image:…}) — the element-tree bg-image setting is kses-stripped on this 4.0.9 stack, custom_css
+  // is not. A hero/cta/feature-tile-bento/logo-strip/irregular-mosaic does NOT qualify → falls through unchanged.
+  if (CARDWALL && !bentoApplied) {
+    const fullMs = (secMembers || []).map(resolveMember).filter(Boolean);
+    const cw = cardwallDetect(fullMs, sb, isHero);
+    if (cw.ok) {
+      const wallEl = buildCardwall(cw, sectionW, ctaCtx);
+      if (wallEl) {
+        if (linkClusterEl && linkClusterY < (cw.cols[0] ? cw.cols[0].x : 0)) { innerEls.push(linkClusterEl); innerEls.push(wallEl); }
+        else if (linkClusterEl) { innerEls.push(wallEl); innerEls.push(linkClusterEl); }
+        else innerEls.push(wallEl);
+        bentoApplied = true;
+        // BACKDROP: render the excluded full-bleed member behind the cards via the scoped custom_css bg-image channel
+        // (kses-safe; survives where the element-tree background_image setting is stripped). Keyed to the section id.
+        if (cw.backdrop) {
+          const bsrc = localSrc(cw.backdrop.raster || cw.backdrop.src);
+          if (bsrc && bsrc !== 'SKIP' && !/^data:/.test(bsrc)) {
+            CARDWALLCSS.push(`#sec-${idx}{background-image:url(${bsrc});background-size:cover;background-position:center}`);
+            CARDWALLSTATS.backdrops++;
+          }
+        }
+      }
+    }
+  }
   // FIX 1 — cluster members into Y-ROWS first; each row becomes an inner flex container of X-columns (a grid). A
   // same-y logo strip → ONE row of N logo-columns; a 3×N card region → rows of card-columns. Single-member rows
-  // stack unchanged.
-  const rows = clusterRows(ded.members);
-  const innerEls = [];
-  for (const r of rows) {
-    const built = rowContainer(r, sectionW, ctaCtx);
-    if (built.rowEl) innerEls.push(built.rowEl);
-    else if (built.widgets && built.widgets.length) innerEls.push(...built.widgets);
+  // stack unchanged. SKIPPED when the bento pre-pass already emitted the section as one CSS grid (above).
+  let linkClusterPlaced = bentoApplied;
+  if (!bentoApplied) {
+    const rows = clusterRows(secMembers);
+    for (const r of rows) {
+      if (linkClusterEl && !linkClusterPlaced && (r.top > linkClusterY)) { innerEls.push(linkClusterEl); linkClusterPlaced = true; }
+      const built = rowContainer(r, sectionW, ctaCtx);
+      if (built.rowEl) innerEls.push(built.rowEl);
+      else if (built.widgets && built.widgets.length) innerEls.push(...built.widgets);
+    }
   }
+  if (linkClusterEl && !linkClusterPlaced) innerEls.push(linkClusterEl);
   if (!innerEls.length) return null; // empty section → drop (keeps invariant: every emitted section has content)
   // the inner content wrapper: a BOXED flex COLUMN (rows stack vertically) capped to the content width + centered.
   // Each row child is itself a flex-row that wraps at narrow widths, so the page reflows with no horizontal scroll.
   const innerSettings = { content_width: 'boxed', flex_direction: 'column', flex_gap: { unit: 'px', size: 24, column: '24', row: '24' }, width: { unit: '%', size: 100 }, padding: { unit: 'px', top: '0', right: '0', bottom: '0', left: '0', isLinked: true } };
+  // STRUCT_COLWIDTH (default OFF) — HEIGHT-SAFE per-section content-column narrowing. When a section's source content
+  // column is meaningfully narrower than the boxed cap AND its widest heading does NOT nearly fill that column (the
+  // hero/wrap guard), pin the inner box to the source width via a scoped #colw-N{max-width:Wpx;width:100%;margin:auto}
+  // rule (NEVER a bare fixed px). Skipped sections stay byte-identical to the legacy boxed inner.
+  if (COLWIDTH) {
+    const dec = colwidthDecision(sec, sb, idx);
+    if (dec.apply) {
+      const cid = `colw-${++_colwId}`;
+      innerSettings._element_id = cid;
+      const mar = dec.align === 'left' ? 'margin-left:0;margin-right:auto' : 'margin-left:auto;margin-right:auto';
+      // max-width caps the column to the source content width; width:100% lets it shrink below that on narrow
+      // viewports (no overflow); margin centers (or left-anchors) it within the full-bleed section band.
+      COLWCSS.push(`#${cid}{max-width:${dec.targetW}px;width:100%;${mar}}`);
+      COLWSTATS.narrowed++;
+    } else {
+      COLWSTATS.skipped++;
+      if (dec.wrapRisk && (idx === 0 || (sb.y || 0) < 700)) COLWSTATS.heroSkipped = true;
+    }
+  }
   const inner = container(innerSettings, innerEls);
   // SECTION container — FULL-WIDTH (content_width:full → background runs edge-to-edge), flex column, width 100%,
   // section bg + min_height from bbox + vertical padding. The boxed inner is centered via align-items:center.
@@ -1173,10 +1901,26 @@ async function detectPro(basicAuthHeaders) {
 function buildFooter(footSeg) {
   if (!footSeg || !footSeg.members || !footSeg.members.length) return null;
   const fb = footSeg.bbox || { x: 0, y: pageH - 200, w: VW, h: 200 };
+  // STRUCT_LINKCOLS (default OFF) — ANCHOR-CLUSTER pre-pass (footer sitemap of stacked bare anchors). Pull the
+  // tall narrow anchor run into ONE CSS multi-column container; run the rest through the unchanged row machinery.
+  let footMembers = footSeg.members, linkClusterEl = null, linkClusterY = Infinity;
+  if (LINKCOLS) {
+    const fullMs = (footSeg.members || []).map(resolveMember).filter(Boolean);
+    const acq = anchorClusterQualify(fullMs);
+    if (acq.ok) {
+      linkClusterEl = buildAnchorColsContainer(acq.members, fb.w || VW);
+      if (linkClusterEl) { linkClusterY = acq.box.y; const keep = new Set(acq.rest); footMembers = footSeg.members.filter((m) => { const f = resolveMember(m); return keep.has(f); }); }
+    }
+  }
   // FIX 1 — footer uses the same Y-ROW → X-COLUMN machinery so a single footer link row becomes a horizontal row.
-  const rows = clusterRows(footSeg.members);
+  const rows = clusterRows(footMembers);
   const innerEls = [];
-  for (const r of rows) { const built = rowContainer(r, fb.w || VW, false); if (built.rowEl) innerEls.push(built.rowEl); else if (built.widgets && built.widgets.length) innerEls.push(...built.widgets); }
+  let linkClusterPlaced = false;
+  for (const r of rows) {
+    if (linkClusterEl && !linkClusterPlaced && (r.top > linkClusterY)) { innerEls.push(linkClusterEl); linkClusterPlaced = true; }
+    const built = rowContainer(r, fb.w || VW, false); if (built.rowEl) innerEls.push(built.rowEl); else if (built.widgets && built.widgets.length) innerEls.push(...built.widgets);
+  }
+  if (linkClusterEl && !linkClusterPlaced) innerEls.push(linkClusterEl);
   if (!innerEls.length) return null;
   const innerSettings = { content_width: 'boxed', flex_direction: 'column', flex_gap: { unit: 'px', size: 16, column: '16', row: '16' }, width: { unit: '%', size: 100 }, padding: { unit: 'px', top: '0', right: '0', bottom: '0', left: '0', isLinked: true } };
   const inner = container(innerSettings, innerEls);
@@ -1304,7 +2048,15 @@ async function main() {
     const nativeHeadingTags = (blob.match(/"widgetType"\s*:\s*"heading"/g) || []).length;
     const nativeButtonTags = (blob.match(/"widgetType"\s*:\s*"button"/g) || []).length;
     const nativeImageTags = (blob.match(/"widgetType"\s*:\s*"image"/g) || []).length;
-    console.log(`OK: flex-container tree — ${v.containerCount} containers, ${pctCols} %-flex-basis column(s), ${widgetCount} widget(s), ${TABLESTATS.tables} native table(s) (${tableTags} <table tag(s)); native widgets: ${nativeHeadingTags} heading + ${nativeButtonTags} button + ${nativeImageTags} image (capped to captured box via ${NATIVEIMG_CSS.length} #nimg-N rule(s)); globals-effective: ${STATS.textRelyGlobal} text rely-on-global (inline stripped) + ${STATS.fontStripped} font(s) bound, ${STATS.wrappersUnwrapped} wrapper(s) unwrapped, ${STATS.sectionsNamed} section(s) named; NO position:absolute, NO elementor-absolute, NO _element_custom_width/_offset, NO bare fixed-px width`);
+    const colwNote = COLWIDTH ? `; colwidth: ${COLWSTATS.narrowed} narrowed + ${COLWSTATS.skipped} skipped (heroSkipped=${COLWSTATS.heroSkipped}), ${COLWCSS.length} #colw-N rule(s)` : '';
+    const linkColsNote = LINKCOLS ? `; linkcols: ${LINKCOLSSTATS.lists} list + ${LINKCOLSSTATS.clusters} cluster → ${LINKCOLSCSS.length} #linkcols-N rule(s)` : '';
+    const bentoNote = BENTOGRID ? `; bentogrid: ${BENTOSTATS.sections} tile-bento section(s) → ${BENTOSTATS.tiles} tile(s) in CSS grid(s)` : '';
+    const cardwallNote = CARDWALL ? `; cardwall: ${CARDWALLSTATS.walls} masonry wall(s) → ${CARDWALLSTATS.cards} card(s) in CSS multi-column + ${CARDWALLSTATS.backdrops} #sec-N backdrop(s) (${CARDWALLCSS.length} rule(s))` : '';
+    console.log(`OK: flex-container tree — ${v.containerCount} containers, ${pctCols} %-flex-basis column(s), ${widgetCount} widget(s), ${TABLESTATS.tables} native table(s) (${tableTags} <table tag(s)); native widgets: ${nativeHeadingTags} heading + ${nativeButtonTags} button + ${nativeImageTags} image (capped to captured box via ${NATIVEIMG_CSS.length} #nimg-N rule(s)); globals-effective: ${STATS.textRelyGlobal} text rely-on-global (inline stripped) + ${STATS.fontStripped} font(s) bound, ${STATS.wrappersUnwrapped} wrapper(s) unwrapped, ${STATS.sectionsNamed} section(s) named${colwNote}${linkColsNote}${bentoNote}${cardwallNote}; NO position:absolute, NO elementor-absolute, NO _element_custom_width/_offset, NO bare fixed-px width`);
+    // DRY/SELFTEST CSS dump (STRUCT_DUMP_CSS=<path>) — the scoped custom_css channels are populated during the tree
+    // build above, so we can emit the assembled rules offline (no network) for gate inspection. Publish path emits
+    // the identical channels into pageSettings.custom_css below; this is inspection-only and never changes the tree.
+    if (process.env.STRUCT_DUMP_CSS) { try { fs.writeFileSync(process.env.STRUCT_DUMP_CSS, [RAMCSS.join('\n'), NATIVEIMG_CSS.join('\n'), COLWCSS.join('\n'), LINKCOLSCSS.join('\n'), CARDWALLCSS.join('\n')].filter(Boolean).join('\n')); console.log(`STRUCT_DUMP_CSS → ${process.env.STRUCT_DUMP_CSS}`); } catch {} }
     return;
   }
   if (!v.ok) { console.log('FAIL (refusing to publish a tree that violates the no-h-scroll invariant): ' + v.fails.join('; ')); process.exit(1); }
@@ -1312,7 +2064,19 @@ async function main() {
   if (!PUBLISH) { console.log('built structured tree (pass --publish to write). Use --dry to dump.'); return; }
 
   // (6) WRITE — kit globals → nav menu → page PUT → edit_mode/template meta (ported build-absolute.mjs:1382-1522).
-  const headers = { Authorization: 'Basic ' + b64, 'Content-Type': 'application/json', 'X-Joist-Session-Id': 'structured-' + Date.now() };
+  // SESSION: writes are bucketed behind X-Joist-Session-Id. The plugin now requires a REAL session id issued by
+  // POST /sessions/start (an arbitrary client string yields atomic_save_silent_failure on Document::save). Honor an
+  // explicit JOIST_SESSION_ID; else start one. Falls back to a synthetic id if /sessions/start is unavailable.
+  let sessionId = process.env.JOIST_SESSION_ID || null;
+  if (!sessionId) {
+    try {
+      const sr = await fetch(`${base}/wp-json/joist/v1/sessions/start`, { method: 'POST', headers: { Authorization: 'Basic ' + b64, 'Content-Type': 'application/json' }, body: JSON.stringify({ intent: 'structured reflow clone' }) });
+      const sj = await sr.json(); sessionId = sj && sj.session_id ? sj.session_id : null;
+      if (sessionId) console.log(`session: started ${String(sessionId).slice(0, 12)}…`);
+    } catch {}
+  }
+  if (!sessionId) sessionId = 'structured-' + Date.now();
+  const headers = { Authorization: 'Basic ' + b64, 'Content-Type': 'application/json', 'X-Joist-Session-Id': sessionId };
   const basicHeaders = { Authorization: 'Basic ' + b64, 'Content-Type': 'application/json' };
   await writeKitGlobals(headers);
 
@@ -1339,7 +2103,27 @@ async function main() {
   // the native image widget renders at the captured-box size (recipe #33 parity), never intrinsic/full → no 6x balloon.
   const nativeImgCss = NATIVEIMG_CSS.join('\n');
   if (NATIVE.images) console.log(`native-image cap: ${NATIVE.images} native image widget(s) pinned to captured box (#nimg-N width+max-height+aspect cap)`);
-  const customCss = [fontCss, noScrollCss, ramGridCss, nativeImgCss, navFallbackCss].filter(Boolean).join('\n');
+  if (IMGFIT && IMGFITSTATS.clamped) console.log(`imgfit: ${IMGFITSTATS.clamped} source-clipped dominant image(s) clamped to available band height (object-fit:cover crop)`);
+  // STRUCT_COLWIDTH scoped rules — each #colw-N{max-width:Wpx;width:100%;margin:auto} narrows a safe section's inner
+  // content box to the source content-column width (height-safe: wrap-risk sections were skipped). kses-safe: no
+  // position, no bare fixed-px width (max-width + width:100% only) → no horizontal scroll at any viewport.
+  const colwCss = COLWCSS.join('\n');
+  if (COLWIDTH) console.log(`colwidth: ${COLWSTATS.narrowed} section(s) narrowed to source content-column, ${COLWSTATS.skipped} skipped (hero/wrap-risk/full-bleed); heroSkipped=${COLWSTATS.heroSkipped}`);
+  // STRUCT_LINKCOLS scoped rules — each #linkcols-N{columns:<colW>px;column-gap:32px} auto-flows a long bare-anchor
+  // list into as many columns as fit width:100% (the source's compact multi-column band), instead of a tall 1-per-row
+  // stack. kses-safe: CSS multi-column ADDS columns, never width → no horizontal scroll at any viewport.
+  const linkColsCss = LINKCOLSCSS.join('\n');
+  if (LINKCOLS) console.log(`linkcols: ${LINKCOLSSTATS.lists} list-widget(s) + ${LINKCOLSSTATS.clusters} anchor-cluster(s) emitted as CSS multi-column (${LINKCOLSCSS.length} #linkcols-N rule(s))`);
+  // STRUCT_BENTOGRID — tile-bento sections emitted as ONE CSS grid (M rows × N cols) via the RAM-grid #ramgrid-N
+  // scoped channel (already folded into ramGridCss); a col-span-2 tile gets a #bento-…{grid-column:span 2} rule.
+  if (BENTOGRID) console.log(`bentogrid: ${BENTOSTATS.sections} tile-bento section(s) → ${BENTOSTATS.tiles} tile(s) placed in a CSS grid (reuses #ramgrid-N display:grid channel; col-span-2 via #bento-… rule)`);
+  // STRUCT_CARDWALL scoped rules — each #cardwall-N{columns:<pitch>px;column-gap} auto-flows a heading-less masonry
+  // card-wall into as many tracks as fit width:100% (per-card break-inside:avoid keeps cards intact), plus an optional
+  // #sec-N{background-image:…} that renders the excluded full-bleed backdrop behind the cards (kses-safe — custom_css
+  // is not stripped like the element-tree bg-image setting). kses-safe: CSS multi-column ADDS columns, never width.
+  const cardwallCss = CARDWALLCSS.join('\n');
+  if (CARDWALL) console.log(`cardwall: ${CARDWALLSTATS.walls} masonry card-wall(s) → ${CARDWALLSTATS.cards} card(s) in CSS multi-column, ${CARDWALLSTATS.backdrops} backdrop(s) via #sec-N background-image (${CARDWALLCSS.length} rule(s))`);
+  const customCss = [fontCss, noScrollCss, ramGridCss, nativeImgCss, colwCss, linkColsCss, cardwallCss, navFallbackCss].filter(Boolean).join('\n');
   const pageSettings = customCss ? { custom_css: customCss } : {};
   if (fontCss) console.log(`injecting ${usedFonts.size} real font(s) via custom_css: ${[...usedFonts].join(', ')}`);
 

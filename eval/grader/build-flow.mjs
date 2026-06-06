@@ -156,6 +156,7 @@ function nativeTypo(n) {
   if (t.weight && /^\d+$/.test(String(t.weight))) s.typography_font_weight = String(t.weight);
   const ls = px(t.letterSpacing); if (ls !== null && t.letterSpacing !== 'normal') s.typography_letter_spacing = { unit: 'px', size: +ls.toFixed(1) };
   if (t.transform && t.transform !== 'none') s.typography_text_transform = t.transform;
+  if (t.style && t.style !== 'normal') s.typography_font_style = t.style.startsWith('oblique') ? 'oblique' : 'italic';
   return s;
 }
 const textColor = (n) => (n.paint && n.paint.value && n.paint.kind !== 'gradient-text' && /^(#|rgb)/.test(n.paint.value)) ? n.paint.value : null;
@@ -199,6 +200,7 @@ function typoCss(n) {
   if (t.weight && /^\d+$/.test(String(t.weight))) out.push(`font-weight:${t.weight}`);
   const ls = px(t.letterSpacing); if (ls !== null && t.letterSpacing !== 'normal') out.push(`letter-spacing:${(+ls.toFixed(1))}px`);
   if (t.transform && t.transform !== 'none') out.push(`text-transform:${t.transform}`);
+  if (t.style && t.style !== 'normal') out.push(`font-style:${t.style.startsWith('oblique') ? 'oblique' : 'italic'}`);
   const c = textColor(n); if (c) out.push(`color:${c}`);
   return out.join(';');
 }

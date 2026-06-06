@@ -3,7 +3,7 @@
  * Plugin Name:       Joist
  * Plugin URI:        https://github.com/ckrohg/joist
  * Description:       Open-source agentic backbone for Elementor sites. Schema-validated, audit-logged, atomic-rollback writes via Claude Code or any MCP client.
- * Version:           0.10.13-alpha
+ * Version:           0.10.14-alpha
  * Requires at least: 6.5
  * Requires PHP:      8.0
  * Author:            Joist maintainers
@@ -89,7 +89,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('JOIST_VERSION', '0.10.13-alpha');
+define('JOIST_VERSION', '0.10.14-alpha');
 define('JOIST_FILE', __FILE__);
 define('JOIST_DIR', plugin_dir_path(__FILE__));
 define('JOIST_URL', plugin_dir_url(__FILE__));

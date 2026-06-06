@@ -41,6 +41,9 @@ const container = (settings, elements = []) => ({ elType: 'container', settings,
 // (=viewport), so max-width:100% caps the inner div to the viewport → no element exceeds the viewport width.
 // `wmax(px)` → "width:<px>px;max-width:100%" (fix ON) or "width:<px>px" (fix OFF). Applied at every emit site.
 const NO_CHROMEFIX = process.env.ABS_NO_CHROMEFIX === '1';
+// CEK W2.1 (reversible, default OFF): on the no-Pro nav path, render the real WP menu via the
+// [joist_nav_menu] shortcode (single source of truth) instead of per-link text-editor widgets.
+const NAV_SHORTCODE = process.env.JOIST_NAV_SHORTCODE === '1';
 const wmax = (w) => NO_CHROMEFIX ? `width:${Math.round(w)}px` : `width:${Math.round(w)}px;max-width:100%`;
 // ── ABS VERTICAL-REFLOW (recipe #20 enhancement — default ON; ABS_NO_VREFLOW=1 → old un-pin: relative+w:100% only) ──
 // DIAGNOSIS (tailwind@390, dominantCause=retainedFixedHeight): recipe #20 un-pinned the .elementor-absolute
@@ -117,7 +120,7 @@ const localSrc = (s) => (imgMap[s] && imgMap[s].full) || s;
 const localId = (s) => imgMap[s] && imgMap[s].id;
 
 // ---- native typography ----
-function nativeTypo(n) { const t = n.typo || {}; const s = {}; if (!(t.size || t.family)) return s; s.typography_typography = 'custom'; const fam = REGFONTS[t.family] ? t.family : gFont(t.family); if (fam) { s.typography_font_family = fam; if (REGFONTS[t.family]) usedFonts.add(t.family); } if (t.size) s.typography_font_size = { unit: 'px', size: Math.round(t.size) }; if (t.weight && /^\d+$/.test(String(t.weight))) s.typography_font_weight = String(t.weight); const lh = px(t.lineHeight); if (lh) s.typography_line_height = { unit: 'px', size: Math.round(lh) }; const ls = px(t.letterSpacing); if (ls !== null && t.letterSpacing !== 'normal') s.typography_letter_spacing = { unit: 'px', size: +ls.toFixed(1) }; if (t.transform && t.transform !== 'none') s.typography_text_transform = t.transform; return s; }
+function nativeTypo(n) { const t = n.typo || {}; const s = {}; if (!(t.size || t.family)) return s; s.typography_typography = 'custom'; const fam = REGFONTS[t.family] ? t.family : gFont(t.family); if (fam) { s.typography_font_family = fam; if (REGFONTS[t.family]) usedFonts.add(t.family); } if (t.size) s.typography_font_size = { unit: 'px', size: Math.round(t.size) }; if (t.weight && /^\d+$/.test(String(t.weight))) s.typography_font_weight = String(t.weight); const lh = px(t.lineHeight); if (lh) s.typography_line_height = { unit: 'px', size: Math.round(lh) }; const ls = px(t.letterSpacing); if (ls !== null && t.letterSpacing !== 'normal') s.typography_letter_spacing = { unit: 'px', size: +ls.toFixed(1) }; if (t.transform && t.transform !== 'none') s.typography_text_transform = t.transform; if (t.style && t.style !== 'normal') s.typography_font_style = t.style.startsWith('oblique') ? 'oblique' : 'italic'; return s; }
 
 // ── FLUID FONTS via clamp() (wall B responsive-type — default ON; ABS_NO_FLUIDFONT=1 → old fixed px) ──────────
 // WHY: a fixed-px desktop heading (e.g. 48px) stays 48px at the 390 viewport → it overflows / wraps to many
@@ -1057,6 +1060,16 @@ function buildRealHeader(nav, proMode, slug) {
     return { container: container(headerSettings, elements), fallbackCss: '' };
   }
 
+  // PATH C-SHORTCODE (no Pro, JOIST_NAV_SHORTCODE=1) — render the real WP menu via Joist's
+  // [joist_nav_menu] shortcode (single source of truth: menu edits propagate from one place,
+  // unlike per-link widgets which hardcode the nav in two places). Reversible: default OFF.
+  if (NAV_SHORTCODE && slug) {
+    elements.push({ elType: 'widget', widgetType: 'shortcode', settings: { _element_id: 'clone-navmenu', shortcode: `[joist_nav_menu menu="${slug}"]` } });
+    if (nav.cta) { const t = stripEmoji(nav.cta.text); const cc = textColor(nav.cta) || navColor; elements.push({ elType: 'widget', widgetType: 'text-editor', settings: { editor: `<a href="${esc(nav.cta.href || '#')}" style="display:inline-block;padding:8px 18px;border-radius:6px;border:1px solid currentColor;color:${cc};text-decoration:none;font-weight:600;font-size:${navSize}px;white-space:nowrap">${esc(t)}</a>`, _flex_grow: '0' } }); }
+    console.log(`header EMIT (Path C-shortcode): sticky full-width header → logo${logoWidget ? '✓' : '✗'} + [joist_nav_menu menu=${slug}] + CTA${nav.cta ? '✓' : '✗'}`);
+    return { container: container(headerSettings, elements), fallbackCss: '' };
+  }
+
   // PATH C (no Pro) — structural sticky header: per-link <a> widgets in a flex sub-container (_flex_grow:0 +
   // DEFAULT/auto width — NEVER width:0) + native CTA + a checkbox-hack hamburger. Hamburger/responsive CSS rides
   // in page_settings.custom_css (returned as fallbackCss).
@@ -1397,7 +1410,9 @@ function emitLandmarks(root, headerThreshold) {
   if (navInfo && navInfo.nav) {
     const proMode = await detectPro(basicHeaders);
     let slug = null;
-    if (proMode) slug = await createNavMenu(navInfo.nav.items, pageId, basicHeaders);
+    // Create the real WP menu when Pro (binds the nav-menu widget) OR when the no-Pro
+    // shortcode fallback is enabled (the [joist_nav_menu] needs a menu to point at).
+    if (proMode || NAV_SHORTCODE) slug = await createNavMenu(navInfo.nav.items, pageId, basicHeaders);
     const built = buildRealHeader(navInfo.nav, !!(proMode && slug), slug);
     root.elements.unshift(built.container);
     navFallbackCss = built.fallbackCss || '';
@@ -1519,5 +1534,17 @@ function emitLandmarks(root, headerThreshold) {
       }
     }
   } catch {}
+  // CEK W2.2 — persist authored _element_id → engine-id map so a later refine/edit pass can do
+  // SURGICAL update_settings/move ops (joist_find_element/get_element target the engine id) instead
+  // of rebuilding the whole tree. Pure read-back + local file; never mutates the page, never fatal.
+  try {
+    const full = await (await fetch(`${base}/wp-json/joist/v1/pages/${pageId}?include=elements`, { headers })).json();
+    const idMap = {};
+    const walk = (nodes) => { for (const n of (nodes || [])) { if (!n || typeof n !== 'object') continue; const eid = n.settings && n.settings._element_id; if (eid && n.id) idMap[eid] = n.id; if (Array.isArray(n.elements)) walk(n.elements); } };
+    walk((full && full.elementor && full.elementor.elements) || []);
+    const mapPath = `/tmp/joist-idmap-${pageId}.json`;
+    fs.writeFileSync(mapPath, JSON.stringify({ page_id: pageId, builder: 'absolute', count: Object.keys(idMap).length, map: idMap }, null, 2));
+    console.log(`id-map: ${Object.keys(idMap).length} authored _element_id → engine id pair(s) → ${mapPath}`);
+  } catch (e) { console.log('id-map read-back skipped:', String(e).slice(0, 100)); }
   console.log('PAGE:', `${base}/?page_id=${pageId}`);
 })();
