@@ -132,6 +132,22 @@ clean dist via `.distignore` → sanity-checks the dist (must contain `joist.php
 
 ---
 
+## 4b. Manual wp-admin upload (no SSH) — folder-name caveat
+
+When there are no SSH/SFTP creds, the fallback is **WP Admin → Plugins → Add New → Upload Plugin**
+with `dist/joist-v<ver>.zip`. **Gotcha (hit live 2026-06-06):** WordPress keys "is this an update vs a
+new plugin?" off the **top-level folder name inside the zip**, not the plugin header. If the zip's folder
+(`joist/`) differs from the *installed* folder, WP installs a **duplicate** instead of updating — you end
+up with two "Joist" entries (e.g. 0.10.13 + 0.10.14). Two copies of `\Joist\*` classes active at once =
+fatal redeclare, so only one may be active.
+
+- **Fix when it happens:** activate the new one, **deactivate + Delete the old** (its folder differs from
+  `joist/`). Confirm the survivor via `joist_get_site_info` → `capabilities.motion.vendor_base_url`
+  (should be `…/plugins/joist/…`).
+- **Avoid it:** name the zip's top folder to **match the installed folder** before zipping, or use the
+  rsync/SFTP path (§4), which syncs *into* the existing dir and never renames. Once the active plugin is at
+  `plugins/joist/`, future `joist/`-folder uploads update it in place.
+
 ## 5. Post-sync: flush caches & opcache
 
 Plugin files are PHP — **PHP OPcache** and any page/object cache must be cleared

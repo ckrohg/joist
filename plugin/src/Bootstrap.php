@@ -110,6 +110,9 @@ final class Bootstrap
 
         // Document save attribution.
         add_action('elementor/document/after_save', [self::class, 'onDocumentSaved'], 10, 2);
+
+        // CEK W2.1 — register the [joist_nav_menu] free-tier single-source-of-truth nav shortcode.
+        add_action('init', [self::class, 'registerShortcodes']);
     }
 
     public static function onActivate(): void
@@ -144,6 +147,32 @@ final class Bootstrap
         if (class_exists(\Joist\ExemplarPack\PackBootstrap::class)) {
             wp_clear_scheduled_hook(\Joist\ExemplarPack\PackBootstrap::PURGE_HOOK);
         }
+    }
+
+    /**
+     * CEK W2.1 — register [joist_nav_menu menu="<slug>"]. WordPress core has NO
+     * [wp_nav_menu] shortcode (wp_nav_menu is a template function), so this wraps
+     * it: a clone's free-tier header points at ONE real WP menu, and edits to that
+     * menu propagate everywhere — instead of hardcoding nav links in two places.
+     * `container=''` drops the wrapping <div> so the caller controls layout.
+     */
+    public static function registerShortcodes(): void
+    {
+        add_shortcode('joist_nav_menu', static function ($atts): string {
+            $atts = shortcode_atts(['menu' => '', 'class' => 'joist-nav'], $atts, 'joist_nav_menu');
+            $menu = is_string($atts['menu'] ?? null) ? trim($atts['menu']) : '';
+            if ($menu === '') {
+                return '';
+            }
+            $html = wp_nav_menu([
+                'menu' => $menu,                              // accepts slug, name, or term id
+                'container' => '',
+                'menu_class' => sanitize_html_class($atts['class']) ?: 'joist-nav',
+                'fallback_cb' => '__return_empty_string',
+                'echo' => false,
+            ]);
+            return is_string($html) ? $html : '';
+        });
     }
 
     public static function registerRoutes(): void

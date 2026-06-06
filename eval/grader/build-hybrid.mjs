@@ -32,7 +32,7 @@ function downscale(src, f) { const w = Math.floor(src.width / f), h = Math.floor
 
 // ---------- editable widget emitters (focused — editable sections are simple by construction) ----------
 const dim = (n) => ({ unit: 'px', size: String(Math.round(n)) });
-function nativeTypo(t) { const s = {}; if (!t || !(t.size || t.family)) return s; s.typography_typography = 'custom'; const gf = gFont(t.family); if (gf) s.typography_font_family = gf; if (t.size) s.typography_font_size = { unit: 'px', size: Math.round(t.size) }; if (t.weight && /^\d+$/.test(String(t.weight))) s.typography_font_weight = String(t.weight); const lh = px(t.lineHeight); if (lh) s.typography_line_height = { unit: 'px', size: Math.round(lh) }; const ls = px(t.letterSpacing); if (ls !== null && t.letterSpacing !== 'normal') s.typography_letter_spacing = { unit: 'px', size: +ls.toFixed(1) }; if (t.transform && t.transform !== 'none') s.typography_text_transform = t.transform; return s; }
+function nativeTypo(t) { const s = {}; if (!t || !(t.size || t.family)) return s; s.typography_typography = 'custom'; const gf = gFont(t.family); if (gf) s.typography_font_family = gf; if (t.size) s.typography_font_size = { unit: 'px', size: Math.round(t.size) }; if (t.weight && /^\d+$/.test(String(t.weight))) s.typography_font_weight = String(t.weight); const lh = px(t.lineHeight); if (lh) s.typography_line_height = { unit: 'px', size: Math.round(lh) }; const ls = px(t.letterSpacing); if (ls !== null && t.letterSpacing !== 'normal') s.typography_letter_spacing = { unit: 'px', size: +ls.toFixed(1) }; if (t.transform && t.transform !== 'none') s.typography_text_transform = t.transform; if (t.style && t.style !== 'normal') s.typography_font_style = t.style.startsWith('oblique') ? 'oblique' : 'italic'; return s; }
 const solidColor = (c) => (c && /^(#|rgb)/.test(c) && c !== 'rgba(0, 0, 0, 0)') ? c : null;
 function leafToWidget(n) {
   if (n.kind === 'image') { if (!n.url) return null; const s = { image: { url: n.url }, image_size: 'full' }; if (n.box && n.box.w > 4) s.width = { unit: 'px', size: Math.round(n.box.w) }; return { elType: 'widget', widgetType: 'image', settings: s }; }
@@ -64,7 +64,7 @@ function buildEditableSection(sec) {
   }
   const cx = sec.leaves.map((l) => l.box.x + l.box.w / 2); const meanCx = cx.reduce((a, b) => a + b, 0) / Math.max(1, cx.length);
   const centered = Math.abs(meanCx - W / 2) < W * 0.12;
-  const set = { content_width: 'full', flex_direction: 'column', flex_gap: dim(12), flex_align_items: centered ? 'center' : 'flex-start', justify_content: 'center', min_height: { unit: 'px', size: Math.round(sec.h) }, padding: { unit: 'px', top: '24', right: '24', bottom: '24', left: '24', isLinked: false } };
+  const set = { content_width: 'full', flex_direction: 'column', flex_gap: dim(12), flex_align_items: centered ? 'center' : 'flex-start', flex_justify_content: 'center', min_height: { unit: 'px', size: Math.round(sec.h) }, padding: { unit: 'px', top: '24', right: '24', bottom: '24', left: '24', isLinked: false } };
   if (sec.bg) { set.background_background = 'classic'; set.background_color = sec.bg; }
   return { elType: 'container', settings: set, elements: widgets };
 }
@@ -85,7 +85,7 @@ function buildEditableSection(sec) {
     const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
     const vis = (el) => { const r = el.getBoundingClientRect(); if (!r.width || !r.height) return false; const cs = getComputedStyle(el); if (cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity < 0.05) return false; if (r.right < 0 || r.bottom < 0 || r.left > innerWidth + 60) return false; return true; };
     const rectOf = (el) => { const r = el.getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top + scrollY), w: Math.round(r.width), h: Math.round(r.height) }; };
-    const typo = (cs) => ({ family: cs.fontFamily.split(',')[0].replace(/['"]/g, '').trim(), size: Math.round(parseFloat(cs.fontSize)), weight: cs.fontWeight, lineHeight: cs.lineHeight, letterSpacing: cs.letterSpacing, transform: cs.textTransform });
+    const typo = (cs) => ({ family: cs.fontFamily.split(',')[0].replace(/['"]/g, '').trim(), size: Math.round(parseFloat(cs.fontSize)), weight: cs.fontWeight, style: cs.fontStyle, lineHeight: cs.lineHeight, letterSpacing: cs.letterSpacing, transform: cs.textTransform });
     const pageH = document.documentElement.scrollHeight;
     // section cut tops = full-width block boundaries (same logic as section-raster)
     const ys = new Set([0]); for (const e of document.querySelectorAll('body *')) { const r = e.getBoundingClientRect(); if (r.width >= vw * 0.82 && r.height >= 120 && r.top + scrollY >= 0) ys.add(Math.round(r.top + scrollY)); }

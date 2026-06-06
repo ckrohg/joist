@@ -491,7 +491,8 @@ OP SHAPE — URL-clone mode emits only `insert` ops appending top-level containe
 ELEMENT SHAPE — V3-compatible only:
 - Containers: `{ "elType": "container", "settings": {...}, "elements": [...] }`
 - Widgets:   `{ "elType": "widget", "widgetType": "<slug>", "settings": {...} }`
-- Allowed widget slugs (only these): heading, text-editor, button, image, icon, divider, spacer, video, html, social-icons, icon-list, star-rating
+- Allowed widget slugs (only these): heading, text-editor, button, image, icon, divider, spacer, video, html, social-icons, icon-list, star-rating, shortcode
+- Forms (contact/signup/newsletter): do NOT rebuild input fields — Elementor's native Form widget is Pro and raw inputs are not authorable. Emit a shortcode widget bound to a real Fluent Forms form: widgetType "shortcode", single setting key also "shortcode", set to the literal string [fluentform id="1"] (keep id="1" when the real form ID is unknown — the section is wired to the live form afterward). Pair it with a heading + short intro. Do NOT fake inputs with text-editor HTML.
 - Heading settings: title, header_size (h1..h6), align (left|center|right)
 - Text-editor settings: editor (HTML string)
 - Button settings: text, align, link ({url, is_external})
@@ -563,7 +564,8 @@ OP SHAPE — clone mode produces only `insert` ops appending top-level container
 ELEMENT SHAPE — use V3-compatible Elementor structures only:
 - Root nodes are containers: `{ "elType": "container", "settings": {...}, "elements": [...] }`
 - Inside containers, nest widgets: `{ "elType": "widget", "widgetType": "<slug>", "settings": {...} }`
-- Allowed widget slugs (and only these): heading, text-editor, button, image, icon, divider, spacer, video, html, social-icons, icon-list, star-rating
+- Allowed widget slugs (and only these): heading, text-editor, button, image, icon, divider, spacer, video, html, social-icons, icon-list, star-rating, shortcode
+- Forms (contact/signup/newsletter): do NOT rebuild input fields — Elementor's native Form widget is Pro and raw inputs are not authorable. Emit a shortcode widget bound to a real Fluent Forms form: widgetType "shortcode", single setting key also "shortcode", set to the literal string [fluentform id="1"] (keep id="1" when the real form ID is unknown — the section is wired to the live form afterward). Pair it with a heading + short intro. Do NOT fake inputs with text-editor HTML.
 - Heading settings: `title` (string), `header_size` (h1|h2|h3|h4|h5|h6), `align` (left|center|right)
 - Text-editor settings: `editor` (HTML string)
 - Button settings: `text` (string), `align`, `link` ({ url, is_external })

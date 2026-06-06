@@ -91,6 +91,7 @@ function nativeTypo(n) {
   const lh = px(t.lineHeight); if (lh) s.typography_line_height = { unit: 'px', size: Math.round(lh) };
   const ls = px(t.letterSpacing); if (ls !== null && t.letterSpacing !== 'normal') s.typography_letter_spacing = { unit: 'px', size: +ls.toFixed(1) };
   if (t.transform && t.transform !== 'none') s.typography_text_transform = t.transform;
+  if (t.style && t.style !== 'normal') s.typography_font_style = t.style.startsWith('oblique') ? 'oblique' : 'italic';
   if (t.align && t.align !== 'start') s.align = t.align;
   return s;
 }
