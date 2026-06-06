@@ -68,6 +68,10 @@ final class Emitter
             'magnetic_cursor' => true,
             'smooth_scroll' => true,
             'effects' => self::EFFECTS,
+            // Where the plugin serves the vendored GSAP/Lenis libs, so Path B
+            // can reference them WITHIN WP (no CDN) instead of guessing.
+            'vendor_base_url' => defined('JOIST_URL') ? JOIST_URL . 'assets/widget-pack/motion/vendor/' : '',
+            'libs' => ['gsap.min.js', 'ScrollTrigger.min.js', 'SplitText.min.js', 'lenis.min.js'],
             'runtime_version' => defined('JOIST_VERSION') ? JOIST_VERSION : '0.0.0',
         ];
     }

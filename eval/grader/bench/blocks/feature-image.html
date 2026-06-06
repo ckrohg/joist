@@ -1,0 +1,46 @@
+<!doctype html>
+<!-- @purpose Ground-truth bench block: a deterministic split feature row (copy + image panel). NO JS /
+     NO animation / NO transition / NO lazy-load / NO CDN fonts / NO network images. The "image" is a
+     fixed-size linear-gradient div with an inline SVG overlay (no network bytes). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bench — Feature Image</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: #ffffff; color: #0b1020; }
+  .feat { max-width: 1080px; margin: 0 auto; padding: 88px 24px; display: flex; align-items: center; gap: 64px; }
+  .copy { flex: 1 1 0; min-width: 0; }
+  .tag { display: inline-block; font-size: 13px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: #5fae2e; margin-bottom: 16px; }
+  .copy h2 { font-size: 36px; line-height: 1.15; font-weight: 800; margin-bottom: 18px; }
+  .copy p { font-size: 17px; line-height: 1.65; color: #4a5266; margin-bottom: 16px; }
+  .copy p.last { margin-bottom: 28px; }
+  .link { font-size: 16px; font-weight: 700; color: #5fae2e; text-decoration: none; }
+  .media { flex: 0 0 440px; }
+  .frame { width: 440px; height: 320px; border-radius: 18px; background: linear-gradient(135deg, #1f7a3c 0%, #9fe870 100%); display: flex; align-items: center; justify-content: center; box-shadow: 0 18px 40px rgba(31,122,60,0.22); }
+</style>
+</head>
+<body>
+  <section class="feat">
+    <div class="copy">
+      <span class="tag">Workflow</span>
+      <h2>A clearer way to see your pipeline.</h2>
+      <p>This split row pairs a column of copy with a fixed-size visual panel. The geometry is fully specified so the rebuilt page lands in the same place.</p>
+      <p class="last">No lazy-load, no animation, no remote image — the panel is a deterministic gradient with an inline vector overlay.</p>
+      <a class="link" href="#learn">Learn more →</a>
+    </div>
+    <div class="media">
+      <div class="frame">
+        <svg width="200" height="160" viewBox="0 0 200 160" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect x="20" y="24" width="160" height="112" rx="14" fill="#0b1020" opacity="0.16"/>
+          <rect x="36" y="44" width="80" height="12" rx="6" fill="#ffffff"/>
+          <rect x="36" y="66" width="128" height="10" rx="5" fill="#ffffff" opacity="0.8"/>
+          <rect x="36" y="84" width="104" height="10" rx="5" fill="#ffffff" opacity="0.65"/>
+          <circle cx="148" cy="106" r="18" fill="#ffffff"/>
+        </svg>
+      </div>
+    </div>
+  </section>
+</body>
+</html>

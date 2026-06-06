@@ -1,0 +1,51 @@
+<!doctype html>
+<!-- @purpose Ground-truth bench block: a deterministic hero. NO JS / NO animation / NO transition /
+     NO lazy-load / NO CDN fonts / NO network images. System font stack + linear-gradient bg + inline SVG.
+     A faithful clone of this MUST score very high; a low score = a pinpointed builder bug on known input. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bench — Hero</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: #ffffff; color: #0b1020; }
+  .hero { background: linear-gradient(135deg, #0b1020 0%, #1f2a52 100%); color: #ffffff; padding: 96px 24px; }
+  .hero-inner { max-width: 1040px; margin: 0 auto; display: flex; align-items: center; gap: 56px; }
+  .hero-copy { flex: 1 1 0; min-width: 0; }
+  .eyebrow { display: inline-block; font-size: 13px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #9fe870; margin-bottom: 18px; }
+  h1 { font-size: 52px; line-height: 1.08; font-weight: 800; margin-bottom: 20px; }
+  .lede { font-size: 19px; line-height: 1.6; color: #c5cce0; margin-bottom: 32px; max-width: 460px; }
+  .cta-row { display: flex; gap: 14px; }
+  .btn { display: inline-block; font-size: 16px; font-weight: 600; padding: 14px 26px; border-radius: 8px; text-decoration: none; }
+  .btn-primary { background: #9fe870; color: #0b1020; }
+  .btn-ghost { background: transparent; color: #ffffff; border: 1px solid #3a4670; }
+  .hero-art { flex: 0 0 360px; }
+  .panel { width: 360px; height: 300px; border-radius: 16px; background: linear-gradient(160deg, #2c3a6e 0%, #9fe870 140%); border: 1px solid #3a4670; display: flex; align-items: center; justify-content: center; }
+</style>
+</head>
+<body>
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="hero-copy">
+        <span class="eyebrow">Ground Truth</span>
+        <h1>Build deterministic pages with confidence.</h1>
+        <p class="lede">A fully specified, animation-free layout. Every pixel is fixed so a faithful clone reproduces it exactly.</p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="#start">Get started</a>
+          <a class="btn btn-ghost" href="#docs">Read the docs</a>
+        </div>
+      </div>
+      <div class="hero-art">
+        <div class="panel">
+          <svg width="160" height="160" viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <rect x="16" y="16" width="128" height="128" rx="20" fill="#0b1020"/>
+            <circle cx="80" cy="80" r="40" fill="#9fe870"/>
+            <rect x="64" y="64" width="32" height="32" rx="6" fill="#0b1020"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </section>
+</body>
+</html>
