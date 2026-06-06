@@ -1,0 +1,64 @@
+<!doctype html>
+<!-- @purpose Ground-truth bench block: a deterministic multi-column footer. NO JS / NO animation /
+     NO transition / NO lazy-load / NO CDN fonts / NO network images. System fonts + inline SVG logo. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bench — Footer</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: #ffffff; color: #0b1020; }
+  footer { background: #0b1020; color: #c5cce0; padding: 64px 24px 32px; }
+  .cols { max-width: 1120px; margin: 0 auto; display: flex; gap: 56px; }
+  .brand-col { flex: 1.4 1 0; min-width: 0; }
+  .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .brand-name { font-size: 18px; font-weight: 800; color: #ffffff; }
+  .brand-col p { font-size: 14px; line-height: 1.6; color: #8b93ac; max-width: 280px; }
+  .col { flex: 1 1 0; min-width: 0; }
+  .col h4 { font-size: 13px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #ffffff; margin-bottom: 16px; }
+  .col a { display: block; font-size: 14px; color: #a9b0c6; text-decoration: none; padding: 6px 0; }
+  .bar { max-width: 1120px; margin: 40px auto 0; padding-top: 24px; border-top: 1px solid #232c4a; display: flex; align-items: center; justify-content: space-between; }
+  .bar span { font-size: 13px; color: #8b93ac; }
+  .bar .legal a { font-size: 13px; color: #8b93ac; text-decoration: none; margin-left: 20px; }
+</style>
+</head>
+<body>
+  <footer>
+    <div class="cols">
+      <div class="brand-col">
+        <div class="brand">
+          <svg width="26" height="26" viewBox="0 0 26 26" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect width="26" height="26" rx="7" fill="#9fe870"/><path d="M7 17 L13 7 L19 17 Z" fill="#0b1020"/></svg>
+          <span class="brand-name">Foundry</span>
+        </div>
+        <p>Deterministic ground-truth blocks for benchmarking the clone pipeline. Fixed geometry, no network.</p>
+      </div>
+      <div class="col">
+        <h4>Product</h4>
+        <a href="#features">Features</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#changelog">Changelog</a>
+        <a href="#roadmap">Roadmap</a>
+      </div>
+      <div class="col">
+        <h4>Company</h4>
+        <a href="#about">About</a>
+        <a href="#blog">Blog</a>
+        <a href="#careers">Careers</a>
+        <a href="#contact">Contact</a>
+      </div>
+      <div class="col">
+        <h4>Resources</h4>
+        <a href="#docs">Docs</a>
+        <a href="#guides">Guides</a>
+        <a href="#support">Support</a>
+        <a href="#status">Status</a>
+      </div>
+    </div>
+    <div class="bar">
+      <span>© 2026 Foundry, Inc. All rights reserved.</span>
+      <span class="legal"><a href="#privacy">Privacy</a><a href="#terms">Terms</a></span>
+    </div>
+  </footer>
+</body>
+</html>

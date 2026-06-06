@@ -1,0 +1,73 @@
+<!doctype html>
+<!-- @purpose Ground-truth bench block: a deterministic 3-tier pricing table. NO JS / NO animation /
+     NO transition / NO lazy-load / NO CDN fonts / NO network images. System fonts + inline SVG checks. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bench — Pricing</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: #ffffff; color: #0b1020; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 80px 24px; }
+  .head { text-align: center; margin-bottom: 44px; }
+  .head h2 { font-size: 38px; font-weight: 800; margin-bottom: 12px; }
+  .head p { font-size: 18px; color: #5a6376; }
+  .tiers { display: flex; gap: 22px; align-items: stretch; }
+  .tier { flex: 1 1 0; min-width: 0; background: #ffffff; border: 1px solid #e6e8ee; border-radius: 16px; padding: 32px 26px; display: flex; flex-direction: column; }
+  .tier.featured { border: 2px solid #5fae2e; background: #fbfdf8; }
+  .tier-name { font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #5a6376; margin-bottom: 14px; }
+  .price { font-size: 44px; font-weight: 800; margin-bottom: 4px; }
+  .price span { font-size: 16px; font-weight: 500; color: #5a6376; }
+  .tier-desc { font-size: 14px; color: #5a6376; margin-bottom: 22px; }
+  ul { list-style: none; margin-bottom: 26px; flex: 1 1 auto; }
+  li { display: flex; align-items: center; gap: 10px; font-size: 15px; color: #2a3142; padding: 7px 0; }
+  .buy { display: block; text-align: center; font-size: 15px; font-weight: 700; padding: 12px 0; border-radius: 9px; text-decoration: none; }
+  .buy.solid { background: #5fae2e; color: #ffffff; }
+  .buy.outline { background: #ffffff; color: #0b1020; border: 1px solid #cfd4e0; }
+</style>
+</head>
+<body>
+  <section class="wrap">
+    <div class="head">
+      <h2>Simple, transparent pricing</h2>
+      <p>Three fixed tiers. No usage meters, no surprises.</p>
+    </div>
+    <div class="tiers">
+      <div class="tier">
+        <div class="tier-name">Starter</div>
+        <div class="price">$0<span>/mo</span></div>
+        <div class="tier-desc">For trying it out on a single project.</div>
+        <ul>
+          <li><svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="9" cy="9" r="9" fill="#dff0cd"/><path d="M5 9 l2.6 2.6 L13 6" stroke="#5fae2e" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>1 project</li>
+          <li><svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="9" cy="9" r="9" fill="#dff0cd"/><path d="M5 9 l2.6 2.6 L13 6" stroke="#5fae2e" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>Community support</li>
+          <li><svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="9" cy="9" r="9" fill="#dff0cd"/><path d="M5 9 l2.6 2.6 L13 6" stroke="#5fae2e" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>1 GB storage</li>
+        </ul>
+        <a class="buy outline" href="#starter">Start free</a>
+      </div>
+      <div class="tier featured">
+        <div class="tier-name">Pro</div>
+        <div class="price">$29<span>/mo</span></div>
+        <div class="tier-desc">For growing teams that ship weekly.</div>
+        <ul>
+          <li><svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="9" cy="9" r="9" fill="#dff0cd"/><path d="M5 9 l2.6 2.6 L13 6" stroke="#5fae2e" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>Unlimited projects</li>
+          <li><svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="9" cy="9" r="9" fill="#dff0cd"/><path d="M5 9 l2.6 2.6 L13 6" stroke="#5fae2e" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>Priority support</li>
+          <li><svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="9" cy="9" r="9" fill="#dff0cd"/><path d="M5 9 l2.6 2.6 L13 6" stroke="#5fae2e" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>100 GB storage</li>
+        </ul>
+        <a class="buy solid" href="#pro">Choose Pro</a>
+      </div>
+      <div class="tier">
+        <div class="tier-name">Scale</div>
+        <div class="price">$99<span>/mo</span></div>
+        <div class="tier-desc">For organizations with advanced needs.</div>
+        <ul>
+          <li><svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="9" cy="9" r="9" fill="#dff0cd"/><path d="M5 9 l2.6 2.6 L13 6" stroke="#5fae2e" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>SSO &amp; SAML</li>
+          <li><svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="9" cy="9" r="9" fill="#dff0cd"/><path d="M5 9 l2.6 2.6 L13 6" stroke="#5fae2e" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>Dedicated manager</li>
+          <li><svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="9" cy="9" r="9" fill="#dff0cd"/><path d="M5 9 l2.6 2.6 L13 6" stroke="#5fae2e" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>Unlimited storage</li>
+        </ul>
+        <a class="buy outline" href="#scale">Contact sales</a>
+      </div>
+    </div>
+  </section>
+</body>
+</html>

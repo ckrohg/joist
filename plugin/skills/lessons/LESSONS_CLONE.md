@@ -4,6 +4,23 @@ Lessons about extracting ground truth from a source site and grading a clone aga
 Mode-specific to clone. Read alongside `LESSONS_MECHANICAL.md` before Phase 1 of a clone run.
 
 For *how Elementor compiles* (mode-agnostic), see `LESSONS_MECHANICAL.md`.
+For the full 1:1 procedure, see `knowledge/PRECISION_CLONE_METHOD.md`.
+
+---
+
+## Precision positioning: the live-Elementor gotchas (1:1 mode)
+
+**Discovered:** 2026-06-01 | Stripe precision hero (local 4.7% → live 7.1% pixel-diff)
+**Symptom:** the locally-proven precision hero (real söhne + absolute positioning) rendered broken when first deployed — all text stacked in normal flow far down the page; then text sat ~12px low; then the wave was 107px off.
+**Root causes & fixes (each is a general capability):**
+1. **Elementor DROPS `_css_classes` on CONTAINERS** (keeps them on widgets). A container class used as a positioning context silently vanishes → absolute children fall into normal flow. **Fix:** use the container's `_element_id` (e.g. `#czphero`) as the positioning context; classes are reliable only on widgets.
+2. **Default widget-container box pushes text below its coordinate.** **Fix:** `#scope .elementor-widget-container{padding:0 !important;margin:0 !important}` when absolute-positioning.
+3. **Don't clamp negative `y`** for decorative bleed images (hero wave true top = `-107`); clamping to 0 shifted it 107px. Allow negative + `overflow:hidden` on the scope.
+4. **Gradient-clipped text → garbage computed color.** `getComputedStyle().color` on a `background-clip:text` element returns the fallback (Stripe hero = green `rgb(129,184,26)` — the SAME green that broke v5). Never blind-apply it; reproduce the gradient (custom_css) or capture the run as an image.
+5. **Real fonts load fine from the source CDN via `@font-face`** (no CORS for font *files*) — capture woff2 URLs from network responses (cross-origin `cssRules` throws). Loading the real font is the biggest single fidelity lever.
+6. **Capture coords + reference screenshot in the SAME pass** — cross-session coords drift (caused a ~45px y-offset).
+7. **Irreducible residual ~5%** = sub-pixel AA between independent renders + live tickers + single-weight font drift. Stop chasing it.
+**Why it matters:** these turn "approximate widget clone" into pixel-positioned editable 1:1. Without them the precision build looks broken or drifts.
 
 ---
 
@@ -147,3 +164,24 @@ multi-stop gradient IS authorable via `background_background:gradient` + `backgr
 
 *Append new clone-specific lessons here. Mechanical gotchas discovered during a clone run go in
 `LESSONS_MECHANICAL.md` instead, so build and edit inherit them.*
+
+---
+
+<!-- AUTO-LESSONS:START (DefectAnalyzer; last grade stripe-v5 65% @ 2026-06-01T04:34:22Z) -->
+## ⚙️ Auto-learned gaps (current priority — from the brutal grader)
+
+Last grade: **stripe-v5 = 65%** vs source. Fix these, top-first; the grader re-checks each run and these update automatically.
+
+### Capture & host REAL assets (images, logos, animated gradients)  _(gap: asset_capture, 2× , severity-weight 6)_
+Source has assets the clone dropped (no canvas/video vs source has 1 canvas / 0 video). Screenshot/record real source art — including animated WebGL gradients (capture as a looping video/sprite) and logo images — upload to WP Media, and reference real URLs. NEVER flat-fill or placeholder where the source shows art/imagery.
+
+### Reproduce + verify detected source motion  _(gap: motion_runtime, 2× , severity-weight 4)_
+Source motion not reproduced (clone scroll-change 11% vs source 48%). Author the detected hover/scroll effects via joist-* classes / the escape-hatch and VERIFY they fire in the clone (the grader checks this).
+
+### Build the FULL page — truncation is the #1 fidelity killer  _(gap: section_completeness, 2× , severity-weight 4)_
+Count the source's top-level sections and full page height BEFORE authoring; author every one. Last grade: full-page mismatch 47% (width-normalized) vs ≤45%. Treat "all N sections covered?" as a hard gate before grading.
+
+### Match computed typography exactly — do not default to bold/system  _(gap: typography_match, 3× , severity-weight 4)_
+Heading type mismatch (heading 56px vs 34px). Extract the source's computed font-size/weight/family/letter-spacing per element and match it. (e.g. Stripe-class headlines are often LIGHT weight ~300 with a proprietary font like sohne-var — pick the closest web font; never assume bold/-apple-system.)
+
+<!-- AUTO-LESSONS:END -->

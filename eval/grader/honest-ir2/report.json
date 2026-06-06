@@ -1,0 +1,429 @@
+{
+  "source": "https://stripe.com",
+  "clone": "https://georges232.sg-host.com/stripe-ir-build-v2/",
+  "graded_at": "n/a",
+  "viewports": {
+    "desktop": {
+      "regions": [
+        {
+          "i": 0,
+          "ssim": 0.68,
+          "deltaE": 1.6,
+          "pixDiff": 0.192,
+          "score": 0.709,
+          "crop": "honest-ir2/desktop-region0.png"
+        },
+        {
+          "i": 1,
+          "ssim": 0.439,
+          "deltaE": 17.2,
+          "pixDiff": 0.419,
+          "score": 0.428,
+          "crop": "honest-ir2/desktop-region1.png"
+        },
+        {
+          "i": 2,
+          "ssim": 0.455,
+          "deltaE": 45.9,
+          "pixDiff": 0.541,
+          "score": 0,
+          "crop": "honest-ir2/desktop-region2.png"
+        },
+        {
+          "i": 3,
+          "ssim": 0.421,
+          "deltaE": 65.4,
+          "pixDiff": 0.909,
+          "score": 0,
+          "crop": "honest-ir2/desktop-region3.png"
+        },
+        {
+          "i": 4,
+          "ssim": 0.398,
+          "deltaE": 3.9,
+          "pixDiff": 0.353,
+          "score": 0.453,
+          "crop": "honest-ir2/desktop-region4.png"
+        },
+        {
+          "i": 5,
+          "ssim": 0.237,
+          "deltaE": 74.4,
+          "pixDiff": 0.782,
+          "score": 0,
+          "crop": "honest-ir2/desktop-region5.png"
+        },
+        {
+          "i": 6,
+          "ssim": 0.62,
+          "deltaE": 21.5,
+          "pixDiff": 0.322,
+          "score": 0.283,
+          "crop": "honest-ir2/desktop-region6.png"
+        },
+        {
+          "i": 7,
+          "ssim": 0.856,
+          "deltaE": 2.1,
+          "pixDiff": 0.032,
+          "score": 0.869,
+          "crop": "honest-ir2/desktop-region7.png"
+        },
+        {
+          "i": 8,
+          "ssim": 0.831,
+          "deltaE": 1.8,
+          "pixDiff": 0.015,
+          "score": 0.846,
+          "crop": "honest-ir2/desktop-region8.png"
+        }
+      ],
+      "gates": {
+        "gradientText": {
+          "src": 0,
+          "cln": 0,
+          "fail": false
+        },
+        "fontFamily": {
+          "src": {
+            "head": "sohne-var",
+            "body": "sohne-var"
+          },
+          "cln": {
+            "head": "sans-serif",
+            "body": "sans-serif"
+          },
+          "fail": true
+        },
+        "effects": {
+          "src": 30,
+          "cln": 0,
+          "fail": true
+        },
+        "layout": {
+          "medianIoU": 0,
+          "textMatchRate": 0.49,
+          "fail": true
+        },
+        "imagery": {
+          "src": 32,
+          "cln": 19,
+          "fail": false
+        }
+      },
+      "score": 0,
+      "visual": 0,
+      "structural": 0.25,
+      "structural_fails": [
+        "fontFamily",
+        "effects",
+        "layout"
+      ]
+    },
+    "tablet": {
+      "regions": [
+        {
+          "i": 0,
+          "ssim": 0.558,
+          "deltaE": 11.3,
+          "pixDiff": 0.321,
+          "score": 0.598,
+          "crop": "honest-ir2/tablet-region0.png"
+        },
+        {
+          "i": 1,
+          "ssim": 0.453,
+          "deltaE": 8.7,
+          "pixDiff": 0.325,
+          "score": 0.503,
+          "crop": "honest-ir2/tablet-region1.png"
+        },
+        {
+          "i": 2,
+          "ssim": 0.748,
+          "deltaE": 25.1,
+          "pixDiff": 0.493,
+          "score": 0.163,
+          "crop": "honest-ir2/tablet-region2.png"
+        },
+        {
+          "i": 3,
+          "ssim": 0.423,
+          "deltaE": 53.4,
+          "pixDiff": 0.638,
+          "score": 0,
+          "crop": "honest-ir2/tablet-region3.png"
+        },
+        {
+          "i": 4,
+          "ssim": 0.304,
+          "deltaE": 72.3,
+          "pixDiff": 0.93,
+          "score": 0,
+          "crop": "honest-ir2/tablet-region4.png"
+        },
+        {
+          "i": 5,
+          "ssim": 0.337,
+          "deltaE": 3.7,
+          "pixDiff": 0.318,
+          "score": 0.397,
+          "crop": "honest-ir2/tablet-region5.png"
+        },
+        {
+          "i": 6,
+          "ssim": 0.338,
+          "deltaE": 47.2,
+          "pixDiff": 0.539,
+          "score": 0,
+          "crop": "honest-ir2/tablet-region6.png"
+        },
+        {
+          "i": 7,
+          "ssim": 0.506,
+          "deltaE": 23.2,
+          "pixDiff": 0.359,
+          "score": 0.226,
+          "crop": "honest-ir2/tablet-region7.png"
+        },
+        {
+          "i": 8,
+          "ssim": 0.8,
+          "deltaE": 2.1,
+          "pixDiff": 0.041,
+          "score": 0.818,
+          "crop": "honest-ir2/tablet-region8.png"
+        },
+        {
+          "i": 9,
+          "ssim": 0.738,
+          "deltaE": 1.3,
+          "pixDiff": 0.021,
+          "score": 0.761,
+          "crop": "honest-ir2/tablet-region9.png"
+        }
+      ],
+      "gates": {
+        "gradientText": {
+          "src": 0,
+          "cln": 0,
+          "fail": false
+        },
+        "fontFamily": {
+          "src": {
+            "head": "sohne-var",
+            "body": "sohne-var"
+          },
+          "cln": {
+            "head": "sans-serif",
+            "body": "sans-serif"
+          },
+          "fail": true
+        },
+        "effects": {
+          "src": 29,
+          "cln": 0,
+          "fail": true
+        },
+        "layout": {
+          "medianIoU": 0,
+          "textMatchRate": 0.49,
+          "fail": true
+        },
+        "imagery": {
+          "src": 31,
+          "cln": 20,
+          "fail": false
+        }
+      },
+      "score": 0,
+      "visual": 0,
+      "structural": 0.25,
+      "structural_fails": [
+        "fontFamily",
+        "effects",
+        "layout"
+      ]
+    },
+    "mobile": {
+      "regions": [
+        {
+          "i": 0,
+          "ssim": 0.506,
+          "deltaE": 24.6,
+          "pixDiff": 0.421,
+          "score": 0.179,
+          "crop": "honest-ir2/mobile-region0.png"
+        },
+        {
+          "i": 1,
+          "ssim": 0.379,
+          "deltaE": 3.6,
+          "pixDiff": 0.223,
+          "score": 0.436,
+          "crop": "honest-ir2/mobile-region1.png"
+        },
+        {
+          "i": 2,
+          "ssim": 0.402,
+          "deltaE": 54.4,
+          "pixDiff": 0.68,
+          "score": 0,
+          "crop": "honest-ir2/mobile-region2.png"
+        },
+        {
+          "i": 3,
+          "ssim": 0.25,
+          "deltaE": 81.7,
+          "pixDiff": 0.926,
+          "score": 0,
+          "crop": "honest-ir2/mobile-region3.png"
+        },
+        {
+          "i": 4,
+          "ssim": 0.244,
+          "deltaE": 7,
+          "pixDiff": 0.219,
+          "score": 0.312,
+          "crop": "honest-ir2/mobile-region4.png"
+        },
+        {
+          "i": 5,
+          "ssim": 0.248,
+          "deltaE": 32,
+          "pixDiff": 0.443,
+          "score": 0,
+          "crop": "honest-ir2/mobile-region5.png"
+        },
+        {
+          "i": 6,
+          "ssim": 0.51,
+          "deltaE": 19.6,
+          "pixDiff": 0.318,
+          "score": 0.346,
+          "crop": "honest-ir2/mobile-region6.png"
+        },
+        {
+          "i": 7,
+          "ssim": 0.888,
+          "deltaE": 1.9,
+          "pixDiff": 0.016,
+          "score": 0.898,
+          "crop": "honest-ir2/mobile-region7.png"
+        },
+        {
+          "i": 8,
+          "ssim": 0.788,
+          "deltaE": 4.2,
+          "pixDiff": 0.014,
+          "score": 0.808,
+          "crop": "honest-ir2/mobile-region8.png"
+        }
+      ],
+      "gates": {
+        "gradientText": {
+          "src": 0,
+          "cln": 0,
+          "fail": false
+        },
+        "fontFamily": {
+          "src": {
+            "head": "sohne-var",
+            "body": "sohne-var"
+          },
+          "cln": {
+            "head": "sans-serif",
+            "body": "sans-serif"
+          },
+          "fail": true
+        },
+        "effects": {
+          "src": 28,
+          "cln": 0,
+          "fail": true
+        },
+        "layout": {
+          "medianIoU": 0,
+          "textMatchRate": 0.48,
+          "fail": true
+        },
+        "imagery": {
+          "src": 42,
+          "cln": 20,
+          "fail": true
+        }
+      },
+      "score": 0,
+      "visual": 0,
+      "structural": 0,
+      "structural_fails": [
+        "fontFamily",
+        "effects",
+        "layout",
+        "imagery"
+      ]
+    }
+  },
+  "hard_fails": [
+    "desktop:fontFamily",
+    "desktop:effects",
+    "desktop:layout",
+    "tablet:fontFamily",
+    "tablet:effects",
+    "tablet:layout",
+    "mobile:fontFamily",
+    "mobile:effects",
+    "mobile:layout",
+    "mobile:imagery"
+  ],
+  "defects": [],
+  "trustworthy": false,
+  "overall": 0,
+  "overall_pct": 0,
+  "visual_overall_pct": 0,
+  "structural_overall_pct": 0,
+  "worst_region": {
+    "viewport": "desktop",
+    "i": 2,
+    "ssim": 0.455,
+    "deltaE": 45.9,
+    "pixDiff": 0.541,
+    "score": 0,
+    "crop": "honest-ir2/desktop-region2.png"
+  },
+  "vision_review": {
+    "required": true,
+    "status": "PENDING — a vision judge must enumerate defects on the region crops before this score is trustworthy",
+    "rubric": "For each region crop (source LEFT | clone RIGHT): list EVERY concrete visible difference (missing gradient, wrong font, wrong image, missing effect, misalignment, spacing, color). Start at 100, SUBTRACT per defect, justify each point NOT subtracted. The vision score CAPS overall, never raises it.",
+    "crops": [
+      "honest-ir2/desktop-region0.png",
+      "honest-ir2/desktop-region1.png",
+      "honest-ir2/desktop-region2.png",
+      "honest-ir2/desktop-region3.png",
+      "honest-ir2/desktop-region4.png",
+      "honest-ir2/desktop-region5.png",
+      "honest-ir2/desktop-region6.png",
+      "honest-ir2/desktop-region7.png",
+      "honest-ir2/desktop-region8.png",
+      "honest-ir2/tablet-region0.png",
+      "honest-ir2/tablet-region1.png",
+      "honest-ir2/tablet-region2.png",
+      "honest-ir2/tablet-region3.png",
+      "honest-ir2/tablet-region4.png",
+      "honest-ir2/tablet-region5.png",
+      "honest-ir2/tablet-region6.png",
+      "honest-ir2/tablet-region7.png",
+      "honest-ir2/tablet-region8.png",
+      "honest-ir2/tablet-region9.png",
+      "honest-ir2/mobile-region0.png",
+      "honest-ir2/mobile-region1.png",
+      "honest-ir2/mobile-region2.png",
+      "honest-ir2/mobile-region3.png",
+      "honest-ir2/mobile-region4.png",
+      "honest-ir2/mobile-region5.png",
+      "honest-ir2/mobile-region6.png",
+      "honest-ir2/mobile-region7.png",
+      "honest-ir2/mobile-region8.png"
+    ]
+  }
+}

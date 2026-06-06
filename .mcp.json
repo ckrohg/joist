@@ -3,6 +3,16 @@
     "tenet-context": {
       "command": "tenet-context-hub-mcp",
       "args": []
+    },
+    "playwright": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest",
+        "--isolated"
+      ],
+      "env": {}
     }
   }
 }
