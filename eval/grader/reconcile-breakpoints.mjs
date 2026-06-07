@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-// @purpose Per-breakpoint Stage 1 v1 — reconcile multi-width captures into a unified leaf model + report
-// cross-breakpoint MATCHING ACCURACY (the Stage 1 gate). Matcher v1: desktop(1440) is the reference; per
-// target width, scored GREEDY match — exact-text > fuzzy-text (responsive truncation) > image-alt >
-// same-kind normalized-position-nearest. Hard-gated on kind. Images are NOT keyed on src (responsive
-// srcset/currentSrc differs per width). NOT the build (Stage 2) — this produces + grades the MODEL.
+// @purpose Per-breakpoint Stage 1 v2 — reconcile multi-width captures into a unified leaf model + report a
+// DUAL matching metric. Over v1: (1) BAND-AWARE — match top-level sections across widths first (text+aspect
+// recall), then match leaves only WITHIN corresponding bands; (2) IMAGE/composite identity by aspect-ratio +
+// within-band order + alt (NOT src — srcset differs per width); (3) DUAL METRIC — separate a real MISS (the
+// leaf's band has a mobile counterpart but the leaf wasn't found) from a CORRECT ABSENCE (the band collapses
+// entirely, e.g. desktop nav → mobile hamburger). NOT the build (Stage 2). Desktop(1440) is the reference.
 // Usage: node reconcile-breakpoints.mjs [--multi /tmp/pbc-s1/multi.json] [--out /tmp/pbc-s1/model.json]
 import fs from 'node:fs';
 
@@ -11,71 +12,114 @@ const arg = (n, d = null) => { const i = process.argv.indexOf('--' + n); return 
 const M = JSON.parse(fs.readFileSync(arg('multi', '/tmp/pbc-s1/multi.json'), 'utf8'));
 const norm = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
 const CONTENT = new Set(['heading', 'button', 'text', 'image', 'svg', 'video', 'code', 'list', 'tabs', 'mockup']);
-const HEADER_Y = 140;   // desktop header/nav band → reported as chrome separately (the hamburger tail)
-const THRESH = 0.7;     // confident-match floor
+const TXT = new Set(['heading', 'button', 'text', 'code']);
+const MEDIA_THRESH = 0.62, TEXT_THRESH = 0.7, BAND_OV = 0.15;
 
-// unwrap thin single-container wrappers so the top-level children are the real page bands
-function bandsOf(root) { let r = root; while (r && r.kind === 'container' && (r.children || []).length === 1 && r.children[0].kind === 'container') r = r.children[0]; return (r && r.children) || []; }
+// Real page sections: unwrap thin single-container chains, then DESCEND one level into "mega-wrappers"
+// (a top-level child holding many section sub-containers) so the bands are the actual sections (hero, logo
+// wall, features, footer…) — not 2-3 giant wrappers. Without this the nav lumps with the hero and the dual
+// metric can't see a collapsed section. (supabase: nav band + 1 mega-wrapper of 12 sections + footer.)
+function bandsOf(root) {
+  let r = root; while (r && r.kind === 'container' && (r.children || []).length === 1 && r.children[0].kind === 'container') r = r.children[0];
+  const top = (r && r.children) || []; const bands = [];
+  for (const c of top) {
+    if (c.kind !== 'container') { bands.push(c); continue; }
+    const subC = (c.children || []).filter((x) => x.kind === 'container');
+    if (subC.length >= 4) { for (const s of subC) bands.push(s); } else bands.push(c);
+  }
+  return bands;
+}
 function leavesOf(layout) {
   const out = []; const bands = bandsOf(layout.root);
   bands.forEach((band, bi) => {
+    const kc = {};
     const walk = (n) => {
       if (!n) return;
-      if (n.kind === 'container') { (n.children || []).forEach(walk); }
-      else if (CONTENT.has(n.kind) && n.box) { out.push({ kind: n.kind, text: norm(n.text), src: n.src || '', alt: norm(n.alt), box: n.box, typo: n.typo || null, band: bi, i: out.length }); }
+      if (n.kind === 'container') { (n.children || []).forEach(walk); return; }
+      if (CONTENT.has(n.kind) && n.box) {
+        kc[n.kind] = (kc[n.kind] || 0);
+        out.push({ kind: n.kind, text: norm(n.text), src: n.src || '', alt: norm(n.alt), box: n.box, typo: n.typo || null, band: bi, ord: kc[n.kind]++, ar: n.box.h > 0 ? n.box.w / n.box.h : 0 });
+      }
     };
     walk(band);
   });
   return out;
 }
-const dims = (L) => ({ W: L.vw || 1440, H: L.pageH || (L.root && L.root.box && L.root.box.h) || 1 });
 
-function score(d, c, dd, dc) {
-  if (d.kind !== c.kind) return 0;                       // hard kind gate
-  if (d.text && c.text) {                                // text leaves: text is the primary signal
-    if (d.text === c.text) return 1.0;
-    if (d.text.length >= 6 && (c.text.includes(d.text) || d.text.includes(c.text))) return 0.82; // responsive truncation
-    return 0;
+// ── band correspondence: for each desktop band, the target band(s) it maps to (top-3 by recall>BAND_OV) ──
+const bandTexts = (L, bi) => new Set(L.filter((l) => l.band === bi && TXT.has(l.kind) && l.text).map((l) => l.text));
+const bandAspects = (L, bi) => L.filter((l) => l.band === bi && !TXT.has(l.kind) && l.ar > 0).map((l) => l.ar);
+function bandOverlap(dL, dbi, tL, tbi) {
+  const dt = bandTexts(dL, dbi), tt = bandTexts(tL, tbi);
+  let textR = 0; if (dt.size) { let i = 0; for (const x of dt) if (tt.has(x)) i++; textR = i / dt.size; }
+  const da = bandAspects(dL, dbi), ta = bandAspects(tL, tbi).slice();
+  let aspR = 0; if (da.length) { let m = 0; const used = new Set(); for (const a of da) { let bj = -1, bd = 99; for (let j = 0; j < ta.length; j++) { if (used.has(j)) continue; const d = Math.abs(Math.log((a || 1) / (ta[j] || 1))); if (d < bd) { bd = d; bj = j; } } if (bj >= 0 && bd < 0.35) { used.add(bj); m++; } } aspR = m / da.length; }
+  if (dt.size && da.length) return 0.6 * textR + 0.4 * aspR;
+  return dt.size ? textR : aspR;
+}
+function correspond(dL, tL) {
+  const dB = [...new Set(dL.map((l) => l.band))].sort((a, b) => a - b);
+  const tB = [...new Set(tL.map((l) => l.band))].sort((a, b) => a - b);
+  const nD = Math.max(1, dB.length - 1), nT = Math.max(1, tB.length - 1);
+  const map = {};
+  dB.forEach((dbi, di) => {
+    map[dbi] = tB.map((tbi, ti) => {
+      // band-order prior: a section keeps its rough relative position across widths, so the top nav must
+      // NOT correspond to the bottom footer just because they share link labels. Zeroes at >=0.5 relPos diff.
+      const pos = Math.max(0, 1 - 2 * Math.abs(di / nD - ti / nT));
+      return { tbi, ov: bandOverlap(dL, dbi, tL, tbi) * pos };
+    }).filter((x) => x.ov > BAND_OV).sort((a, b) => b.ov - a.ov).slice(0, 3).map((x) => x.tbi);
+  });
+  return map; // dbi -> [tbi…]  (empty = band absent → leaves are correct-absences)
+}
+
+function scoreLeaf(d, c) {
+  if (d.kind !== c.kind) return 0;
+  if (TXT.has(d.kind)) {
+    if (d.text && c.text) { if (d.text === c.text) return 1.0; if (d.text.length >= 6 && (c.text.includes(d.text) || d.text.includes(c.text))) return 0.82; return 0; }
+    return d.ord === c.ord ? 0.7 : 0; // text leaf w/o captured text → order only
   }
-  let s = 0;                                             // no-text (image/svg/video/mockup)
-  if (d.alt && c.alt && d.alt === c.alt) s = 0.9;        // alt, NOT src (srcset differs per width)
-  const dist = Math.hypot(d.box.x / dd.W - c.box.x / dc.W, d.box.y / dd.H - c.box.y / dc.H);
-  return Math.max(s, Math.max(0, 1 - dist * 1.5) * 0.7); // normalized-position fallback caps at 0.7
-}
-function bestMatch(d, cand, dd, dc, used) {
-  let best = null, bs = 0;
-  for (let j = 0; j < cand.length; j++) { if (used.has(j)) continue; const sc = score(d, cand[j], dd, dc); if (sc > bs) { bs = sc; best = j; } }
-  return { j: best, s: bs };
+  let s = 0; if (d.alt && c.alt && d.alt === c.alt) s = 0.92; // media: alt (not src) + aspect + within-band order
+  const arSim = (d.ar > 0 && c.ar > 0) ? Math.max(0, 1 - Math.abs(Math.log(d.ar / c.ar)) / 0.5) : 0;
+  const ordSim = d.ord === c.ord ? 1 : Math.max(0, 1 - Math.abs(d.ord - c.ord) * 0.34);
+  return Math.max(s, 0.55 * ordSim + 0.45 * arSim);
 }
 
-const ref = leavesOf(M.w1440), dd = dims(M.w1440);
-const targets = {};
-for (const w of ['w768', 'w390']) if (M[w]) targets[w] = { leaves: leavesOf(M[w]), dims: dims(M[w]) };
+const ref = leavesOf(M.w1440);
+const targets = {}; for (const w of ['w768', 'w390']) if (M[w]) targets[w] = { leaves: leavesOf(M[w]), corr: correspond(ref, leavesOf(M[w])), used: new Set() };
 
-const model = []; const used = { w768: new Set(), w390: new Set() };
+const model = [];
 for (const d of ref) {
-  const leaf = { kind: d.kind, content: (d.text || d.alt || d.src || '').slice(0, 60), band: d.band, box: { 1440: d.box }, typo: { 1440: d.typo }, visible: { 1440: true }, match: {} };
+  const leaf = { kind: d.kind, content: (d.text || d.alt || d.src || '').slice(0, 50), band: d.band, box: { 1440: d.box }, typo: { 1440: d.typo }, status: {} };
   for (const w of Object.keys(targets)) {
-    const { leaves, dims: dc } = targets[w]; const wn = w.slice(1);
-    const bm = bestMatch(d, leaves, dd, dc, used[w]);
-    if (bm.j !== null && bm.s >= THRESH) { used[w].add(bm.j); const c = leaves[bm.j]; leaf.box[wn] = c.box; leaf.typo[wn] = c.typo; leaf.visible[wn] = true; leaf.match[w] = { conf: +bm.s.toFixed(2) }; }
-    else { leaf.visible[wn] = false; leaf.match[w] = { conf: +bm.s.toFixed(2), unmatched: true }; }
+    const T = targets[w], wn = w.slice(1), bands = T.corr[d.band] || [];
+    if (bands.length === 0) { leaf.status[wn] = 'absent'; continue; }          // band collapsed → correct absence
+    let best = null, bs = 0;
+    for (let j = 0; j < T.leaves.length; j++) { if (T.used.has(j)) continue; const c = T.leaves[j]; if (!bands.includes(c.band)) continue; const sc = scoreLeaf(d, c); if (sc > bs) { bs = sc; best = j; } }
+    const thr = TXT.has(d.kind) ? TEXT_THRESH : MEDIA_THRESH;
+    if (best !== null && bs >= thr) { T.used.add(best); const c = T.leaves[best]; leaf.box[wn] = c.box; leaf.typo[wn] = c.typo; leaf.status[wn] = 'matched'; leaf[`conf_${wn}`] = +bs.toFixed(2); }
+    else leaf.status[wn] = 'miss';
   }
   model.push(leaf);
 }
 
-// ── accuracy report (content = exclude the desktop header chrome band) ──
-const isChrome = (l) => (l.box[1440].y < HEADER_Y);
-const content = model.filter((l) => !isChrome(l));
-const acc = (w) => { const m = content.filter((l) => l.visible[w]).length; return { matched: m, total: content.length, pct: +(100 * m / Math.max(1, content.length)).toFixed(1) }; };
-const byKind = (w) => { const o = {}; for (const l of content) { o[l.kind] = o[l.kind] || { m: 0, t: 0 }; o[l.kind].t++; if (l.visible[w]) o[l.kind].m++; } return o; };
+// ── DUAL metric: rawMatch% (matched/all) + contentMatch% (matched / (all − correct-absences)) ──
+function metric(w) {
+  let matched = 0, miss = 0, absent = 0;
+  for (const l of model) { const s = l.status[w]; if (s === 'matched') matched++; else if (s === 'miss') miss++; else absent++; }
+  const present = matched + miss;
+  return { matched, miss, absent, total: model.length, rawPct: +(100 * matched / Math.max(1, model.length)).toFixed(1), contentPct: +(100 * matched / Math.max(1, present)).toFixed(1) };
+}
+const byKind = (w) => { const o = {}; for (const l of model) { o[l.kind] = o[l.kind] || { matched: 0, miss: 0, absent: 0 }; o[l.kind][l.status[w]]++; } return o; };
 const report = {
-  source: M.w1440.url, widths: Object.keys(M),
-  refContentLeaves: content.length, chromeLeaves: model.length - content.length,
-  accuracy: { 390: acc('390'), 768: acc('768') },
+  source: M.w1440.url, widths: Object.keys(M), refLeaves: model.length,
+  bandCorrespondence390: targets.w390 ? Object.fromEntries(Object.entries(targets.w390.corr).map(([d, t]) => [d, t.join(',') || 'ABSENT'])) : {},
+  metric: { 390: metric('390'), 768: metric('768') },
   byKind390: byKind('390'),
-  unmatched390: content.filter((l) => !l.visible['390']).slice(0, 30).map((l) => ({ kind: l.kind, content: l.content, conf: l.match.w390 && l.match.w390.conf })),
+  misses390: model.filter((l) => l.status['390'] === 'miss').slice(0, 25).map((l) => ({ kind: l.kind, band: l.band, content: l.content, conf: l[`conf_390`] ?? 0 })),
 };
 fs.writeFileSync(arg('out', '/tmp/pbc-s1/model.json'), JSON.stringify({ report, model }));
 console.log(JSON.stringify(report, null, 2));
-console.log(`\nGATE (>=85% content matched @390): ${report.accuracy[390].pct >= 85 ? 'PASS' : 'BELOW'} (${report.accuracy[390].pct}% ; @768 ${report.accuracy[768].pct}%)`);
+const m = report.metric[390];
+console.log(`\nDUAL @390 — raw ${m.rawPct}% (matched ${m.matched}/${m.total}) | CONTENT ${m.contentPct}% (matched ${m.matched} / present ${m.matched + m.miss}; ${m.absent} correctly absent) | @768 content ${report.metric[768].contentPct}%`);
+console.log(`GATE (content >=85% @390): ${m.contentPct >= 85 ? 'PASS' : 'BELOW'}`);
