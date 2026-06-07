@@ -43,6 +43,9 @@ const container = (settings, elements = []) => ({ elType: 'container', settings,
 const NO_CHROMEFIX = process.env.ABS_NO_CHROMEFIX === '1';
 // CEK W2.1 (reversible, default OFF): on the no-Pro nav path, render the real WP menu via the
 // [joist_nav_menu] shortcode (single source of truth) instead of per-link text-editor widgets.
+// NOTE (code-review): the RENDERING site must have Joist >=0.10.14 active (the shortcode is
+// plugin-registered) — exported to a site without it, the literal [joist_nav_menu] text would show.
+// Intended for clones that stay on the Joist site; keep OFF for export-to-arbitrary-host flows.
 const NAV_SHORTCODE = process.env.JOIST_NAV_SHORTCODE === '1';
 const wmax = (w) => NO_CHROMEFIX ? `width:${Math.round(w)}px` : `width:${Math.round(w)}px;max-width:100%`;
 // ── ABS VERTICAL-REFLOW (recipe #20 enhancement — default ON; ABS_NO_VREFLOW=1 → old un-pin: relative+w:100% only) ──
@@ -1067,7 +1070,10 @@ function buildRealHeader(nav, proMode, slug) {
     elements.push({ elType: 'widget', widgetType: 'shortcode', settings: { _element_id: 'clone-navmenu', shortcode: `[joist_nav_menu menu="${slug}"]` } });
     if (nav.cta) { const t = stripEmoji(nav.cta.text); const cc = textColor(nav.cta) || navColor; elements.push({ elType: 'widget', widgetType: 'text-editor', settings: { editor: `<a href="${esc(nav.cta.href || '#')}" style="display:inline-block;padding:8px 18px;border-radius:6px;border:1px solid currentColor;color:${cc};text-decoration:none;font-weight:600;font-size:${navSize}px;white-space:nowrap">${esc(t)}</a>`, _flex_grow: '0' } }); }
     console.log(`header EMIT (Path C-shortcode): sticky full-width header → logo${logoWidget ? '✓' : '✗'} + [joist_nav_menu menu=${slug}] + CTA${nav.cta ? '✓' : '✗'}`);
-    return { container: container(headerSettings, elements), fallbackCss: '' };
+    // wp_nav_menu renders a bare <ul class="joist-nav">; style it as a horizontal flex bar (was unstyled
+    // vertical list — code-review fix). Rides the same page custom_css channel as the rest of Path C.
+    const navCss = `.joist-nav{display:flex!important;flex-wrap:wrap;align-items:center;gap:24px;list-style:none;margin:0;padding:0}.joist-nav li{margin:0}.joist-nav a{text-decoration:none;${navColor ? `color:${navColor};` : ''}font-size:${navSize}px;white-space:nowrap}@media(max-width:1024px){.joist-nav{gap:14px}}`;
+    return { container: container(headerSettings, elements), fallbackCss: navCss };
   }
 
   // PATH C (no Pro) — structural sticky header: per-link <a> widgets in a flex sub-container (_flex_grow:0 +

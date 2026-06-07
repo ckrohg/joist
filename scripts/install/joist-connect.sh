@@ -37,6 +37,17 @@ need curl; need python3
 UA="Joist-Installer/1.0 (+https://joist.app)"
 CURL=(curl -sS --max-time 20 -A "$UA" -H "Accept: application/json")
 
+# Single-request fetch (code-review fix): ONE curl returns both body and HTTP code, so they can't
+# desync on a throttling host (200 body + 429 code) and the anti-bot edge sees half the requests.
+# Sets REPLY_BODY + REPLY_CODE. Extra curl args (e.g. -u user:pass) pass through before the URL.
+fetch_one() {
+  local url="$1"; shift
+  local raw
+  raw=$(curl -sS -A "$UA" -H "Accept: application/json, text/event-stream" -L --max-time 20 -w $'\n%{http_code}' "$@" "$url" 2>/dev/null || printf '\n000')
+  REPLY_CODE="${raw##*$'\n'}"
+  REPLY_BODY="${raw%$'\n'*}"
+}
+
 # Read a dotted path from JSON on stdin. Lenient: some WP plugins emit invalid
 # backslash escapes in the /wp-json index; sanitize before parsing.
 jget() {
@@ -117,8 +128,7 @@ if [ -n "$EFFECTIVE_URL" ]; then
 else
   BASE="$SITE_URL"
 fi
-ROOT_JSON=$("${CURL[@]}" -L "$BASE/wp-json/" 2>/dev/null || echo "")
-ROOT_CODE=$(curl -sS -o /dev/null -w "%{http_code}" -A "$UA" -L --max-time 20 "$BASE/wp-json/" 2>/dev/null || echo "000")
+fetch_one "$BASE/wp-json/"; ROOT_JSON="$REPLY_BODY"; ROOT_CODE="$REPLY_CODE"
 case "$ROOT_CODE" in
   200)
     if [ "$(jhas '.namespaces' 'wp/v2')" = "yes" ] || [ -n "$(jget '.name')" ]; then
@@ -151,8 +161,7 @@ EOF
 ask "WordPress username (your login, NOT the app-password label):"; read -r WP_USER
 ask "Application password (input hidden; spaces OK):"; read -rs WP_PWD; printf '\n'
 
-ME=$("${CURL[@]}" -u "$WP_USER:$WP_PWD" "$BASE/wp-json/wp/v2/users/me?context=edit" 2>/dev/null || echo "{}")
-ME_CODE=$(curl -sS -o /dev/null -w "%{http_code}" -A "$UA" -u "$WP_USER:$WP_PWD" --max-time 20 "$BASE/wp-json/wp/v2/users/me?context=edit" 2>/dev/null || echo "000")
+fetch_one "$BASE/wp-json/wp/v2/users/me?context=edit" -u "$WP_USER:$WP_PWD"; ME="$REPLY_BODY"; [ -z "$ME" ] && ME="{}"; ME_CODE="$REPLY_CODE"
 USER_ID=$(echo "$ME" | jget '.id')
 
 if [ -n "$USER_ID" ] && [ "$USER_ID" != "null" ]; then

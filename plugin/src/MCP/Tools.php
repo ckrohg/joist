@@ -466,9 +466,10 @@ final class Tools
      */
     private function toolFindElement(array $args): array
     {
-        // edit_pages (not bare 'read') so a Subscriber/Author can't enumerate
-        // arbitrary page structure + content — matches the REST reader's gate.
-        $this->requireCap('edit_pages');
+        // Match the REST element reader's gate EXACTLY (CAP_USE_API OR edit_pages) so an API-only
+        // role reads subtrees via MCP just as it can via REST, while a Subscriber/Author with neither
+        // still can't enumerate arbitrary page structure + content. Code-review fix.
+        $this->requireElementReadCap();
         $pageId = (int) ($args['page_id'] ?? 0);
         if ($pageId <= 0) throw new ToolException('page_id is required');
         $widgetType = strtolower(trim((string) ($args['widget_type'] ?? '')));
@@ -506,7 +507,7 @@ final class Tools
      */
     private function toolGetElement(array $args): array
     {
-        $this->requireCap('edit_pages'); // see joist_find_element — no arbitrary tree reads for low-priv users
+        $this->requireElementReadCap(); // see joist_find_element — matches the REST element reader's gate
         $pageId = (int) ($args['page_id'] ?? 0);
         $eid = (string) ($args['element_id'] ?? '');
         if ($pageId <= 0) throw new ToolException('page_id is required');
@@ -654,7 +655,7 @@ final class Tools
     {
         $raw = get_post_meta($pageId, '_elementor_data', true);
         if (!is_string($raw) || $raw === '') {
-            throw new ToolException("Page {$pageId} has no Elementor data (empty or non-Elementor page).");
+            return []; // empty / non-Elementor page → no elements (consistent with joist_get_page_tree)
         }
         $tree = json_decode($raw, true);
         if (!is_array($tree)) {
@@ -725,7 +726,32 @@ final class Tools
                 return trim(wp_strip_all_tags($s[$k]));
             }
         }
+        // Repeater widgets (icon-list, social-icons, tabs, accordion, price-list, …) keep their visible
+        // text in item arrays, not top-level keys — concatenate so joist_find_element can match it.
+        foreach (['icon_list', 'social_icon_list', 'tabs', 'sections', 'price_list', 'items'] as $rk) {
+            if (!isset($s[$rk]) || !is_array($s[$rk])) continue;
+            $parts = [];
+            foreach ($s[$rk] as $item) {
+                if (!is_array($item)) continue;
+                foreach (['text', 'title', 'tab_title', 'item_title', 'content', 'tab_content'] as $f) {
+                    if (isset($item[$f]) && is_string($item[$f]) && $item[$f] !== '') { $parts[] = $item[$f]; break; }
+                }
+            }
+            if ($parts !== []) return trim(wp_strip_all_tags(implode(' ', $parts)));
+        }
         return '';
+    }
+
+    /**
+     * Read gate for joist_find_element / joist_get_element — matches the REST element reader exactly
+     * (Joist API capability OR edit_pages) so an API-only role isn't blocked on the MCP surface.
+     */
+    private function requireElementReadCap(): void
+    {
+        if (current_user_can(\Joist\Security\Role::CAP_USE_API) || current_user_can('edit_pages')) {
+            return;
+        }
+        throw new ToolException("Capability 'edit_pages' or Joist API access (joist_use_agent_api) required.");
     }
 
     /** Throws ToolException if the current WP user lacks $capability. */
