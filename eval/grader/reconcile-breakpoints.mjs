@@ -11,6 +11,7 @@ import fs from 'node:fs';
 const arg = (n, d = null) => { const i = process.argv.indexOf('--' + n); return i > -1 && i + 1 < process.argv.length && !process.argv[i + 1].startsWith('--') ? process.argv[i + 1] : d; };
 const M = JSON.parse(fs.readFileSync(arg('multi', '/tmp/pbc-s1/multi.json'), 'utf8'));
 const norm = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+const svgH = (x) => (x || '').replace(/(?:width|height|style)="[^"]*"/g, '').replace(/\s+/g, ''); // render-size-invariant svg markup
 const CONTENT = new Set(['heading', 'button', 'text', 'image', 'svg', 'video', 'code', 'list', 'tabs', 'mockup']);
 const TXT = new Set(['heading', 'button', 'text', 'code']);
 const MEDIA_THRESH = 0.62, TEXT_THRESH = 0.7, BAND_OV = 0.15;
@@ -38,7 +39,7 @@ function leavesOf(layout) {
       if (n.kind === 'container') { (n.children || []).forEach(walk); return; }
       if (CONTENT.has(n.kind) && n.box) {
         kc[n.kind] = (kc[n.kind] || 0);
-        out.push({ kind: n.kind, text: norm(n.text), src: n.src || '', alt: norm(n.alt), box: n.box, typo: n.typo || null, band: bi, ord: kc[n.kind]++, ar: n.box.h > 0 ? n.box.w / n.box.h : 0 });
+        out.push({ kind: n.kind, text: norm(n.text), src: n.src || '', alt: norm(n.alt), svg: n.svg || '', box: n.box, typo: n.typo || null, band: bi, ord: kc[n.kind]++, ar: n.box.h > 0 ? n.box.w / n.box.h : 0 });
       }
     };
     walk(band);
@@ -79,7 +80,12 @@ function scoreLeaf(d, c) {
     if (d.text && c.text) { if (d.text === c.text) return 1.0; if (d.text.length >= 6 && (c.text.includes(d.text) || d.text.includes(c.text))) return 0.82; return 0; }
     return d.ord === c.ord ? 0.7 : 0; // text leaf w/o captured text → order only
   }
-  let s = 0; if (d.alt && c.alt && d.alt === c.alt) s = 0.92; // media: alt (not src) + aspect + within-band order
+  // v3 media identity — exact CONTENT signals first (survive reflow even when size/position don't):
+  //  • svg → normalized outerHTML markup (strip render-size width/height/style attrs) — near-exact for icons
+  //  • image/video → same asset URL (logos/illustrations use a single src, not responsive srcset)
+  if (d.kind === 'svg' && d.svg && c.svg && svgH(d.svg) === svgH(c.svg)) return 1.0;
+  if ((d.kind === 'image' || d.kind === 'video') && d.src && c.src && d.src === c.src) return 0.97;
+  let s = 0; if (d.alt && c.alt && d.alt === c.alt) s = 0.92; // alt (not src — srcset differs) then aspect + within-band order
   const arSim = (d.ar > 0 && c.ar > 0) ? Math.max(0, 1 - Math.abs(Math.log(d.ar / c.ar)) / 0.5) : 0;
   const ordSim = d.ord === c.ord ? 1 : Math.max(0, 1 - Math.abs(d.ord - c.ord) * 0.34);
   return Math.max(s, 0.55 * ordSim + 0.45 * arSim);
@@ -101,6 +107,26 @@ for (const d of ref) {
     else leaf.status[wn] = 'miss';
   }
   model.push(leaf);
+}
+
+// ── reclassify genuine MOBILE ABSENCES: the mobile page genuinely shows less (supabase = 91 leaves @390 vs
+// 206 desktop; pageH 7064 < desktop 7578, coverage 0.82 → not under-capture). A leaf currently 'miss' (band
+// present, unmatched) is a CORRECT ABSENCE if its content has NO counterpart anywhere at the target width;
+// only a leaf whose counterpart EXISTS but wasn't matched is a true MISS. This is what makes the metric honest.
+for (const w of Object.keys(targets)) {
+  const wn = w.slice(1), tl = targets[w].leaves;
+  const txt = new Set(tl.filter((l) => l.text).map((l) => l.text));
+  const svgs = new Set(tl.filter((l) => l.kind === 'svg' && l.svg).map((l) => svgH(l.svg)));
+  const srcs = new Set(tl.filter((l) => l.src).map((l) => l.src));
+  const alts = new Set(tl.filter((l) => l.alt).map((l) => l.alt));
+  model.forEach((leaf, i) => {
+    if (leaf.status[wn] !== 'miss') return;
+    const d = ref[i]; let has = false;
+    if (TXT.has(d.kind) && d.text) has = txt.has(d.text);
+    else if (d.kind === 'svg' && d.svg) has = svgs.has(svgH(d.svg));
+    else if (d.kind === 'image' || d.kind === 'video') has = (!!d.src && srcs.has(d.src)) || (!!d.alt && alts.has(d.alt));
+    if (!has) leaf.status[wn] = 'absent';
+  });
 }
 
 // ── DUAL metric: rawMatch% (matched/all) + contentMatch% (matched / (all − correct-absences)) ──
