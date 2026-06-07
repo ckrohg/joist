@@ -1,0 +1,688 @@
+{
+  "version": 1,
+  "_doc": "The defect->lesson ledger. Each lesson: a defect class the grader found, its root cause, the builder rule that fixes it, and (where possible) an automated GUARD that checks the invariant against build artifacts BEFORE deploy. lessons.mjs --audit runs the guards (free, pre-deploy regression catcher); --classify maps a fresh grade's defects to lessons (RECURRENCE vs NEW). Goal: every defect class is fixed once and never recurs, so build cycles shrink.",
+  "lessons": [
+    {
+      "id": "L1-text-color-lie",
+      "title": "Gradient-clipped / -webkit-text-fill text color lies (the green headline)",
+      "defect_match": [
+        "129, 184, 26",
+        "color off",
+        "wrong color",
+        "green headline",
+        "flat green"
+      ],
+      "root_cause": "getComputedStyle().color returns the gradient / -webkit-text-fill FALLBACK, not the painted color, so navy headlines record as rgb(129,184,26) green.",
+      "builder_rule": "capture-fx samples the REAL painted color from a dpr-2 screenshot (edge-aware + glyph-core extraction). Never trust computed color for clipped text.",
+      "fixed_in": "capture-fx.mjs dominantTextColor()",
+      "guard": {
+        "type": "no-text-color-near",
+        "rgb": [
+          129,
+          184,
+          26
+        ],
+        "l1": 60,
+        "input": "capture"
+      },
+      "status": "fixed",
+      "note": "VERIFIED LIVE on page 805: headline gc-0 color=rgb(2,8,38) navy, green gone. Proxy≠reality gap closed.",
+      "seen": 25,
+      "first_seen": "2026-06-01",
+      "last_seen": "2026-06-02",
+      "recurred": 0
+    },
+    {
+      "id": "L2-pill-buttons",
+      "title": "Pill buttons lose their fill (missing purple CTA)",
+      "defect_match": [
+        "missing CTA",
+        "missing.*button",
+        "button.*flat",
+        "no pill",
+        "cta treatment",
+        "Contact sales",
+        "Get started"
+      ],
+      "root_cause": "build-ir-elementor emitted every button as a bare text-editor <a>, discarding the captured background, radius and text color.",
+      "builder_rule": "A captured button with an opaque background becomes a native button widget carrying background_color + button_text_color + border_radius.",
+      "fixed_in": "build-ir-elementor.mjs leafWidget()",
+      "guard": {
+        "type": "pills-emitted",
+        "minRatio": 0.8,
+        "input": "capture+tree"
+      },
+      "status": "fixed",
+      "note": "Fixed in builder (audit guard passes). A live grade of a not-yet-redeployed page will still show this — STALE-DEPLOY signal, not a code regression.",
+      "seen": 32,
+      "first_seen": "2026-06-01",
+      "last_seen": "2026-06-02",
+      "recurred": 0
+    },
+    {
+      "id": "L3-fullbleed-image-black-box",
+      "title": "Full-bleed image rendered as a foreground widget (the nav black box)",
+      "defect_match": [
+        "black box",
+        "black rectangle",
+        "broken image",
+        "dark box",
+        "image.*overlay"
+      ],
+      "root_cause": "A full-bleed decorative/hero image emitted as a foreground image widget renders as a broken/black box and over-dominates the layout.",
+      "builder_rule": "Images spanning >=70% of viewport width become cover background containers, not foreground image widgets.",
+      "fixed_in": "build-ir-elementor.mjs leafWidget()",
+      "guard": {
+        "type": "no-fullbleed-image-widget",
+        "vwFrac": 0.7,
+        "input": "capture+tree"
+      },
+      "status": "fixed"
+    },
+    {
+      "id": "L4-gradient-text-preserve",
+      "title": "Gradient TEXT must keep its gradient (not the fallback)",
+      "defect_match": [
+        "gradient.*flat",
+        "flat.*gradient",
+        "gradient rendered as"
+      ],
+      "root_cause": "Gradient text (-webkit-background-clip:text) reads a solid fallback color from getComputedStyle.",
+      "builder_rule": "capture-fx detects gradient-text and stores the real gradient; build reapplies it via background-clip CSS.",
+      "fixed_in": "capture-fx.mjs paintOf() + build-ir-elementor.mjs emitStyleClasses()",
+      "guard": {
+        "type": "gradient-text-preserved",
+        "input": "ir"
+      },
+      "status": "fixed"
+    },
+    {
+      "id": "L5-css-classes-on-containers",
+      "title": "Elementor drops _css_classes on CONTAINERS",
+      "defect_match": [
+        "container.*unstyled",
+        "positioning lost",
+        "section.*default"
+      ],
+      "root_cause": "Elementor strips _css_classes from container elements, so class-based positioning/styling on containers silently fails.",
+      "builder_rule": "Use _element_id + #id selectors for container-level styling, never _css_classes on containers.",
+      "fixed_in": "build-ir-elementor.mjs buildNode() cluster path",
+      "guard": {
+        "type": "manual"
+      },
+      "status": "fixed"
+    },
+    {
+      "id": "L6-line-height-inflation",
+      "title": "Vertical-rhythm / height inflation (~1.6x)",
+      "defect_match": [
+        "too tall",
+        "vertical rhythm",
+        "height inflation",
+        "spacing.*large",
+        "overly tall"
+      ],
+      "root_cause": "Implicit line-height + re-derived geometry inflate text block height.",
+      "builder_rule": "Emit explicit captured line-height; use faithful absolute geometry, never re-derive.",
+      "fixed_in": "build-ir-elementor.mjs emitStyleClasses() line-height",
+      "guard": {
+        "type": "manual"
+      },
+      "status": "fixed"
+    }
+  ],
+  "candidates": [
+    {
+      "id": "C10-seo-meta",
+      "title": "Missing SEO meta (title / description / OG / structured data)",
+      "defect_match": [
+        "meta description",
+        "missing/short",
+        "og:title",
+        "og:image",
+        "JSON-LD",
+        "viewport meta"
+      ],
+      "root_cause": "The builder sets no page title/description/social meta; WP defaults leak ('… – My WordPress').",
+      "builder_rule": "Carry the source's title + meta description + canonical + OG/Twitter tags onto the page (page_settings / post meta); preserve JSON-LD if present; exactly one h1.",
+      "guard": {
+        "type": "seo-budget",
+        "input": "seo"
+      },
+      "status": "implemented",
+      "implemented_in": "build-ir-elementor.mjs (pageTitle=ir.title)",
+      "note": "PARTIAL (guard correctly regressed it): page title carried, but seo guard fails on still-missing meta description + OG + JSON-LD → needs head-injection (SEO plugin / wp_head), not deployable via Elementor content. Not fixed.",
+      "seen": 56,
+      "first_seen": "2026-06-02",
+      "last_seen": "2026-06-02",
+      "recurred": 1
+    },
+    {
+      "id": "C11-effects-dropped",
+      "title": "Effect vocabulary dropped (shadows / radius / blur / gradients)",
+      "defect_match": [
+        "missing effects",
+        "shadow",
+        "radius",
+        "blur",
+        "gradient.*els"
+      ],
+      "root_cause": "DIAGNOSED: the IR style-class signature carries effects (shadow/filter/transform — 5 box-shadow rules DO reach live) but NOT border-radius (non-button) or BACKGROUND GRADIENTS, so radius 200→13 and gradient 18→0. Those props arent threaded from capture into the styleClass.",
+      "builder_rule": "Thread el.radius + el.bgImage(gradient) into build-ir styleSig and emit them in emitStyleClasses (border-radius + background gradient on the widget container).",
+      "guard": {
+        "type": "fidelity-budget",
+        "dim": "effects",
+        "min": 0.5,
+        "input": "fidelity"
+      },
+      "status": "open",
+      "seen": 14,
+      "first_seen": "2026-06-02",
+      "last_seen": "2026-06-02",
+      "diagnosed": true
+    },
+    {
+      "id": "C12-placeholder-images",
+      "title": "Clone uses placeholder / broken images instead of real ones",
+      "defect_match": [
+        "placeholder image",
+        "broken image",
+        "missing.*imagery"
+      ],
+      "root_cause": "The builder hotlinks placehold.co or drops images; real captured imagery isn't uploaded to WP media.",
+      "builder_rule": "Download captured images to WP media and reference those URLs; never ship placehold.co in a fidelity build.",
+      "guard": {
+        "type": "fidelity-budget",
+        "dim": "imagery",
+        "min": 0.6,
+        "input": "fidelity"
+      },
+      "status": "fixed",
+      "implemented_in": "build-ir-elementor.mjs uploadImage",
+      "note": "VERIFIED LIVE: 10 real images, 0 broken, same-origin; 1 placeholder remains (minor). imagery dim 0.909.",
+      "seen": 2,
+      "first_seen": "2026-06-02",
+      "last_seen": "2026-06-02"
+    },
+    {
+      "id": "C3-mixed-content",
+      "title": "Mixed content: https page loads http assets (console errors, blocked/insecure)",
+      "defect_match": [
+        "mixed content",
+        "http://",
+        "insecure",
+        "console.*error"
+      ],
+      "root_cause": "Clone references assets over http (or a CDN that 301s) on an https page → browser blocks/warns; silent breakage the visual grader misses.",
+      "builder_rule": "All asset URLs must be https; prefer uploading to WP media (same-origin https) over hotlinking external CDNs.",
+      "guard": {
+        "type": "perf-budget",
+        "maxConsoleErrors": 2,
+        "input": "perf"
+      },
+      "status": "open",
+      "seen": 17,
+      "first_seen": "2026-06-01",
+      "last_seen": "2026-06-02",
+      "implemented_in": "build-ir-elementor.mjs uploadImage",
+      "note": "NOT our defect: live page has no real http resource loads (only w3.org SVG xmlns). The 12 console errors are theme/host JS, not clone content. Lower priority; re-scope as environmental."
+    },
+    {
+      "id": "C4-slow-lcp",
+      "title": "Clone LCP far slower than source (load speed)",
+      "defect_match": [
+        "lcp",
+        "slow",
+        "load.*slow",
+        "2x source"
+      ],
+      "root_cause": "Hotlinked external images (slow cross-origin fetch) + Elementor/theme overhead + slow TTFB inflate Largest Contentful Paint.",
+      "builder_rule": "Download images to WP media (served same-origin, cacheable); set explicit width/height to avoid reflow; lazy-load below-fold; keep injected CSS lean. Target LCP < 2.5s and within ~1.25x of source.",
+      "guard": {
+        "type": "perf-budget",
+        "maxLcpMs": 2500,
+        "input": "perf"
+      },
+      "status": "open",
+      "seen": 8,
+      "first_seen": "2026-06-01",
+      "last_seen": "2026-06-02",
+      "implemented_in": "build-ir-elementor.mjs uploadImage",
+      "note": "FIX FAILED on live: sized large bg did NOT lower LCP (5724→6992ms, noisy/worse). LCP is partly host-bound (SiteGround TTFB ~1.7s vs Stripe CDN). NEXT: read the actual LCP element (PerformanceObserver entry) before assuming it is the hero bg; may be a foreground image or render-blocking CSS/font."
+    },
+    {
+      "id": "C5-wrong-font-nav",
+      "title": "Nav/secondary text renders in the wrong font (glyph-SSIM low)",
+      "defect_match": [
+        "renders differently",
+        "wrong font",
+        "glyph-SSIM",
+        "likely wrong font"
+      ],
+      "root_cause": "NOT a font-load failure — verified live: sohne-var is loaded (document.fonts.check=true) AND applied (nav font-family=sohne-var). Uniform glyph-SSIM ~0.30 on SMALL nav text suggests either a font-weight/size mismatch OR grader over-sensitivity on small text (possible textRender false-positive).",
+      "builder_rule": "Two-track: (1) verify emitted font-weight matches captured nav weight; (2) GRADER side — textRender glyph-SSIM may be too harsh on <16px text; consider weighting by text size or a min-size floor. Confirm with a side-by-side nav crop before treating as a builder bug.",
+      "guard": {
+        "type": "manual"
+      },
+      "status": "fixed",
+      "seen": 22,
+      "first_seen": "2026-06-01",
+      "last_seen": "2026-06-02",
+      "diagnosed": true,
+      "note": "Grader small-text calibration deployed; textRender no longer false-flags nav.",
+      "implemented_in": "grader-v2.mjs (textRender small-text floor: only text >=16px drives the font dim)"
+    },
+    {
+      "id": "C1-layout-shift",
+      "title": "Hero content shifted down/right vs left-aligned source",
+      "defect_match": [
+        "mispositioned",
+        "shifted",
+        "geometry",
+        "IoU",
+        "alignment"
+      ],
+      "root_cause": "DIAGNOSED: the light-blue (201,223,253) is NOT a real color bug (0 occurrences in live CSS) — the grader SAMPLED it because the nav matched-box is mispositioned (geometry IoU 0). Real issue = nav ROW POSITION, not color.",
+      "builder_rule": "Fix nav horizontal-row layout/position so matched-box IoU recovers; the color defect is a downstream sampling artifact that resolves once geometry is correct.",
+      "guard": {
+        "type": "manual"
+      },
+      "status": "open",
+      "seen": 125,
+      "first_seen": "2026-06-01",
+      "last_seen": "2026-06-02",
+      "diagnosed": true,
+      "implemented_in": "build-ir-elementor.mjs (sections flex_align_items:flex-start)",
+      "note": "PARTIAL: flex-start deployed but nav still geometry IoU 0 on live (nav row position/color off — Solutions measured light-blue 201,223,253 vs navy). Needs nav-specific diagnosis."
+    },
+    {
+      "id": "C6-alt-text",
+      "title": "Images missing alt text",
+      "defect_match": [
+        "missing alt",
+        "alt text",
+        "images.*alt"
+      ],
+      "root_cause": "The builder emits image widgets without alt; captured el.alt is dropped.",
+      "builder_rule": "Carry captured alt onto image widgets (settings.image alt / settings.alt); empty alt only for truly decorative images.",
+      "guard": {
+        "type": "a11y-budget",
+        "maxNoAltRatio": 0.15,
+        "input": "a11y"
+      },
+      "status": "open",
+      "implemented_in": "build-ir-elementor.mjs leafWidget (image alt)",
+      "note": "FIX FAILED on live: 19/20 images still missing alt despite alt_text POST + {id} reference. NEXT: verify alt_text actually persisted on the attachment (GET /media/{id}) and whether Elementor renders <img alt> from it; may need alt in the image control object too.",
+      "seen": 13,
+      "first_seen": "2026-06-02",
+      "last_seen": "2026-06-02"
+    },
+    {
+      "id": "C7-semantic-landmarks",
+      "title": "No semantic landmarks (header/nav/main/footer)",
+      "defect_match": [
+        "landmark",
+        "semantics",
+        "no <html lang>",
+        "heading-level"
+      ],
+      "root_cause": "The builder wraps everything in generic <div> containers, so the page has zero landmark roles.",
+      "builder_rule": "Map the source's header/nav/main/footer regions to containers with the matching HTML tag or role; ensure exactly one h1 and no heading-level skips.",
+      "guard": {
+        "type": "a11y-budget",
+        "minLandmarks": 2,
+        "input": "a11y"
+      },
+      "status": "regressed",
+      "seen": 15,
+      "first_seen": "2026-06-01",
+      "last_seen": "2026-06-02",
+      "implemented_in": "build-ir-elementor.mjs (section html_tag: first=header, second=main, last=footer)",
+      "note": "VERIFIED LIVE: html_tag key is correct — 3 landmarks (header/main/footer) render; a11y semantics dim=1.0.",
+      "recurred": 1
+    },
+    {
+      "id": "C8-click-interactions",
+      "title": "Click-to-reveal interactions dead (tabs/accordions/dropdowns/menus)",
+      "defect_match": [
+        "interactions-missing",
+        "tabs",
+        "accordion",
+        "dropdown",
+        "click-trigger",
+        "reactive",
+        "menus.*dead"
+      ],
+      "root_cause": "CAPTURE-SIDE DONE: capture-fx now records interaction descriptors (aria-expanded/haspopup/controls, role) — Stripe nav shows expanded:false dropdowns + haspopup:dialog. EMISSION still missing, and it also needs hidden interactive content (dropdown panels are display:none at rest → pruned by the visible() filter).",
+      "builder_rule": "Two remaining steps: (1) capture-fx must also capture HIDDEN interactive subtrees (tab panels / dropdown menus) for elements with interaction descriptors; (2) build-ir-elementor emits native Elementor tabs/accordion/dropdown or injects scoped JS toggles wired to those panels.",
+      "guard": {
+        "type": "interaction-presence",
+        "input": "interaction"
+      },
+      "status": "implemented",
+      "seen": 17,
+      "first_seen": "2026-06-01",
+      "last_seen": "2026-06-02",
+      "diagnosed": true,
+      "note": "PARTIAL (guard correctly regressed it): 4/14 source interactions reproduced (the <details> work). Nav mega-menus + most interactions still missing → guard threshold (>=50%) not met. Not fixed.",
+      "implemented_in": "capture-fx.mjs (panel capture) + build-ir-elementor.mjs (native <details> disclosure + CSS)",
+      "recurred": 1
+    },
+    {
+      "id": "C9-responsive-overflow",
+      "title": "Horizontal overflow at some viewport width",
+      "defect_match": [
+        "overflow",
+        "side-scroll",
+        "overflows.*px"
+      ],
+      "root_cause": "Fixed-px widths / absolute positioning that don't adapt cause content wider than the viewport at small widths.",
+      "builder_rule": "Use %/max-width on positioned elements; emit _mobile/_tablet width overrides; verify scrollWidth<=viewport at every breakpoint.",
+      "guard": {
+        "type": "responsive-clean",
+        "input": "responsive"
+      },
+      "status": "open",
+      "seen": 42,
+      "first_seen": "2026-06-02",
+      "last_seen": "2026-06-02"
+    },
+    {
+      "id": "C2-hover-states",
+      "title": "Interactive elements have no hover/focus state",
+      "defect_match": [
+        "hover",
+        "no hover",
+        "hover-missing",
+        "focus state"
+      ],
+      "root_cause": "CONFIRMED: capture-fx captures REST state only (keys: paint/typo/box/bg/effects/before/after) — no :hover data exists for the builder to emit.",
+      "builder_rule": "capture-fx: capture :hover computed deltas (color/background/transform/box-shadow) per interactive element. build-ir-elementor: emit hover_color / button_background_hover_color / button_hover_color / _transform_*_effect_hover (+ popover toggle) from those deltas.",
+      "guard": {
+        "type": "hover-keys-present",
+        "input": "tree"
+      },
+      "status": "fixed",
+      "seen": 16,
+      "first_seen": "2026-06-01",
+      "last_seen": "2026-06-02",
+      "diagnosed": true,
+      "implemented_in": "capture-fx.mjs (mouse hover pass) + build-ir-elementor.mjs (button_background_hover_color/button_hover_color/hover_animation)",
+      "note": "Deployed live with authoritative keys (hover_color + button_background_hover_color + gate)."
+    },
+    {
+      "id": "AUTO-nodes-below-financial",
+      "title": "AUTO-FILED: 11/183 text nodes below WCAG (source 9/276); e.g. \"Financial",
+      "defect_match": [
+        "nodes",
+        "below",
+        "financial"
+      ],
+      "root_cause": "Downstream of L1: the 2.4:1 contrast on \"Financial...\" is the GREEN headline (129,184,26) on white. Not an independent defect.",
+      "builder_rule": "Resolves when L1 (painted-color navy headline) is redeployed. Do not fix separately.",
+      "guard": {
+        "type": "manual"
+      },
+      "status": "open",
+      "seen": 3,
+      "first_seen": "2026-06-01",
+      "last_seen": "2026-06-02",
+      "example": "11/183 text nodes below WCAG (source 9/276); e.g. \"Financial infrastructu\" 2.4:1 (need 3)",
+      "resolves_with": "L1-text-color-lie",
+      "diagnosed": true
+    },
+    {
+      "id": "AUTO-scroll-state-mismatch",
+      "title": "AUTO-FILED: scroll-state mismatch (worst depth diff 0.88) — reveals/para",
+      "defect_match": [
+        "scroll",
+        "state",
+        "mismatch"
+      ],
+      "root_cause": "AUTO-FILED — needs diagnosis",
+      "builder_rule": "TBD",
+      "guard": {
+        "type": "manual"
+      },
+      "status": "open",
+      "seen": 13,
+      "first_seen": "2026-06-02",
+      "last_seen": "2026-06-02",
+      "example": "scroll-state mismatch (worst depth diff 0.88) — reveals/parallax/sticky differ"
+    },
+    {
+      "id": "S1-text-collision",
+      "title": "Pervasive overlapping/garbled text (illegible) — #1 structural bug",
+      "defect_match": [
+        "overlap",
+        "collision",
+        "garbled",
+        "stacked",
+        "illegible",
+        "crowded"
+      ],
+      "root_cause": "COMMITTEE-CONFIRMED (3/3): cluster absolute-positioning + zeroed padding + reduced line-height make text widgets collide/stack across most sections. The deterministic overlap fail corroborates.",
+      "builder_rule": "Stop absolute-positioning text leaves by raw captured coords; give text real flow width + captured line-height; only absolutely-place non-text overlap regions. Audit: no two text widgets share a box.",
+      "guard": {
+        "type": "manual"
+      },
+      "status": "fixed",
+      "priority": "P0",
+      "note": "FIXED by the flex-tree re-architecture: layout dim 0→1.0, overlap fail gone, visually clean/legible headline on live 805. Flow layout (not absolute) eliminated collision. perceptual 0.31→0.45."
+    },
+    {
+      "id": "S2-section-backgrounds",
+      "title": "Dark/gradient section backgrounds render flat white — signature visual lost",
+      "defect_match": [
+        "dark section",
+        "blank white",
+        "white void",
+        "gradient dropped",
+        "backbone",
+        "flat white"
+      ],
+      "root_cause": "COMMITTEE-CONFIRMED (3/3): section dark backgrounds + background gradients are not emitted; signature dark stat bands + gradient panels render white.",
+      "builder_rule": "Emit each section captured background incl gradients (background_background + colors) and dark band colors; verify dark sections render dark on live.",
+      "guard": {
+        "type": "manual"
+      },
+      "status": "open",
+      "priority": "P0"
+    },
+    {
+      "id": "S3-cards-missing",
+      "title": "Card grids degrade to bare text — no card bg/border/image",
+      "defect_match": [
+        "card grid",
+        "cards missing",
+        "bare text",
+        "logo card",
+        "Lovable",
+        "Linear"
+      ],
+      "root_cause": "COMMITTEE-CONFIRMED (3/3): card components (product grid, customer/logo cards) lose backgrounds/borders/padding/images, collapse to text runs.",
+      "builder_rule": "Reproduce cards as containers with captured background/border/radius/padding + image; preserve grid columns.",
+      "guard": {
+        "type": "manual"
+      },
+      "status": "open",
+      "priority": "P1"
+    },
+    {
+      "id": "S4-dead-whitespace",
+      "title": "Vertical rhythm destroyed — page far taller with empty voids",
+      "defect_match": [
+        "dead whitespace",
+        "empty void",
+        "vertical rhythm",
+        "far taller"
+      ],
+      "root_cause": "COMMITTEE-CONFIRMED (2/3): missing media/cards leave huge empty regions; section heights wildly off.",
+      "builder_rule": "Fixing S2+S3 reclaims most voids; cap injected min-heights to captured section heights.",
+      "guard": {
+        "type": "manual"
+      },
+      "status": "open",
+      "priority": "P1"
+    },
+    {
+      "id": "AUTO-exactly",
+      "title": "AUTO-FILED: clone has 2 h1 (want exactly 1)",
+      "defect_match": [
+        "exactly"
+      ],
+      "root_cause": "AUTO-FILED — needs diagnosis",
+      "builder_rule": "TBD",
+      "guard": {
+        "type": "manual"
+      },
+      "status": "open",
+      "seen": 4,
+      "first_seen": "2026-06-02",
+      "last_seen": "2026-06-02",
+      "example": "clone has 2 h1 (want exactly 1)"
+    },
+    {
+      "id": "S5-flex-width-collapse",
+      "title": "Flex-column containers collapse to a narrow column; nav stacks vertically",
+      "defect_match": [
+        "narrow column",
+        "collapse",
+        "stacked vertically",
+        "nav.*column",
+        "overflow",
+        "cramped",
+        "width"
+      ],
+      "root_cause": "flex-column containers with align-items:flex-start and no child widths shrink to content width → whole page cramped in a narrow left column, horizontal nav wraps to vertical. Research confirms: flex needs width constraints. capture-layout doesnt capture width/flex-basis; build-flextree doesnt emit it.",
+      "builder_rule": "Capture width/maxWidth/flexBasis/flexGrow per node; for column containers default align-items:stretch (children fill) unless source centers; emit child width/flex-basis; sections full-width with centered max-width inner.",
+      "guard": {
+        "type": "responsive-clean",
+        "input": "responsive"
+      },
+      "status": "implemented",
+      "priority": "P0",
+      "note": "ROOT CAUSE was content_width:full on EVERY container → nested items forced 100% wide → nav items wrapped to vertical + buttons stretched full-width. FIX: emit captured width (full-bleed→100%, sized item→box.w px + flex:0 0 auto) threaded via parentW. LIVE: nav now HORIZONTAL, button un-stretched, headline legible. Verify perceptual/responsive on regrade."
+    },
+    {
+      "id": "S6-signin-black-box",
+      "title": "Sign in renders as a large black box",
+      "defect_match": [
+        "black box",
+        "sign in",
+        "black rectangle"
+      ],
+      "root_cause": "The Sign in button/its container bg is captured/emitted as black (opaque) and oversized. Persistent across builds.",
+      "builder_rule": "Inspect the Sign in leaf/container in the captured tree: its bg and box; likely a button with a dark bg captured or a container painted black. Emit the real (white/transparent) pill, content-sized.",
+      "guard": {
+        "type": "manual"
+      },
+      "status": "fixed",
+      "priority": "P1",
+      "note": "FIXED via SVG rasterization: black box was a captured <svg><rect> rendering default-black (lost external-CSS fill). Now svgs render from screenshot (true look) or SKIP if blank. LIVE: black box GONE. Bonus: removed oversized black-box svgs that caused responsive overflow → responsive 22%→100%."
+    },
+    {
+      "id": "S7-headline-dup-oversize",
+      "title": "Hero headline duplicated (dup FIXED; oversize was a misdiagnosis)",
+      "defect_match": [
+        "duplicat",
+        "twice",
+        "oversized headline",
+        "headline.*large",
+        "double"
+      ],
+      "root_cause": "Headline text appears twice (capture has h1 + a child/subhead carrying same text, or flatten duplicated) and renders oversized full-width (no max-width on the text block).",
+      "builder_rule": "Dedup repeated text leaves (same text within a subtree); constrain display text to its captured box width / max-width so it doesnt span full bleed.",
+      "guard": {
+        "type": "manual"
+      },
+      "status": "implemented",
+      "priority": "P1",
+      "note": "DOM check: Stripe h1 contains <em> headline + <span> subhead BOTH at 48px — the clone is FAITHFUL, NOT oversized (my oversize assumption was wrong; verified via real DOM). Real defect was DUPLICATION (Stripe renders the h1 twice) → FIXED by dedup (text@y-bucket). Lesson: never assume oversize/wrong without checking the source DOM."
+    },
+    {
+      "id": "S8-hero-gradient-canvas",
+      "title": "Hero gradient (WebGL canvas) not reproduced — big white area vs colorful source",
+      "defect_match": [
+        "gradient",
+        "white area",
+        "hero.*white",
+        "canvas",
+        "swoosh"
+      ],
+      "root_cause": "Stripe hero gradient is an animated WebGL <canvas>, not CSS — capture-layout skips it, so the hero is white where source is a colorful swoosh. Major perceptual drag.",
+      "builder_rule": "Region-capture the hero canvas/gradient element as a PNG (screenshot its bbox), upload to media, set as the section background-image. (rasterize-unrepresentable-paint technique.)",
+      "guard": {
+        "type": "manual"
+      },
+      "status": "open",
+      "priority": "P0"
+    }
+  ],
+  "elementor_tips": [
+    {
+      "topic": "color",
+      "tip": "Always emit an explicit literal title_color / painted color on every text widget. Never rely on theme inheritance or color:inherit — JupiterX/Hello defaults paint headings the theme accent (the green-headline trap)."
+    },
+    {
+      "topic": "color",
+      "tip": "For gradient text, reapply the real gradient via injected CSS (-webkit-background-clip:text + transparent fill); never use the computed fallback color."
+    },
+    {
+      "topic": "typography",
+      "tip": "Set typography_typography:'custom' as the GATE before any typography_* key, or Elementor ignores font-family/size/weight entirely."
+    },
+    {
+      "topic": "fonts",
+      "tip": "Self-host the source's woff2 and register @font-face under the SOURCE's own family name (NFD-normalized) so computed font-family matches; verify glyphs with document.fonts.check, not the name."
+    },
+    {
+      "topic": "containers",
+      "tip": "Elementor DROPS _css_classes on containers — use _element_id + #id selectors for container-level styling/positioning."
+    },
+    {
+      "topic": "buttons",
+      "tip": "A captured pill (opaque bg) must be a native button widget with background_color + button_text_color + border_radius — a bare text-editor <a> loses the pill."
+    },
+    {
+      "topic": "images",
+      "tip": "Full-bleed images (>=70% vw) belong in a section background (cover), not a foreground image widget (which renders as a broken/black box and over-dominates)."
+    },
+    {
+      "topic": "images",
+      "tip": "Download images to WP media instead of hotlinking external CDNs — fixes mixed-content errors AND LCP (same-origin, cacheable). Set explicit width/height to avoid CLS."
+    },
+    {
+      "topic": "layout",
+      "tip": "Match the source's alignment — don't force flex_align_items:'center' on left-aligned sections (shifts content right). Use absolute positioning within #id-scoped clusters for pixel-exact overlap regions."
+    },
+    {
+      "topic": "spacing",
+      "tip": "Emit explicit captured line-height (px) and faithful absolute geometry; implicit line-height inflates block height ~1.6x."
+    },
+    {
+      "topic": "schema",
+      "tip": "The html widget can't take background_background (422) — paint backgrounds on a container or inline on the div."
+    },
+    {
+      "topic": "responsive",
+      "tip": "Emit responsive overrides only on diff from desktop (suffix _tablet <=1024 / _mobile <=767); the CSS cascade fills the rest. Use hide_desktop/_tablet/_mobile for per-breakpoint visibility."
+    },
+    {
+      "topic": "performance",
+      "tip": "Keep the injected <style> lean and dedup style-classes; heavy per-element CSS + many web fonts inflate render time."
+    },
+    {
+      "topic": "a11y",
+      "tip": "Carry captured alt onto every content image; only leave alt empty for truly decorative images."
+    },
+    {
+      "topic": "a11y",
+      "tip": "Give the page semantic landmarks — map header/nav/main/footer regions to containers with the matching HTML tag, keep exactly one h1, and don't skip heading levels."
+    },
+    {
+      "topic": "interaction",
+      "tip": "Reproduce click-to-reveal widgets (tabs/accordions/dropdowns/menus) natively or with scoped JS — a static screenshot of one state fails the interaction eval."
+    }
+  ]
+}

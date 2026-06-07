@@ -63,7 +63,7 @@ final class Tools
             ],
             [
                 'name' => 'joist_create_plan',
-                'description' => 'Create a Joist plan from a pre-built array of steps. If page_id is omitted, Joist auto-creates a blank Elementor draft page. Steps must follow PatchEngine ops: insert {op:"insert", element:{...}, position:int, parent_id?:string}, update_settings {op:"update_settings", element_id:string, settings:{...}}, replace_element {op:"replace_element", element_id:string, element:{...}}, delete {op:"delete", element_id:string}. Element shape: container or widget with elType, settings, optional elements[]. Allowed widget slugs: heading, text-editor, button, image, icon, divider, spacer, video, html, social-icons, icon-list, star-rating. Image URLs must use https://placehold.co/{w}x{h}/0E0E0C/F3F2EC?text=label or be left empty — never invent real CDN URLs.',
+                'description' => 'Create a Joist plan from a pre-built array of steps. If page_id is omitted, Joist auto-creates a blank Elementor draft page. Steps must follow PatchEngine ops: insert {op:"insert", element:{...}, position:int, parent_id?:string}, update_settings {op:"update_settings", element_id:string, settings:{...}}, replace_element {op:"replace_element", element_id:string, element:{...}}, delete {op:"delete", element_id:string}, move {op:"move", element_id:string, new_parent_id:string, new_position:int}, duplicate {op:"duplicate", element_id:string, position:"before"|"after"}, wrap {op:"wrap", element_id:string, container:{...}} (wraps the target inside the given container), unwrap {op:"unwrap", element_id:string} (replaces a container with its children). For repeated cards prefer duplicate — author ONE card, duplicate it N times, then update_settings each copy — and use move to restructure; never delete+re-insert when a surgical move/duplicate works. Element shape: container or widget with elType, settings, optional elements[]. Allowed widget slugs: heading, text-editor, button, image, icon, divider, spacer, video, html, social-icons, icon-list, star-rating, shortcode (use the shortcode widget — settings.shortcode = [fluentform id="N"] — to embed a real Fluent Forms form; the native Elementor Form widget is Pro). Image URLs must use https://placehold.co/{w}x{h}/0E0E0C/F3F2EC?text=label or be left empty — never invent real CDN URLs.',
                 'inputSchema' => $this->objectSchema([
                     'intent' => ['type' => 'string', 'description' => 'Short description of what this plan does (shown in the UI).'],
                     'page_id' => ['type' => 'integer', 'description' => 'Existing page to target. Omit to auto-create a new draft.'],
@@ -126,6 +126,24 @@ final class Tools
                     'name_filter' => ['type' => 'string', 'description' => 'Optional substring to filter control names (case-insensitive).'],
                 ], ['widget_type']),
             ],
+            [
+                'name' => 'joist_find_element',
+                'description' => 'Locate elements on a page WITHOUT dumping the whole tree. Filter by widget_type (e.g. "heading", "button", "icon-list") and/or text (case-insensitive substring matched against the element\'s visible text — heading title, button text, editor HTML, etc.). Returns up to `limit` matches, each with element_id, widgetType, path from root, and a short snippet. Use this for prompt-to-edit on large pages — e.g. "change the hero headline" on a 60-120 node clone: find the heading by text, then joist_get_element + a create_plan update_settings op. At least one of widget_type or text must be supplied.',
+                'inputSchema' => $this->objectSchema([
+                    'page_id' => ['type' => 'integer', 'description' => 'The WordPress page ID.'],
+                    'widget_type' => ['type' => 'string', 'description' => 'Widget slug to match, e.g. heading, button, image, icon-list. Optional.'],
+                    'text' => ['type' => 'string', 'description' => 'Case-insensitive substring matched against the element\'s visible text. Optional.'],
+                    'limit' => ['type' => 'integer', 'description' => 'Max matches to return (default 20, max 100).'],
+                ], ['page_id']),
+            ],
+            [
+                'name' => 'joist_get_element',
+                'description' => 'Read ONE element from a page by its element_id (the 7-char Elementor id). Returns the element subtree, its parent_id, its path from root, and its current content hash (for drift detection — note create_plan derives optimistic-concurrency from the whole-page hash itself, so you do not pass this per-element hash back). Far cheaper than joist_get_page_tree when you already know the id; use it after joist_find_element locates the target, then build a create_plan update_settings op.',
+                'inputSchema' => $this->objectSchema([
+                    'page_id' => ['type' => 'integer', 'description' => 'The WordPress page ID.'],
+                    'element_id' => ['type' => 'string', 'description' => 'The Elementor element id to read.'],
+                ], ['page_id', 'element_id']),
+            ],
         ];
     }
 
@@ -150,6 +168,8 @@ final class Tools
             case 'joist_smoke_test_roundtrip': return $this->toolSmokeTestRoundtrip();
             case 'joist_validate_widget':   return $this->toolValidateWidget($args);
             case 'joist_get_widget_schema': return $this->toolGetWidgetSchema($args);
+            case 'joist_find_element':      return $this->toolFindElement($args);
+            case 'joist_get_element':       return $this->toolGetElement($args);
             default:
                 throw new ToolException("Unknown tool: {$name}");
         }
@@ -436,6 +456,81 @@ final class Tools
         );
     }
 
+    /**
+     * CEK audit (2026-06-06): the read-locate-patch primitive for prompt-to-edit.
+     * Locate elements by widget_type and/or visible text without dumping the
+     * whole tree — turns "change the hero headline" on a 100-node clone from an
+     * O(tree) manual id-hunt into an O(1) targeted lookup.
+     *
+     * @param array<string, mixed> $args
+     */
+    private function toolFindElement(array $args): array
+    {
+        // Match the REST element reader's gate EXACTLY (CAP_USE_API OR edit_pages) so an API-only
+        // role reads subtrees via MCP just as it can via REST, while a Subscriber/Author with neither
+        // still can't enumerate arbitrary page structure + content. Code-review fix.
+        $this->requireElementReadCap();
+        $pageId = (int) ($args['page_id'] ?? 0);
+        if ($pageId <= 0) throw new ToolException('page_id is required');
+        $widgetType = strtolower(trim((string) ($args['widget_type'] ?? '')));
+        $text = strtolower(trim((string) ($args['text'] ?? '')));
+        if ($widgetType === '' && $text === '') {
+            throw new ToolException('Supply at least one of widget_type or text to match.');
+        }
+        $limit = max(1, min(100, (int) ($args['limit'] ?? 20)));
+
+        $tree = $this->loadTree($pageId);
+        $matches = [];
+        $this->collectMatches($tree, $widgetType, $text, [], $matches);
+        $total = count($matches);
+        $shown = array_slice($matches, 0, $limit);
+
+        return $this->resultText(
+            sprintf(
+                '%d match(es)%s on page %d%s%s.',
+                $total,
+                $total > $limit ? " (showing {$limit})" : '',
+                $pageId,
+                $widgetType !== '' ? " for widget '{$widgetType}'" : '',
+                $text !== '' ? " matching \"{$text}\"" : ''
+            ),
+            ['page_id' => $pageId, 'count' => $total, 'matches' => $shown]
+        );
+    }
+
+    /**
+     * Read a single element by id — the cheap targeted read in the surgical
+     * edit loop. Mirrors REST /pages/{id}/elements/{eid}. Returns the element,
+     * its parent_id, path from root, and content hash for optimistic concurrency.
+     *
+     * @param array<string, mixed> $args
+     */
+    private function toolGetElement(array $args): array
+    {
+        $this->requireElementReadCap(); // see joist_find_element — matches the REST element reader's gate
+        $pageId = (int) ($args['page_id'] ?? 0);
+        $eid = (string) ($args['element_id'] ?? '');
+        if ($pageId <= 0) throw new ToolException('page_id is required');
+        if ($eid === '') throw new ToolException('element_id is required');
+
+        $tree = $this->loadTree($pageId);
+        $found = $this->findById($tree, $eid, [], null);
+        if ($found === null) {
+            throw new ToolException("Element {$eid} not found on page {$pageId}.");
+        }
+        [$element, $path, $parentId] = $found;
+        return $this->resultText(
+            sprintf('Element %s (%s) on page %d.', $eid, (string) ($element['widgetType'] ?? $element['elType'] ?? '?'), $pageId),
+            [
+                'page_id' => $pageId,
+                'element' => $element,
+                'parent_id' => $parentId,
+                'path' => $path,
+                'hash' => Container::get('hasher')->forElements([$element]),
+            ]
+        );
+    }
+
     private function toolIntrospectAtomicSchema(): array
     {
         $this->requireCap('read');
@@ -550,6 +645,114 @@ final class Tools
     }
 
     // ── helpers ────────────────────────────────────────────────────────
+
+    /**
+     * Load + decode a page's Elementor tree, or throw.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function loadTree(int $pageId): array
+    {
+        $raw = get_post_meta($pageId, '_elementor_data', true);
+        if (!is_string($raw) || $raw === '') {
+            return []; // empty / non-Elementor page → no elements (consistent with joist_get_page_tree)
+        }
+        $tree = json_decode($raw, true);
+        if (!is_array($tree)) {
+            throw new ToolException("Page {$pageId} has malformed _elementor_data.");
+        }
+        return $tree;
+    }
+
+    /**
+     * Depth-first find by element id, tracking path + parent.
+     *
+     * @return array{0: array<string,mixed>, 1: list<string>, 2: ?string}|null
+     */
+    private function findById(array $tree, string $targetId, array $path, ?string $parentId): ?array
+    {
+        foreach ($tree as $el) {
+            if (!is_array($el)) continue;
+            $id = (string) ($el['id'] ?? '');
+            $currentPath = array_merge($path, [$id]);
+            if ($id === $targetId) {
+                return [$el, $currentPath, $parentId];
+            }
+            if (isset($el['elements']) && is_array($el['elements'])) {
+                $r = $this->findById($el['elements'], $targetId, $currentPath, $id);
+                if ($r !== null) return $r;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Depth-first collect of widgets matching widget_type and/or text.
+     *
+     * @param array<int, array<string,mixed>> $matches
+     */
+    private function collectMatches(array $tree, string $widgetType, string $text, array $path, array &$matches): void
+    {
+        foreach ($tree as $el) {
+            if (!is_array($el)) continue;
+            $id = (string) ($el['id'] ?? '');
+            $currentPath = array_merge($path, [$id]);
+            if (($el['elType'] ?? '') === 'widget') {
+                $wt = strtolower((string) ($el['widgetType'] ?? ''));
+                $snippet = $this->elementText($el);
+                $typeOk = $widgetType === '' || $wt === $widgetType;
+                $textOk = $text === '' || ($snippet !== '' && str_contains(strtolower($snippet), $text));
+                if ($typeOk && $textOk) {
+                    $matches[] = [
+                        'element_id' => $id,
+                        'widgetType' => $el['widgetType'] ?? null,
+                        'path' => $currentPath,
+                        'snippet' => $snippet !== '' ? mb_substr($snippet, 0, 120) : null,
+                    ];
+                }
+            }
+            if (isset($el['elements']) && is_array($el['elements'])) {
+                $this->collectMatches($el['elements'], $widgetType, $text, $currentPath, $matches);
+            }
+        }
+    }
+
+    /** Best-effort visible text of a widget, for find snippets + matching. */
+    private function elementText(array $el): string
+    {
+        $s = is_array($el['settings'] ?? null) ? $el['settings'] : [];
+        foreach (['title', 'text', 'editor', 'caption', 'description_text', 'shortcode'] as $k) {
+            if (isset($s[$k]) && is_string($s[$k]) && $s[$k] !== '') {
+                return trim(wp_strip_all_tags($s[$k]));
+            }
+        }
+        // Repeater widgets (icon-list, social-icons, tabs, accordion, price-list, …) keep their visible
+        // text in item arrays, not top-level keys — concatenate so joist_find_element can match it.
+        foreach (['icon_list', 'social_icon_list', 'tabs', 'sections', 'price_list', 'items'] as $rk) {
+            if (!isset($s[$rk]) || !is_array($s[$rk])) continue;
+            $parts = [];
+            foreach ($s[$rk] as $item) {
+                if (!is_array($item)) continue;
+                foreach (['text', 'title', 'tab_title', 'item_title', 'content', 'tab_content'] as $f) {
+                    if (isset($item[$f]) && is_string($item[$f]) && $item[$f] !== '') { $parts[] = $item[$f]; break; }
+                }
+            }
+            if ($parts !== []) return trim(wp_strip_all_tags(implode(' ', $parts)));
+        }
+        return '';
+    }
+
+    /**
+     * Read gate for joist_find_element / joist_get_element — matches the REST element reader exactly
+     * (Joist API capability OR edit_pages) so an API-only role isn't blocked on the MCP surface.
+     */
+    private function requireElementReadCap(): void
+    {
+        if (current_user_can(\Joist\Security\Role::CAP_USE_API) || current_user_can('edit_pages')) {
+            return;
+        }
+        throw new ToolException("Capability 'edit_pages' or Joist API access (joist_use_agent_api) required.");
+    }
 
     /** Throws ToolException if the current WP user lacks $capability. */
     private function requireCap(string $capability): void

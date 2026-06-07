@@ -170,9 +170,7 @@ final class PatchEngine
         $dupSubtree = $this->idGen->regenerateTree([$sourceSubtree], true, $existingIds)[0];
         $generatedIds = array_merge($generatedIds, $this->idGen->lastGeneratedMap());
 
-        $insertAt = $position === 'before' ? $indexInParent : $indexInParent + 1;
-
-        // Walk again and insert.
+        // Insert next to the target; position derived from the $before bool.
         return $this->walkInsertNextToTarget($elements, $targetId, $position === 'before', $dupSubtree);
     }
 
