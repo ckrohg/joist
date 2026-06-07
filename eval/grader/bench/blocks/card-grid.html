@@ -1,0 +1,54 @@
+<!doctype html>
+<!-- @purpose Ground-truth bench block: a deterministic 3-up feature card grid. NO JS / NO animation /
+     NO transition / NO lazy-load / NO CDN fonts / NO network images. System fonts + inline SVG icons. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bench — Card Grid</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: #f6f7fb; color: #0b1020; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 80px 24px; }
+  .head { text-align: center; margin-bottom: 48px; }
+  .head h2 { font-size: 38px; font-weight: 800; margin-bottom: 12px; }
+  .head p { font-size: 18px; color: #5a6376; max-width: 560px; margin: 0 auto; }
+  .grid { display: flex; gap: 24px; }
+  .card { flex: 1 1 0; min-width: 0; background: #ffffff; border: 1px solid #e6e8ee; border-radius: 14px; padding: 32px 28px; }
+  .icon { width: 52px; height: 52px; border-radius: 12px; background: #eef6e6; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; }
+  .card h3 { font-size: 21px; font-weight: 700; margin-bottom: 10px; }
+  .card p { font-size: 15px; line-height: 1.6; color: #5a6376; }
+</style>
+</head>
+<body>
+  <section class="wrap">
+    <div class="head">
+      <h2>Everything you need to ship</h2>
+      <p>Three fully-specified cards with fixed geometry, system fonts, and inline icons. Deterministic by construction.</p>
+    </div>
+    <div class="grid">
+      <div class="card">
+        <div class="icon">
+          <svg width="26" height="26" viewBox="0 0 26 26" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="3" y="3" width="20" height="20" rx="5" fill="#5fae2e"/><path d="M9 13 l3 3 l5 -6" stroke="#ffffff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <h3>Reliable</h3>
+        <p>Pixel-stable output every run. No randomness, no network, no surprises in the rendered geometry.</p>
+      </div>
+      <div class="card">
+        <div class="icon">
+          <svg width="26" height="26" viewBox="0 0 26 26" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="13" cy="13" r="10" fill="#5fae2e"/><path d="M13 7 v6 l4 3" stroke="#ffffff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <h3>Fast</h3>
+        <p>Static markup loads instantly in headless capture. The clone reproduces it without flake.</p>
+      </div>
+      <div class="card">
+        <div class="icon">
+          <svg width="26" height="26" viewBox="0 0 26 26" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M13 3 l9 5 v6 c0 5 -4 8 -9 9 c-5 -1 -9 -4 -9 -9 v-6 z" fill="#5fae2e"/><path d="M9 13 l3 3 l5 -6" stroke="#ffffff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <h3>Secure</h3>
+        <p>No external assets means no leakage and no drift between capture and rebuild of the page.</p>
+      </div>
+    </div>
+  </section>
+</body>
+</html>

@@ -1,0 +1,64 @@
+# Phase 0: ONE local WordPress sandbox to prove parity vs georges232.sg-host.com.
+# Scales to a pool later (copy service block per index, ports 800N / dbN / wpN volumes).
+# Plugin is live-mounted read-only from ../plugin (already built — build/ is populated).
+name: joist-sandbox
+services:
+  db-1:
+    image: mariadb:11
+    environment:
+      MARIADB_DATABASE: wp
+      MARIADB_USER: wp
+      MARIADB_PASSWORD: wp
+      MARIADB_ROOT_PASSWORD: root
+    volumes:
+      - db1:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  wp-1:
+    image: wordpress:php8.3-apache   # PIN exact tag for cross-instance parity (P1)
+    depends_on:
+      db-1:
+        condition: service_healthy
+    ports:
+      - "8001:80"
+    environment:
+      WORDPRESS_DB_HOST: db-1
+      WORDPRESS_DB_NAME: wp
+      WORDPRESS_DB_USER: wp
+      WORDPRESS_DB_PASSWORD: wp
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_HOME','http://localhost:8001');
+        define('WP_SITEURL','http://localhost:8001');
+        define('WP_MEMORY_LIMIT','512M');
+        // local env → WordPress permits Application-Password auth over plain HTTP
+        // (production default disables app-pw on non-SSL → REST arrives unauthenticated).
+        define('WP_ENVIRONMENT_TYPE','local');
+    volumes:
+      - wp1:/var/www/html
+      - ../plugin:/var/www/html/wp-content/plugins/joist:ro
+
+  # one-shot bootstrapper (wp-cli); run: docker compose run --rm wpcli-1 /bootstrap.sh
+  wpcli-1:
+    image: wordpress:cli-php8.3
+    depends_on:
+      wp-1:
+        condition: service_started
+    user: "33:33"
+    environment:
+      WORDPRESS_DB_HOST: db-1
+      WORDPRESS_DB_NAME: wp
+      WORDPRESS_DB_USER: wp
+      WORDPRESS_DB_PASSWORD: wp
+    volumes:
+      - wp1:/var/www/html
+      - ../plugin:/var/www/html/wp-content/plugins/joist:ro
+      - ./bootstrap.sh:/bootstrap.sh:ro
+    entrypoint: ["bash"]
+
+volumes:
+  db1:
+  wp1:

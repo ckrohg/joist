@@ -1,0 +1,46 @@
+<!doctype html>
+<!-- @purpose Ground-truth bench block: a deterministic top nav bar. NO JS / NO animation / NO transition /
+     NO lazy-load / NO CDN fonts / NO network images. System fonts + inline SVG logo + solid bg. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bench — Nav</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: #ffffff; color: #0b1020; }
+  header { background: #ffffff; border-bottom: 1px solid #e6e8ee; }
+  nav { max-width: 1120px; margin: 0 auto; height: 68px; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand-name { font-size: 19px; font-weight: 800; color: #0b1020; }
+  .links { display: flex; align-items: center; gap: 28px; }
+  .links a { font-size: 15px; font-weight: 500; color: #3a4256; text-decoration: none; }
+  .actions { display: flex; align-items: center; gap: 14px; }
+  .login { font-size: 15px; font-weight: 600; color: #0b1020; text-decoration: none; }
+  .signup { font-size: 15px; font-weight: 600; color: #ffffff; background: #0b1020; padding: 9px 18px; border-radius: 7px; text-decoration: none; }
+</style>
+</head>
+<body>
+  <header>
+    <nav>
+      <div class="brand">
+        <svg width="28" height="28" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect width="28" height="28" rx="7" fill="#0b1020"/>
+          <path d="M7 18 L14 8 L21 18 Z" fill="#9fe870"/>
+        </svg>
+        <span class="brand-name">Foundry</span>
+      </div>
+      <div class="links">
+        <a href="#product">Product</a>
+        <a href="#solutions">Solutions</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#docs">Docs</a>
+      </div>
+      <div class="actions">
+        <a class="login" href="#login">Log in</a>
+        <a class="signup" href="#signup">Sign up</a>
+      </div>
+    </nav>
+  </header>
+</body>
+</html>

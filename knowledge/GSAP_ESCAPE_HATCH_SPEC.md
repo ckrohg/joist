@@ -124,8 +124,10 @@ Motion has two layers. **Authoring** (which elements animate — `joist-reveal[-
 ### Path A — Plugin-bundled runtime (preferred)
 `WidgetPack\Motion\Emitter` enqueues vendored GSAP + ScrollTrigger + `joist-motion.js` on pages whose data contains `joist-reveal`. Robust, delay-JS-excluded, audited, single controlled source. **Gated on the installed plugin build having the runtime.** Reaches sites via the plugin release/update channel (a deploy pipeline the product needs regardless).
 
-### Path B — Content-injected runtime (fallback)
-When the installed build lacks the runtime, the agent injects `assets/widget-pack/motion/joist-motion-fallback.html` (GSAP via CDN + the same harness inline, tagged `data-no-optimize`/`data-cfasync`) as an html widget. Works on **any** Joist install with no plugin update. **Accepted tradeoff:** fragile under aggressive caching (WP Rocket delay-JS may defer it) and per-page script weight. This is the compromise the hybrid knowingly takes for coverage.
+### Path B — Content-injected runtime, NO CDN (refined 2026-05-31, verified live)
+When the installed build lacks a given effect's runtime, the agent injects a small `html` widget that (a) loads the needed libs **from the plugin's own vendor URLs** — `capabilities.motion.vendor_base_url` (e.g. `…/wp-content/plugins/<dir>/assets/widget-pack/motion/vendor/gsap.min.js`) — and (b) inlines only the tiny glue harness. This runs **entirely within WordPress, no external CDN, no plugin update** — verified live on `joist-motion-within-wp-no-cdn-demo` (split + parallax + magnetic; `externalCDNscripts: []`). The libs are already served by any installed Joist build (static assets), so referencing them is free.
+
+Per-effect: only inject for effects whose `capabilities.motion.<flag>` is false/missing — effects the plugin already supports run via Path A automatically (injecting would double-load). **Lenis caveat:** `smooth_scroll` needs `lenis.min.js` present in `vendor/`; if a build predates Slice 8 it 404s — skip smooth rather than CDN it. Last-resort CDN only if `vendor_base_url` is absent (build with no capability flag at all) AND the plugin dir can't be discovered. The bundled `joist-motion-fallback.html` (CDN form) remains as a reference but plugin-hosted libs are the default.
 
 ### Path selection (agent-side, in joist-clone skill)
 ```

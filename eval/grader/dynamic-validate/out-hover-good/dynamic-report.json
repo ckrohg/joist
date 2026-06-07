@@ -1,0 +1,40 @@
+{
+  "overall_pct": 100,
+  "dims": {
+    "motion": 1,
+    "scroll": 1,
+    "hover": 1
+  },
+  "hard_fails": [],
+  "defects": [],
+  "source_motion": {
+    "anims": 0,
+    "declared": 0,
+    "infinite": 0
+  },
+  "source_motionMag": 0,
+  "clone_motion": {
+    "anims": 0,
+    "declared": 0,
+    "infinite": 0
+  },
+  "clone_motionMag": 0,
+  "srcHoverReacts": 3,
+  "clnHoverReacts": 3,
+  "srcMoves": false,
+  "clnMoves": false,
+  "montages": {
+    "scroll": [
+      "dynamic-validate/out-hover-good/scroll-0.png",
+      "dynamic-validate/out-hover-good/scroll-1.png",
+      "dynamic-validate/out-hover-good/scroll-2.png",
+      "dynamic-validate/out-hover-good/scroll-3.png"
+    ],
+    "hover": [
+      "dynamic-validate/out-hover-good/hover-0.png",
+      "dynamic-validate/out-hover-good/hover-1.png",
+      "dynamic-validate/out-hover-good/hover-2.png"
+    ]
+  },
+  "note": "DYNAMIC layer — feed scroll-*.png to the committee for element-by-element motion/scroll review"
+}

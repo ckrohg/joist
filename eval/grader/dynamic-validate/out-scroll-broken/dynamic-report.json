@@ -1,0 +1,40 @@
+{
+  "overall_pct": 0,
+  "dims": {
+    "motion": 1,
+    "scroll": 0.003,
+    "hover": 1
+  },
+  "hard_fails": [
+    "scroll-state"
+  ],
+  "defects": [
+    "scroll-state mismatch (worst depth diff 1.00) — reveals/parallax/sticky differ"
+  ],
+  "source_motion": {
+    "anims": 0,
+    "declared": 0,
+    "infinite": 0
+  },
+  "source_motionMag": 0,
+  "clone_motion": {
+    "anims": 0,
+    "declared": 0,
+    "infinite": 0
+  },
+  "clone_motionMag": 0,
+  "srcHoverReacts": 0,
+  "clnHoverReacts": 0,
+  "srcMoves": false,
+  "clnMoves": false,
+  "montages": {
+    "scroll": [
+      "dynamic-validate/out-scroll-broken/scroll-0.png",
+      "dynamic-validate/out-scroll-broken/scroll-1.png",
+      "dynamic-validate/out-scroll-broken/scroll-2.png",
+      "dynamic-validate/out-scroll-broken/scroll-3.png"
+    ],
+    "hover": []
+  },
+  "note": "DYNAMIC layer — feed scroll-*.png to the committee for element-by-element motion/scroll review"
+}

@@ -1,0 +1,336 @@
+{
+  "source": "https://stripe.com",
+  "clone": "https://georges232.sg-host.com/stripe-clone-v3-capstone-real-assets/",
+  "label": "stripe-v3",
+  "graded_at_utc": "2026-06-01T03:46:28Z",
+  "fidelity_pct": 52,
+  "dimensions_pct": {
+    "layout_structure": 9,
+    "pixel_viewport": 80,
+    "color": 96,
+    "imagery_assets": 26,
+    "typography": 80,
+    "motion_dynamic": 62
+  },
+  "defects": [
+    {
+      "viewport": "desktop",
+      "location": "desktop",
+      "severity": "high",
+      "root_cause_tag": "truncation",
+      "capability_gap_tag": "section_completeness",
+      "observed": "clone 2149px tall",
+      "expected": "source 14739px",
+      "remedy": "author EVERY top-level source section; count before grading"
+    },
+    {
+      "viewport": "desktop",
+      "location": "desktop",
+      "severity": "high",
+      "root_cause_tag": "asset_not_captured",
+      "capability_gap_tag": "asset_capture",
+      "observed": "1 <img>",
+      "expected": "43",
+      "remedy": "capture+host real images; do not drop or placeholder"
+    },
+    {
+      "viewport": "desktop",
+      "location": "desktop",
+      "severity": "high",
+      "root_cause_tag": "asset_not_captured",
+      "capability_gap_tag": "asset_capture",
+      "observed": "no canvas/video",
+      "expected": "source has 1 canvas / 0 video",
+      "remedy": "capture animated art (WebGL/video) as looping video/sprite, host, embed"
+    },
+    {
+      "viewport": "mobile",
+      "location": "mobile",
+      "severity": "high",
+      "root_cause_tag": "truncation",
+      "capability_gap_tag": "section_completeness",
+      "observed": "clone 2788px tall",
+      "expected": "source 20441px",
+      "remedy": "author EVERY top-level source section; count before grading"
+    },
+    {
+      "viewport": "mobile",
+      "location": "mobile",
+      "severity": "high",
+      "root_cause_tag": "asset_not_captured",
+      "capability_gap_tag": "asset_capture",
+      "observed": "1 <img>",
+      "expected": "43",
+      "remedy": "capture+host real images; do not drop or placeholder"
+    },
+    {
+      "viewport": "mobile",
+      "location": "mobile",
+      "severity": "high",
+      "root_cause_tag": "asset_not_captured",
+      "capability_gap_tag": "asset_capture",
+      "observed": "no canvas/video",
+      "expected": "source has 1 canvas / 0 video",
+      "remedy": "capture animated art (WebGL/video) as looping video/sprite, host, embed"
+    },
+    {
+      "viewport": "desktop",
+      "location": "desktop",
+      "severity": "med",
+      "root_cause_tag": "extraction_miss",
+      "capability_gap_tag": "structure_parser",
+      "observed": "7 headings",
+      "expected": "57",
+      "remedy": "capture all headings/sections"
+    },
+    {
+      "viewport": "desktop",
+      "location": "desktop",
+      "severity": "med",
+      "root_cause_tag": "type_mismatch",
+      "capability_gap_tag": "typography_match",
+      "observed": "weight 500",
+      "expected": "300",
+      "remedy": "match font weight"
+    },
+    {
+      "viewport": "desktop",
+      "location": "desktop",
+      "severity": "med",
+      "root_cause_tag": "motion_not_reproduced",
+      "capability_gap_tag": "motion_runtime",
+      "observed": "1/8 clone els respond to hover",
+      "expected": "8/8 source els respond",
+      "remedy": "add hover states (transform/color/shadow) to buttons, links, cards"
+    },
+    {
+      "viewport": "mobile",
+      "location": "mobile",
+      "severity": "med",
+      "root_cause_tag": "extraction_miss",
+      "capability_gap_tag": "structure_parser",
+      "observed": "7 headings",
+      "expected": "57",
+      "remedy": "capture all headings/sections"
+    },
+    {
+      "viewport": "mobile",
+      "location": "mobile",
+      "severity": "med",
+      "root_cause_tag": "type_mismatch",
+      "capability_gap_tag": "typography_match",
+      "observed": "weight 500",
+      "expected": "300",
+      "remedy": "match font weight"
+    },
+    {
+      "viewport": "desktop",
+      "location": "desktop",
+      "severity": "low",
+      "root_cause_tag": "type_mismatch",
+      "capability_gap_tag": "typography_match",
+      "observed": "font ui-sans-serif",
+      "expected": "sohne-var",
+      "remedy": "match font-family (closest web font if proprietary)"
+    },
+    {
+      "viewport": "mobile",
+      "location": "mobile",
+      "severity": "low",
+      "root_cause_tag": "type_mismatch",
+      "capability_gap_tag": "typography_match",
+      "observed": "font ui-sans-serif",
+      "expected": "sohne-var",
+      "remedy": "match font-family (closest web font if proprietary)"
+    }
+  ],
+  "metrics": {
+    "desktop": {
+      "dims": {
+        "layout_structure": 0.08953688924121823,
+        "pixel_viewport": 0.8015655864197531,
+        "color": 0.9562555118110455,
+        "imagery_assets": 0.2616279069767442,
+        "typography": 0.8,
+        "motion_dynamic": 0.6239372728092046
+      },
+      "source": {
+        "pageHeight": 14739,
+        "sections": 135,
+        "headings": 57,
+        "images": 43,
+        "bgImages": 1,
+        "videos": 0,
+        "canvas": 1,
+        "svgs": 183,
+        "buttons": 113,
+        "links": 178,
+        "textLen": 11690,
+        "bodyBg": "rgba(0, 0, 0, 0)",
+        "bodyColor": "rgb(0, 0, 0)",
+        "biggestHeading": {
+          "text": "The backbone of global commerce",
+          "fontSizePx": 56,
+          "fontWeight": "300",
+          "fontFamily": "sohne-var",
+          "color": "rgb(6, 27, 49)",
+          "letterSpacing": "-1.4px",
+          "lineHeight": "57.68px"
+        }
+      },
+      "clone": {
+        "pageHeight": 2149,
+        "sections": 0,
+        "headings": 7,
+        "images": 1,
+        "bgImages": 1,
+        "videos": 0,
+        "canvas": 0,
+        "svgs": 1,
+        "buttons": 2,
+        "links": 11,
+        "textLen": 1174,
+        "bodyBg": "rgb(255, 255, 255)",
+        "bodyColor": "rgb(0, 0, 0)",
+        "biggestHeading": {
+          "text": "Financial infrastructure to grow your revenue. Accept payments, offer financial ",
+          "fontSizePx": 60,
+          "fontWeight": "500",
+          "fontFamily": "ui-sans-serif",
+          "color": "rgb(10, 37, 64)",
+          "letterSpacing": "-1.8px",
+          "lineHeight": "62.4px"
+        }
+      },
+      "scrollMag": {
+        "source": 0.321,
+        "clone": 0.2
+      },
+      "hoverDelta": {
+        "source": 0.2606,
+        "clone": 0.1295
+      },
+      "hoverSweep": {
+        "source_samples": [
+          0.26059,
+          0.20256,
+          0.03537,
+          0.12501,
+          0.16859,
+          0.02167,
+          0.02172,
+          0.02123
+        ],
+        "clone_samples": [
+          0.12955,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "source_hover_elements_with_response": 8,
+        "clone_hover_elements_with_response": 1
+      },
+      "timeLapseSelfDiff": {
+        "source": 0.0045,
+        "clone": 0
+      },
+      "fullPageDrift": 0.1995
+    },
+    "mobile": {
+      "dims": {
+        "layout_structure": 0.08639985397997546,
+        "pixel_viewport": 0.6900747356908494,
+        "color": 0.9340314328497894,
+        "imagery_assets": 0.2616279069767442,
+        "typography": 0.7583333333333333,
+        "motion_dynamic": 0.6440083517842161
+      },
+      "source": {
+        "pageHeight": 20441,
+        "sections": 135,
+        "headings": 57,
+        "images": 43,
+        "bgImages": 1,
+        "videos": 0,
+        "canvas": 1,
+        "svgs": 183,
+        "buttons": 113,
+        "links": 178,
+        "textLen": 11708,
+        "bodyBg": "rgba(0, 0, 0, 0)",
+        "bodyColor": "rgb(0, 0, 0)",
+        "biggestHeading": {
+          "text": "Financial infrastructure to grow your revenue.",
+          "fontSizePx": 34,
+          "fontWeight": "300",
+          "fontFamily": "sohne-var",
+          "color": "rgb(129, 184, 26)",
+          "letterSpacing": "-0.34px",
+          "lineHeight": "35.02px"
+        }
+      },
+      "clone": {
+        "pageHeight": 2788,
+        "sections": 0,
+        "headings": 7,
+        "images": 1,
+        "bgImages": 1,
+        "videos": 0,
+        "canvas": 0,
+        "svgs": 1,
+        "buttons": 2,
+        "links": 11,
+        "textLen": 1174,
+        "bodyBg": "rgb(255, 255, 255)",
+        "bodyColor": "rgb(0, 0, 0)",
+        "biggestHeading": {
+          "text": "Financial infrastructure to grow your revenue. Accept payments, offer financial ",
+          "fontSizePx": 40,
+          "fontWeight": "500",
+          "fontFamily": "ui-sans-serif",
+          "color": "rgb(10, 37, 64)",
+          "letterSpacing": "-1.8px",
+          "lineHeight": "41.6px"
+        }
+      },
+      "scrollMag": {
+        "source": 0.482,
+        "clone": 0.31
+      },
+      "hoverDelta": {
+        "source": 0.3719,
+        "clone": 0.2942
+      },
+      "hoverSweep": {
+        "source_samples": [
+          0.00279,
+          0.00318,
+          0.00646,
+          0.37191
+        ],
+        "clone_samples": [
+          0.29418,
+          0,
+          0,
+          0.28221,
+          0,
+          0,
+          0.10514,
+          0.24679
+        ],
+        "source_hover_elements_with_response": 4,
+        "clone_hover_elements_with_response": 4
+      },
+      "timeLapseSelfDiff": {
+        "source": 0.005,
+        "clone": 0
+      },
+      "fullPageDrift": 0.2671
+    }
+  },
+  "note": "Inverted/evidence-gated: dimensions earned from measured similarity. No uncloneable escape — every gap carries a capability_gap_tag."
+}

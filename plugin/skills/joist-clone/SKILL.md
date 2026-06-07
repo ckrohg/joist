@@ -33,13 +33,28 @@ Verify these in order. Fail fast if any are missing — don't start the loop on 
 1. **Joist MCP available.** `mcp__joist-<host>__joist_get_site_info` tool should be present. If not, ask user to verify the Joist plugin is installed + MCP server is registered (`claude mcp list`).
 2. **Playwright CLI works.** Run `npx playwright --version` via Bash. If it errors, install: `npx playwright install chromium`.
 3. **Read the Elementor knowledge artifacts** (the agent's working vocabulary):
+   - **`knowledge/CANONICAL_GRADER.md`** — THE grader of record. NEVER judge a clone by eye alone or by the deprecated grade.mjs/honest-grade.mjs. Run the deterministic floor (grader-v2 `--validate` self-test + score) THEN the adversarial vision committee (committee-grade.mjs + ≥3 vision reviewers + `--aggregate`), on the LIVE deployed page. The committee's confirmed-defect list IS the build punch-list. PASS only if overall ≥75 and every reviewer PASS.
+   - **`knowledge/MACHINE_AUDIT.md`** — the cloner's skill/process gap map + the fix-the-machine plan (P0 grader→P1 grade-live-only→P2 build-correctness→P3 loop). Read before working on the cloner.
+   - **`knowledge/PRECISION_CLONE_METHOD.md`** — the validated 1:1 method (exact-reality capture, real-font loading, precision native-widget positioning, live-Elementor gotchas, the pixel-diff convergence loop, hybrid widgets-vs-image decision). **This is the canonical fidelity method — read it FIRST.** Validated on Stripe to 7.1% live pixel-diff.
    - `knowledge/CLONE_AUTHORING_PLAYBOOK.md` — the 5-phase authoring procedure + must-follow rules
    - `knowledge/ELEMENTOR_V3_WIDGET_REFERENCE.md` — full V3 settings catalogue (1895 lines)
    - `knowledge/V4_ATOMIC_NORMALIZATIONS.md` — V4 site quirks
    - **`knowledge/MOTION_PLAYBOOK.md`** — synthesis of 6 motion research streams; the navigator. **READ THIS BEFORE PHASE 1** if the source site has any motion/animation/effects (most do).
-   - **`skills/joist-clone/LESSONS.md`** — accumulated session lessons (the "tenet within" — the learning corpus seed)
+   - **`skills/lessons/LESSONS_CLONE.md`** + **`skills/lessons/LESSONS_MECHANICAL.md`** — accumulated session lessons (the "tenet within" — the learning corpus seed). The `## ⚙️ Auto-learned gaps` block in LESSONS_CLONE is written automatically by the DefectAnalyzer (`eval/grader/analyze.mjs`) from the brutal grader — read it FIRST; it's the current prioritized fidelity backlog.
 
    If these are missing, the agent has insufficient context to author. Stop and tell the user.
+
+## Precision mode (the 1:1 path) — use for high-fidelity clones
+
+When the goal is pixel-fidelity (not just a recognizable page), drive the **precision method** in `knowledge/PRECISION_CLONE_METHOD.md`. Summary, in order:
+
+1. **Decide per section (hybrid):** text/structural sections (hero, headings, copy, nav, CTAs) → precision native widgets (editable); graphic-dense bands (bento, mockups, dashboards, gradient illustrations, footer) → capture the section as one image (pixel-perfect, swappable). ≥2 images or a full-bleed visual ⇒ image.
+2. **Capture exact reality in ONE pass:** reference screenshot + per-element `x/y/w/h` + full typography + the source's real `@font-face` woff2 URLs (from network responses, not cross-origin cssRules). Detect `background-clip:text` — its computed `color` is a meaningless gradient fallback; reproduce the gradient, don't apply the color.
+3. **Precision build:** native widgets positioned via one injected `<style>` (`#scope{position:relative;overflow:hidden}` + `.cls{position:absolute;left;top;width}` per widget). Container positioning context MUST use `_element_id` (Elementor drops `_css_classes` on containers). Zero `#scope .elementor-widget-container{padding:0!important;margin:0!important}` or text sits low. Load the real font via `@font-face`. Don't clamp negative-y for bleed images.
+4. **Pixel-diff convergence:** screenshot the live build, `pixelmatch` vs source per section; the diff image points at the off element; fix; redeploy; repeat until residual is irreducible noise (~5%: sub-pixel AA, live tickers, font drift).
+5. **Write discipline:** pace writes (3s gaps, 429 backoff); iterate on the local write-free preview+diff, deploy only converged versions; deploy to a fresh page (root `insert` STACKS on reuse). Toolkit: `eval/grader/{capture-tree,precise-hero,build-precise,preview,refine,grade}.mjs`.
+
+The 6-phase loop below is the general recognizable-clone path; precision mode is the 1:1 overlay on top of it.
 
 ## The 6-phase loop
 
@@ -112,12 +127,13 @@ With Elementor Pro: ~88%. With JS library embeds: ~92%.
 Proceed?
 ```
 
-**Phase 1d — Motion delivery: pick Path A or B (GSAP escape-hatch).** For 2D scroll motion that V3 widget settings can't author (scroll reveals, parallax, pinning, split-text), Joist has a free-GSAP escape-hatch. Choose delivery per the hybrid model (see `knowledge/GSAP_ESCAPE_HATCH_SPEC.md`):
+**Phase 1d — Motion delivery: per-effect, no-CDN (GSAP escape-hatch).** For 2D scroll motion that V3 widget settings can't author (reveals, counters, sticky/pin, parallax, split-text, horizontal-scroll, magnetic, smooth-scroll), Joist has a free-GSAP escape-hatch. Full design: `knowledge/GSAP_ESCAPE_HATCH_SPEC.md` §11. Always author the effect as a namespaced class on the widget's `_css_classes`: `joist-reveal[--fade-up|--slide-left|--scale-in|…]`, `joist-count`, `joist-pin`, `joist-parallax`, `joist-split`, `joist-hscroll`, `joist-magnetic`, `joist-smooth`. Then choose delivery **per effect**:
 
-1. Call `joist_get_site_info`; read `capabilities.motion`.
-2. **`capabilities.motion.scroll_reveal === true` → Path A:** author the effect by adding `joist-reveal joist-reveal--<effect>` to the target widget's `_css_classes` (effects: `fade-in`/`fade-up`/`fade-down`/`slide-left`/`slide-right`/`scale-in`). The installed plugin enqueues GSAP+ScrollTrigger and animates them — inject nothing else.
-3. **`capabilities.motion` absent/null (older build) → Path B:** author the same classes AND inject the content-fallback runtime once per page as an `html` widget (source: `assets/widget-pack/motion/joist-motion-fallback.html`). Knowingly accepts caching-plugin (delay-JS) fragility.
-4. Either path uses the **same `joist-reveal` classes**, so a Path-B page silently upgrades to Path A once the site's plugin gains the runtime. Per-element tuning: `data-reveal-duration` / `data-reveal-delay` / `data-reveal-start`. Scope is the `joist-` class namespace. NOT for 3D/WebGL (hard wall) or effects free CSS already covers.
+1. Call `joist_get_site_info`; read `capabilities.motion` (flags + `vendor_base_url` + `libs`).
+2. **If the effect's flag is `true` (e.g. `capabilities.motion.parallax`) → Path A:** author the class only. The installed plugin auto-enqueues the runtime + libs from WP and animates it. **Inject nothing** — injecting would double-load.
+3. **If the flag is missing/false (installed build predates that slice) → Path B, no-CDN:** author the class AND inject a small `html` widget once per page that (a) loads the needed libs **from `capabilities.motion.vendor_base_url`** (the plugin's own URLs — `<script src="{vendor_base_url}gsap.min.js">`, ScrollTrigger, SplitText; Lenis for smooth) — **never a CDN**, and (b) inlines only the tiny glue harness (the per-effect bind from `joist-motion.js`). This runs **entirely within WordPress** (no external dependency), verified live (page `joist-motion-within-wp-no-cdn-demo`). If `vendor_base_url` is absent (very old build with no capability flag at all), discover the plugin dir from an enqueued `…/plugins/<dir>/…/motion/` script; only as a last resort load libs from a CDN.
+4. **Lenis caveat:** `smooth_scroll` needs `lenis.min.js` present in `vendor/`. If the installed build lacks it (404), skip smooth or note it — don't CDN it silently.
+5. Same classes drive both paths, so a Path-B page silently upgrades to Path A when the plugin gains that slice. Per-element tuning via data-attrs (`data-reveal-duration/-delay/-start`, `data-parallax-speed`, `data-split-type`, `data-magnetic-strength`). Scope = the `joist-` class namespace. NOT for 3D/WebGL (hard wall) or effects free CSS already covers (`CUSTOM_CSS_INJECTION_FOR_ELEMENTOR.md`).
 
 ### Phase 2 — Author initial plan (v1)
 
@@ -270,7 +286,7 @@ Future plugin version will expose `joist_log_iteration` to capture (anonymized, 
 
 ## Known lessons (the "tenet within" seed)
 
-Always read `~/.claude/skills/joist-clone/LESSONS.md` first. It's the accumulated record of generation-time gotchas + their fixes. Update it after each session with any new lesson learned.
+Always read `skills/lessons/LESSONS_CLONE.md` + `skills/lessons/LESSONS_MECHANICAL.md` first (the `## ⚙️ Auto-learned gaps` block is auto-updated by the DefectAnalyzer each grade). It's the accumulated record of generation-time gotchas + their fixes. Update it after each session with any new lesson learned.
 
 Examples of what lives there:
 - "On V3 sites: `_flex_basis` doesn't compile to CSS reliably. Use `width: {unit:%, size:N}` on inner flex children instead."

@@ -1,0 +1,42 @@
+{
+  "overall_pct": 0,
+  "dims": {
+    "motion": 0,
+    "scroll": 0.634,
+    "hover": 0
+  },
+  "hard_fails": [
+    "motion-missing"
+  ],
+  "defects": [
+    "source has motion (timelapse Δ0.3687, 3 CSS-anim, 3 looping, 3 live) but clone is static (Δ0.0000, 0 anim)"
+  ],
+  "source_motion": {
+    "anims": 3,
+    "declared": 3,
+    "infinite": 3
+  },
+  "source_motionMag": 0.3687,
+  "clone_motion": {
+    "anims": 0,
+    "declared": 0,
+    "infinite": 0
+  },
+  "clone_motionMag": 0,
+  "srcHoverReacts": 1,
+  "clnHoverReacts": 0,
+  "srcMoves": true,
+  "clnMoves": false,
+  "montages": {
+    "scroll": [
+      "dynamic-validate/out-motion-dead/scroll-0.png",
+      "dynamic-validate/out-motion-dead/scroll-1.png",
+      "dynamic-validate/out-motion-dead/scroll-2.png",
+      "dynamic-validate/out-motion-dead/scroll-3.png"
+    ],
+    "hover": [
+      "dynamic-validate/out-motion-dead/hover-0.png"
+    ]
+  },
+  "note": "DYNAMIC layer — feed scroll-*.png to the committee for element-by-element motion/scroll review"
+}

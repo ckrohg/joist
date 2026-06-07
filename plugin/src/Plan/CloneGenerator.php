@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Joist\Plan;
 
+use Joist\Container;
 use Joist\Elementor\WriteException;
 
 /**
@@ -152,6 +153,40 @@ final class CloneGenerator
             $html = substr($html, 0, $max) . "\n<!-- truncated -->";
         }
         return $html;
+    }
+
+    /**
+     * Render the current site's active PreferenceMemory rules as a markdown
+     * block for prompt injection, wrapped so the model treats them as
+     * binding corrections from past clones (the self-improve loop).
+     *
+     * Returns '' when there are no rules or the container isn't wired (unit
+     * tests / no-WP contexts) — callers append unconditionally and a leading
+     * "\n\n" + empty string is harmless.
+     *
+     * This is the consumption side of the fidelity flywheel: the grader POSTs
+     * defect-derived Rules (missing_assets, page_truncation, static_scrape_miss,
+     * typography_default_bold, motion_not_reproduced …) into PreferenceMemory;
+     * CloneGenerator surfaces them here so the NEXT clone obeys them.
+     */
+    private function preferenceBlock(): string
+    {
+        try {
+            $mem = Container::get('preferenceMemory');
+        } catch (\Throwable $e) {
+            return '';
+        }
+        if (!is_object($mem) || !method_exists($mem, 'renderForPrompt')) {
+            return '';
+        }
+        $rules = (string) $mem->renderForPrompt();
+        if (trim($rules) === '') {
+            return '';
+        }
+        return "\n\n----\nLEARNED CORRECTIONS FROM PAST CLONES ON THIS SITE — these are BINDING. "
+            . "They were derived from measured defects in earlier clones; obey every one. "
+            . "If a rule and a default in this prompt conflict, the rule wins.\n\n"
+            . $rules;
     }
 
     /** Source for the API key — env first, wp_option second. */
@@ -312,7 +347,70 @@ final class CloneGenerator
                 ['response_head' => mb_substr((string) $text, 0, 300)]
             );
         }
+        $this->assertNoForbiddenImageHosts($plan['steps'], $codePrefix);
         return $plan['steps'];
+    }
+
+    /**
+     * No-placeholder / no-hallucinated-URL guard.
+     *
+     * Walks every element subtree in the generated steps and rejects the plan
+     * if any image widget points at a real photo-stock or source-CDN host. The
+     * model is prompt-forbidden from inventing these, but a guard turns a silent
+     * hallucination (hotlink-blocked image, fabricated CDN path) into a loud,
+     * actionable error that the fidelity loop can act on instead of shipping a
+     * broken clone. `placehold.co` and `data:` URIs are allowed (honest
+     * placeholders / captured assets).
+     *
+     * @param array<int, mixed> $steps
+     */
+    private function assertNoForbiddenImageHosts(array $steps, string $codePrefix): void
+    {
+        $forbidden = [
+            'unsplash.com', 'images.unsplash.com', 'pexels.com', 'images.pexels.com',
+            'pixabay.com', 'cdn.pixabay.com', 'istockphoto.com', 'shutterstock.com',
+            'gettyimages.com', 'freepik.com', 'lorempixel.com', 'picsum.photos',
+            'placeimg.com', 'placekitten.com', 'loremflickr.com',
+        ];
+        $offenders = [];
+
+        $visit = function ($node) use (&$visit, $forbidden, &$offenders): void {
+            if (!is_array($node)) {
+                return;
+            }
+            if (($node['elType'] ?? '') === 'widget' && ($node['widgetType'] ?? '') === 'image') {
+                $url = (string) ($node['settings']['image']['url'] ?? '');
+                if ($url !== '' && stripos($url, 'data:') !== 0) {
+                    $host = strtolower((string) (parse_url($url, PHP_URL_HOST) ?: ''));
+                    foreach ($forbidden as $bad) {
+                        if ($host === $bad || str_ends_with($host, '.' . $bad) || str_contains($host, $bad)) {
+                            $offenders[] = $url;
+                            break;
+                        }
+                    }
+                }
+            }
+            foreach (($node['elements'] ?? []) as $child) {
+                $visit($child);
+            }
+        };
+
+        foreach ($steps as $step) {
+            if (is_array($step) && isset($step['element'])) {
+                $visit($step['element']);
+            }
+        }
+
+        if ($offenders !== []) {
+            throw new WriteException(
+                "{$codePrefix}.hallucinated_image_url",
+                'Clone generator produced image URLs pointing at forbidden stock/CDN hosts. '
+                . 'Real source assets must be captured + hosted, or an honest placehold.co box used — '
+                . 'never a fabricated stock/CDN URL.',
+                502,
+                ['offending_urls' => array_slice(array_values(array_unique($offenders)), 0, 10)]
+            );
+        }
     }
 
     /**
@@ -362,6 +460,13 @@ final class CloneGenerator
      */
     private function buildSystemPromptForHtml(): string
     {
+        return $this->buildHtmlPromptBody() . $this->preferenceBlock();
+    }
+
+    /** Static body of the HTML-mode system prompt (kept separate so the
+     *  PreferenceMemory block appends cleanly without disturbing the heredoc). */
+    private function buildHtmlPromptBody(): string
+    {
         return <<<PROMPT
 You are Joist's URL-clone generator. You turn a sanitised HTML extract of a webpage into a structured Elementor Plan — a JSON object the rest of Joist's pipeline executes through schema-validated, audited, hash-checked saves.
 
@@ -386,7 +491,8 @@ OP SHAPE — URL-clone mode emits only `insert` ops appending top-level containe
 ELEMENT SHAPE — V3-compatible only:
 - Containers: `{ "elType": "container", "settings": {...}, "elements": [...] }`
 - Widgets:   `{ "elType": "widget", "widgetType": "<slug>", "settings": {...} }`
-- Allowed widget slugs (only these): heading, text-editor, button, image, icon, divider, spacer, video, html, social-icons, icon-list, star-rating
+- Allowed widget slugs (only these): heading, text-editor, button, image, icon, divider, spacer, video, html, social-icons, icon-list, star-rating, shortcode
+- Forms (contact/signup/newsletter): do NOT rebuild input fields — Elementor's native Form widget is Pro and raw inputs are not authorable. Emit a shortcode widget bound to a real Fluent Forms form: widgetType "shortcode", single setting key also "shortcode", set to the literal string [fluentform id="1"] (keep id="1" when the real form ID is unknown — the section is wired to the live form afterward). Pair it with a heading + short intro. Do NOT fake inputs with text-editor HTML.
 - Heading settings: title, header_size (h1..h6), align (left|center|right)
 - Text-editor settings: editor (HTML string)
 - Button settings: text, align, link ({url, is_external})
@@ -397,7 +503,11 @@ IMAGE POLICY — never reuse the source page's image URLs (they often hotlink-bl
 - For every image widget, set `settings.image` to:
   `{ "url": "https://placehold.co/{w}x{h}/0E0E0C/F3F2EC?text=<short+label>", "alt": "<accurate alt describing the image's role>" }`
 - Valid sizes: 1600x900 (hero/banner), 1200x600 (wide), 800x600 (standard), 600x400 (card), 400x400 (square thumbnail). Pick the size that matches the apparent role.
-- NEVER use unsplash.com, pexels.com, pixabay.com, or any real photo URL — and NEVER use the source site's CDN URLs either.
+- NEVER use unsplash.com, pexels.com, pixabay.com, picsum.photos, istockphoto/shutterstock/getty, or any real photo URL — and NEVER use the source site's CDN URLs either. Plans containing such URLs are REJECTED by a server-side guard.
+
+NO-HALLUCINATION GUARD (critical — past clones failed here):
+- NEVER fabricate a labeled UI/product placeholder that asserts something the source doesn't literally show — e.g. do NOT invent a "Stripe Dashboard", "Analytics Panel", or "App Screenshot" box. If the source has a product screenshot you cannot reproduce, use a neutral placehold.co box whose `text=` label describes the GENERIC role ("product screenshot", "dashboard image"), never a fabricated brand/product name.
+- The placehold.co `text=` value is a generic role label, NOT invented marketing/product chrome. When in doubt, OMIT the image widget rather than invent one.
 
 CLONE GUIDELINES
 - Walk the HTML top to bottom. One major section per top-level container.
@@ -423,6 +533,13 @@ PROMPT;
      */
     private function buildSystemPrompt(): string
     {
+        return $this->buildImagePromptBody() . $this->preferenceBlock();
+    }
+
+    /** Static body of the screenshot-mode system prompt (kept separate so the
+     *  PreferenceMemory block appends cleanly without disturbing the heredoc). */
+    private function buildImagePromptBody(): string
+    {
         return <<<PROMPT
 You are Joist's screenshot-clone generator. You turn 1-3 screenshots of a web page into a structured Elementor Plan — a JSON object the rest of Joist's pipeline executes through schema-validated, audited, hash-checked saves.
 
@@ -447,7 +564,8 @@ OP SHAPE — clone mode produces only `insert` ops appending top-level container
 ELEMENT SHAPE — use V3-compatible Elementor structures only:
 - Root nodes are containers: `{ "elType": "container", "settings": {...}, "elements": [...] }`
 - Inside containers, nest widgets: `{ "elType": "widget", "widgetType": "<slug>", "settings": {...} }`
-- Allowed widget slugs (and only these): heading, text-editor, button, image, icon, divider, spacer, video, html, social-icons, icon-list, star-rating
+- Allowed widget slugs (and only these): heading, text-editor, button, image, icon, divider, spacer, video, html, social-icons, icon-list, star-rating, shortcode
+- Forms (contact/signup/newsletter): do NOT rebuild input fields — Elementor's native Form widget is Pro and raw inputs are not authorable. Emit a shortcode widget bound to a real Fluent Forms form: widgetType "shortcode", single setting key also "shortcode", set to the literal string [fluentform id="1"] (keep id="1" when the real form ID is unknown — the section is wired to the live form afterward). Pair it with a heading + short intro. Do NOT fake inputs with text-editor HTML.
 - Heading settings: `title` (string), `header_size` (h1|h2|h3|h4|h5|h6), `align` (left|center|right)
 - Text-editor settings: `editor` (HTML string)
 - Button settings: `text` (string), `align`, `link` ({ url, is_external })
@@ -459,7 +577,11 @@ IMAGE POLICY — never invent real-looking URLs:
 - For every image widget, set `settings.image` to:
   `{ "url": "https://placehold.co/{w}x{h}/0E0E0C/F3F2EC?text=<short+label>", "alt": "<accurate alt describing what was in the screenshot>" }`
 - Valid sizes: 1600x900 (hero/banner), 1200x600 (wide), 800x600 (standard), 600x400 (card), 400x400 (square thumbnail). Pick the size that matches the screenshot's aspect ratio.
-- NEVER use unsplash.com, pexels.com, pixabay.com, or any real photo URL.
+- NEVER use unsplash.com, pexels.com, pixabay.com, picsum.photos, istockphoto/shutterstock/getty, or any real photo URL. Plans containing such URLs are REJECTED by a server-side guard.
+
+NO-HALLUCINATION GUARD (critical — past clones failed here):
+- NEVER fabricate a labeled UI/product placeholder that asserts something the screenshot doesn't literally show — e.g. do NOT invent a "Stripe Dashboard", "Analytics Panel", or "App Screenshot" box where the screenshot just shows a generic image region. The placehold.co `text=` label must describe the GENERIC role ("product screenshot", "hero image"), never an invented brand/product name.
+- When the screenshot region is illegible or you are guessing what it contains, OMIT the image widget rather than invent one.
 
 DESIGN AESTHETIC — Joist's Foundry brand language (apply when the screenshot doesn't pin specific copy):
 - Editorial-engineering: confident wordmark-grade typography, generous whitespace, warm dark surfaces (although we don't set background colors at the element level)
