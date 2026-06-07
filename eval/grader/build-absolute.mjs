@@ -20,7 +20,7 @@ const stripEmoji = (s) => String(s || '').replace(/[\u{1F000}-\u{1FAFF}\u{1F300}
 // Pass through fonts that have an exact GOOGLE equivalent (Elementor loads Google fonts natively, no
 // registration) → exact rendering for free. Only truly-proprietary fonts fall back to Inter/Georgia.
 const GOOGLE = [[/ibm.?plex.?mono|plex.?mono/, 'IBM Plex Mono'], [/source.?code/, 'Source Code Pro'], [/jetbrains/, 'JetBrains Mono'], [/space.?mono/, 'Space Mono'], [/fira.?code/, 'Fira Code'], [/inter/, 'Inter'], [/poppins/, 'Poppins'], [/montserrat/, 'Montserrat'], [/open.?sans/, 'Open Sans'], [/^lato|[^a-z]lato/, 'Lato'], [/nunito.?sans/, 'Nunito Sans'], [/nunito/, 'Nunito'], [/work.?sans/, 'Work Sans'], [/dm.?sans/, 'DM Sans'], [/space.?grotesk/, 'Space Grotesk'], [/manrope/, 'Manrope'], [/raleway/, 'Raleway'], [/rubik/, 'Rubik'], [/mulish|muli/, 'Mulish'], [/playfair/, 'Playfair Display'], [/merriweather/, 'Merriweather'], [/roboto.?slab/, 'Roboto Slab'], [/roboto.?mono/, 'Roboto Mono'], [/roboto/, 'Roboto']];
-const gFont = (fam) => { const b = (fam || '').toLowerCase(); if (!b) return null; for (const [re, name] of GOOGLE) if (re.test(b)) return name; if (/tiempos|times|georgia|garamond|serif/.test(b)) return 'Georgia'; if (/mono|code|courier|consol/.test(b)) return 'Roboto Mono'; return 'Inter'; };
+const gFont = (fam) => { const b = (fam || '').toLowerCase(); if (!b) return null; for (const [re, name] of GOOGLE) if (re.test(b)) return name; if (/tiempos|times|georgia|garamond|playfair|merriweather|serif/.test(b) && !/sans/.test(b)) return 'Georgia'; if (/mono|code|courier|consol/.test(b)) return 'Roboto Mono'; return 'Inter'; };
 // registered real fonts (family → [{url,weight,style}]) from font-register.mjs; injected via custom_css
 let REGFONTS = {}; try { REGFONTS = JSON.parse(fs.readFileSync('/tmp/joist-fonts.json', 'utf8')); } catch {}
 const usedFonts = new Set();
@@ -88,19 +88,61 @@ const NO_VREFLOW = process.env.ABS_NO_VREFLOW === '1';
 const NO_VREFLOW2 = process.env.ABS_NO_VREFLOW2 === '1';
 const imgCapCss = [];   // per-image scoped <=1024 max-height caps keyed to #img-N (joined into custom_css)
 let IMGCAP_SEQ = 0;     // monotonic id seed for capped content image widgets (img-0, img-1, …)
-// Tag an abs content-image widget with a stable _element_id and register its <=1024 height cap. `box.h` is the
-// desktop band height the image occupies; capping the <img> max-height to it (object-fit:contain) prevents the
-// width:100% mobile reflow from ballooning the image past its desktop band. Returns settings to spread onto the
-// widget. No-op (returns {}) when v2 is disabled → recipe #23 behavior (no _element_id, no cap rule).
-function imgCapSettings(box) {
-  if (NO_VREFLOW2) return {};
+// ── PER-BREAKPOINT CORRELATION ID (default OFF; ABS_PERBP=1 → on) ─────────────────────────────────────────────
+// ABS_PERBP=1 stamps each leaf widget with a DETERMINISTIC _element_id `pb<x>-<y>-<w>-<h>` keyed to its
+// page-absolute desktop box (== the reconciled model's box[1440]) so a post-processor can author per-leaf
+// <=1024 @media position overrides against it. An _element_id is an inert wrapper attribute → it changes NO
+// desktop geometry/color/layout; OFF (default) = byte-identical build. ON → the pb-id becomes the canonical
+// leaf id and the img-cap/fluid-font scoped rules re-key to it (same <=1024 behavior, unique id).
+const PERBP = process.env.ABS_PERBP === '1';
+const pbId = (n) => (PERBP && n && n.box) ? `pb${Math.round(n.box.x)}-${Math.round(n.box.y)}-${Math.round(n.box.w)}-${Math.round(n.box.h)}` : null;
+// ── MEDIA LEAF HEIGHT-LOCK (img/mockup/svg desktop band pin — default ON; ABS_NO_IMGHLOCK=1 → off) ───────────
+// WHY (resend hRatio 1.093 / ~1142px vertical overflow): a native Elementor `image` widget renders an <img>
+// whose CSS height is AUTO → it paints at its INTRINSIC aspect ratio for the given width. When the SOURCE
+// displayed that media at a NON-intrinsic aspect (object-fit:cover, explicit CSS height, a wide screenshot shown
+// in a short band), the clone's <img> at width=box.w renders TALLER than box.h → it inflates the section height
+// (the old #img-N <=1024 cap only fired on MOBILE; desktop was unguarded — the diagnosed leak). FIX: at ALL
+// widths PIN the leaf's <img>/<svg> to EXACTLY its captured band: height:<box.h>px (kills the aspect-ratio
+// stretch), width:100% + max-width:<box.w>px (stays responsive, NEVER a bare fixed-px width → no h-scroll —
+// the abs wrapper is pinned to box.w so max-width==box.w==the desktop render), object-fit by leaf kind
+// (cover=fill+crop for UI/mockup/screenshot-like surfaces, contain=no-crop for standalone photos/logos),
+// display:block. Scoped to #img-N (the widget's _element_id) + !important so it beats recipe #23's height:auto.
+const NO_IMGHLOCK = process.env.ABS_NO_IMGHLOCK === '1';
+const imgHlockCss = [];   // per-media-leaf DESKTOP (all-width) height-pin rules keyed to #img-N (joined into custom_css)
+// object-fit for a media leaf: cover (fill+crop) for mockup/UI-screenshot surfaces, contain (no-crop) for a
+// standalone photo/logo. An `image` leaf whose SOURCE objectFit was 'cover' is itself a fill-crop element → cover;
+// everything else (default photos, logos, svg glyphs) is contain so nothing meaningful is cropped.
+function mediaObjectFit(n) {
+  if (!n) return 'contain';
+  if (n.kind === 'mockup') return 'cover';                       // dashboards / screenshots / composite surfaces
+  if (n.kind === 'image' && /cover/.test(String(n.objectFit || ''))) return 'cover';
+  return 'contain';                                              // svg glyphs, logos, standalone photos
+}
+// Tag an abs content-image widget with a stable _element_id and register (a) its <=1024 height cap AND (b) a
+// DESKTOP (all-width) height-pin to the captured band. `box.h` is the desktop band height the image occupies;
+// capping the <img> max-height to it (object-fit:contain) prevents the width:100% mobile reflow from ballooning
+// the image past its desktop band, while the desktop pin kills the intrinsic-aspect stretch that inflated section
+// height. Returns settings to spread onto the widget. No-op (returns {}) when v2 is disabled → recipe #23
+// behavior (no _element_id, no cap rule).
+function imgCapSettings(box, n) {
+  const pb = pbId(n);
+  if (NO_VREFLOW2 && NO_IMGHLOCK) return pb ? { _element_id: pb } : {};
   const cap = Math.round(box.h);
-  if (cap < 2) return {};
-  const eid = `img-${IMGCAP_SEQ++}`;
-  // cap the rendered <img>/<svg> glyph height; !important beats recipe #23's height:auto on the same element.
-  // object-fit:contain keeps the aspect ratio (no crop/stretch); the max-height clamp bites ONLY when the
-  // width:100% mobile reflow would render the image TALLER than its desktop band (the balloon case).
-  imgCapCss.push(`@media(max-width:1024px){#${eid} img,#${eid} svg{max-height:${cap}px!important;object-fit:contain!important;height:auto!important}}`);
+  const w = Math.round(box.w);
+  if (cap < 2) return pb ? { _element_id: pb } : {};
+  const eid = pb || `img-${IMGCAP_SEQ++}`;   // PERBP → re-key the scoped cap/hlock css to the deterministic pb-id
+  if (!NO_VREFLOW2) {
+    // cap the rendered <img>/<svg> glyph height; !important beats recipe #23's height:auto on the same element.
+    // object-fit:contain keeps the aspect ratio (no crop/stretch); the max-height clamp bites ONLY when the
+    // width:100% mobile reflow would render the image TALLER than its desktop band (the balloon case).
+    imgCapCss.push(`@media(max-width:1024px){#${eid} img,#${eid} svg{max-height:${cap}px!important;object-fit:contain!important;height:auto!important}}`);
+  }
+  if (!NO_IMGHLOCK && w >= 3) {
+    // DESKTOP height-lock: pin the leaf <img>/<svg> to its EXACT captured box → no intrinsic-aspect stretch.
+    // width:100% + max-width:<box.w>px keeps it responsive with NO horizontal overflow (never a bare fixed px).
+    const fit = mediaObjectFit(n);
+    imgHlockCss.push(`#${eid} img,#${eid} svg{height:${cap}px!important;width:100%!important;max-width:${w}px!important;object-fit:${fit}!important;display:block!important}`);
+  }
   return { _element_id: eid };
 }
 // --raster-bands "y0-y1,y0-y1": grader-directed per-section RASTER fallback (Phase-1 refine-loop). Sections
@@ -150,10 +192,11 @@ let FLUIDFONT_SEQ = 0;            // monotonic id seed for fluid-font widgets (f
 // Returns extra settings ({ _element_id } when fluid fires) to spread onto a text widget, and pushes the scoped
 // clamp rule into fluidFontCss. Returns {} (and pushes nothing) when disabled or the captured size is too small.
 function fluidFontSettings(n) {
-  if (NO_FLUIDFONT) return {};
+  const pb = pbId(n);
+  if (NO_FLUIDFONT) return pb ? { _element_id: pb } : {};
   const t = n.typo || {};
   const MAX = Math.round(t.size || 0);
-  if (!MAX || MAX < FLUID_MIN_SIZE) return {};        // small/no-size text → stay fixed px (custom_css stays bounded)
+  if (!MAX || MAX < FLUID_MIN_SIZE) return pb ? { _element_id: pb } : {};   // small text → fixed px, but PERBP still stamps pb-id
   const MIN = Math.max(16, Math.round(MAX * 0.62));    // readable floor; never below the larger of 16px or proportion
   // unitless line-height ratio: prefer captured px / MAX; else a captured unitless ratio; else a sensible default.
   const lhPx = px(t.lineHeight);
@@ -162,7 +205,7 @@ function fluidFontSettings(n) {
   else if (t.lineHeight && /^\d+(\.\d+)?$/.test(String(t.lineHeight))) LH = +(+t.lineHeight).toFixed(3);
   else LH = MAX >= 32 ? 1.15 : 1.4;                    // display/headings tighter; mid-size text looser (typical)
   const P = +(MAX / FLUID_REF_VW * 100).toFixed(4);    // preferred VW value → P vw == MAX px at width 1440 (desktop-identical)
-  const eid = `ff-${FLUIDFONT_SEQ++}`;
+  const eid = pb || `ff-${FLUIDFONT_SEQ++}`;            // PERBP → re-key the clamp rule to the deterministic pb-id
   // selector targets the widget wrapper AND every descendant so the glyph element (hN / inner div / a / li / pre)
   // inherits the clamp regardless of which tag actually paints — !important beats theme + the typography setting.
   fluidFontCss.push(`#${eid},#${eid} *{font-size:clamp(${MIN}px,${P}vw,${MAX}px)!important;line-height:${LH}!important}`);
@@ -207,14 +250,16 @@ const widgets = []; let z = 1; let oz = 80000;
 function leafWidget(n, target, origin) {
   const sink = target || widgets;
   const box = n.box; if (!box || box.w < 3 || box.h < 2) return;
+  // ABS_PERBP pb-id for kinds whose settings DON'T flow through imgCapSettings/fluidFontSettings (code/video/tabs).
+  const PB = pbId(n) ? { _element_id: pbId(n) } : {};
   // OVERLAY (widened mockup text-rescue): rescued native text leaves sit ON TOP of the mockup raster so the
   // image keeps the visual but the words are real/selectable. Z-bump them into a high band (80000+, above all
   // normal widgets incl. the mockup raster; below the 90000+ raster-band fallback) so they always paint over
   // the image regardless of flatten order.
   const P = absPos(box, n.overlay ? oz++ : z++, origin);
-  if (n.kind === 'image') { const id = localId(n.src); const img = id ? { url: localSrc(n.src), id } : { url: localSrc(n.src) }; sink.push({ elType: 'widget', widgetType: 'image', settings: { image: img, image_size: 'full', width: { unit: 'px', size: Math.round(box.w) }, ...imgCapSettings(box), ...P } }); return; }
-  if ((n.kind === 'svg' || n.kind === 'mockup') && n.raster && n.raster !== 'SKIP') { sink.push({ elType: 'widget', widgetType: 'image', settings: { image: { url: localSrc(n.raster) }, image_size: 'full', width: { unit: 'px', size: Math.round(box.w) }, ...imgCapSettings(box), ...P } }); return; }
-  if (n.kind === 'code') { const fs2 = (n.typo && n.typo.size) || 14; const cc = colorCss(n); sink.push({ elType: 'widget', widgetType: 'html', settings: { html: `<pre style="white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace;font-size:${fs2}px;margin:0${cc ? ';' + cc : ''}">${esc(n.text || '')}</pre>`, ...P } }); return; }
+  if (n.kind === 'image') { const id = localId(n.src); const img = id ? { url: localSrc(n.src), id } : { url: localSrc(n.src) }; sink.push({ elType: 'widget', widgetType: 'image', settings: { image: img, image_size: 'full', width: { unit: 'px', size: Math.round(box.w) }, ...imgCapSettings(box, n), ...P } }); return; }
+  if ((n.kind === 'svg' || n.kind === 'mockup') && n.raster && n.raster !== 'SKIP') { sink.push({ elType: 'widget', widgetType: 'image', settings: { image: { url: localSrc(n.raster) }, image_size: 'full', width: { unit: 'px', size: Math.round(box.w) }, ...imgCapSettings(box, n), ...P } }); return; }
+  if (n.kind === 'code') { const fs2 = (n.typo && n.typo.size) || 14; const cc = colorCss(n); sink.push({ elType: 'widget', widgetType: 'html', settings: { html: `<pre style="white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace;font-size:${fs2}px;margin:0${cc ? ';' + cc : ''}">${esc(n.text || '')}</pre>`, ...PB, ...P } }); return; }
   // VIDEO: emit an ALWAYS-PRESENT <iframe>/<video> inside an `html` widget for ALL providers — NOT the
   // native Elementor `video` widget. The native widget LAZY-LOADS on the live frontend (placeholder image +
   // play button; the real <iframe> only injects after a click), so the grader (captures WITHOUT clicking)
@@ -242,7 +287,7 @@ function leafWidget(n, target, origin) {
     if (embedSrc) inner = `<iframe src="${esc(embedSrc)}" width="${w}" height="${h}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen style="width:100%;height:100%;border:0"></iframe>`;
     else if (hostedSrc) inner = `<video src="${esc(hostedSrc)}" width="${w}" height="${h}" controls playsinline style="width:100%;height:100%;object-fit:cover"></video>`;
     else inner = `<video width="${w}" height="${h}" controls playsinline style="width:100%;height:100%;object-fit:cover"></video>`; // no URL (blob/unresolved) → bare <video> still satisfies the gate
-    sink.push({ elType: 'widget', widgetType: 'html', settings: { html: `<div style="width:${w}px;height:${h}px;max-width:100%">${inner}</div>`, ...P } });
+    sink.push({ elType: 'widget', widgetType: 'html', settings: { html: `<div style="width:${w}px;height:${h}px;max-width:100%">${inner}</div>`, ...PB, ...P } });
     return;
   }
   // LIST (ul/ol): emit a NATIVE list via a text-editor widget whose HTML is a real <ul>/<ol><li>…. Matrix
@@ -273,7 +318,7 @@ function leafWidget(n, target, origin) {
       const tabBtns = its.map((it, i) => `<div role="tab" aria-selected="${i === 0 ? 'true' : 'false'}" style="display:inline-block;padding:6px 14px;margin:0 4px 0 0;cursor:pointer;white-space:nowrap${cc ? ';' + cc : ''}">${esc(it.title)}</div>`).join('');
       const panels = its.map((it) => it.content ? `<div role="tabpanel" style="padding:8px 0${cc ? ';' + cc : ''}">${esc(it.content)}</div>` : '').filter(Boolean).join('');
       const tabsHtml = `<div role="tablist" style="display:flex;flex-wrap:wrap;align-items:center;min-height:32px;${wmax(w)}">${tabBtns}</div>${panels}`;
-      sink.push({ elType: 'widget', widgetType: 'html', settings: { html: tabsHtml, ...P } });
+      sink.push({ elType: 'widget', widgetType: 'html', settings: { html: tabsHtml, ...PB, ...P } });
     }
     return;
   }
@@ -1396,7 +1441,16 @@ function emitLandmarks(root, headerThreshold) {
   // reflowed column at narrow widths → release it via the responsive min_height_mobile/tablet controls (these
   // ARE responsive Elementor controls, unlike _position) so the root collapses to its content height <=1024.
   // Desktop (>=1025) keeps the base min_height=pageH unchanged.
-  const root = { elType: 'container', settings: { content_width: 'full', flex_direction: 'column', min_height: { unit: 'px', size: Math.round(pageH) }, min_height_tablet: { unit: 'px', size: 0 }, min_height_mobile: { unit: 'px', size: 0 }, padding: { unit: 'px', top: '0', right: '0', bottom: '0', left: '0', isLinked: true }, _padding: { unit: 'px', top: '0', right: '0', bottom: '0', left: '0', isLinked: true }, ...rootBgFloor }, elements: [...bgRects, ...widgets] };
+  // PER-BP root min-height: the per-bp overrides RE-PIN matched leaves to absolute mobile/tablet coords, which
+  // removes them from flow → the root would collapse to ~0 (min_height_mobile:0) and the grader's probe (which
+  // only sees nodes within docH+200) would CLIP most leaves. Pin the root to the CAPTURED mobile/tablet pageH
+  // (ABS_PERBP_H390/H768) so the document is the right height and every re-pinned absolute leaf is in-view.
+  // Desktop (>1024) keeps base min_height=pageH (responsive controls only apply <=1024 in Elementor).
+  const H390 = process.env.ABS_PERBP_H390 ? Math.round(+process.env.ABS_PERBP_H390) : 0;
+  const H768 = process.env.ABS_PERBP_H768 ? Math.round(+process.env.ABS_PERBP_H768) : 0;
+  const rootMinTablet = (PERBP && H768) ? { unit: 'px', size: H768 } : { unit: 'px', size: 0 };
+  const rootMinMobile = (PERBP && H390) ? { unit: 'px', size: H390 } : { unit: 'px', size: 0 };
+  const root = { elType: 'container', settings: { content_width: 'full', flex_direction: 'column', min_height: { unit: 'px', size: Math.round(pageH) }, min_height_tablet: rootMinTablet, min_height_mobile: rootMinMobile, padding: { unit: 'px', top: '0', right: '0', bottom: '0', left: '0', isLinked: true }, _padding: { unit: 'px', top: '0', right: '0', bottom: '0', left: '0', isLinked: true }, ...rootBgFloor }, elements: [...bgRects, ...widgets] };
 
   const headers = { Authorization: 'Basic ' + b64, 'Content-Type': 'application/json', 'X-Joist-Session-Id': 'absolute-' + Date.now() };
   // wp/v2 menu + meta writes use Basic auth WITHOUT the Joist session id (core WP REST routes).
@@ -1501,10 +1555,68 @@ function emitLandmarks(root, headerThreshold) {
   // out-of-flow guard for the page-absolute bg-rect layers. Both are @media(max-width:1024px) + #id-scoped
   // !important → desktop (>1024) byte-identical (the queries never apply at the grader's 1440 render).
   const imgCapScopedCss = imgCapCss.join('\n');
+  // MEDIA LEAF HEIGHT-LOCK (#img-N, ALL widths): pin each media <img>/<svg> to its captured band height so a
+  // native <img>'s intrinsic-aspect height can't inflate the section (the resend hRatio 1.093 / ~1142px overflow);
+  // width:100% + max-width:<box.w>px keeps it responsive with no h-scroll. Desktop @1440 is identical: the abs
+  // wrapper is pinned to box.w so max-width==box.w==the rendered width; the explicit height==captured band height.
+  const imgHlockScopedCss = imgHlockCss.join('\n');
   const bgrScopedCss = bgrCss.join('\n');
-  const customCss = [fontCss, responsiveCss, chromeFixCss, cardRowScopedCss, fluidFontScopedCss, imgCapScopedCss, bgrScopedCss, navFallbackCss].filter(Boolean).join('\n');
+  // ── PER-BREAKPOINT OVERRIDES (ABS_PERBP=1 + ABS_PERBP_MODEL=<reconciled model.json>; default OFF) ───────────
+  // Re-pin each correlated leaf to its CAPTURED mobile/tablet box (id-scoped + !important inside a <=1024 @media
+  // → wins over the un-pin via id-specificity, desktop >1024 byte-identical). Hide leaves ABSENT from source
+  // mobile DOM; set native per-breakpoint font-size where the captured size shrinks. Emitted AFTER responsiveCss.
+  let perBpCss = '';
+  if (PERBP && process.env.ABS_PERBP_MODEL) {
+    try {
+      const M = JSON.parse(fs.readFileSync(process.env.ABS_PERBP_MODEL, 'utf8')).model;
+      const Rr = (n) => Math.round(n);
+      const dif = (a, b) => a && b && (Math.abs(a.x - b.x) > 2 || Math.abs(a.y - b.y) > 2 || Math.abs(a.w - b.w) > 2);
+      const repin = (bx) => `position:absolute!important;left:${Rr(bx.x)}px!important;top:${Rr(bx.y)}px!important;width:${Rr(bx.w)}px!important;right:auto!important;bottom:auto!important;margin:0!important;max-width:none!important;height:auto!important;min-height:0!important`;
+      const fsz = (l, w) => { const t = l.typo && l.typo[w]; return t && t.size ? Rr(t.size) : null; };
+      const liveIds = new Set();
+      const scan = (arr) => arr.forEach((nd) => { if (nd && nd.settings && nd.settings._element_id) liveIds.add(nd.settings._element_id); if (nd && nd.elements) scan(nd.elements); });
+      scan(widgets); scan(bgRects);
+      const mob = [], tab = []; let rp390 = 0, rp768 = 0, hid = 0, fn390 = 0, fn768 = 0;
+      for (const l of M) {
+        const b1440 = l.box && l.box['1440']; if (!b1440) continue;
+        const id = `pb${Rr(b1440.x)}-${Rr(b1440.y)}-${Rr(b1440.w)}-${Rr(b1440.h)}`;
+        if (!liveIds.has(id)) continue;
+        const b768 = l.box['768'], b390 = l.box['390'];
+        const s390 = l.status && l.status['390'], s768 = l.status && l.status['768'];
+        // ABS_PERBP_NOHIDE=1 → diagnostic: keep absent leaves visible (no display:none) to isolate whether the
+        // ABSENCE classification (over-hiding real reflowed content) is what's hurting the responsive grade.
+        const NOHIDE = process.env.ABS_PERBP_NOHIDE === '1';
+        if (s390 === 'absent') { if (!NOHIDE) { mob.push(`#${id}{display:none!important}`); hid++; } }
+        else if (s390 === 'matched' && b390 && dif(b1440, b390)) {
+          mob.push(`#${id}{${repin(b390)}}`); rp390++;
+          const a = fsz(l, '390'), d = fsz(l, '1440'); if (a && a !== d) { mob.push(`#${id},#${id} *{font-size:${a}px!important}`); fn390++; }
+        }
+        if (s390 !== 'absent') {
+          if (s768 === 'matched' && b768 && dif(b1440, b768)) {
+            tab.push(`#${id}{${repin(b768)}}`); rp768++;
+            const a = fsz(l, '768'), d = fsz(l, '1440'); if (a && a !== d) { tab.push(`#${id},#${id} *{font-size:${a}px!important}`); fn768++; }
+          } else if (s768 === 'absent' && !NOHIDE) { tab.push(`#${id}{display:none!important}`); }
+        }
+      }
+      // ROOT HEIGHT FLOOR: the re-pinned leaves are position:absolute → OUT of flow → the root would collapse to
+      // ~0 (responsiveCss rule (c) zeroes its min-height) and the grader probe (nodes within docH+200) would CLIP
+      // every leaf below the fold. Restore a min-height = captured mobile/tablet pageH so the document is the right
+      // height. Matches responsiveCss's `body .elementor>.e-con.e-parent` selector + !important, emitted AFTER it →
+      // wins the cascade. ABS_PERBP_H390/H768 are the captured source mobile/tablet pageH.
+      const fH390 = process.env.ABS_PERBP_H390 ? Rr(+process.env.ABS_PERBP_H390) : 0;
+      const fH768 = process.env.ABS_PERBP_H768 ? Rr(+process.env.ABS_PERBP_H768) : 0;
+      if (fH768) tab.push(`body .elementor>.e-con.e-parent{min-height:${fH768}px!important}`);
+      if (fH390) mob.push(`body .elementor>.e-con.e-parent{min-height:${fH390}px!important}`);
+      const tabB = tab.length ? `@media(min-width:768px) and (max-width:1024px){${tab.join('')}}` : '';
+      const mobB = mob.length ? `@media(max-width:767px){${mob.join('')}}` : '';
+      perBpCss = [tabB, mobB].filter(Boolean).join('\n');
+      console.log(`PER-BP overrides: reposition390=${rp390} reposition768=${rp768} hidden390=${hid} font390=${fn390} font768=${fn768} rootFloor390=${fH390} rootFloor768=${fH768} | css ${perBpCss.length}B (liveIds ${liveIds.size})`);
+    } catch (e) { console.log('PER-BP override build FAILED:', String(e).slice(0, 160)); }
+  }
+  const customCss = [fontCss, responsiveCss, chromeFixCss, cardRowScopedCss, fluidFontScopedCss, imgCapScopedCss, imgHlockScopedCss, bgrScopedCss, navFallbackCss, perBpCss].filter(Boolean).join('\n');
   if (cardRowScopedCss) console.log(`injecting ${cardRowCss.length} card-row scoped <=1024 un-pin rule(s) via custom_css`);
   console.log(`vreflow2 residual-compaction: ${NO_VREFLOW2 ? 'OFF (ABS_NO_VREFLOW2=1 → recipe #23 only, no image-cap/bg-rect-out-of-flow)' : `ON — ${imgCapCss.length} content-image #img-N max-height cap(s) + ${bgrCss.length} bg-rect #bgr-N out-of-flow rule(s) @<=1024`}`);
+  console.log(`media leaf height-lock: ${NO_IMGHLOCK ? 'OFF (ABS_NO_IMGHLOCK=1 → native <img> intrinsic-aspect height, may inflate section)' : `ON — ${imgHlockCss.length} media leaf #img-N desktop height-pin(s) (captured band height, no aspect-stretch)`}`);
   console.log(`fluid fonts: ${NO_FLUIDFONT ? 'OFF (ABS_NO_FLUIDFONT=1 → fixed px)' : `ON — ${fluidFontCss.length} text widget(s) got clamp() fluid font-size (>=${FLUID_MIN_SIZE}px captured)`}`);
   const pageSettings = customCss ? { custom_css: customCss } : {};
   if (fontCss) console.log(`injecting ${usedFonts.size} real font(s) via custom_css: ${[...usedFonts].join(', ')}`);
