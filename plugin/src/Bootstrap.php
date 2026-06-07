@@ -164,6 +164,11 @@ final class Bootstrap
             if ($menu === '') {
                 return '';
             }
+            // Surface a missing/renamed/migrated menu as a debuggable comment rather than a silently
+            // empty nav (code-review fix) — wp_nav_menu's fallback would otherwise render nothing.
+            if (!wp_get_nav_menu_object($menu)) {
+                return '<!-- joist_nav_menu: menu "' . esc_attr($menu) . '" not found on this site -->';
+            }
             $html = wp_nav_menu([
                 'menu' => $menu,                              // accepts slug, name, or term id
                 'container' => '',

@@ -98,9 +98,12 @@ final class SchemaValidator
         // SILENTLY drops the member on render. The per-key loop above proves the
         // member key EXISTS; this proves its enable-flag is set. These are the
         // exact silent-failure traps the claude-elementor-kit learned the hard way.
+        // Code-review fix: enable-flag violations are WARNINGS, not hard errors. The dependent key is
+        // silently dropped at render (pre-existing behavior — no worse than before this check existed),
+        // so we SURFACE it (joist_validate_widget + validateTree warnings) rather than reject the whole
+        // tree/plan over one omitted toggle — a common LLM omission that previously landed fine.
         [$flagErrors, $flagWarnings] = $this->checkEnableFlags($settings, $validKeys);
-        $errors = array_merge($errors, $flagErrors);
-        $warnings = array_merge($warnings, $flagWarnings);
+        $warnings = array_merge($warnings, $flagErrors, $flagWarnings);
 
         // Constraint #24 — UPDATED 2026-05-13 after research verification:
         // The earlier "responsive_incomplete" warning was based on a wrong
@@ -205,6 +208,23 @@ final class SchemaValidator
                     'code' => 'schema.overlay_opacity_range',
                     'message' => "background_overlay_opacity is a 0..1 value (unit 'px' is an Elementor schema quirk); size > 1 will be clamped or ignored.",
                 ];
+            }
+        }
+
+        // Wrong-mode (code-review fix): the background requireToggle above only catches a MISSING type,
+        // not a WRONG one. classic-only members (background_color / background_image*) under a
+        // gradient/video background are silently dropped at render — warn so it's not a silent loss.
+        $bgType = $settings['background_background'] ?? '';
+        if (($bgType === 'gradient' || $bgType === 'video') && $backgroundMain !== []) {
+            foreach ($backgroundMain as $mk) {
+                if (($mk === 'background_color' || str_starts_with($mk, 'background_image')) && $meaningful($settings[$mk] ?? null)) {
+                    $warnings[] = [
+                        'path' => "settings.{$mk}",
+                        'code' => 'schema.background_mode_mismatch',
+                        'message' => "'{$mk}' is a 'classic' background key but background_background is '{$bgType}' — it is ignored at render.",
+                    ];
+                    break;
+                }
             }
         }
 
