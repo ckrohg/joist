@@ -166,6 +166,96 @@ function colorScore(srcCol, cloneCol) {
   return Math.max(0, Math.min(1, 1 - dE / 10));
 }
 
+// ============================ FADE-IN CAPTURE-ARTIFACT RECOVERY (COLOR) ============================
+// @purpose Stop the per-element COLOR sub-score from FALSE-DEFLATING on scroll-reveal elements the capture read
+// MID-TRANSITION. supabase (and any AOS/IntersectionObserver fade-in site) animates feature-card labels from
+// opacity/color 0 → settled on scroll-into-view. capture-layout sets reducedMotion:'reduce', but the clone is a
+// rebuilt WP/Elementor page whose reveal is JS-driven (NOT a prefers-reduced-motion-aware CSS rule), so the
+// step-scroll can sample an element WHILE its color transition is still running. The captured clone color is then
+// the FADE-IN COMPOSITE of the element's true settled color over the page background:
+//     captured ≈ t·settled + (1−t)·pageBg ,  t ∈ [0,1)   (t=opacity-ish; t→1 = settled, t→0 = invisible)
+// PROVEN on supabase clone (page 2986): "Authentication" captured rgb(223,223,223) [BOTH cs.color AND glyphRGB],
+// live getComputedStyle returns the SETTLED rgb(23,23,23) — which MATCHES the source rgb(23,23,23). 13 feature
+// labels show the same signature (clone = a lighter achromatic interpolation of the dark source toward white bg).
+//
+// THE RECOVERY (asymmetric, clone-side only, anchored to the SOURCE's settled color — NOT a free pass):
+//   credit the pair as a match IFF the captured CLONE color lies ON the segment from the SOURCE's settled color to
+//   THIS page's background, strictly BETWEEN them (a fade-IN), i.e. there is a single t with
+//       clone ≈ t·source + (1−t)·pageBg ,  FADE_T_LO ≤ t ≤ FADE_T_HI  (t<1: not yet settled; t>FLOOR: not invisible)
+//   AND the off-segment residual is small (clone is genuinely COLLINEAR with source→bg, not merely lighter).
+// This is a CAPTURE-ARTIFACT correction, not an inflation:
+//   • the recovery TARGET is the SOURCE color → a clone whose TRUE settled color differs from source is NOT on the
+//     source→bg segment, so it is NOT recovered (anti-gaming: shift clone colors by a delta → off-segment → no credit).
+//   • DIRECTIONAL: t∈[0,1) means clone is strictly between source and bg (faded toward bg). t≥1 (clone darker than /
+//     past source) or t≤0 (clone past bg) → NOT a fade-in → no credit. (kills "trusted by…" src[112]→clone[23], t=1.6.)
+//   • COLLINEAR: a different-HUE clone (e.g. green span lost: src[63,207,142]→clone[23,23,23]) is far off the
+//     source→bg line (large residual) → no credit. Only an on-axis fade is recovered.
+//   • IDENTITY: source-vs-source → clone==source → colorScore already returns 1.0 (dE≤2) before recovery is consulted
+//     → no-op on the self-test. REVERSIBLE: GRADER_NO_FADERECOVER=1 → exact prior colorScore behavior.
+const USE_FADE_RECOVER = process.env.GRADER_NO_FADERECOVER !== '1';
+// COLOR-CHANNEL DE-CONFLATION (default ON; =1 → exact prior color behavior). The COLOR sub-score answers "of the
+// content matched on BOTH sides, how faithful are the colors?" — a question SEPARATE from "how COMPLETE is the
+// page" (already measured by areaCoverage + the composite's structuralFidelity term). The prior code conflated the
+// two: (1) it folded one-sided-color pairs (a structural/coverage miss) into the color mean as hard-0s, and (2) it
+// MULTIPLIED the color mean by areaCoverage — double-counting completeness INSIDE the color channel. On supabase
+// that crushed a ~0.81 true text-color fidelity to 0.26 (the diagnosed false-deflation). De-conflation = drop
+// one-sided pairs from the color mean (handled at the pair loop) AND report color = raw color fidelity (no second
+// areaCoverage multiply). typography/position/text/effects are UNTOUCHED (still × areaCoverage). Self-test is a
+// no-op (colorRaw=1, coverage=1 → 1 either way). Anti-gaming: a wrong-color clone keeps a LOW colorRaw → low color.
+const USE_COLOR_DECONFLATE = process.env.GRADER_NO_COLOR_DECONFLATE !== '1';
+// TYPOGRAPHY-CHANNEL DE-CONFLATION (default ON; GRADER_NO_TYPO_DECONFLATE=1 → exact prior × areaCoverage). The TYPO
+// sub-score answers "of the TEXT matched on BOTH sides, how faithful is the typography (family/size/weight/line-
+// height)?" — SEPARATE from "how COMPLETE is the page" (already measured by areaCoverage + the composite's
+// structuralFidelity term). The prior code MULTIPLIED the typo mean by areaCoverage, the IDENTICAL double-count COLOR
+// had before its fix: a genuine 0.84–0.92 typoRaw was crushed to 0.13–0.28 on framer (areaCoverage 0.12–0.34 because
+// framer is a tall image/section-heavy page the builder only partly reproduces). De-conflation = report typo = raw
+// typo fidelity of matched pairs (no second areaCoverage multiply). Self-test is a no-op (typoRaw=1, coverage=1 → 1
+// either way). Anti-gaming: a wrong-FONT clone keeps a LOW typoRaw (family/size/weight mismatch) → low typo regardless
+// of coverage — de-conflation removes a completeness penalty, it does NOT add credit a mismatched font hasn't earned.
+const USE_TYPO_DECONFLATE = process.env.GRADER_NO_TYPO_DECONFLATE !== '1';
+// POSITION / TEXT / EFFECTS DE-CONFLATION (default ON; GRADER_NO_{POS,TEXT,EFFECTS}_DECONFLATE=1 → exact prior
+// × areaCoverage). IDENTICAL double-count + IDENTICAL fix that already freed COLOR and TYPOGRAPHY: position/text/
+// effects each answer "of the content matched on BOTH sides, how faithful is the placement / text-content / motion-
+// effect?" — SEPARATE from "how COMPLETE is the page" (already measured by areaCoverage as its own reported dim AND,
+// in the composite, by the structuralFidelity block-type-credit term). The prior code MULTIPLIED each mean by
+// areaCoverage, halving a 0.98 posRaw / 0.99 textRaw / 0.75 effRaw to ~0.46/0.46/0.35 on resend (coverage 0.466)
+// purely because the page is partly reproduced — the same false-deflation color/typo had. De-conflation = report the
+// RAW matched-pair fidelity (no second areaCoverage multiply). Self-test no-op (raw=1, coverage=1 → 1 either way).
+// Anti-gaming: wrong-position / wrong-text / wrong-effects clones keep LOW posRaw/textRaw/effRaw → low sub-score
+// regardless of coverage. coverage stays its OWN reported dim (areaCoverage below) — completeness is NOT lost.
+const USE_POS_DECONFLATE = process.env.GRADER_NO_POS_DECONFLATE !== '1';
+const USE_TEXT_DECONFLATE = process.env.GRADER_NO_TEXT_DECONFLATE !== '1';
+const USE_EFFECTS_DECONFLATE = process.env.GRADER_NO_EFFECTS_DECONFLATE !== '1';
+const FADE_T_LO = 0.04;     // clone must be >4% toward settled (not fully invisible / pure-bg)
+const FADE_T_HI = 0.985;    // and < ~settled (a real fade-in, not the settled color itself — that path = colorScore 1.0)
+const FADE_RESID_MAX = 10;  // max per-channel deviation (0..255) from the predicted on-segment point → "collinear"
+// is the captured CLONE color the fade-in composite of the SOURCE settled color over pageBg? returns the recovered
+// per-pair score (1 when a clean fade-in match, else null = "not a fade artifact, score normally").
+function fadeRecoverScore(srcCol, cloneCol, pageBg) {
+  if (!USE_FADE_RECOVER || !pageBg) return null;
+  const src = parseColor(srcCol), clone = parseColor(cloneCol);
+  if (!src || !clone) return null;
+  // solve t per-channel where the source↔bg axis has enough spread to be meaningful, then average.
+  const ts = [];
+  for (let k = 0; k < 3; k++) { const den = src[k] - pageBg[k]; if (Math.abs(den) >= 8) ts.push((clone[k] - pageBg[k]) / den); }
+  if (!ts.length) return null;                                   // source ≈ pageBg on every channel → no fade axis
+  const t = ts.reduce((s, x) => s + x, 0) / ts.length;
+  if (t < FADE_T_LO || t > FADE_T_HI) return null;               // not strictly between bg and settled-source → not a fade-in
+  // residual: distance from the predicted on-segment point (clone must be COLLINEAR with source→bg, not off-hue).
+  let resid = 0;
+  for (let k = 0; k < 3; k++) { const pred = t * src[k] + (1 - t) * pageBg[k]; resid = Math.max(resid, Math.abs(pred - clone[k])); }
+  if (resid > FADE_RESID_MAX) return null;                       // off the source→bg line → genuine mismatch, no credit
+  return 1;                                                      // clean fade-in composite of the SOURCE color → recovered match
+}
+// COLOR sub-score with fade-in capture-artifact recovery: normal colorScore, but if it scored a MISS (< full credit)
+// AND the clone color is a clean fade-in composite of the SOURCE color over pageBg, credit the recovered match.
+function colorScoreFadeAware(srcCol, cloneCol, pageBg) {
+  const base = colorScore(srcCol, cloneCol);
+  if (base == null || base >= 1) return base;                    // null (no signal) or already a full match → as-is
+  const rec = fadeRecoverScore(srcCol, cloneCol, pageBg);
+  return rec != null ? Math.max(base, rec) : base;
+}
+
 // ============================ TEXT: Sorensen-Dice on bigrams ============================
 const normText = (s) => (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
 function dice(a, b) {
@@ -408,7 +498,13 @@ function flatten(root) {
     out.push(makeNode(n, text, typo, null, textColor));
   };
   visit(root, pageBg);
-  return out.filter((x) => x.box && x.box.w > 0 && x.box.h > 0);
+  const nodes = out.filter((x) => x.box && x.box.w > 0 && x.box.h > 0);
+  // Expose the page-default background (outermost effective bg) so the COLOR sub-score can recover a clone text
+  // color captured MID-FADE (scroll-reveal opacity/color transition) — such a reading is the fade-in COMPOSITE of
+  // the element's settled color over THIS page background. parsed once here, attached non-enumerably so the
+  // returned value stays a plain node array everywhere else (telemetry/JSON unaffected).
+  Object.defineProperty(nodes, 'pageBg', { value: parseColor(pageBg), enumerable: false });
+  return nodes;
 }
 // background color preference: explicit sampled > computed background.color > bg field
 function bgColorOf(n) {
@@ -439,6 +535,12 @@ function makeNode(n, text, typo, bgColor, textColor) {
     radius: n.radius != null ? n.radius : null,
     boxShadow: n.boxShadow != null ? n.boxShadow : null,
     backdropFilter: n.backdropFilter != null ? n.backdropFilter : null,
+    // colorGlyph SHADOW METRIC inputs (REPORT-ONLY) — carry through the ADDITIVE rendered-glyph color sample
+    // (paint.glyphRGB) and the paint kind so colorGlyphReport can fall back to the rendered foreground color when
+    // the CSS-parse color (`color` above) is unresolvable (gradient-text/null/oklch/lab/var). These two fields
+    // feed ONLY the report-only colorGlyph metric; they NEVER enter colorScore/typoScore/the matcher cost.
+    glyphRGB: (n.paint && Array.isArray(n.paint.glyphRGB) && n.paint.glyphRGB.length === 3) ? [n.paint.glyphRGB[0], n.paint.glyphRGB[1], n.paint.glyphRGB[2]] : null,
+    paintKind: (n.paint && n.paint.kind) ? n.paint.kind : null,
   };
 }
 
@@ -539,6 +641,9 @@ function mergeRun(run) {
     color: base.color,
     isText: !!(text && text.trim()),
     radius: base.radius, boxShadow: base.boxShadow, backdropFilter: base.backdropFilter,
+    // colorGlyph inputs (report-only): a merged run shares typography/color → its rendered glyph color is the
+    // run anchor's (the merge gate already required dE<=2 same-color across the run). paintKind likewise shared.
+    glyphRGB: base.glyphRGB, paintKind: base.paintKind,
   };
 }
 // SYMMETRIC merge: applied IDENTICALLY to the source and the clone leaf arrays with the SAME thresholds.
@@ -565,6 +670,277 @@ function blockMerge(nodes) {
   }
   flush();
   return { nodes: out, merged };
+}
+
+// ============================ GDA GROUP-COUNT STRUCTURAL SHADOW METRIC (REPORT-ONLY) ============================
+// @purpose Measure the #1 open wall (structural floor ~0.477) HONESTLY. The existing area-coverage denominator
+// MASKS under-capture: a clone that reproduces only 2 of a source 6-card grid still scores OK because the 2 big
+// cards cover similar AREA (areaCoverage is area-weighted, so a few large reproduced members dominate while the
+// missing small grid members barely move it). GDA ("Grouped-Density Agreement") exposes this by scoring whether
+// the clone reproduced the right COUNT of each REPEATED element-type — independent of area.
+//
+// SHADOW / REPORT-ONLY: this is a NEW field on the report (report.gdaGroupCount + per-group detail). It is NEVER
+// folded into composite/visual/structural/editability — EXACTLY like grade-motion. grade-sections.mjs reads only
+// {color,typography,position,text,effects,areaCoverage} from this module's JSON, so adding this field is inert
+// upstream (the composite stays byte-identical). It runs on the SAME merged source/clone leaf node sets the
+// matcher already computes → it is a PURE function of those sets (deterministic: same capture → same GDA).
+//
+// SIGNATURE (the clustering key) = (kind, typoBucket, sizeBucket):
+//   • kind        — the element kind (text/heading/button/image/svg/container/…). Different kinds never group.
+//   • typoBucket  — for TEXT leaves: `${fontSizeBucket}|${weightBucket}` where fontSizeBucket snaps the font-size
+//                   to coarse bins (8/10/12/14/16/18/20/24/28/32/40/48/56/64/72/96/128) and weightBucket reuses
+//                   the existing thin/normal/medium/semibold/bold buckets. For NON-text leaves: 'na'.
+//   • sizeBucket  — the element's APPROX rendered size, snapped to a log2 bin so boxes within ~±15% (one bin is a
+//                   √2≈41% span, half-bin ≈ ±20%; we use a finer 4-steps-per-octave grid so a bin ≈ ±9%, i.e. two
+//                   boxes within ~±15% almost always share a bin). We bin BOTH width and height so a 6-up card row
+//                   (same card dims) clusters but a wide hero banner does not join the cards.
+// A RACE-GROUP = a signature shared by >=2 SOURCE leaves (a repeated element-type — grid cards, nav links, a list
+// of features, etc). SINGLETON source signatures are EXCLUDED (they are not "repeated" — a hero headline appearing
+// once carries no count signal; counting it would just re-measure presence, which area-coverage already does).
+//
+// PER-GROUP SCORE = ramp(cloneCount / srcCount), clamp01 — PARTIAL CREDIT, not hard-binary. cloneCount = # of CLONE
+// leaves whose signature matches the group's signature. So 2-of-6 reproduced → 0.333 (not 0); 6-of-6 → 1.0;
+// 9-of-6 (clone over-produced) → clamped to 1.0 (over-capture is not rewarded beyond parity, but is not penalized
+// here — over-capture is a separate failure the area-coverage denominator already catches via unmatchedCloneArea).
+//
+// AGGREGATE gdaGroupCount = srcCount-WEIGHTED mean over race-groups (a 6-card grid counts more than a 2-item pair).
+//   DOCUMENTED CHOICE: srcCount-weighted (not equal-weighted) so the metric tracks the TOTAL volume of repeated
+//   structure reproduced, which is what the structural wall is about. Equal-weighting is available as telemetry
+//   (gdaGroupCountEqual) for cross-check. If there are NO race-groups (no repeated structure on the source), GDA
+//   is reported as null (the metric has no opinion — it only speaks about repeated element-types).
+//
+// IDENTITY: source-vs-source (selftest) → clone leaf set == source leaf set → every group's cloneCount==srcCount
+// → every per-group score 1.0 → gdaGroupCount == 1.0 (the self-test rail for this metric).
+const GDA_MIN_GROUP = 2;                                   // a race-group needs >= this many source leaves (repeated)
+// coarse font-size bins (px) — text leaves snap to the nearest bin so 63px and 64px headings group.
+const GDA_FONT_BINS = [8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 56, 64, 72, 96, 128, 192, 256];
+function gdaFontBucket(px) {
+  if (px == null || !(px > 0)) return 'na';
+  let best = GDA_FONT_BINS[0], bd = Infinity;
+  for (const b of GDA_FONT_BINS) { const d = Math.abs(b - px); if (d < bd) { bd = d; best = b; } }
+  return String(best);
+}
+// log2 size bin at 4 steps/octave → a bin spans √[4]{2}≈1.19× (≈ ±9% around its center) so boxes within ~±15%
+// share a bin in the common case. A dimension <1px snaps to bin 0 (degenerate); we bin both w and h.
+function gdaSizeBin(px) {
+  if (px == null || !(px >= 1)) return 0;
+  return Math.round(Math.log2(px) * 4);
+}
+// SIGNATURE of a leaf node = `${kind}#${typoBucket}#${wBin}x${hBin}`. Pure function of the node's own fields.
+function gdaSignature(n) {
+  const kind = n.kind || 'node';
+  let typoBucket = 'na';
+  if (n.isText && n.typo) typoBucket = gdaFontBucket(typoSizePx(n.typo)) + '|' + weightBucket(n.typo.weight);
+  const wBin = gdaSizeBin(n.box && n.box.w), hBin = gdaSizeBin(n.box && n.box.h);
+  return `${kind}#${typoBucket}#${wBin}x${hBin}`;
+}
+// Build the GDA report from the SAME merged source/clone leaf sets the matcher uses. PURE → deterministic.
+// Returns { gdaGroupCount, gdaGroupCountEqual, groups:[{sig,srcCount,cloneCount,score}], groupsN } or nulls if
+// the source has no repeated structure (no race-group). NEVER touches composite/visual/structural/editability.
+function gdaGroupCountReport(srcNodes, cloneNodes) {
+  const clamp01 = (x) => Math.max(0, Math.min(1, x));
+  // 1) cluster SOURCE leaves by signature; a race-group = signature with >= GDA_MIN_GROUP members.
+  const srcSig = new Map();
+  for (const n of srcNodes) { const s = gdaSignature(n); srcSig.set(s, (srcSig.get(s) || 0) + 1); }
+  // 2) count CLONE leaves per signature (only the signatures that ARE race-groups need a count).
+  const cloneSig = new Map();
+  for (const n of cloneNodes) { const s = gdaSignature(n); cloneSig.set(s, (cloneSig.get(s) || 0) + 1); }
+  const groups = [];
+  for (const [sig, srcCount] of srcSig) {
+    if (srcCount < GDA_MIN_GROUP) continue;                 // singleton signature → not a repeated element-type
+    const cloneCount = cloneSig.get(sig) || 0;
+    const score = clamp01(cloneCount / srcCount);            // ramp w/ partial credit; over-capture clamps to 1
+    groups.push({ sig, srcCount, cloneCount, score: Math.round(score * 10000) / 10000 });
+  }
+  if (!groups.length) return { gdaGroupCount: null, gdaGroupCountEqual: null, groups: [], groupsN: 0 };
+  // 3) aggregate — srcCount-WEIGHTED mean (documented) + equal-weighted telemetry cross-check.
+  let wsum = 0, vsum = 0, esum = 0;
+  for (const g of groups) { wsum += g.srcCount; vsum += g.srcCount * g.score; esum += g.score; }
+  const r4 = (x) => Math.round(x * 10000) / 10000;
+  // sort groups by srcCount desc so the report leads with the biggest repeated structures.
+  groups.sort((a, b) => b.srcCount - a.srcCount || (a.sig < b.sig ? -1 : 1));
+  return {
+    gdaGroupCount: r4(wsum ? vsum / wsum : 1),
+    gdaGroupCountEqual: r4(esum / groups.length),
+    groups,
+    groupsN: groups.length,
+  };
+}
+
+// ============================ RDA 3x3-QUADRANT POSITION-SHADOW METRIC (REPORT-ONLY) ============================
+// @purpose Catch GROSS mis-placement that the SMOOTH position sub-score FORGIVES. Position is the #1 human-
+// correlated fidelity dimension, but the existing smooth metric (≈ 1 - clamp(max(|dcx|,|dcy|))) hands out
+// ~0.4-0.6 PARTIAL CREDIT even when a clone element lands in a COMPLETELY different region (source top-left,
+// clone bottom-right). A human calls that mis-placed. RDA ("Region-Discretized Agreement") makes that gross
+// failure LEGIBLE by binning each element CENTER into a 3x3 grid cell and HARD-ZEROing any matched pair whose
+// clone center is in a different quadrant than its source — with a narrow DEAD-BAND so a near-boundary nudge
+// (and sub-pixel recapture jitter on the identity self-test) is forgiven.
+//
+// SHADOW / REPORT-ONLY: this is a NEW field on the report (report.rdaQuadrant + per-pair detail). It is NEVER
+// folded into composite/visual/position/structural/editability — EXACTLY like grade-motion and the GDA metric.
+// grade-sections.mjs reads only {color,typography,position,text,effects,areaCoverage} from this module's JSON,
+// so adding this field is inert upstream (the composite stays BYTE-IDENTICAL). It runs on the SAME matched
+// source/clone pair set + centers the scorer already computed → it is a PURE function of those pairs + the
+// viewport/page dims (deterministic: same capture → same RDA).
+//
+// QUADRANT MAPPING: a node center (cx, cy) → cell (col, row) where
+//     col = clamp(floor(3 * cx / W), 0, 2)   with W = the captured viewport width (refW)
+//     row = clamp(floor(3 * cy / H), 0, 2)   with H = THAT element's OWN page height (source center ÷ srcH,
+//                                            clone center ÷ cloneH) — so "top region" matches "top region"
+//                                            regardless of total page length / uniform stretch.
+// PER-PAIR SCORE: 1.0 if clone cell == source cell, else 0.0 — BUT a DEAD-BAND rescues a near-boundary miss.
+// DEAD-BAND: if the clone center is in an adjacent cell but its center sits within DEADBAND_FRAC of the
+//   crossed source-cell boundary INTO the adjacent cell (|offset past the source-cell boundary| <= 0.05*W
+//   horizontally AND <= 0.05*H vertically), the miss is treated as same-quadrant → 1.0. This is what keeps
+//   the identity self-test at EXACTLY 1.0 (clone center == source center ⇒ same cell ⇒ 1.0, and even with
+//   sub-pixel recapture jitter the dead-band absorbs the boundary straddle) while STILL hard-zeroing a clone
+//   that lands a full quadrant away (offset past boundary far exceeds the band).
+// AGGREGATE rdaQuadrant = mean over matched pairs (each pair weighted equally — a gross mis-placement of any
+//   one matched element is a full miss for that element). null if there are no matched pairs.
+//
+// IDENTITY: source-vs-source (selftest) → every pair's clone center == its source center → same cell → 1.0
+// → rdaQuadrant == 1.0 (the self-test rail for this metric; the dead-band guarantees it under recapture jitter).
+const RDA_COLS = 3, RDA_ROWS = 3;
+const RDA_DEADBAND_FRAC = 0.05;   // a cross-cell miss within 5% of W (horiz) AND 5% of H (vert) past the
+                                  // source-cell boundary is treated as same-quadrant (near-boundary nudge).
+const rdaClampCell = (v, n) => Math.max(0, Math.min(n - 1, Math.floor(v)));
+// cell index along one axis: floor(n * coord / dim), clamped to [0, n-1]. dim<=0 → degenerate → cell 0.
+function rdaCell(coord, dim, n) {
+  if (!(dim > 0)) return 0;
+  return rdaClampCell((n * coord) / dim, n);
+}
+// signed distance (px) of `coord` PAST the [lo,hi] band of the source cell along one axis, INTO the clone's
+// side. 0 if coord is within the source band. Used by the dead-band test. (lo = cellIdx*dim/n, hi = (cellIdx+1)*dim/n.)
+function rdaOffsetPastBoundary(coord, srcCellIdx, dim, n) {
+  if (!(dim > 0)) return 0;
+  const lo = (srcCellIdx * dim) / n, hi = ((srcCellIdx + 1) * dim) / n;
+  if (coord < lo) return lo - coord;        // clone center fell below the source cell band
+  if (coord > hi) return coord - hi;        // clone center fell above the source cell band
+  return 0;                                  // within the source cell band along this axis
+}
+// Build the RDA report from the SAME matched pairs the scorer uses + the viewport width W and per-side page
+// heights. PURE → deterministic. Returns { rdaQuadrant, pairs:[{srcCell,cloneCell,same,score}], pairsN } or
+// nulls when there are no matched pairs. NEVER touches composite/visual/position/structural/editability.
+function rdaQuadrantReport(pairs, W, srcH, cloneH) {
+  const r4 = (x) => Math.round(x * 10000) / 10000;
+  if (!pairs.length) return { rdaQuadrant: null, pairs: [], pairsN: 0 };
+  const detail = [];
+  let sum = 0;
+  for (const { a, b } of pairs) {
+    // source center → its cell against the SOURCE page height; clone center → its cell against the CLONE page height.
+    const sCol = rdaCell(a.cx, W, RDA_COLS), sRow = rdaCell(a.cy, srcH, RDA_ROWS);
+    const cCol = rdaCell(b.cx, W, RDA_COLS), cRow = rdaCell(b.cy, cloneH, RDA_ROWS);
+    const same = sCol === cCol && sRow === cRow;
+    let score;
+    if (same) {
+      score = 1;                              // clone center in the SAME quadrant as source → full credit
+    } else {
+      // DEAD-BAND: a near-boundary nudge into an adjacent cell. The clone center must be within
+      // DEADBAND_FRAC*W of the source COLUMN band (horizontally) AND within DEADBAND_FRAC*cloneH... — but
+      // the boundary is shared, so we measure the clone center's offset PAST the SOURCE cell band on each
+      // axis (the axes the clone actually crossed). If BOTH crossed-axis offsets are within the band, the
+      // miss is a sub-cell straddle → treat as same-quadrant (1.0); else a genuine region miss → 0.0.
+      const offX = rdaOffsetPastBoundary(b.cx, sCol, W, RDA_COLS);
+      const offY = rdaOffsetPastBoundary(b.cy, sRow, cloneH, RDA_ROWS);
+      const nearBand = offX <= RDA_DEADBAND_FRAC * W && offY <= RDA_DEADBAND_FRAC * cloneH;
+      score = nearBand ? 1 : 0;
+    }
+    sum += score;
+    detail.push({ srcCell: `${sCol},${sRow}`, cloneCell: `${cCol},${cRow}`, same, score });
+  }
+  return { rdaQuadrant: r4(sum / pairs.length), pairs: detail, pairsN: pairs.length };
+}
+
+// ============================ colorGlyph RENDERED-COLOR SHADOW METRIC (REPORT-ONLY) ============================
+// @purpose Measure COLOR fidelity HONESTLY — the LAST dimension still mis-measured. The existing per-element COLOR
+// sub-score (colorScore → parseColor) parses ONE CSS color STRING per node. parseColor handles rgb()/rgba()/hex
+// ONLY; it returns null for gradient-text (textColorOf returns null for paint.kind==='gradient-text'), and for
+// oklch()/lab()/var()/transparent. A null on EITHER side makes colorScore return null (the pair is DROPPED from the
+// color mean) or 0 (one-sided). So the CSS-parse color sub-score MIS-MEASURES color fidelity EXACTLY on the lowest-
+// color sites (gradient-text H1s, oklch design tokens): it scores ~0 / drops the pair even when the rendered text
+// color is in fact a faithful match. (resend has gradient-text H1s "Email for developers" etc; reactdev/supabase
+// score low partly because the parse drops/zeros these instead of crediting the real rendered color.)
+//
+// THE FIX: when a matched text element's CSS color is unresolvable to a concrete rgb (null/transparent/gradient/
+// oklch/lab/var), FALL BACK to the MEAN RENDERED color of that node's foreground GLYPH CLUSTER — the edge-aware
+// core sample dominantTextColor() takes in capture-layout (the ADDITIVE paint.glyphRGB field), NOT a whole-box crop
+// that would average in the background. CIEDE2000 the source-vs-clone glyph-mean. Per text pair colorGlyph uses the
+// BEST AVAILABLE CONCRETE color per side: the rendered glyph sample (glyphRGB) when present, else parseColor(color).
+//
+// PARITY WITH THE CSS-PARSE METRIC: on pairs where BOTH sides ARE CSS-resolvable AND glyphRGB is absent, colorGlyph
+// reduces to the SAME parseColor inputs as colorScore (so it AGREES there — it is a superset that ADDS signal only
+// on the unresolvable pairs). On gradient/oklch pairs, where colorScore returned ~0/dropped, colorGlyph uses the
+// rendered glyph color → it CREDITS a faithful color the parse missed (or EXPOSES a real delta the parse scored 0).
+//
+// SHADOW / REPORT-ONLY: NEW report fields (report.colorGlyph + colorGlyphCssParse + detail). NEVER folded into
+// composite/visual/color/structural/editability — grade-sections.mjs reads only {color,typography,position,text,
+// effects,areaCoverage}, so this is INERT upstream (composite stays byte-identical) — EXACTLY like grade-motion +
+// GDA + RDA. Computed on the SAME matched pairs the scorer uses → PURE/deterministic (same capture → same colorGlyph).
+//
+// IDENTITY (selftest): source-vs-source → each pair's src concrete color == clone concrete color (same glyphRGB or
+// same parsed CSS) → CIEDE2000 = 0 → per-pair 1.0 → colorGlyph == 1.0 (its self-test rail, mirroring GDA/RDA).
+//
+// concrete rgb for a node's TEXT foreground: rendered glyph sample first (the truth for clipped/gradient/oklch text),
+// then the parsed CSS color. null only if NEITHER is available (textless/un-sampled node → no color signal).
+function glyphConcreteColor(n) {
+  if (n.glyphRGB && n.glyphRGB.length === 3) return n.glyphRGB;       // rendered foreground glyph mean (edge-aware core)
+  const p = parseColor(n.color);                                       // fall back to the parsed CSS string color
+  return p || null;
+}
+// is the node's CSS-string color UNRESOLVABLE to a concrete rgb (the case the CSS-parse metric mis-measures)?
+// true when parseColor(color) is null — i.e. color is null (gradient-text → textColorOf null), transparent, or a
+// non-rgb/hex function (oklch/lab/var). Also true when the node is flagged gradient-text by the capture.
+function cssColorUnresolvable(n) {
+  if (n.paintKind === 'gradient-text') return true;
+  return parseColor(n.color) == null;
+}
+// per-pair colorGlyph: CIEDE2000 between the two concrete rendered/parsed colors, mapped exactly like colorScore
+// (full credit dE<=2, linear decay to 0 by dE 10). null only if a concrete color is missing on a side.
+function colorGlyphPair(a, b) {
+  const ca = glyphConcreteColor(a), cb = glyphConcreteColor(b);
+  if (!ca && !cb) return null;                                         // neither side has any color signal
+  if (!ca || !cb) return 0;                                            // one side has color, the other doesn't → miss
+  const dE = ciede2000(srgbToLab(...ca), srgbToLab(...cb));
+  if (dE <= 2) return 1;
+  return Math.max(0, Math.min(1, 1 - dE / 10));
+}
+// Build the colorGlyph report from the SAME matched pairs the scorer uses. Runs over TEXT pairs (both sides isText)
+// — the dimension the CSS-parse color metric mis-measures. Returns the glyph-based mean AND, for the SAME pair set,
+// the CSS-parse color mean (colorScore) so the report exposes WHERE the two diverge (gate3 discrimination). PURE →
+// deterministic. NEVER touches composite/visual/color/structural/editability.
+function colorGlyphReport(pairs) {
+  const r4 = (x) => Math.round(x * 10000) / 10000;
+  const detail = [];
+  const glyphVals = [], cssVals = [];
+  let usedGlyphFallback = 0;
+  for (const { a, b } of pairs) {
+    if (!a.isText || !b.isText) continue;                              // colorGlyph measures TEXT foreground color
+    const g = colorGlyphPair(a, b);
+    if (g == null) continue;                                           // no color signal on this text pair
+    glyphVals.push(g);
+    // CSS-parse color sub-score for the SAME pair (mirrors colorScore: null/dropped when unresolvable).
+    const cssRaw = colorScore(a.color, b.color);
+    if (cssRaw != null) cssVals.push(cssRaw);
+    // does this pair RELY on the glyph fallback (i.e. CSS-parse was unresolvable on a side)?
+    const fellBack = cssColorUnresolvable(a) || cssColorUnresolvable(b);
+    if (fellBack) usedGlyphFallback++;
+    if (detail.length < 60) detail.push({
+      text: (a.text || '').slice(0, 36),
+      srcGlyph: a.glyphRGB || null, cloneGlyph: b.glyphRGB || null,
+      glyphScore: r4(g),
+      cssScore: cssRaw == null ? null : r4(cssRaw),
+      glyphFallback: fellBack,
+    });
+  }
+  const mean = (arr) => arr.length ? arr.reduce((s, x) => s + x, 0) / arr.length : null;
+  return {
+    colorGlyph: glyphVals.length ? r4(mean(glyphVals)) : null,         // glyph-based color mean over text pairs
+    colorGlyphCssParse: cssVals.length ? r4(mean(cssVals)) : null,     // CSS-parse color mean over the SAME pairs (colorScore)
+    colorGlyphSamples: glyphVals.length,
+    colorGlyphCssSamples: cssVals.length,
+    colorGlyphFallbackPairs: usedGlyphFallback,                        // # pairs where CSS-parse was unresolvable (glyph carried it)
+    colorGlyphDetail: detail,
+  };
 }
 
 // ============================ HUNGARIAN (linear sum assignment, minimize cost) ============================
@@ -716,6 +1092,10 @@ function captureLayout(url, outPath) {
 
   const srcNodesRaw = flatten(srcLayout.root);
   const cloneNodesRaw = flatten(cloneLayout.root);
+  // page-default background of EACH side (for fade-in capture-artifact recovery in the COLOR sub-score). The clone's
+  // captured-mid-fade text colors composite over the CLONE page bg; the source's settled colors are the recovery
+  // target. Fall back to the other side's bg, then white (light pages are the fade-over-bg case this corrects).
+  const clonePageBg = cloneNodesRaw.pageBg || srcNodesRaw.pageBg || [255, 255, 255];
   // SYMMETRIC BLOCK-MERGE PRE-PASS (research backlog #4): collapse adjacent same-typography wrapped-line
   // fragments into blocks on BOTH leaf lists BEFORE the cost matrix, so present-but-fragmented content stops
   // inflating unmatchedSrc/CloneArea and earns its areaCoverage credit. SAME function + SAME thresholds on
@@ -725,6 +1105,11 @@ function captureLayout(url, outPath) {
   const srcNodes = srcMerge.nodes;
   const cloneNodes = cloneMerge.nodes;
   console.log(`[perelement] source nodes: ${srcNodes.length} (merged ${srcMerge.merged} of ${srcNodesRaw.length}) | clone nodes: ${cloneNodes.length} (merged ${cloneMerge.merged} of ${cloneNodesRaw.length}) | mergePrePass=${USE_MERGE ? 'ON' : 'OFF'}`);
+
+  // GDA GROUP-COUNT STRUCTURAL SHADOW METRIC (REPORT-ONLY): score whether the clone reproduced the right COUNT
+  // of each REPEATED element-type. Computed on the FINALIZED merged leaf sets (same sets the matcher uses) →
+  // PURE/deterministic. NOT folded into composite/visual/structural/editability (grade-sections.mjs ignores it).
+  const gda = gdaGroupCountReport(srcNodes, cloneNodes);
 
   const srcH = srcLayout.pageH || 4000, cloneH = cloneLayout.pageH || 4000;
   const refW = width;
@@ -791,9 +1176,21 @@ function captureLayout(url, outPath) {
   let matchedArea = 0;
   for (const { a, b, td } of pairs) {
     matchedArea += Math.min(a.area, b.area);
-    // COLOR (y-INDEPENDENT content prop → credited on the scale-aligned match)
-    const cs = colorScore(a.color, b.color);
-    if (cs != null) colorVals.push(cs);
+    // COLOR (y-INDEPENDENT content prop → credited on the scale-aligned match). FADE-AWARE: recover a clone text
+    // color the capture sampled MID-fade-in (scroll-reveal) when it is the fade-in composite of the SOURCE settled
+    // color over the clone page bg (see colorScoreFadeAware/fadeRecoverScore — asymmetric, source-anchored, NOT a boost).
+    const cs = colorScoreFadeAware(a.color, b.color, clonePageBg);
+    // COLOR-CHANNEL DE-CONFLATION (default ON; GRADER_NO_COLOR_DECONFLATE=1 → exact prior behavior): a pair where
+    // ONLY ONE side carries a paintable color (e.g. a source container painting a near-page-bg fill matched to a
+    // clone wrapper that paints none) is a STRUCTURAL/COVERAGE signal — the clone didn't reproduce that painted
+    // surface — NOT a color-FIDELITY signal. It is ALREADY penalized in areaCoverage (the wrapper's area dumps into
+    // unmatched/extra). Folding its hard-0 into the COLOR mean DOUBLE-COUNTS the structural miss inside the color
+    // channel (the documented over-penalty). So one-sided-color pairs are DROPPED from the color mean (they remain
+    // fully counted in areaCoverage). BOTH-sided real mismatches (wrong hue/value) STILL score 0 → stay penalized.
+    // Self-test (clone==source): never one-sided → no-op. Anti-gaming: a wrong-COLOR clone has color on BOTH sides
+    // → still scored (and low) → NOT dropped.
+    const oneSidedColor = USE_COLOR_DECONFLATE && cs === 0 && (parseColor(a.color) == null) !== (parseColor(b.color) == null);
+    if (cs != null && !oneSidedColor) colorVals.push(cs);
     // TYPOGRAPHY (y-INDEPENDENT content prop)
     const ts = typoScore(a.typo, b.typo);
     if (ts != null) typoVals.push(ts);
@@ -820,16 +1217,42 @@ function captureLayout(url, outPath) {
   const mean = (arr) => arr.length ? arr.reduce((s, x) => s + x, 0) / arr.length : (pairs.length ? 1 : 0);
   const r4 = (x) => Math.round(x * 10000) / 10000;
 
+  // RDA 3x3-QUADRANT POSITION-SHADOW METRIC (REPORT-ONLY): bin each matched pair's element CENTER into a 3x3
+  // grid cell (col by viewport width refW, row by THAT side's own page height) and HARD-ZERO any pair whose
+  // clone center lands in a different quadrant than its source — with a 5%-of-dim dead-band so a near-boundary
+  // nudge (and identity-recapture jitter) is forgiven. Computed on the SAME matched pairs + centers the smooth
+  // position sub-score uses → PURE/deterministic. NOT folded into composite/visual/position/structural (the
+  // upstream grader reads only color/typography/position/text/effects/areaCoverage). Catches the gross mis-
+  // placement the smooth metric (raw posRaw) partial-credits.
+  const rda = rdaQuadrantReport(pairs, refW, srcH, cloneH);
+
+  // colorGlyph RENDERED-COLOR SHADOW METRIC (REPORT-ONLY): the LAST mis-measured dimension (COLOR). For each matched
+  // TEXT pair, CIEDE2000 the BEST-AVAILABLE concrete color per side (rendered foreground glyph sample paint.glyphRGB
+  // first — the truth for gradient/oklch/clipped text the CSS-parse metric returns ~0 for — else parseColor(color)).
+  // Reports BOTH the glyph mean AND the CSS-parse color mean over the SAME pairs so the divergence is visible.
+  // Computed on the SAME matched pairs → PURE/deterministic. NOT folded into composite/visual/color (see colorGlyphReport).
+  const cg = colorGlyphReport(pairs);
+
   // raw per-pair means
   const colorRaw = mean(colorVals), typoRaw = mean(typoVals), posRaw = mean(posVals), textRaw = mean(textVals), effRaw = mean(effVals);
   // MULTIPLY each sub-score by symmetric area-coverage (penalizes missing/extra content) — EFFECTS gets the
   // SAME area-coverage multiply as every other sub-score (symmetric; folds away when no pair has an effect).
+  // COLOR-CHANNEL DE-CONFLATION (default ON; GRADER_NO_COLOR_DECONFLATE=1 → prior × areaCoverage): COLOR reports the
+  // color FIDELITY of matched-on-both-sides content (one-sided pairs already dropped at the pair loop) WITHOUT the
+  // second areaCoverage multiply — page completeness is already its OWN signal (reported areaCoverage + the
+  // composite's structuralFidelity term), so multiplying it INTO color double-counted the structural miss and
+  // false-deflated correct colors (supabase: 0.81→0.26). TYPOGRAPHY is now ALSO de-conflated (same double-count, same
+  // fix — framer: 0.84–0.92 typoRaw crushed to 0.13–0.28 by areaCoverage 0.12–0.34); position/text/effects UNCHANGED
+  // (still ×coverage). Self-test no-op (colorRaw=typoRaw=coverage=1). Anti-gaming: wrong-color/wrong-font clone keeps
+  // low colorRaw/typoRaw → low color/typo regardless of coverage.
+  const colorReported = USE_COLOR_DECONFLATE ? colorRaw : colorRaw * areaCoverage;
+  const typoReported = USE_TYPO_DECONFLATE ? typoRaw : typoRaw * areaCoverage;
   const result = {
-    color: r4(colorRaw * areaCoverage),
-    typography: r4(typoRaw * areaCoverage),
-    position: r4(posRaw * areaCoverage),
-    text: r4(textRaw * areaCoverage),
-    effects: r4(effRaw * areaCoverage),
+    color: r4(colorReported),
+    typography: r4(typoReported),
+    position: r4(USE_POS_DECONFLATE ? posRaw : posRaw * areaCoverage),
+    text: r4(USE_TEXT_DECONFLATE ? textRaw : textRaw * areaCoverage),
+    effects: r4(USE_EFFECTS_DECONFLATE ? effRaw : effRaw * areaCoverage),
     areaCoverage: r4(areaCoverage),
   };
 
@@ -844,17 +1267,54 @@ function captureLayout(url, outPath) {
     raw: { color: r4(colorRaw), typography: r4(typoRaw), position: r4(posRaw), text: r4(textRaw), effects: r4(effRaw) },
     colorSamples: colorVals.length, typoSamples: typoVals.length, effectsSamples: effVals.length,
     ...result,
+    // GDA GROUP-COUNT STRUCTURAL SHADOW METRIC — REPORT-ONLY, NOT folded into the composite (see gdaGroupCountReport).
+    // gdaGroupCount = srcCount-weighted mean over race-groups of ramp(cloneCount/srcCount); null if no repeated structure.
+    gdaGroupCount: gda.gdaGroupCount,
+    gdaGroupCountEqual: gda.gdaGroupCountEqual,
+    gdaGroups: gda.groupsN,
+    gdaGroupDetail: gda.groups,
+    // RDA 3x3-QUADRANT POSITION-SHADOW METRIC — REPORT-ONLY, NOT folded into the composite (see rdaQuadrantReport).
+    // rdaQuadrant = mean over matched pairs of {1.0 if clone center in SAME 3x3 quadrant as source (or within the
+    // 5%-of-dim near-boundary dead-band), else 0.0}. null if no matched pairs. Catches gross mis-placement the
+    // smooth position sub-score (raw.position) partial-credits. Identity self-test → 1.0.
+    rdaQuadrant: rda.rdaQuadrant,
+    rdaPairs: rda.pairsN,
+    rdaQuadrantDetail: rda.pairs,
+    // colorGlyph RENDERED-COLOR SHADOW METRIC — REPORT-ONLY, NOT folded into the composite (see colorGlyphReport).
+    // colorGlyph = mean over matched TEXT pairs of the CIEDE2000 color match using the rendered foreground GLYPH
+    // sample (paint.glyphRGB) when the CSS color is unresolvable (gradient-text/oklch/lab/var/null), else the parsed
+    // CSS color. colorGlyphCssParse = the OLD CSS-parse color sub-score (colorScore) over the SAME pairs — exposes
+    // where the parse mis-measured (returned ~0/dropped) the colors colorGlyph now credits from the rendered pixels.
+    // Identity self-test → 1.0. NEVER touches composite/visual/color/structural/editability.
+    colorGlyph: cg.colorGlyph,
+    colorGlyphCssParse: cg.colorGlyphCssParse,
+    colorGlyphSamples: cg.colorGlyphSamples,
+    colorGlyphCssSamples: cg.colorGlyphCssSamples,
+    colorGlyphFallbackPairs: cg.colorGlyphFallbackPairs,
+    colorGlyphDetail: cg.colorGlyphDetail,
   };
 
   const outFile = `/tmp/pe-${nameTag}.json`;
   fs.writeFileSync(outFile, JSON.stringify(full, null, 2));
   console.log(JSON.stringify(result));
   console.log(`[perelement] yScale s=${r4(S)} (${ys.basis}, anchors=${ys.anchors}, inlierAgree=${ys.inlierAgree}, medResid=${ys.medResid}, validFrac=${ys.validFrac}) | wrote ${outFile}  (matched ${pairs.length} pairs; color n=${colorVals.length}, typo n=${typoVals.length})`);
+  // GDA GROUP-COUNT STRUCTURAL SHADOW (report-only; NOT in composite). Logged so the under-capture it exposes is visible.
+  console.log(`[perelement] GDA groupCount=${gda.gdaGroupCount} (equal-wt=${gda.gdaGroupCountEqual}) over ${gda.groupsN} race-group(s)` + (gda.groups.length ? ` | top: ${gda.groups.slice(0, 4).map((g) => `${g.cloneCount}/${g.srcCount}=${g.score}`).join(', ')}` : ' | none (no repeated structure)') + ` [SHADOW: report-only, not in composite/visual/structural/editability]`);
+  // RDA 3x3-QUADRANT POSITION-SHADOW (report-only; NOT in composite). Logged alongside the SMOOTH position sub-score
+  // (raw.position) so the gross mis-placement the rail hard-zeros — and the smooth metric forgives — is visible.
+  console.log(`[perelement] RDA quadrant=${rda.rdaQuadrant} over ${rda.pairsN} matched pair(s) | smooth-position(raw)=${r4(posRaw)} (rail < smooth ⇒ catches cross-quadrant misses the smooth metric partial-credited) [SHADOW: report-only, not in composite/visual/position/structural/editability]`);
+  // colorGlyph RENDERED-COLOR SHADOW (report-only; NOT in composite). Logged ALONGSIDE the CSS-parse color sub-score
+  // over the SAME text-pair set so the divergence (where the parse returned ~0/dropped gradient/oklch colors that the
+  // rendered glyph sample now credits) is visible. colorGlyph != colorGlyphCssParse ⇒ the parse mis-measured COLOR.
+  console.log(`[perelement] colorGlyph=${cg.colorGlyph} vs CSS-parse-color=${cg.colorGlyphCssParse} over text pairs (glyph n=${cg.colorGlyphSamples}, css n=${cg.colorGlyphCssSamples}; ${cg.colorGlyphFallbackPairs} pair(s) used the rendered-glyph fallback where CSS color was unresolvable: gradient-text/oklch/lab/var/null) [SHADOW: report-only, not in composite/visual/color/structural/editability]`);
 
   if (SELFTEST) {
     const subs = ['color', 'typography', 'position', 'text', 'effects', 'areaCoverage'];
     const bad = subs.filter((s) => Math.abs(result[s] - 1) > 0.005);
     if (bad.length) { console.error(`[SELFTEST FAIL] sub-scores != 1.0: ${bad.map((s) => `${s}=${result[s]}`).join(', ')}`); process.exit(1); }
-    console.log(`[SELFTEST PASS] all sub-scores == 1.0`);
+    // colorGlyph identity rail: source-vs-source → each pair's concrete color matches itself → colorGlyph == 1.0
+    // (mirrors the GDA/RDA identity rails). null is allowed (no text pairs); a present value MUST be 1.0.
+    if (cg.colorGlyph != null && Math.abs(cg.colorGlyph - 1) > 0.005) { console.error(`[SELFTEST FAIL] colorGlyph != 1.0 on identity: ${cg.colorGlyph}`); process.exit(1); }
+    console.log(`[SELFTEST PASS] all sub-scores == 1.0 (colorGlyph identity = ${cg.colorGlyph})`);
   }
 })().catch((e) => { console.error('perelement-score error:', e); process.exit(1); });

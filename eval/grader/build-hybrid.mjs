@@ -14,6 +14,7 @@
 import { chromium } from 'playwright';
 import { PNG } from 'pngjs';
 import fs from 'fs';
+import { absPos, absSectionCss, needsAbsLayout, isMultiColumn } from './abs-positioning.mjs';
 const arg = (n, d = null) => { const i = process.argv.indexOf('--' + n); return i > -1 && process.argv[i + 1] && !process.argv[i + 1].startsWith('--') ? process.argv[i + 1] : d; };
 const source = arg('source'), pageId = arg('page'), W = parseInt(arg('width', '1440'), 10), DRY = process.argv.includes('--dry');
 const base = process.env.JOIST_BASE || 'https://georges232.sg-host.com';
@@ -32,7 +33,7 @@ function downscale(src, f) { const w = Math.floor(src.width / f), h = Math.floor
 
 // ---------- editable widget emitters (focused — editable sections are simple by construction) ----------
 const dim = (n) => ({ unit: 'px', size: String(Math.round(n)) });
-function nativeTypo(t) { const s = {}; if (!t || !(t.size || t.family)) return s; s.typography_typography = 'custom'; const gf = gFont(t.family); if (gf) s.typography_font_family = gf; if (t.size) s.typography_font_size = { unit: 'px', size: Math.round(t.size) }; if (t.weight && /^\d+$/.test(String(t.weight))) s.typography_font_weight = String(t.weight); const lh = px(t.lineHeight); if (lh) s.typography_line_height = { unit: 'px', size: Math.round(lh) }; const ls = px(t.letterSpacing); if (ls !== null && t.letterSpacing !== 'normal') s.typography_letter_spacing = { unit: 'px', size: +ls.toFixed(1) }; if (t.transform && t.transform !== 'none') s.typography_text_transform = t.transform; if (t.style && t.style !== 'normal') s.typography_font_style = t.style.startsWith('oblique') ? 'oblique' : 'italic'; return s; }
+function nativeTypo(t) { const s = {}; if (!t || !(t.size || t.family)) return s; s.typography_typography = 'custom'; const real = (t.family && t.family.length > 1 && !/^(-apple-system|blinkmacsystemfont|system-ui|sans-serif|serif|monospace|ui-|inherit|initial)/i.test(t.family)) ? t.family : null; const gf = real || gFont(t.family); if (gf) s.typography_font_family = gf; if (t.size) s.typography_font_size = { unit: 'px', size: Math.round(t.size) }; if (t.weight && /^\d+$/.test(String(t.weight))) s.typography_font_weight = String(t.weight); const lh = px(t.lineHeight); if (lh) s.typography_line_height = { unit: 'px', size: Math.round(lh) }; const ls = px(t.letterSpacing); if (ls !== null && t.letterSpacing !== 'normal') s.typography_letter_spacing = { unit: 'px', size: +ls.toFixed(1) }; if (t.transform && t.transform !== 'none') s.typography_text_transform = t.transform; if (t.style && t.style !== 'normal') s.typography_font_style = t.style.startsWith('oblique') ? 'oblique' : 'italic'; return s; }
 const solidColor = (c) => (c && /^(#|rgb)/.test(c) && c !== 'rgba(0, 0, 0, 0)') ? c : null;
 function leafToWidget(n) {
   if (n.kind === 'image') { if (!n.url) return null; const s = { image: { url: n.url }, image_size: 'full' }; if (n.box && n.box.w > 4) s.width = { unit: 'px', size: Math.round(n.box.w) }; return { elType: 'widget', widgetType: 'image', settings: s }; }
@@ -69,7 +70,56 @@ function buildEditableSection(sec) {
   return { elType: 'container', settings: set, elements: widgets };
 }
 
+// ABS editable section — RARE EXCEPTION for very specific designs (layered/overlapping content flex-flow
+// can't represent). Each leaf is pinned at its captured (x,y,w) relative to the section; the section container
+// is CSS-pinned position:relative + min_height (see abs-positioning.mjs). Widths are preserved (so text wraps
+// like the source). Desktop-pixel; the global RESPONSIVE_UNPIN_CSS stacks it on mobile. NOT the default path.
+function buildAbsEditableSection(sec) {
+  const eid = `abssec${sec.i}`;
+  const origin = { x: 0, y: sec.y0 };
+  const els = []; let z = 1;
+  for (const lf of sec.leaves.slice().sort((a, b) => (a.box.y - b.box.y) || (a.box.x - b.box.x))) {
+    const w = leafToWidget(lf); if (!w) continue;
+    w.settings = { ...w.settings, ...absPos(lf.box, z++, origin) };
+    els.push(w);
+  }
+  // HARDENED: the container pin + un-pin ride PER-ELEMENT custom_css (durable across Elementor regen), NOT
+  // page custom_css (which regen drops → the observed abs degradation). min_height also kept as a setting.
+  const set = { _element_id: eid, content_width: 'full', min_height: { unit: 'px', size: Math.round(sec.h) }, custom_css: absSectionCss(sec.h), padding: { unit: 'px', top: '0', right: '0', bottom: '0', left: '0', isLinked: true } };
+  if (sec.bg) { set.background_background = 'classic'; set.background_color = sec.bg; }
+  return { elType: 'container', settings: set, elements: els };
+}
+
+// CLASSIFY a captured section into editable|raster from its RAW signals. Node-side (not in-page) so a cached
+// raw capture re-runs the gate deterministically — separating builder/gate changes from capture noise.
+// Conservative: editable ONLY when genuinely text-dominant (raster is 1:1, so when in doubt raster).
+function classify(sec) {
+  const { bigCanvas, isNav, isFooter, textLeaves, mediaFrac, h } = sec;
+  if (bigCanvas) return { kind: 'raster', reason: 'canvas/video' };
+  if (isNav) return { kind: 'editable', reason: 'nav' };
+  if (isFooter && textLeaves <= 80) return { kind: 'editable', reason: 'footer' };
+  // CYCLE-1: text-dominant + low media + height-capped → editable.
+  if (textLeaves >= 2 && mediaFrac < 0.5 && h <= 2600) return { kind: 'editable', reason: `text${textLeaves}/media${mediaFrac}/h${h}` };
+  // CYCLE-2: TEXT-DOMINANT height-cap override — tall text-rich sections (tailwind [8]: 3872px/246 leaves)
+  // were rastered purely on height; lift the cap to 4000px when genuinely text-dominant.
+  if (textLeaves >= 8 && mediaFrac < 0.35 && h <= 4000) return { kind: 'editable', reason: `textdom${textLeaves}/media${mediaFrac}/h${h}` };
+  return { kind: 'raster', reason: `media${mediaFrac}/text${textLeaves}/h${h}` };
+}
+
 (async () => {
+  // CAPTURE CACHE (--cache): freeze the raw capture (section signals + screenshot) per source so rebuilds are
+  // DETERMINISTIC — separating builder/gate changes from capture noise (dynamic sites like resend.com vary
+  // run-to-run). Classification re-runs node-side from the frozen capture, so gate changes still take effect.
+  // --refresh forces a recapture. Without --cache, behaves exactly as before (always live capture).
+  const CACHE_DIR = process.argv.includes('--cache') ? `/tmp/hybrid-cache/${srcTag}` : null;
+  const useCache = CACHE_DIR && fs.existsSync(`${CACHE_DIR}/model.json`) && fs.existsSync(`${CACHE_DIR}/shot.png`) && !process.argv.includes('--refresh');
+  let model, shot, dpr;
+  if (useCache) {
+    model = JSON.parse(fs.readFileSync(`${CACHE_DIR}/model.json`, 'utf8'));
+    shot = PNG.sync.read(fs.readFileSync(`${CACHE_DIR}/shot.png`));
+    dpr = model._dpr || (shot.width / W);
+    console.log(`capture CACHE HIT → ${CACHE_DIR} (${model.sections.length} sections, deterministic)`);
+  } else {
   const browser = await chromium.launch({ args: ['--disable-blink-features=AutomationControlled'] });
   const ctx = await browser.newContext({ viewport: { width: W, height: 900 }, deviceScaleFactor: 2, locale: 'en-US', userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36' });
   await ctx.addInitScript(() => { Object.defineProperty(navigator, 'webdriver', { get: () => undefined }); });
@@ -79,9 +129,21 @@ function buildEditableSection(sec) {
   await page.evaluate(async () => { const h = document.documentElement.scrollHeight; for (let y = 0; y <= h; y += 600) { window.scrollTo(0, y); await new Promise((r) => setTimeout(r, 240)); } window.scrollTo(0, 0); });
   try { await page.waitForLoadState('networkidle', { timeout: 8000 }); } catch {}
   await page.waitForTimeout(800);
+  // FREEZE (capture stability for dynamic sites): live-animated sites (resend's dashboard demo) advance JS/CSS
+  // animations between captures → section geometry (and editable/raster segmentation) varies run-to-run. After
+  // the scroll-settle (which has already triggered scroll-reveals), pin the DOM: finish finite animations to
+  // their FINAL/visible state, pause infinite ones (marquees/loops), and halt all future rAF + timers so the
+  // live dashboard stops ticking through measurement. Kills transitions to remove hover/transition jitter.
+  await page.evaluate(() => {
+    for (const a of document.getAnimations()) { try { a.finish(); } catch { try { a.pause(); } catch {} } }
+    window.requestAnimationFrame = () => 0; window.cancelAnimationFrame = () => {};
+    const hi = setTimeout(() => {}, 0); for (let id = 0; id <= hi; id++) { clearInterval(id); clearTimeout(id); }
+  });
+  await page.addStyleTag({ content: '*,*::before,*::after{transition:none !important;}' }).catch(() => {});
+  await page.waitForTimeout(300);
 
   // SECTION SPLIT + per-section content + classification
-  const model = await page.evaluate((vw) => {
+  model = await page.evaluate((vw) => {
     const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
     const vis = (el) => { const r = el.getBoundingClientRect(); if (!r.width || !r.height) return false; const cs = getComputedStyle(el); if (cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity < 0.05) return false; if (r.right < 0 || r.bottom < 0 || r.left > innerWidth + 60) return false; return true; };
     const rectOf = (el) => { const r = el.getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top + scrollY), w: Math.round(r.width), h: Math.round(r.height) }; };
@@ -93,7 +155,7 @@ function buildEditableSection(sec) {
     const bounds = [...cuts.filter((y) => y < pageH), pageH];
     // collect candidate leaves once
     const opaque = (c) => c && c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent';
-    const leafEls = [...document.querySelectorAll('h1,h2,h3,h4,h5,h6,p,a,button,img,span,li')];
+    const leafEls = [...document.querySelectorAll('h1,h2,h3,h4,h5,h6,p,a,button,img,span,li,div')];
     const seen = new Set();
     const sections = [];
     for (let i = 0; i < bounds.length - 1; i++) {
@@ -107,7 +169,10 @@ function buildEditableSection(sec) {
         const tag = el.tagName.toLowerCase(); const cs = getComputedStyle(el);
         if (tag === 'img') { const src = el.currentSrc || el.src; if (src && !src.startsWith('data:') && box.w >= 24 && box.h >= 24) { mediaArea += box.w * box.h; if (box.w >= 40 && box.h >= 40) leaves.push({ kind: 'image', src, box, alt: el.alt || '' }); } continue; }
         const own = [...el.childNodes].some((n) => n.nodeType === 3 && clean(n.textContent)); if (!own) continue;
-        const t = clean(el.innerText || el.textContent); if (!t || t.length > 300) continue; if (parseFloat(cs.fontSize) < 11) continue;
+        // EDITABILITY: include text-bearing <div> (the grader counts it) but only LEAF divs (no element
+        // children) so a parent div's innerText doesn't duplicate its children's already-captured text.
+        if (tag === 'div' && el.children.length > 0) continue;
+        const t = clean(el.innerText || el.textContent); if (!t || t.length > 300) continue; if (parseFloat(cs.fontSize) < 10) continue;
         const dk = t + '@' + Math.round(box.y / 8); if (seen.has(dk)) continue; seen.add(dk);
         const isH = /^h[1-6]$/.test(tag), isBtn = tag === 'a' || tag === 'button';
         if (isBtn) linkCount++;
@@ -119,38 +184,59 @@ function buildEditableSection(sec) {
       const textLeaves = leaves.filter((l) => l.kind !== 'image').length;
       const isNav = i === 0 && secH <= 160 && linkCount >= 3;
       const isFooter = i === bounds.length - 2 && linkCount >= 6;
-      // EDITABLE if text-dominant + low media + no big canvas; else RASTER. nav/footer forced editable.
-      let kind = 'raster', reason = '';
-      // Conservative: editable ONLY when genuinely simple (raster is 1:1, so when in doubt raster).
-      // Cap leaf count + section height — dense/tall sections (logo walls, rich showcases) reconstruct
-      // poorly via naive flow, so they stay raster. nav/footer are always worth recovering as editable.
-      if (bigCanvas) { kind = 'raster'; reason = 'canvas/video'; }
-      else if (isNav) { kind = 'editable'; reason = 'nav'; }
-      else if (isFooter && textLeaves <= 80) { kind = 'editable'; reason = 'footer'; }
-      // CYCLE-1 (corpus lever #1 = editability): loosen so more TEXT-dominant sections go native. Gate on
-      // mediaFrac (actual image area) not leaf count/height — a 243-leaf text section with low media IS
-      // text-dominant and worth recovering. The corpus grader measures whether the native emitter can
-      // handle the denser sections (editability↑) without visual collapse; keep only if composite rises.
-      else if (textLeaves >= 2 && mediaFrac < 0.5 && secH <= 2600) { kind = 'editable'; reason = `text${textLeaves}/media${mediaFrac.toFixed(2)}/h${secH}`; }
-      else reason = `media${mediaFrac.toFixed(2)}/text${textLeaves}/h${secH}`;
-      sections.push({ i, y0, y1, h: secH, kind, reason, bg: bgColor, textLeaves, mediaFrac: +mediaFrac.toFixed(2), linkCount, leaves: kind === 'editable' ? leaves : [] });
+      // CLASSIFICATION (editable vs raster) is done node-side in classify() — NOT here — so a cached raw
+      // capture can be re-built deterministically and any gate change re-runs on the frozen capture.
+      // ALWAYS keep leaves (even for would-be-raster) so re-classification can flip a section to editable.
+      sections.push({ i, y0, y1, h: secH, bg: bgColor, textLeaves, mediaFrac: +mediaFrac.toFixed(2), linkCount, bigCanvas, isNav, isFooter, leaves });
     }
-    return { vw: innerWidth, pageH, sections };
+    // PAGE CANVAS background — dark-canvas sites (resend, framer) paint the bg on <body>/<html>, NOT on
+    // per-section elements, so section bgColor stays null and transparent editable sections (nav/footer/
+    // text) render light text on the default white floor → white-on-white. Capture it for the root floor.
+    const bodyBg = getComputedStyle(document.body).backgroundColor, htmlBg = getComputedStyle(document.documentElement).backgroundColor;
+    const pageBg = opaque(bodyBg) ? bodyBg : (opaque(htmlBg) ? htmlBg : null);
+    return { vw: innerWidth, pageH, pageBg, sections };
   }, W);
 
   // full-page screenshot for raster sections
   await page.evaluate(() => window.scrollTo(0, 0)); await page.waitForTimeout(200);
-  const shot = PNG.sync.read(await page.screenshot({ fullPage: true })); const dpr = shot.width / W;
+  shot = PNG.sync.read(await page.screenshot({ fullPage: true })); dpr = shot.width / W;
   fs.writeFileSync(`/tmp/hybrid-src-${srcTag}.png`, PNG.sync.write(dpr > 1 ? downscale(shot, Math.round(dpr)) : shot));
   await browser.close();
+  if (CACHE_DIR) { fs.mkdirSync(CACHE_DIR, { recursive: true }); model._dpr = dpr; fs.writeFileSync(`${CACHE_DIR}/model.json`, JSON.stringify(model)); fs.writeFileSync(`${CACHE_DIR}/shot.png`, PNG.sync.write(shot)); console.log(`capture CACHE WRITE → ${CACHE_DIR}`); }
+  }
 
+  // CLASSIFY node-side (deterministic) — re-runs the editable/raster gate on the frozen-or-fresh capture.
+  for (const s of model.sections) { const c = classify(s); s.kind = c.kind; s.reason = c.reason; }
   console.log(`sections: ${model.sections.length} | pageH ${model.pageH}`);
   for (const s of model.sections) console.log(`  [${s.i}] y${s.y0}-${s.y1} (${s.h}px) → ${s.kind.toUpperCase()} (${s.reason})`);
 
   // build each section
-  const MAXH = 2400; const elements = []; let editCount = 0, rastCount = 0, rastImgs = 0;
+  const MAXH = 2400; const elements = []; let editCount = 0, rastCount = 0, rastImgs = 0, absCount = 0;
+  // AUTO_ABS default ON: corpus-validated net-positive (+0.020) and BOUNDED — fires only on genuinely layered
+  // (overlapping) / text-rich-rescue sections (3-4 per site), so flow stays the default for normal sections and
+  // the responsive un-pin keeps abs mobile-safe. Opt out with HYBRID_AUTO_ABS=0. --force-abs forces all editable.
+  const FORCE_ABS = process.argv.includes('--force-abs'); const AUTO_ABS = process.env.HYBRID_AUTO_ABS !== '0';
   for (const sec of model.sections) {
-    const editEl = (sec.kind === 'editable' && sec.leaves.length) ? buildEditableSection(sec) : null;
+    let editEl = null;
+    // ABS RESCUE (opt-in, HYBRID_AUTO_ABS): a section classify() sent to RASTER because it's media-heavy, but
+    // which is actually TEXT-RICH + LAYERED (overlapping image+text showcase — e.g. framer [8]: 41 text runs
+    // under media1.08). flow can't represent it (overlap) and raster loses all its text; abs recovers the text
+    // as native widgets AT their source positions. Bounded: needs lots of text AND genuine overlap AND no canvas.
+    const rescuable = (AUTO_ABS || FORCE_ABS) && sec.kind !== 'editable' && !sec.bigCanvas && sec.leaves &&
+      sec.leaves.filter((l) => l.kind !== 'image').length >= 12 && needsAbsLayout(sec.leaves).abs;
+    if (rescuable) {
+      editEl = buildAbsEditableSection(sec); absCount++;
+      console.log(`  [${sec.i}] ABS RESCUE from raster (textLeaves=${sec.leaves.filter((l) => l.kind !== 'image').length}, ${needsAbsLayout(sec.leaves).reason})`);
+    } else if (sec.kind === 'editable' && sec.leaves.length) {
+      // AUTO_ABS routes a section to abs when flow can't represent it: layered/overlapping (needsAbsLayout) OR
+      // P1: MULTI-COLUMN (isMultiColumn — side-by-side columns flow flattens to a centered stack). Self-regulated
+      // by the objective: abs lowers mobile-order (responsive 0.20), so it only nets positive where the desktop
+      // visual gain outweighs the mobile cost. --force-abs forces all; HYBRID_NO_MULTICOL=1 disables the P1 path.
+      const ov = needsAbsLayout(sec.leaves); const mc = process.env.HYBRID_NO_MULTICOL === '1' ? { multi: false } : isMultiColumn(sec.leaves, { W });
+      const useAbs = FORCE_ABS || (AUTO_ABS && (ov.abs || mc.multi));
+      if (useAbs) { editEl = buildAbsEditableSection(sec); absCount++; console.log(`  [${sec.i}] ABS layout (${ov.abs ? ov.reason : mc.reason})`); }
+      else editEl = buildEditableSection(sec);
+    }
     if (editEl) {
       elements.push(editEl); editCount++;
     } else {
@@ -172,14 +258,24 @@ function buildEditableSection(sec) {
       rastCount++;
     }
   }
-  console.log(`built: ${editCount} editable sections, ${rastCount} raster sections (${rastImgs} imgs)`);
+  console.log(`built: ${editCount} editable sections (${absCount} abs-pinned), ${rastCount} raster sections (${rastImgs} imgs)`);
   const zeroPad = { unit: 'px', top: '0', right: '0', bottom: '0', left: '0', isLinked: true };
-  const root = { elType: 'container', settings: { content_width: 'full', flex_direction: 'column', flex_gap: dim(0), padding: zeroPad, _padding: zeroPad }, elements };
+  // ROOT canvas floor — paint the captured page background behind everything so transparent editable
+  // sections on dark-canvas sites don't render light text on the default white (the white-on-white bug).
+  const isWhite = (c) => { const m = String(c || '').match(/(\d+),\s*(\d+),\s*(\d+)/); return !m || (+m[1] >= 250 && +m[2] >= 250 && +m[3] >= 250); };
+  const rootBg = (model.pageBg && !isWhite(model.pageBg)) ? { background_background: 'classic', background_color: model.pageBg } : {};
+  if (rootBg.background_color) console.log(`root canvas bg: ${model.pageBg}`);
+  const root = { elType: 'container', settings: { ...rootBg, content_width: 'full', flex_direction: 'column', flex_gap: dim(0), padding: zeroPad, _padding: zeroPad }, elements };
   if (DRY) { fs.writeFileSync('/tmp/hybrid-tree.json', JSON.stringify(root, null, 2)); const cnt = (e) => 1 + (e.elements || []).reduce((a, c) => a + cnt(c), 0); console.log(`DRY → /tmp/hybrid-tree.json (${cnt(root)} elements)`); return; }
 
   const headers = { Authorization: 'Basic ' + b64, 'Content-Type': 'application/json', 'X-Joist-Session-Id': 'hybrid-' + Date.now() };
   let r, txt, expected = (await (await fetch(`${base}/wp-json/joist/v1/pages/${pageId}`, { headers })).json()).elementor?.hash;
-  for (let a = 0; a < 5; a++) { const body = { expected_hash: expected, elements: [root], page_settings: {}, title: 'Hybrid clone', intent: 'hybrid editable+raster' }; r = await fetch(`${base}/wp-json/joist/v1/pages/${pageId}`, { method: 'PUT', headers, body: JSON.stringify(body) }); txt = await r.text(); if (r.status !== 409) break; try { expected = JSON.parse(txt).details.current_hash; } catch {} console.log(`PUT 409 — retry with ${expected}`); await new Promise((s) => setTimeout(s, 400)); }
+  // abs sections inject scoped container-pin CSS + the global responsive un-pin (mobile reflow). Only present
+  // when an abs section was actually emitted, so flow-only builds keep page_settings empty (byte-identical).
+  // abs pins + un-pin now ride PER-ELEMENT custom_css (durable); page custom_css no longer used for abs.
+  const customCss = '';
+  const pageSettings = customCss ? { custom_css: customCss } : {};
+  for (let a = 0; a < 5; a++) { const body = { expected_hash: expected, elements: [root], page_settings: pageSettings, title: 'Hybrid clone', intent: 'hybrid editable+raster' }; r = await fetch(`${base}/wp-json/joist/v1/pages/${pageId}`, { method: 'PUT', headers, body: JSON.stringify(body) }); txt = await r.text(); if (r.status !== 409) break; try { expected = JSON.parse(txt).details.current_hash; } catch {} console.log(`PUT 409 — retry with ${expected}`); await new Promise((s) => setTimeout(s, 400)); }
   console.log('PUT', r.status, txt.slice(0, 100));
   // _elementor_edit_mode=builder so the FRONTEND renders the Elementor tree (styled, editable) instead of
   // the raw post_content fallback (which left editable sections unstyled/blank).

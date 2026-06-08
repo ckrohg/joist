@@ -9,10 +9,10 @@ export const meta = {
   ],
 }
 // ===== DRIVER-EDITED FIX SPEC (rewritten each round from the ranked backlog) =====
-const FIX_LABEL = 'abs-responsive-tablet2col'
-const FIX_FILES = 'build-absolute.mjs'
-const FIX_DIRECTIVE = 'COMPOUND the KEPT abs-responsive-unpin (recipe #20, abs corpus 0.622->0.648). The current un-pin collapses .elementor-absolute to 1-col at ALL widths <=1024, which matches the source 390 state but MISMATCHES the source 768 (2-col) state -> flow still beats abs on the responsive-sensitive sites (linear 0.679>abs 0.585, vercel 0.674>abs 0.611). Add a TABLET (769-1024px) 2-col-ish band so the abs clone reflows 1440(abs-desktop)->768(~2-col)-><=768(1-col), better matching the source 3col->2col->1col regrouping -> lift the responsive sub-score further + potentially FLIP linear/vercel to abs-win (raising the router). FIX (build-absolute.mjs ONLY): MODIFY the page custom_css un-pin media query into TWO bands: (1) @media(min-width:769px) and (max-width:1024px){ un-pin .elementor-absolute to position:relative + left/top/right/bottom:auto, but width:48% + display:inline-block + vertical-align:top (NOT 100%), and set the ROOT .e-con to text-align:center (or flex-wrap:wrap + justify-content:center) so the un-pinned widgets pack ~2-per-row; give wide content (img/code/full-bleed) max-width:100% so over-wide widgets take a full row instead of overflowing 48% }. (2) @media(max-width:768px){ the EXISTING 1-col rule: width:100% + position:relative + auto offsets + margin }. Keep the y-sort (DOM order = visual top-to-bottom, already in place from recipe #20) + min_height_mobile/_tablet=0. GUARDS: desktop (>=1025) UNCHANGED (both media bands are <=1024). The 48% width risks overflow on wide content -> the max-width:100% escape + the corpus-gate (auto-restore on any per-site regression) protect it; if 2-col regresses vs the 1-col baseline, the gate REVERTS to recipe-#20 state. Keep ALL kept recipes (#1-14 cloner + #20 abs-responsive) intact. node --check.'
-const FIX_EXPECT = 'abs responsive lifts further on the tablet (768) width by matching the source 2-col regrouping (was 1-col) -> abs corpus 0.648 -> ~0.66-0.68, potentially FLIPPING linear (abs 0.585 vs flow 0.679) and vercel (abs 0.611 vs flow 0.674) toward abs-win as their responsive sub-score rises -> router ceiling 0.671 -> ~0.68+. NO desktop regression (>=1025 untouched). If the 48% 2-col causes overflow/regression on any site, the corpus-gate AUTO-RESTORES to the recipe-#20 1-col state (clean — I learn 1-col is optimal). Self-test stays 1.0.'
+const FIX_LABEL = 'capture-lazy-image-decode'
+const FIX_FILES = 'capture-layout.mjs'
+const FIX_DIRECTIVE = 'Force-load + decode LAZY images that capture as blank/zero-box (they ARE in the source end-state, just deferred — END-STATE-FAITHFUL, unlike recycled harvest). FIX (capture-layout.mjs ONLY, gated CAPTURE_NO_LAZYIMG=1 default ON): as a RESTING-STATE pass (after the existing step-scroll-to-bottom-then-top reveal-pass, before geometry/raster), promote deferred image sources to real ones: for every <img>, copy data-src/data-lazy-src->src and data-srcset->srcset; for elements with data-bg/data-background or a lazy bg, set the background-image; then AWAIT Promise.all(allImages.map(i=>i.decode().catch(()=>{}))) so decoded pixels + intrinsic boxes are available to the walk. Idempotent, resting-state only (never mid-animation), per-image try/catch, wrapped so it never throws. Non-lazy sites: src already set -> no-op -> byte-identical. capture-layout.mjs ONLY. node --check.'
+const FIX_EXPECT = 'lazy/deferred images that captured as blank/zero-box now load + decode -> media leaves get real boxes + pixels -> per-element COLOR (lowest sub-score) + areaCoverage RISE on media-heavy grids (the images ARE in the end-state). Non-lazy sites neutral/byte-identical. Self-test 1.0. If it regresses any site, the corpus-gate AUTO-RESTORES (and the new baseline-validity guard blocks any glitched-baseline spurious keep).'
 // ===== end driver-edited =====
 
 const GRADER = '/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader'
@@ -88,6 +88,10 @@ if (!fix || !fix.applied || !fix.selfTestPass) {
   const afterVisualC = cAvg(after, 'visual'), baseVisualC = cAvg(base, 'visual'), afterEditC = cAvg(after, 'editability'), baseEditC = cAvg(base, 'editability')
   const perSite = after.map((r) => { const tol = Math.min(REG_CAP, Math.max(REG_FLOOR, noiseBy[r.site] || 0)); const delta = +((r.composite || 0) - (baseBy[r.site] || 0)).toFixed(3); return { site: r.site, before: baseBy[r.site], after: r.composite, delta, tol: +tol.toFixed(3) } })
   const regressions = perSite.filter((p) => p.delta < -p.tol)
+  // BASELINE-VALIDITY GUARD: grades MUST be in [0,1]; a negative/implausible baseline (or after) means the
+  // grading GLITCHED this run -> the gate cannot be trusted (any fix "beats" a broken baseline). Force no-keep + flag.
+  const inRange = (r) => typeof r.composite === 'number' && r.composite >= 0 && r.composite <= 1.01
+  const baselineValid = base.every(inRange) && after.every(inRange) && baseMeanC >= 0.05
   phase('Decide')
   const meanUp = afterMean > baseMeanC + EPS
   const structUp = afterStructC > baseStructC + STRUCT_EPS
@@ -96,11 +100,11 @@ if (!fix || !fix.applied || !fix.selfTestPass) {
   // editability + visual are FIRST-CLASS metrics (0.3 + 0.4 of composite; editability is a hard product
   // requirement). A change that lifts ANY sub-metric past its epsilon with NO per-site composite regression is
   // a real win -> keep (the gate previously only checked mean/struct and silently rejected editability/visual wins).
-  const keep = regressions.length === 0 && common.size >= 2 && (meanUp || structUp || editUp || visualUp)
+  const keep = baselineValid && regressions.length === 0 && common.size >= 2 && (meanUp || structUp || editUp || visualUp)
   const drove = meanUp ? 'mean' : structUp ? 'struct' : editUp ? 'editability' : visualUp ? 'visual' : 'none'
   if (!keep) {
     await agent('Restore: cd ' + GRADER + ' && cp /tmp/ev-bk-capture.mjs capture-layout.mjs && cp /tmp/ev-bk-build.mjs build-absolute.mjs && echo RESTORED. Return nothing else.', { label: 'restore', phase: 'Decide' })
-    verdict = 'REJECTED + RESTORED (' + FIX_LABEL + ') — ' + (regressions.length ? 'regressed: ' + regressions.map((r) => r.site + ' ' + r.delta).join(',') : 'no mean/struct gain (mean ' + baseMeanC + '->' + afterMean + ', struct ' + baseStructC + '->' + afterStructC + ', visual ' + baseVisualC + '->' + afterVisualC + ', edit ' + baseEditC + '->' + afterEditC + ')')
+    verdict = (!baselineValid ? 'INVALID-BASELINE + RESTORED (' + FIX_LABEL + ') — baseline/after grades out of [0,1] (baseMean ' + baseMeanC + ', afterMean ' + afterMean + ') => grading GLITCHED this run, gate UNTRUSTWORTHY, no-keep + flagged for re-run' : 'REJECTED + RESTORED (' + FIX_LABEL + ') — ' + (regressions.length ? 'regressed: ' + regressions.map((r) => r.site + ' ' + r.delta).join(',') : 'no mean/struct gain (mean ' + baseMeanC + '->' + afterMean + ', struct ' + baseStructC + '->' + afterStructC + ', visual ' + baseVisualC + '->' + afterVisualC + ', edit ' + baseEditC + '->' + afterEditC + ')'))
   } else {
     verdict = 'KEPT (' + FIX_LABEL + ', via ' + drove + ') — mean ' + baseMeanC + '->' + afterMean + ', struct ' + baseStructC + '->' + afterStructC + ', visual ' + baseVisualC + '->' + afterVisualC + ', edit ' + baseEditC + '->' + afterEditC + ', no regression. Per-site: ' + JSON.stringify(perSite.map((p) => p.site + ':' + p.after))
   }

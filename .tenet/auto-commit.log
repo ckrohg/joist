@@ -75,3 +75,6 @@ hint: Disable this message with "git config set advice.addIgnoredFile false"
  create mode 100644 knowledge/WP_SANDBOX_FARM_SPEC.md
 [08:20:22] Committed: auto: auto-save (26 files including knowledge/GSAP_ESCAPE_HATCH_SPEC.md,knowledge/BUILDING_BLOCK_CURRICULUM.md,knowledge/CANONICAL_GRADER.md,knowledge/CLEAN_STACK_MIGRATION.md,knowledge/CLONE_CAPABILITY_SPEC.md...)
 [08:20:22] Shutdown complete.
+[22:05:52] Parent process died (PPID 1) - running cleanup...
+[22:05:52] Received shutdown signal - saving final changes...
+[22:05:52] Shutdown complete.

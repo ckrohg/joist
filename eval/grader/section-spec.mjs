@@ -158,7 +158,7 @@ function classifyRole(seg, sec, blocks, cols, hasTable, ctx) {
   const quotes = blocks.filter((b) => b.type === 'quote');
   const textLen = blocks.filter((b) => /heading|body|subhead|eyebrow|quote/.test(b.type)).reduce((a, b) => a + (b.text || '').length, 0);
   const blob = blocks.map((b) => (b.text || '').toLowerCase()).join(' ');
-  const h = sec.y1 - sec.y0;
+  const h = (sec.y1 != null && sec.y0 != null) ? (sec.y1 - sec.y0) : (sec.bbox ? sec.bbox.h : 0); // NaN-guard (codex)
   const isFirst = sec.idx === 0;
   const isLast = sec.idx === ((seg.sections || []).length - 1);
   const bigHeading = heads.some((x) => (x.level || 4) <= 1 || num(x.style.size) >= 32);
@@ -169,9 +169,9 @@ function classifyRole(seg, sec, blocks, cols, hasTable, ctx) {
 
   if (hasTable || (/\b(per month|\/mo|\/month|month|billed)\b/.test(blob) && /\b(plan|tier|pricing|pro\b|enterprise|starter|free\b|team\b)\b/.test(blob))) { role = 'pricing'; confidence = 0.8; }
   else if (/\b(frequently asked|faq|common questions|have questions)\b/.test(blob)) { role = 'faq'; confidence = 0.75; }
-  else if (isFirst && (bigHeading || buttons.length) && sec.y0 < 760) { role = 'hero'; confidence = 0.85; }
+  else if (isFirst && (bigHeading || buttons.length) && sec.y0 < 1000) { role = 'hero'; confidence = 0.85; } // relaxed y-bound (codex): handles announcement bars
   else if (logos.length >= 4 && h < 280 && textLen < 90) { role = 'logos'; confidence = 0.85; }
-  else if (imgs.length >= 6 && h < 280 && textLen < 120) { role = 'logos'; confidence = 0.65; }
+  else if (imgs.length >= 6 && logos.length >= 3 && h < 300 && textLen < 120) { role = 'logos'; confidence = 0.65; } // require ≥3 logo-sized (codex): excludes screenshot strips
   else if ((quotes.length >= 1 && imgs.length >= 1) || /\b(testimonial|loved by|customers say|what (our )?(users|customers|developers) (say|are saying)|trusted by the world)\b/.test(blob) || (segRepeated && imgs.length >= 3 && textLen > 200)) { role = 'testimonial'; confidence = 0.7; }
   else if (stats.length >= 2) { role = 'stats'; confidence = 0.7; }
   else if ((cols.n >= 3 && cols.comparable) || (heads.length >= 3 && (imgs.length + blocks.filter((b) => b.type === 'icon').length) >= 2)) { role = 'features'; confidence = 0.7; }
