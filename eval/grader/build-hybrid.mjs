@@ -164,9 +164,11 @@ function classify(sec) {
       // section bg: the full-width element starting at y0
       for (const e of document.querySelectorAll('body *')) { const r = rectOf(e); if (Math.abs(r.y - y0) < 6 && r.w >= vw * 0.82 && r.h >= secH * 0.6) { const c = getComputedStyle(e).backgroundColor; if (opaque(c)) { bgColor = c; break; } } }
       for (const e of document.querySelectorAll('canvas, video')) { const r = rectOf(e); if (r.y + r.h / 2 >= y0 && r.y + r.h / 2 < y1 && r.w > 200 && r.h > 150) bigCanvas = true; }
-      // CODE BLOCKS reconstruct as token soup (syntax-highlight spans) → count their area as MEDIA so a
-      // code-heavy section RASTERIZES (pixel-perfect) instead of going sparse-editable with the text excluded.
-      for (const e of document.querySelectorAll('pre')) { const r = rectOf(e); if (r.y + r.h / 2 >= y0 && r.y + r.h / 2 < y1 && r.w > 80 && r.h > 40) mediaArea += r.w * r.h; }
+      // CODE BLOCKS reconstruct as token soup (syntax-highlight spans). Count their area as MEDIA (so a
+      // code-DOMINANT section rasterizes whole) AND emit each as a rasterSlice image-leaf (Wave B sub-section
+      // hybrid): in a MIXED section (feature text + code), the text stays editable and the code block is sliced
+      // from the screenshot + placed as ONE pixel-perfect image in position — instead of an empty gap.
+      for (const e of document.querySelectorAll('pre')) { const r = rectOf(e); if (r.y + r.h / 2 >= y0 && r.y + r.h / 2 < y1 && r.w > 80 && r.h > 40) { mediaArea += r.w * r.h; leaves.push({ kind: 'image', rasterSlice: true, box: r, alt: 'code' }); } }
       for (const el of leafEls) {
         if (!vis(el)) continue; const box = rectOf(el); const cy = box.y + box.h / 2; if (cy < y0 || cy >= y1) continue;
         const tag = el.tagName.toLowerCase(); const cs = getComputedStyle(el);
@@ -227,8 +229,27 @@ function classify(sec) {
   // (overlapping) / text-rich-rescue sections (3-4 per site), so flow stays the default for normal sections and
   // the responsive un-pin keeps abs mobile-safe. Opt out with HYBRID_AUTO_ABS=0. --force-abs forces all editable.
   const FORCE_ABS = process.argv.includes('--force-abs'); const AUTO_ABS = process.env.HYBRID_AUTO_ABS !== '0';
+  // Wave B sub-section hybrid: slice a code/illustration block (page coords) from the screenshot, upload, return
+  // a hosted image URL. Placed in-flow among the editable widgets so a mixed text+code section keeps its text
+  // editable AND shows the code faithfully (a same-y text+image pair becomes a side-by-side flex row).
+  async function rasterizeSubBlock(box, secI) {
+    if (DRY) return null;
+    const x0 = Math.max(0, Math.round(box.x * dpr)), y0 = Math.max(0, Math.round(box.y * dpr));
+    const w = Math.min(shot.width - x0, Math.round(box.w * dpr)), h = Math.round(box.h * dpr);
+    if (w < 24 || h < 24 || y0 + h > shot.height) return null;
+    const crop = new PNG({ width: w, height: h });
+    for (let r = 0; r < h; r++) { const s = ((y0 + r) * shot.width + x0) * 4; shot.data.copy(crop.data, (r * w) * 4, s, s + w * 4); }
+    const out = dpr > 1 ? downscale(crop, Math.round(dpr)) : crop;
+    return uploadPng(PNG.sync.write(out), `hybcode-${secI}-${Date.now()}.png`);
+  }
+  let subImgs = 0;
   for (const sec of model.sections) {
     let editEl = null;
+    // Wave B: for sections that will render EDITABLE, materialize rasterSlice sub-blocks (code/illustration) as
+    // hosted images IN PLACE. leafToWidget(image) skips any whose url didn't upload, so failures degrade to a gap.
+    if (sec.kind === 'editable' && sec.leaves && sec.leaves.some((l) => l.rasterSlice && !l.url)) {
+      for (const lf of sec.leaves) { if (lf.kind === 'image' && lf.rasterSlice && !lf.url) { const u = await rasterizeSubBlock(lf.box, sec.i); if (u) { lf.url = u; subImgs++; } } }
+    }
     // ABS RESCUE was REVERTED (2026-06-08): it pulled RASTER-classified complex sections (code/feature mixes)
     // back into abs reconstruction → sparse broken pages that LOOKED wrong despite scoring well. Raster-classified
     // sections now STAY raster (pixel-perfect). Re-enable for experiments with HYBRID_ABS_RESCUE=1.
@@ -269,7 +290,7 @@ function classify(sec) {
       rastCount++;
     }
   }
-  console.log(`built: ${editCount} editable sections (${absCount} abs-pinned), ${rastCount} raster sections (${rastImgs} imgs)`);
+  console.log(`built: ${editCount} editable sections (${absCount} abs-pinned), ${rastCount} raster sections (${rastImgs} imgs), ${subImgs} sub-block code/illustration img(s)`);
   const zeroPad = { unit: 'px', top: '0', right: '0', bottom: '0', left: '0', isLinked: true };
   // ROOT canvas floor — paint the captured page background behind everything so transparent editable
   // sections on dark-canvas sites don't render light text on the default white (the white-on-white bug).
