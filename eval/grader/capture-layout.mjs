@@ -366,6 +366,17 @@ function cropPng(png, box, dpr) {
   // intro lines, gradient-text CTAs) get wholesale-rastered or dropped instead of rebuilt as native editable text.
   // The hardened gate counts span/div-borne text too. CAPTURE_NO_DYNEMIT=1 → __NO_DYNEMIT true → revert to old gate.
   try { await page.evaluate((off) => { window.__NO_DYNEMIT = off; }, process.env.CAPTURE_NO_DYNEMIT === '1'); } catch {}
+  // VISIBLE-CLIP reversibility (hard-coded-width / horizontal-scroll fix): rectOf() records each node's FULL
+  // getBoundingClientRect. A Framer marquee (e.g. the FLORA testimonial carousel) reports a box that extends
+  // FAR past its overflow:hidden parent's right edge (box {x:1350,w:1080}→right 2430 inside a 1200px clip),
+  // because the marquee track is wider than the window it scrolls behind. build-absolute faithfully pins that
+  // 2430-right box → the clone's docScrollW blows past the 1440 viewport → 990px of bogus horizontal scroll
+  // ("width is hard coded WRONG"; supabase overflows 1714px the same way). FIX: rectOf clamps each box to its
+  // VISIBLE region = getBoundingClientRect ∩ layout-viewport[0..innerWidth] (horizontal) ∩ the content-box of
+  // the nearest ancestor whose computed overflow-x/overflow is hidden|clip|scroll|auto. Fully-clipped elements
+  // (zero visible area) are dropped. Vertical capture / scroll-height is untouched. CAPTURE_NO_CLIP=1 restores
+  // the old full-rect behaviour.
+  try { await page.evaluate((off) => { window.__NO_CLIP = off; }, process.env.CAPTURE_NO_CLIP === '1'); } catch {}
 
   const data = await page.evaluate(() => {
     const MAXD = 8; const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
@@ -404,7 +415,61 @@ function cropPng(png, box, dpr) {
     // ownText=FALSE → the span-borne intro line was DROPPED (the logo-wall section then baked it into a mockup).
     // Filter out non-rendering elements before the single-span test so the real text span is recognised.
     const ownText = (el) => { if (hasOwnText(el)) return true; let spans = [...el.childNodes].filter((x) => x.nodeType === 1); if (!window.__NO_DYNEMIT) spans = spans.filter((x) => !/^(script|style|template|noscript)$/i.test(x.tagName)); if (spans.length === 1 && spans[0].tagName === 'SPAN' && hasOwnText(spans[0])) return true; return false; };
-    const rectOf = (el) => { const r = el.getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top + scrollY), w: Math.round(r.width), h: Math.round(r.height) }; };
+    // VISIBLE-CLIP (hard-coded-width / horizontal-scroll fix): a node's FULL getBoundingClientRect can extend
+    // far past the region that actually PAINTS, because an ancestor with overflow:hidden|clip|scroll|auto windows
+    // it (the canonical case is a Framer/carousel MARQUEE track that is much wider than the 1200px box it scrolls
+    // behind: box right=2430 but visible right=1320). build-absolute pins the FULL box → the clone's document
+    // scroll-width blows past the viewport → bogus horizontal scroll. So record each box CLAMPED to its visible
+    // region = rect ∩ layout-viewport[0..innerWidth] (horizontal) ∩ the content-box of the NEAREST clipping
+    // ancestor (both axes). The clip-ancestor content-box is the PADDING-box minus borders (where children paint).
+    // We do NOT clamp to the viewport vertically (the page is taller than the window — that's normal scroll, not a
+    // clip), so vertical capture / scroll-height is untouched; only true overflow-clip ancestors bound y. A fully
+    // clipped element collapses to a zero-area box, which the existing w/h>0 guards in walk()/leaf()/build-absolute
+    // drop. CAPTURE_NO_CLIP=1 (→ __NO_CLIP) restores the old full-rect behaviour.
+    const CLIP_OVERFLOW = /^(hidden|clip|scroll|auto)$/;
+    // nearest ancestor that clips overflow on a given axis → its inner (content-box-ish) bounds in viewport coords.
+    // We use the element's clientWidth/clientHeight (content+padding, excludes scrollbar/border) offset by border
+    // width, which is exactly the region inside which descendants are visually retained.
+    const clipBoundsOf = (el) => {
+      let left = 0, top = -Infinity, right = innerWidth, bottom = Infinity; // viewport-x clamp is always on
+      let p = el.parentElement;
+      while (p && p !== document.documentElement) {
+        let cs; try { cs = getComputedStyle(p); } catch { p = p.parentElement; continue; }
+        const ox = cs.overflowX || cs.overflow, oy = cs.overflowY || cs.overflow;
+        const clipsX = CLIP_OVERFLOW.test(ox), clipsY = CLIP_OVERFLOW.test(oy);
+        if (clipsX || clipsY) {
+          const pr = p.getBoundingClientRect();
+          const bl = parseFloat(cs.borderLeftWidth) || 0, bt = parseFloat(cs.borderTopWidth) || 0;
+          const br = parseFloat(cs.borderRightWidth) || 0, bb = parseFloat(cs.borderBottomWidth) || 0;
+          const innerL = pr.left + bl, innerT = pr.top + bt;
+          const innerR = pr.left + bl + p.clientWidth, innerB = pr.top + bt + p.clientHeight;
+          if (clipsX) { if (innerL > left) left = innerL; if (innerR < right) right = innerR; }
+          if (clipsY) { if (innerT > top) top = innerT; if (innerB < bottom) bottom = innerB; }
+        }
+        p = p.parentElement;
+      }
+      return { left, top, right, bottom };
+    };
+    const rectOf = (el) => {
+      const r = el.getBoundingClientRect();
+      if (window.__NO_CLIP === true) return { x: Math.round(r.left), y: Math.round(r.top + scrollY), w: Math.round(r.width), h: Math.round(r.height) };
+      const cb = clipBoundsOf(el);
+      const x0 = Math.max(r.left, cb.left), x1 = Math.min(r.right, cb.right);
+      const y0 = Math.max(r.top, cb.top), y1 = Math.min(r.bottom, cb.bottom);
+      const vw = x1 - x0, vh = y1 - y0;
+      if (vw <= 0 || vh <= 0) return { x: Math.round(Math.max(r.left, 0)), y: Math.round(r.top + scrollY), w: 0, h: 0 }; // fully clipped → zero-area, dropped by w/h guards
+      // HEAVILY-CLIPPED SLIVER DROP: a marquee/carousel item scrolling in from the right edge is captured as a
+      // thin sliver (e.g. a 600px testimonial quote visible only 36px at the boundary). Clamping its BOX is right,
+      // but build-absolute then pins a native text widget to that 36px width and the non-wrapping text spills past
+      // the viewport AGAIN (the residual: clone docScrollW 1570 vs 1440 — the sliver's content re-introduces ~130px
+      // of overflow). Such a fragment is, by construction, an off-screen item barely peeking past a clip edge — its
+      // visible portion is a few glyphs of negligible fidelity value. Collapse it to zero-area (→ dropped) WHEN the
+      // clip removed most of its width (visible < 50% of raw) AND the surviving sliver is small in absolute terms
+      // (< 120px). A genuinely near-edge-but-mostly-visible element (raw≈visible, or a wide retained band) keeps a
+      // ratio near 1 and/or a large visible width, so it is NEVER dropped. Horizontal axis only — vertical untouched.
+      if (r.width > 0 && vw < 0.5 * r.width && vw < 120) return { x: Math.round(Math.max(x0, 0)), y: Math.round(y0 + scrollY), w: 0, h: 0 };
+      return { x: Math.round(x0), y: Math.round(y0 + scrollY), w: Math.round(vw), h: Math.round(vh) };
+    };
 
     // CODE-AS-ART markup-strip (capture-markup-flow-gate): some marketing heroes (tailwindcss.com) render
     // literal HTML markup ("<div class=\"...\">") as decorative text inside ordinary prose/heading blocks.

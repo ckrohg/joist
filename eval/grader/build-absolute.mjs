@@ -96,38 +96,6 @@ let IMGCAP_SEQ = 0;     // monotonic id seed for capped content image widgets (i
 // leaf id and the img-cap/fluid-font scoped rules re-key to it (same <=1024 behavior, unique id).
 const PERBP = process.env.ABS_PERBP === '1';
 const pbId = (n) => (PERBP && n && n.box) ? `pb${Math.round(n.box.x)}-${Math.round(n.box.y)}-${Math.round(n.box.w)}-${Math.round(n.box.h)}` : null;
-// ── CONTENT-IMAGE LEAF: SURVIVE GRADER RE-CAPTURE AS kind:image (default ON; BUILD_NO_IMG_LEAF=1 → off) ────────
-// DIAGNOSIS (framer page 2990, coverage 0.331): every LARGE content photo (w>=200, e.g. the 65 "made in Framer"
-// showcase shots + the 776x646/550x732 customer imagery) is CAPTURED as a kind:image leaf with a real
-// framerusercontent src, and build-absolute correctly emits a native Elementor `image` widget for it. BUT the
-// grader re-captures the live clone with capture-layout, whose VISUAL-MOCKUP gate (capture-layout.mjs:785)
-// classifies ANY container that is a single image-DOMINANT box with txtLen<120, w>=200, h in [120,1500] as a
-// kind:'mockup' region-capture. An Elementor `image` widget renders as `.elementor-element`(abs) > `<img>` — a
-// textless, image-dominant box at SHALLOW capture depth (~3) — so the gate fires on its abs wrapper and NEVER
-// recurses to the `<img>`: the clone band re-captures as a kind:'mockup', not kind:'image'. The SOURCE escapes
-// the SAME gate purely because framer nests each photo >MAXD(8) levels deep, where capture-layout's depth-flatten
-// (capture-layout.mjs:1057) extracts the bare `<img>` → kind:'image'. The result is a TYPE/COUNT asymmetry
-// (clone 23 mockups vs source 2; 19 extra large clone media nodes) that the per-element bipartite matcher
-// (perelement-score.mjs) assigns sub-optimally → the source photos dump into unmatchedSrc, deflating areaCoverage
-// to 0.331 (IMG = 99.6% of framer's unmatched-source area). Verified: media-only matching is 0.909 — the loss is
-// entirely the image→mockup re-classification corrupting the global assignment.
-// FIX: for a LARGE content-image leaf (real non-data src, w>=80 && h>=80), emit the EXACT same image at its EXACT
-// captured (x,y,w,h) — but as an `html` widget whose markup is the real `<img>` PLUS one hidden, aria-hidden,
-// opacity:0, 1px, off-screen <span> carrying >=120 chars. The hidden span is NEVER a capturable leaf
-// (capture-layout's visible() rejects opacity<0.05) and is visually absent (opacity:0, 1px) — it ONLY pushes the
-// wrapper's innerText past the gate's `txtLen < 120` threshold, so capture-layout's walk recurses INTO the wrapper
-// and reaches the `<img>` → kind:'image' at the EXACT captured box (NOT a wrong-sized mockup). This is a targeted
-// correction of a grader FALSE-POSITIVE (a real single image is image content, not a screenshot/mockup), NOT
-// text rasterization (the photo is a real <img>, all page words stay native) and NOT score-gaming (the hidden span
-// is invisible and unmatched; it changes ONLY the leaf TYPE, recovering the photo the matcher was dropping).
-// NO horizontal-scroll risk: the wrapper is pinned to box.w via _element_custom_width + wmax(100%); the hidden
-// span is position:absolute 1px. REVERSIBLE: BUILD_NO_IMG_LEAF=1 → emit the plain native `image` widget (the old
-// collapse-to-mockup behavior), byte-for-byte the prior path.
-const NO_IMG_LEAF = process.env.BUILD_NO_IMG_LEAF === '1';
-// the hidden gate-defeating span: aria-hidden, opacity:0, off-canvas 1px, >=120 chars of innocuous filler so
-// capture-layout's `clean(el.innerText).length < 120` mockup gate FAILS (→ recurse to the <img>), while
-// capture-layout's visible() (opacity<0.05 → false) keeps it OUT of the captured leaf set. NOT user-visible.
-const IMG_LEAF_HINT = '<span aria-hidden="true" style="position:absolute;left:0;top:0;width:1px;height:1px;max-width:1px;max-height:1px;overflow:hidden;opacity:0;color:transparent;pointer-events:none;user-select:none;font-size:6px;line-height:1;white-space:nowrap">' + 'image '.repeat(22) + '</span>';
 // ── MEDIA LEAF HEIGHT-LOCK (img/mockup/svg desktop band pin — default ON; ABS_NO_IMGHLOCK=1 → off) ───────────
 // WHY (resend hRatio 1.093 / ~1142px vertical overflow): a native Elementor `image` widget renders an <img>
 // whose CSS height is AUTO → it paints at its INTRINSIC aspect ratio for the given width. When the SOURCE
@@ -289,24 +257,7 @@ function leafWidget(n, target, origin) {
   // normal widgets incl. the mockup raster; below the 90000+ raster-band fallback) so they always paint over
   // the image regardless of flatten order.
   const P = absPos(box, n.overlay ? oz++ : z++, origin);
-  if (n.kind === 'image') {
-    const url = localSrc(n.src);
-    // LARGE content photo (real, on-disk/remote src ≥80px each side): emit as an `html` widget whose markup is the
-    // real <img> at the EXACT box + the hidden gate-hint span, so the grader's re-capture recurses to the <img>
-    // (kind:image at the captured box) instead of mockup-classifying the whole wrapper (see NO_IMG_LEAF note). The
-    // imgCapSettings _element_id is carried so the desktop height-lock / <=1024 cap CSS (`#eid img,#eid svg{…}`)
-    // still keys to the SAME wrapper — identical responsive behavior to the native `image` widget path.
-    const isLarge = !NO_IMG_LEAF && url && !String(url).startsWith('data:') && box.w >= 80 && box.h >= 80;
-    if (isLarge) {
-      const w = Math.round(box.w), h = Math.round(box.h);
-      const fit = mediaObjectFit(n);
-      const imgTag = `<img src="${esc(url)}" alt="${esc(n.alt || '')}" style="display:block;${wmax(w)};height:${h}px;object-fit:${fit}">`;
-      sink.push({ elType: 'widget', widgetType: 'html', settings: { html: `<div style="position:relative;${wmax(w)};height:${h}px">${imgTag}${IMG_LEAF_HINT}</div>`, ...imgCapSettings(box, n), ...P } });
-      return;
-    }
-    const id = localId(n.src); const img = id ? { url, id } : { url };
-    sink.push({ elType: 'widget', widgetType: 'image', settings: { image: img, image_size: 'full', width: { unit: 'px', size: Math.round(box.w) }, ...imgCapSettings(box, n), ...P } }); return;
-  }
+  if (n.kind === 'image') { const id = localId(n.src); const img = id ? { url: localSrc(n.src), id } : { url: localSrc(n.src) }; sink.push({ elType: 'widget', widgetType: 'image', settings: { image: img, image_size: 'full', width: { unit: 'px', size: Math.round(box.w) }, ...imgCapSettings(box, n), ...P } }); return; }
   if ((n.kind === 'svg' || n.kind === 'mockup') && n.raster && n.raster !== 'SKIP') { sink.push({ elType: 'widget', widgetType: 'image', settings: { image: { url: localSrc(n.raster) }, image_size: 'full', width: { unit: 'px', size: Math.round(box.w) }, ...imgCapSettings(box, n), ...P } }); return; }
   if (n.kind === 'code') { const fs2 = (n.typo && n.typo.size) || 14; const cc = colorCss(n); sink.push({ elType: 'widget', widgetType: 'html', settings: { html: `<pre style="white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace;font-size:${fs2}px;margin:0${cc ? ';' + cc : ''}">${esc(n.text || '')}</pre>`, ...PB, ...P } }); return; }
   // VIDEO: emit an ALWAYS-PRESENT <iframe>/<video> inside an `html` widget for ALL providers — NOT the

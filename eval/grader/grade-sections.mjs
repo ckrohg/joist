@@ -70,6 +70,22 @@ const DET_CHUNKEDMEDIA = DET_MASTER && !process.env.GRADER_NO_CHUNKEDMEDIA;
 const DET_REALNAV = DET_MASTER && !process.env.GRADER_NO_REALNAV;
 const DET_K1 = 0.5;            // text-collision visual-multiplier strength: visual×(1 - K1·collisionRate)
 
+// ---- REALITY DETECTORS (USER: "MEASURE WHAT THE HUMAN SEES") — two additive, env-flag-gated penalties that fold
+// into the EXISTING visual term (NO new top-level composite weight). Both are PURE functions over geometry capture()
+// ALREADY collects (docScrollW + leaf boxes) — NO fresh render/navigation/network. Both are NO-OPS on source-vs-
+// source (clone==source → identical scrollWidth, identical overlap → ratio 1.0 / excess 0 → multiplier 1) so the
+// HARD self-test gate stays deterministic == 1.0.
+//   GRADER_NO_HOVERFLOW=1 → (5) desktop horizontal-overflow: clone scrollWidth > source scrollWidth (a fixed-width /
+//                           h-scroll page is a human-obvious failure) → SEVERE visual penalty scaling with overflow.
+//   GRADER_NO_OVERLAP2=1  → (6) general widget-overlap: heavy-overlap (IoU>=0.5 or >50%-contained) leaf pairs among
+//                           NON-NESTED siblings, EXCESS over the source's own → visual penalty scaling with excess.
+const DET_HOVERFLOW = DET_MASTER && !process.env.GRADER_NO_HOVERFLOW;
+const DET_OVERLAP2 = DET_MASTER && !process.env.GRADER_NO_OVERLAP2;
+const DET_HOVERFLOW_K = 1.4;   // horizontal-overflow severity: visual×max(HOVERFLOW_FLOOR, 1 - K·(overflowRatio-1))
+const DET_HOVERFLOW_FLOOR = 0.25; // a fully-broken h-scroll page (e.g. 2430/1440 = 1.69×) bottoms out near here
+const DET_OVERLAP2_K = 2.2;    // widget-overlap severity: visual×max(OVERLAP2_FLOOR, 1 - K·excessOverlapFrac)
+const DET_OVERLAP2_FLOOR = 0.4;
+
 // ---- pure detector helpers (geometry already in hand; NO network) ----
 const _iou = (a, b) => {
   const ix = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
@@ -150,6 +166,55 @@ function realNav(srcNav, cloneNav) {
   const cloneReal = !!(cloneNav && cloneNav.realNav);
   const ok = !(srcReal && !cloneReal);                     // penalty ONLY when source had a real nav but clone flattened it
   return { srcReal, cloneReal, ok };
+}
+
+// DETECTOR(5) DESKTOP HORIZONTAL-OVERFLOW: the most human-obvious failure of all — a fixed-width / runaway-content
+// clone that scrolls sideways. Compare the CLONE's real rendered document.scrollWidth against the SOURCE's, floored
+// at the grade viewport (a source can legitimately be exactly viewport-wide). overflowRatio = cloneScrollW /
+// max(sourceScrollW, vw). Source-vs-source: cloneScrollW == sourceScrollW → ratio 1.0 → no penalty. A clone that
+// blows out to 2430 px at a 1440 vw (ratio 1.69) is catastrophically broken and must drop HARD.
+function hOverflow(cloneScrollW, srcScrollW, vw) {
+  const denom = Math.max(srcScrollW || 0, vw);
+  if (denom <= 0) return { overflowRatio: 1, cloneScrollW: cloneScrollW || 0, srcScrollW: srcScrollW || 0, denom: vw };
+  const overflowRatio = +((cloneScrollW || 0) / denom).toFixed(4);
+  return { overflowRatio, cloneScrollW: cloneScrollW || 0, srcScrollW: srcScrollW || 0, denom };
+}
+
+// DETECTOR(6) GENERAL WIDGET-OVERLAP: extend the text-only collision check to ALL leaf widget boxes (text, image,
+// container leaves). Count HEAVY-overlap pairs (IoU>=0.5 OR one box >50%-contained in another) among NON-NESTED
+// leaves, and accumulate the OVERLAPPING AREA (union of the intersection rectangles), normalized by page area.
+// Because leaf boxes are never ancestors of one another, every overlap is a real sibling collision. We compute the
+// SAME measure on the SOURCE and penalize only the EXCESS the clone introduces. Source-vs-source: identical leaves →
+// excess 0 → no penalty. Returns { pairs, overlapArea, overlapFrac } given a page area.
+function widgetOverlap(leaves, pageArea) {
+  const ls = (leaves || []).filter((b) => b.w > 0 && b.h > 0);
+  if (!ls.length || pageArea <= 0) return { pairs: 0, overlapArea: 0, overlapFrac: 0 };
+  let pairs = 0, overlapArea = 0;
+  const N = ls.length;
+  // cap pair scan to keep grading O(reasonable) on huge pages: sort by y, only compare boxes whose y-bands can meet.
+  const sorted = ls.slice().sort((a, b) => a.y - b.y);
+  for (let i = 0; i < N; i++) {
+    const a = sorted[i];
+    for (let j = i + 1; j < N; j++) {
+      const b = sorted[j];
+      if (b.y >= a.y + a.h) break;                          // sorted by y → no later box can vertically meet `a`
+      const ix = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
+      const iy = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+      const inter = ix * iy; if (inter <= 0) continue;
+      const aArea = a.w * a.h, bArea = b.w * b.h;
+      const uni = aArea + bArea - inter; const iou = uni > 0 ? inter / uni : 0;
+      const minA = Math.min(aArea, bArea), maxA = Math.max(aArea, bArea);
+      // A genuine widget COLLISION is a substantial MUTUAL overlap (IoU>=0.5) OR a small box sitting >50%-inside
+      // another of COMPARABLE size. EXCLUDE the small-box-inside-a-much-larger-box case (areaRatio > 4×): that is
+      // a content widget legitimately laid INSIDE a card / panel / wrapper (background-behind-content), which a
+      // human does NOT perceive as a collision. This keeps the detector measuring real pile-ups, not nesting.
+      const containedSmallInBig = (minA > 0 && inter / minA > 0.5) && (maxA / Math.max(1, minA) > 4);
+      const heavy = !containedSmallInBig && (iou >= 0.5 || (minA > 0 && inter / minA > 0.5));
+      if (!heavy) continue;
+      pairs++; overlapArea += inter;
+    }
+  }
+  return { pairs, overlapArea: Math.round(overlapArea), overlapFrac: +Math.min(1, overlapArea / pageArea).toFixed(4) };
 }
 // Run grade-responsive.mjs as a subprocess (mirrors perElementScores). Returns {score,edgeSet,layout,perBreakpoint,
 // coverage} or null on failure (→ caller treats responsive as unavailable and falls back to the OLD composite).
@@ -242,6 +307,41 @@ async function capture(ctx, target, withSections) {
       const realNav = elNav || (hasTopHeader && headerNavLinks >= 3);
       return { elNav, hasTopHeader, headerNavLinks, realNav };
     })();
+    // HORIZONTAL-OVERFLOW raw feed: the REAL rendered horizontal extent of the document (what produces a human-
+    // visible horizontal scrollbar). scrollWidth is the widest the content reaches; clientWidth is the viewport.
+    // A fixed-width / overflowing clone reports scrollWidth >> viewport. Pure DOM read — no extra render.
+    const docScrollW = Math.max(document.documentElement.scrollWidth, document.body ? document.body.scrollWidth : 0);
+    const docClientW = document.documentElement.clientWidth || vw;
+    // GENERAL WIDGET-OVERLAP raw feed: ALL visible LEAF boxes (text, image, container leaves alike). A LEAF is an
+    // element with NO visible element child that occupies a meaningful share of its own box (genuine content leaf —
+    // never an ancestor of another captured leaf, so any overlap between two leaves is a real NON-NESTED sibling
+    // collision, never parent↔child nesting). Pure geometry — no extra render. Each entry: {x,y,w,h,area}.
+    const leafBoxes = (() => {
+      const out = [];
+      const vh = window.innerHeight || 900;
+      const all = [...document.querySelectorAll('body *')];
+      for (const e of all) {
+        if (!vis(e)) continue;
+        const r = e.getBoundingClientRect();
+        if (r.width < 8 || r.height < 8) continue;
+        const myArea = r.width * r.height;
+        // EXCLUDE page/section BACKGROUND WRAPPERS: a near-full-width AND very-tall block is a container backdrop
+        // (it legitimately sits BEHIND all the content), NOT a content widget. Counting it as a leaf turns every
+        // widget it spans into a bogus "collision". A true content leaf is bounded in size.
+        if (r.width >= 0.95 * vw && r.height > 2 * vh) continue;
+        // is this element a LEAF? (no visible element child that is itself a sizeable box — genuine content leaf,
+        // never an ancestor of another captured leaf)
+        let isLeaf = true;
+        for (const c of e.children) {
+          if (!vis(c)) continue;
+          const cr = c.getBoundingClientRect();
+          if (cr.width >= 8 && cr.height >= 8) { isLeaf = false; break; }
+        }
+        if (!isLeaf) continue;
+        out.push({ x: Math.round(r.left), y: Math.round(r.top + scrollY), w: Math.round(r.width), h: Math.round(r.height), area: Math.round(myArea) });
+      }
+      return out;
+    })();
     // ELEMENT-TYPE (structural-fidelity) — detect block TYPES GENERICALLY (works on source AND on an Elementor
     // clone, so source-vs-source self-test stays 1.0). A form rebuilt as plain text → no inputs → structural miss.
     const visN = (sel) => [...document.querySelectorAll(sel)].filter(vis);
@@ -255,10 +355,10 @@ async function capture(ctx, target, withSections) {
       accordion: visN('details').length >= 2 ? 1 : (visN('[aria-expanded][aria-controls]').filter((b) => !b.closest('nav,header')).length >= 2 ? 1 : 0),
       nav: visN('nav,[role=navigation]').length ? 1 : 0,
     };
-    return { texts, sections, imgs, blocks, pageH: document.documentElement.scrollHeight, textLeaves, bands, mediaLeaves, navStruct };
+    return { texts, sections, imgs, blocks, pageH: document.documentElement.scrollHeight, textLeaves, bands, mediaLeaves, navStruct, docScrollW, docClientW, leafBoxes };
   }, { vw: W, withSections });
   const shot = PNG.sync.read(await p.screenshot({ fullPage: true }));
-  await p.close(); return { shot, texts: info.texts, sections: info.sections, imgs: info.imgs, blocks: info.blocks, pageH: info.pageH, textLeaves: info.textLeaves, bands: info.bands, mediaLeaves: info.mediaLeaves, navStruct: info.navStruct };
+  await p.close(); return { shot, texts: info.texts, sections: info.sections, imgs: info.imgs, blocks: info.blocks, pageH: info.pageH, textLeaves: info.textLeaves, bands: info.bands, mediaLeaves: info.mediaLeaves, navStruct: info.navStruct, docScrollW: info.docScrollW, docClientW: info.docClientW, leafBoxes: info.leafBoxes };
 }
 
 (async () => {
@@ -361,8 +461,29 @@ async function capture(ctx, target, withSections) {
   const rnRaw = DET_REALNAV ? realNav(src.navStruct, cln.navStruct) : { srcReal: false, cloneReal: false, ok: true };
   const realNavOk = SELFTEST ? true : rnRaw.ok;
   const realNavMult = (DET_REALNAV && !realNavOk) ? 0.9 : 1;
-  // FOLD: text-collision + full-bleed multiply the VISUAL term; chunked-media + real-nav multiply STRUCTURAL.
-  const visualMean = +(visualMeanPre * textCollideMult * fullBleedMult).toFixed(3);
+  // (5) DESKTOP HORIZONTAL-OVERFLOW → SEVERE visual penalty when the clone scrolls sideways past the source. Measured
+  // on the REAL rendered scrollWidth of both pages. Source-vs-source: cloneScrollW==srcScrollW → ratio 1.0 → no-op.
+  const hoRaw = DET_HOVERFLOW ? hOverflow(cln.docScrollW, src.docScrollW, W) : { overflowRatio: 1, cloneScrollW: 0, srcScrollW: 0, denom: W };
+  const overflowRatio = SELFTEST ? 1 : hoRaw.overflowRatio;
+  // tolerance band: ratios <= 1.02 (sub-pixel / harmless rounding) are a no-op. Beyond that, penalty scales with the
+  // overflow and floors at DET_HOVERFLOW_FLOOR (a runaway h-scroll page is a hard human-obvious FAIL).
+  const hOverflowMult = (DET_HOVERFLOW && overflowRatio > 1.02)
+    ? +Math.max(DET_HOVERFLOW_FLOOR, 1 - DET_HOVERFLOW_K * (overflowRatio - 1)).toFixed(4)
+    : 1;
+  // (6) GENERAL WIDGET-OVERLAP → visual penalty for the EXCESS heavy-overlap area the clone introduces over the source.
+  const clonePageArea = Math.max(1, W * (cln.pageH || 1));
+  const srcPageArea = Math.max(1, W * (src.pageH || 1));
+  const woClone = DET_OVERLAP2 ? widgetOverlap(cln.leafBoxes, clonePageArea) : { pairs: 0, overlapArea: 0, overlapFrac: 0 };
+  const woSrc = DET_OVERLAP2 ? widgetOverlap(src.leafBoxes, srcPageArea) : { pairs: 0, overlapArea: 0, overlapFrac: 0 };
+  const excessOverlap = SELFTEST ? 0 : +Math.max(0, woClone.overlapFrac - woSrc.overlapFrac).toFixed(4);
+  // penalty scales with excess overlap fraction and floors at DET_OVERLAP2_FLOOR (a page where widgets pile on top of
+  // each other — the 1700-pair framer clone — must drop materially). Clean clones (excess ~0) → multiplier ~1.
+  const overlap2Mult = (DET_OVERLAP2 && excessOverlap > 0.005)
+    ? +Math.max(DET_OVERLAP2_FLOOR, 1 - DET_OVERLAP2_K * excessOverlap).toFixed(4)
+    : 1;
+  // FOLD: text-collision + full-bleed + horizontal-overflow + widget-overlap multiply the VISUAL term;
+  // chunked-media + real-nav multiply STRUCTURAL.
+  const visualMean = +(visualMeanPre * textCollideMult * fullBleedMult * hOverflowMult * overlap2Mult).toFixed(3);
   const structuralFidelityPre = structuralFidelity;
   const structuralFidelityAdj = +(structuralFidelity * chunkedMediaMult * realNavMult).toFixed(3);
   // RESPONSIVE DIMENSION (reversible via GRADER_NO_RESPONSIVE=1). When ON, fetch the validated RLG
@@ -414,13 +535,15 @@ async function capture(ctx, target, withSections) {
     // GRADER-HONESTY DETECTORS (each env-flag-gated; default ON; GRADER_NO_DETECTORS=1 master-off). Required
     // report fields + telemetry. Penalties already folded into visualMean (text-collision, full-bleed) and the
     // adjusted structuralFidelity (chunked-media, real-nav). visualMeanPre/structuralFidelityPre = pre-penalty.
-    collisionRate, fullBleedOk, chunkedMediaCount, realNavOk,
+    collisionRate, fullBleedOk, chunkedMediaCount, realNavOk, overflowRatio, excessOverlap,
     detectors: {
-      enabled: { master: DET_MASTER, textCollide: DET_TEXTCOLLIDE, fullBleed: DET_FULLBLEED, chunkedMedia: DET_CHUNKEDMEDIA, realNav: DET_REALNAV },
+      enabled: { master: DET_MASTER, textCollide: DET_TEXTCOLLIDE, fullBleed: DET_FULLBLEED, chunkedMedia: DET_CHUNKEDMEDIA, realNav: DET_REALNAV, hOverflow: DET_HOVERFLOW, overlap2: DET_OVERLAP2 },
       textCollision: { rate: collisionRate, rawRate: tcRaw.rate, pairs: tcRaw.pairs, mult: textCollideMult },
       fullBleed: { ok: fullBleedOk, srcFrac: fbRaw.srcFrac, cloneFrac: fbRaw.cloneFrac, mult: fullBleedMult },
       chunkedMedia: { count: chunkedMediaCount, rawCount: cmRaw.count, regions: cmRaw.regions, mult: chunkedMediaMult },
       realNav: { ok: realNavOk, srcReal: rnRaw.srcReal, cloneReal: rnRaw.cloneReal, mult: realNavMult, srcNav: src.navStruct, cloneNav: SELFTEST ? src.navStruct : cln.navStruct },
+      hOverflow: { overflowRatio, rawRatio: hoRaw.overflowRatio, cloneScrollW: hoRaw.cloneScrollW, srcScrollW: hoRaw.srcScrollW, denom: hoRaw.denom, mult: hOverflowMult },
+      overlap2: { excessOverlap, cloneOverlapFrac: woClone.overlapFrac, srcOverlapFrac: woSrc.overlapFrac, clonePairs: woClone.pairs, srcPairs: woSrc.pairs, mult: overlap2Mult },
       visualMeanPre, structuralFidelityPre,
     },
     perElement,                       // {color,typography,position,text,effects,coverage} or null (SSIM-only / unavailable)
@@ -443,11 +566,11 @@ async function capture(ctx, target, withSections) {
     const peOk = !report.usePerElement || (report.perElement && ['color', 'typography', 'position', 'text', 'effects', 'coverage'].every((k) => Math.abs(report.perElement[k] - 1) <= 0.005));
     const respOk = !report.useResponsive || (report.responsive && Math.abs(report.responsive.score - 1) <= 0.005);
     // DETECTORS must be NO-OPS on source-vs-source (every multiplier == 1, no penalty applied).
-    const detOk = textCollideMult === 1 && fullBleedMult === 1 && chunkedMediaMult === 1 && realNavMult === 1 && collisionRate === 0 && fullBleedOk && chunkedMediaCount === 0 && realNavOk;
+    const detOk = textCollideMult === 1 && fullBleedMult === 1 && chunkedMediaMult === 1 && realNavMult === 1 && hOverflowMult === 1 && overlap2Mult === 1 && collisionRate === 0 && fullBleedOk && chunkedMediaCount === 0 && realNavOk && overflowRatio <= 1.02 && excessOverlap === 0;
     const ok = report.composite >= 0.99 && report.atTarget && peOk && respOk && detOk;
     const peStr = report.perElement ? ` perElement{color ${report.perElement.color} typo ${report.perElement.typography} pos ${report.perElement.position} text ${report.perElement.text} effects ${report.perElement.effects} cov ${report.perElement.coverage}}` : ' perElement(SSIM-only)';
     const respStr = report.useResponsive ? ` responsive{score ${report.responsive.score} edge ${report.responsive.edgeSet} layout ${report.responsive.layout} cov ${report.responsive.coverage}${report.responsive.subprocessScore != null ? ` subproc ${report.responsive.subprocessScore}` : ''}}` : ' responsive(off)';
-    const detStr = ` detectors{textCollide ${textCollideMult} fullBleed ${fullBleedMult} chunkedMedia ${chunkedMediaMult} realNav ${realNavMult} → ${detOk ? 'no-op' : 'FIRED (drift!)'}}`;
+    const detStr = ` detectors{textCollide ${textCollideMult} fullBleed ${fullBleedMult} chunkedMedia ${chunkedMediaMult} realNav ${realNavMult} hOverflow ${hOverflowMult}(ratio ${overflowRatio}) overlap2 ${overlap2Mult}(excess ${excessOverlap}) → ${detOk ? 'no-op' : 'FIRED (drift!)'}}`;
     console.log(`SELFTEST composite ${report.composite} atTarget ${report.atTarget}${peStr}${respStr}${detStr} → ${ok ? 'PASS (judge consistent)' : 'FAIL (grader drift!)'}`);
     process.exit(ok ? 0 : 1);
   }
@@ -456,5 +579,6 @@ async function capture(ctx, target, withSections) {
   if (report.perElement) console.log(`per-element: color ${report.perElement.color} typo ${report.perElement.typography} pos ${report.perElement.position} text ${report.perElement.text} effects ${report.perElement.effects} cov ${report.perElement.coverage}`);
   if (report.blockMisses.length) console.log('block-type misses (source → clone): ' + report.blockMisses.map((b) => `${b.block} ${b.source}→${b.clone}`).join(', '));
   if (DET_MASTER) console.log(`detectors: collisionRate ${report.collisionRate} (×${textCollideMult}) · fullBleedOk ${report.fullBleedOk} (src ${fbRaw.srcFrac}/clone ${fbRaw.cloneFrac}, ×${fullBleedMult}) · chunkedMediaCount ${report.chunkedMediaCount} (×${chunkedMediaMult}) · realNavOk ${report.realNavOk} (src ${rnRaw.srcReal}/clone ${rnRaw.cloneReal}, ×${realNavMult})`);
+  if (DET_MASTER) console.log(`reality: hOverflow ratio ${report.overflowRatio} (cloneScrollW ${hoRaw.cloneScrollW}/srcScrollW ${hoRaw.srcScrollW}/denom ${hoRaw.denom}, ×${hOverflowMult}) · widgetOverlap excess ${report.excessOverlap} (clone ${woClone.overlapFrac}@${woClone.pairs}pairs / src ${woSrc.overlapFrac}@${woSrc.pairs}pairs, ×${overlap2Mult})`);
   console.log('top defects:'); for (const d of report.rankedDefects.slice(0, 6)) console.log(`  §${d.section} y${d.yRange[0]}-${d.yRange[1]} sev ${d.severity} [${d.fails.join('+')}: ${d.why.join(',')}] vis ${d.visual} edit ${d.editability}${d.example ? ' e.g. "' + d.example + '"' : ''}`);
 })();
