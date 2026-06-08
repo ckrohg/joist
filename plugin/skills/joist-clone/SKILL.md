@@ -44,6 +44,31 @@ Verify these in order. Fail fast if any are missing — don't start the loop on 
 
    If these are missing, the agent has insufficient context to author. Stop and tell the user.
 
+## Phase 0 — Deterministic fast-path (try this FIRST for standard marketing/SaaS sites)
+
+Before any hand-authoring, run the **deterministic pipeline** (`pipeline/clone-fast.mjs`): it captures the source's
+real DOM, builds a NATIVE Elementor widget tree (hybrid: editable simple sections + rastered hard sections), writes
+it to the page, and grades it — **one pass, ~3–5 min, no iteration**. On standard marketing/SaaS sites it lands
+~0.80–0.84 with real editable widgets (measured: supabase 0.844, notion 0.822, cal.com 0.803 first-try).
+
+```bash
+cd pipeline && npm install && npx playwright install chromium   # once
+export JOIST_BASE="https://<wp-site>"; export JOIST_AUTH_B64="$(printf 'user:app-password' | base64)"
+node clone-fast.mjs --source <source_url> --page <target_page_id>
+```
+
+It prints the grade (composite + per-dimension) and the live URL. **Then LOOK** at the rendered page (screenshot it)
+— never trust the composite alone; a human must confirm it's visually faithful. If it looks good (≥~0.78 AND faithful),
+return the URL + grade and stop.
+
+**Escalate to Precision mode / the 6-phase loop when:** the fast-path errors or the site is headless-unrenderable;
+the source is motion/animation-heavy and motion matters (this path is static); you LOOK and it's sparse/wrong on the
+sections that matter (code-heavy docs, dense illustration); or the user wants pixel/motion fidelity over editability.
+
+NOTE: this fast-path (deterministic capture→native-tree, grade-structure objective) coexists with **Precision mode**
+below (a separate parallel-track per-section precision toolkit). They are two routes to a native clone — fast-path
+optimizes round-trip editability + speed; precision optimizes pixel-fidelity. Pick per goal. See `pipeline/README.md`.
+
 ## Precision mode (the 1:1 path) — use for high-fidelity clones
 
 When the goal is pixel-fidelity (not just a recognizable page), drive the **precision method** in `knowledge/PRECISION_CLONE_METHOD.md`. Summary, in order:
