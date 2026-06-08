@@ -50,13 +50,13 @@
   "stripeSentinel": "stripe.com probe (page 4770) composite 0.657 — pipeline ran clean (287 leaves, hRatio 1.029, no crash) so recipes generalize STRUCTURALLY, but: visual 0.695 (animated gradient hero / scroll carousels / live $1.9T counter = JS-animation content the static V3 builder can't author), struct 0.5 (lost 1/2 lists, 0/1 accordion, + emitted a PHANTOM form). New gaps for targeted/supervised work: (a) accordion authoring recipe; (b) block-emission PRECISION (suppress phantom blocks not in source); (c) dynamic/animated-content tail (headed-capture / motion). NOT added to gated corpus (dynamic noise).",
   "corpusNote": "BROADENED to 6 sites after round-28 generalization probe (linear 0.851, vercel 0.791 — both in-band, recipes generalize). linear=dark-theme + high-water anchor; vercel=tabs/structural stressor. NOTE: cross-round mean shifts ~0.751->~0.77 purely from adding 2 high-scoring sites (composition, NOT a fix gain). Gate compares baseline-vs-after on the SAME 6 sites each round, so within-round verdicts stay honest. directed-fix.workflow.js + discovery.workflow.js SITES updated to 6.",
   "currentRound": {
-    "n": "coverage-framer-img-build-fix",
-    "engine": "coverage-img-fix.workflow.js",
-    "taskId": "wkd3797ju",
+    "n": "capture-clip-overflow-fix",
+    "engine": "capture-clip-fix.workflow.js",
+    "taskId": "ww3ybpwpp",
     "status": "running",
-    "launchedEpoch": 1780894474,
-    "target": "ROBUST re-launch of the #1 coverage lever (prior round stalled; diagnosis salvaged). framer: build-absolute collapses 65 captured <img> showcase photos into wrong-sized containers (IoU 0.34-0.61) -> fail geomOk -> unmatched -> coverage 0.331. FIX: emit kind:image leaves (>=80px) as real image widgets at captured x/y/w/h via the existing asset path. Single target+1 control, K=1, bash timeouts (timeout 300) to avoid the stall. Gate: framer coverage +>0.03 + render-verify + no h-scroll + supabase no-regression + grader/capture byte-identical + reversible + adversarial verify.",
-    "note": "Prior coverage round FAILED on a hung capture (clean, no file change). Diagnosis salvaged: IMG is #1 lever. This is the framer BUILD fix (real recovery). reactdev gradient-MATCHER false-negative is a separate grader-honesty round next. Files clean (theme-aligned baseline). Deadline ~10.2h."
+    "launchedEpoch": 1780899370,
+    "target": "BUILD fix for the user-reported hard-coded-width / h-scroll. capture-layout records full getBoundingClientRect -> a Framer marquee (FLORA quote) recorded 1080px-wide at x=1350 -> docScrollW 2430 (990px h-scroll). FIX: clamp each captured box to its VISIBLE region (intersect viewport [0,vw] + nearest overflow:hidden/clip/scroll ancestor). Gated by the NOW-HONEST grader: framer docScrollW<=1460 (no h-scroll) + hOverflow ratio ~1.0 + composite up from 0.404 + render-verify fits viewport + supabase no-regress + text native + scoped to capture-layout + reversible (CAPTURE_NO_CLIP=1) + adversarial verify. Single target+1 control, K=1, bash timeouts.",
+    "note": "First REAL fix of a human-reported defect, gated by the honest grader. General (helps every overflow site: supabase 1714px too). Deadline ~9h."
   },
   "flowAbsSurvivalUnknown": "PREREQ for the linear overlay fix (next round): the diagnostic found 0/528 live elements are position:absolute on the FLOW clone (pages 5404/5405 on sg-host) -> build-flow's EXISTING leaf-overlay abs path (build-flow.mjs ~line 771) is NOT rendering as absolute on the frontend. YET build-absolute achieves hRatio ~1.0 via abs on the SAME sg-host stack -> abs CAN work. So before/with the linear buildOverlay() fix (abs-layer the z-overlapped chart+card container children, currently flowed into a column stack = 51% of linear's page excess), RESOLVE why build-flow's abs is stripped/not-applying (diff build-flow's abs-emission vs build-absolute's working mechanism — likely different setting keys or a missing position:relative parent). Fallback if abs truly can't survive in flow: clip the over-tall chart subtree as a sized/clipped html widget to box.h (the kind:code line-282 overflow-cap recipe). Do NOT widen the z-overlay IoU gate (only 16% on tailwind; prior widening regressed coverage).",
   "barClassTokenPoison": "FUTURE LEVER (capture, from capture-markup-flow-gate screenshots): tailwindcss.com's hero code-as-art poison is NOT <div> markup — it's BARE UTILITY-CLASS TOKENS ('text-8xl text-gray-950 tracking-tighter text-balance ...') rendered inline with prose, no angle brackets so markupFrac=0. To strip: detect runs of >=2 consecutive hyphenated CSS-class identifiers (/^[a-z]+(-[a-z0-9]+)+$/) in a non-structural mono/decorative leaf + strip/raster them. Deferred behind the height-pin lever (the dominant one); revisit if tailwind perElement stays starved after height drift is fixed.",
@@ -291,8 +291,8 @@
       "buildAttempt": "span-extension REJECTED (linear -0.065); the multi-col reflow grid already exists in cardRows/bentogrid; child-span did not pay off. The grid lever is largely already realized — do NOT re-attempt span without a different approach."
     }
   ],
-  "lastVerdict": "Coverage round FAILED on an infra stall (hung capture), but the DIAGNOSIS was salvaged (high value): IMG is the #1 lever. framer = build fix (build-absolute collapses 65 captured image leaves into wrong-sized containers instead of image widgets -> low coverage). reactdev = grader matcher false-negative (gradients reproduced but unpaired). Files clean. RE-LAUNCHING the framer IMG build fix ROBUSTLY (diagnosis pre-supplied, single target, K=1, bash timeouts to avoid the stall).",
-  "plateauStreak": 1,
+  "lastVerdict": "Grader-reality KEPT+VERIFIED — grade-sections now penalizes desktop h-overflow + widget-overlap (framer 0.60->0.404, matches the human spot-check; anti-gaming scales with measured overflow). HONEST CORRECTIONS: (1) my 1704-overlap count was inflated by legit nesting — overflow, NOT overlap, is the dominant defect; (2) the overflow is baked into CAPTURE (full marquee scroll-width recorded). NEXT: capture-clip BUILD fix (clamp boxes to viewport/overflow-hidden-ancestor) — directly fixes the user-reported hard-coded width, gated by the honest grader.",
+  "plateauStreak": 0,
   "CEILING_AND_SUPERVISED_NEXT": "6-site corpus is at ~0.82, the achievable ceiling for the current grader (struct mostly recovered, editability ceilinged ~0.89, visual saturated ~0.82). THE #1 STRATEGIC UNLOCK is a richer VISUAL grader dimension (per-element ΔE color / font-family-match / position-drift that SSIM misses) — it would reveal + let the loop fix the real visual gaps (the 0.4-weight headroom). BUT rewriting grade-sections.mjs visual scoring is the HIGHEST-blast-radius change (a subtle error corrupts every verdict), so it is flagged as the #1 SUPERVISED next step, NOT run blind overnight. Overnight stays safe+gated: drain remaining structural backlog (#3 video-first), then broaden the corpus with a different-vertical 7th site to surface NEW fixable structural gaps.",
   "phase5backlog_wave3disc": [
     {
@@ -2501,6 +2501,20 @@
         "framer IMG build fix (image-leaf -> image-widget) — clean real coverage recovery, do FIRST",
         "reactdev gradient-band MATCHER false-negative fix (grader-honesty, bidirectional anti-gaming) — separate round"
       ]
+    },
+    {
+      "round": "grader-reality-overflow-overlap",
+      "taskId": "w1k5w6qrh",
+      "epoch": 1780899239,
+      "kept": true,
+      "verified": true,
+      "verdict": "KEPT+VERIFIED — grade-sections now MEASURES WHAT THE HUMAN SEES. Added detector(5) DESKTOP H-OVERFLOW (visual x max(0.25, 1-1.4*(ratio-1)), ratio=cloneScrollW/max(srcScrollW,vw)) + detector(6) GENERAL WIDGET-OVERLAP (excess over source). Reversible (GRADER_NO_HOVERFLOW / GRADER_NO_OVERLAP2), self-test 1.0 (no-op on identity), scoped to grade-sections.mjs, builder untouched. framer 2990 cratered ~0.60 -> 0.404 (deterministic), driven by a REAL 2430px scrollWidth at 1440 (source 1440). Anti-gaming: supabase ×0.7336 (1714px overflow) vs framer ×0.25 (2430px) — scales with measured overflow, NOT blanket.",
+      "honestCorrections": [
+        "MY \"1704 overlaps\" WAS INFLATED by legit container-nests-child boxes. The rigorous detector (excludes background-nesting) finds the clone has only ~50 pairs, FEWER than source -> overlap2 is INERT on framer. OVERFLOW is the dominant defect, NOT overlap. The visual overlap the user saw is mostly a CONSEQUENCE of the overflow + a few captured hidden/hover states, not box-collision-excess.",
+        "The overflow is BAKED INTO THE CAPTURE (capture-layout.json already has max-right 2430), not the build. build-absolute faithfully pins what capture recorded. ROOT: the FLORA testimonial MARQUEE captured as a 1080px-wide box at x=1350 (->2430), entirely OUTSIDE its 1200px overflow:hidden parent. Capture recorded the marquee full SCROLL-content width, not the VISIBLE clipped box.",
+        "OVERFLOW IS GENERAL across the corpus (supabase also overflows 1714px). The abs builder + full-width-marquee-capture produces fixed-width/overflow on multiple sites -> a major reason the clones are far from 1:1 for a real (any-width) viewer."
+      ],
+      "nextFix": "CAPTURE-CLIP build fix: in capture-layout.mjs, clamp each recorded box to its VISIBLE region = intersection with the viewport [0,vw] AND any overflow:hidden/clip/scroll ancestor. Kills the 2430 overflow -> page fits 1440 -> no h-scroll -> hOverflow penalty clears. Gated by the now-honest grader (framer composite up from 0.404, ratio->~1.0, render-verify fits viewport, no regression, reversible)."
     }
   ],
   "phase5backlog_wave3": [
@@ -3787,10 +3801,10 @@
   "userDirective_2026_06_07": "USER (frustrated, correctly): I am STILL far from 1:1 + have NOT done nearly enough WEB RESEARCH to actually get better. STOP holding/handing-off. RESUME aggressive driving toward 1:1: a TON more external research + BUILD the de-risked levers. Ultracode ON. The absolute goal = LEARN TO PERFECTLY CLONE (1:1 + editable).",
   "postureReset": "DROP the over-cautious supervised-hold stance. The de-risked builds (Grid Container/Forms/Code-Highlight) are gated+reversible -> BUILD them autonomously. Fire large web-research waves aggressively (Tier-3 is a standing tier, fire it HARD). Deadline extended +24h; keep driving.",
   "corpusBaseline": {
-    "composite": 0.6628,
-    "stableEstimate": 0.625,
-    "epoch": 1780868916,
-    "grader": "grade-sections.mjs (baseline-of-record)",
-    "note": "theme-aligned. Headline 0.6628 includes favorable resend/supabase run-variance; true stable ~0.62-0.63. vercel theme artifact FIXED. GRADER DUALITY noted: grade-sections is baseline-of-record; grade-structure (used by clone.mjs) gives different numbers — reconcile if it blocks."
+    "composite": "PENDING-honest-rebaseline",
+    "framerHonest": 0.404,
+    "epoch": 1780899239,
+    "grader": "grade-sections.mjs + hOverflow/overlap2 detectors (HONEST — measures desktop overflow + overlap)",
+    "note": "The ~0.6628 baseline was BLIND to desktop overflow. Honest grader craters framer to 0.404 (real 2430px overflow); supabase penalized ×0.73 (1714px). Full honest 7-site re-baseline pending; immediate priority = the capture-clip overflow BUILD fix (addresses the user spot-check #1: hard-coded width)."
   }
 }
