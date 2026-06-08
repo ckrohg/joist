@@ -809,6 +809,99 @@
       "summary": "Tag-driven promotion: captured h1-h6 -> native HEADING widget (header_size from tag, margin 0, #37 globals); CTA <a>/button -> native BUTTON widget; <img> -> native IMAGE widget SIZE-CAPPED to the captured box (settings.width + max-height + aspect, extending recipe #33 so native images do not balloon). Real h-tags/SEO + native editor controls.",
       "gate": "live supabase 12157 (grade-sections): hRatio 6.057->2.055, composite 0.474->0.574 (composite-neutral vs 0.581 baseline), 25 headings(real h-tags)/11 buttons/62 capped images, globals propagate (57 recolor), scroll 0.",
       "validated": "2026-06-06"
+    },
+    {
+      "id": "grade-motion",
+      "kind": "grader",
+      "added": "2026-06-06",
+      "status": "shadow",
+      "file": "grade-motion.mjs",
+      "desc": "Motion-fidelity measurement: scroll-reveal/parallax/pin + hover + library fingerprint; richness-weighted source-vs-clone agreement; selftest 1.0 deepcopy; discriminates animated(0.12)-vs-static; not yet wired into composite."
+    },
+    {
+      "id": "STRUCT_MOTION",
+      "kind": "build",
+      "added": "2026-06-06",
+      "status": "opt-in (default-off, needs signals)",
+      "file": "build-structured.mjs",
+      "revert": "STRUCT_LEGACY=1 | STRUCT_NO_MOTION=1 | omit STRUCT_MOTION",
+      "desc": "Reproduces source HOVER vocabulary via native Elementor hover (kses-safe, no JS, no h-scroll). Fed by grade-motion --dump signals. Faithful (static->none). Live grade-motion climb 0.2341->0.2695; adds only 4 hover keys, byte-id-off."
+    },
+    {
+      "id": "STRUCT_MOTION_REVEAL",
+      "kind": "build",
+      "added": "2026-06-06",
+      "status": "opt-in (default-off, needs signals)",
+      "file": "build-structured.mjs",
+      "revert": "STRUCT_LEGACY=1 | STRUCT_NO_MOTION_REVEAL=1 | omit STRUCT_MOTION_REVEAL",
+      "desc": "Native Elementor entrance animations (animation/animation_duration/_animation_delay) on sections the source reveals; fed by grade-motion --dump reveal profile (marker+IO+stuck-invisible fusion). Faithful (static->none). ZERO composite regression (entrance captured visible via recipe-#96). reveal markers 0->12 live."
+    },
+    {
+      "id": "STRUCT_MOTION_MARQUEE",
+      "kind": "build",
+      "added": "2026-06-06",
+      "status": "opt-in (default-off, needs signals)",
+      "file": "build-structured.mjs",
+      "revert": "STRUCT_LEGACY=1 | STRUCT_NO_MOTION_MARQUEE=1 | omit STRUCT_MOTION_MARQUEE",
+      "desc": "Native scoped-CSS infinite marquee (@keyframes translateX 0->-50% + single-row nowrap track width:max-content + overflow:hidden clip) reproducing source logo strips. HEIGHT-NEUTRAL (single row, no extra height), NO h-scroll, kses-survives, no new structural keys (reuses custom_css). Fed by grade-motion --dump marquee profile. marquee climb 0->1."
+    },
+    {
+      "id": "STRUCT_MOTION-modern-color",
+      "kind": "build-fix",
+      "added": "2026-06-06",
+      "status": "part of STRUCT_MOTION (opt-in)",
+      "file": "build-structured.mjs",
+      "desc": "motColor accepts modern CSS color fns (lab/lch/oklab/oklch/color/hsl) via pass-through -> hover generalizes to Tailwind-based sites (oklch by default). Zero rgb regression. byte-id-off."
+    },
+    {
+      "id": "grade-motion-parallax-honesty",
+      "kind": "grader-honesty",
+      "added": "2026-06-06",
+      "file": "grade-motion.mjs",
+      "desc": "Parallax detector uses OLS regression slope over all points + R^2>=0.9 fit + min-points (was a fragile 2-point slope that false-positived constant-top elements on short pages: example.com 5->0). Real parallax still detected; selftest 1.0; control-flow byte-identical so reveal/pin/marquee untouched."
+    },
+    {
+      "id": "abs-height-lock-media-leaves",
+      "kind": "build",
+      "added": "2026-06-06",
+      "status": "default-on (revert ABS_NO_IMGHLOCK=1)",
+      "file": "build-absolute.mjs",
+      "desc": "Desktop height-lock for image/mockup/svg leaves: inline height:capturedHpx + width:100% + max-width:capturedWpx + object-fit (cover mockup/contain photo+svg) via scoped customCss, killing intrinsic-aspect stretch that inflated section height (resend ~1142px overflow). struct +0.026 corpus, no h-scroll, selftest 1.0."
+    },
+    {
+      "id": "gda-group-count-shadow",
+      "kind": "grader-shadow",
+      "added": "2026-06-07",
+      "file": "perelement-score.mjs",
+      "desc": "Report-only structural honesty metric: clusters source leaves into race-groups (kind/typo-sig/+-size), scores cloneCount/srcCount ramp per group. Exposes the under-capture area-coverage masks (linear coverage 0.97 but GDA 0.56). NOT folded into composite (self-test 1.0)."
+    },
+    {
+      "id": "rda-quadrant-position-shadow",
+      "kind": "grader-shadow",
+      "added": "2026-06-07",
+      "file": "perelement-score.mjs",
+      "desc": "Report-only position honesty rail: maps matched pair centers to a 3x3 quadrant grid, hard-zeros cross-quadrant misses (>5% dead-band keeps identity 1.0). Exposes gross mis-placement the smooth metric forgives (react.dev smooth 0.91 vs RDA 0.60). Not folded (self-test 1.0)."
+    },
+    {
+      "id": "flatten-cap-40-to-120",
+      "kind": "capture",
+      "added": "2026-06-07",
+      "file": "capture-layout.mjs",
+      "desc": "Raised deep-flatten leaf cap 40->120 (if depth>=MAXD block) so dense JS card-grids are not truncated (vercel 220->272 real leaves, +52; containers/maxDepth unchanged = NOT net-zero deep-flatten). edit 0.879->0.901, mean +0.005, no regression. Raster-overlay caps (L614/L776) left at 40."
+    },
+    {
+      "id": "colorglyph-shadow",
+      "kind": "grader-shadow",
+      "added": "2026-06-07",
+      "file": "perelement-score.mjs + capture-layout.mjs",
+      "desc": "Report-only color-honesty metric: capture writes paint.glyphRGB (reusing dominantTextColor edge-aware glyph sample); perelement-score CIEDE2000s glyph-mean source-vs-clone when CSS color is null/gradient/oklch/var. Exposes color fidelity the CSS-string-parse mis-measures as 0. Not folded (self-test 1.0). Completes the honest foundation (color+struct+position+motion)."
+    },
+    {
+      "id": "color-false-deflation-fix",
+      "kind": "grader-honesty",
+      "added": "2026-06-07",
+      "file": "perelement-score.mjs",
+      "desc": "Fixed per-element COLOR false-deflation (~3.5x): (1) de-conflation removes the redundant color*areaCoverage double-count (colorReported=colorRaw); (2) directional source-anchored fade-recovery credits mid-fade-in colors on the source->bg segment only. Anti-gaming verified (correct->high, wrong->low), self-test 1.0, grade-sections untouched, reversible. Composite rises honestly."
     }
   ]
 }
