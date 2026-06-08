@@ -41,13 +41,16 @@ async function capture(ctx, target, isSource) {
     const vis = (el) => { const r = el.getBoundingClientRect(); if (!r.width || !r.height) return false; const cs = getComputedStyle(el); return !(cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity < 0.05); };
     // SELECTABLE text runs (real editable text — NOT inside an image). Images carry no innerText, so any
     // text here is genuinely native/selectable. This is the editability signal.
-    const texts = []; const seen = new Set();
+    const texts = []; const textPos = []; const seen = new Set();
     // include div: Elementor text-editor widgets render text in <div> wrappers; the own-text filter
     // (direct text-node child) keeps this to leaf text and excludes structural containers.
+    // textPos carries each run's y so editability can couple a text run's credit to the VISUAL fidelity of
+    // its band (a text reproduced in a SHREDDED/broken-looking band earns little — kills the editability gaming).
     for (const e of document.querySelectorAll('h1,h2,h3,h4,h5,h6,p,a,button,span,li,div')) {
       const own = [...e.childNodes].some((n) => n.nodeType === 3 && clean(n.textContent)); if (!own) continue;
       const t = clean(e.innerText); if (!t || t.length > 200) continue; if (!vis(e)) continue; if (parseFloat(getComputedStyle(e).fontSize) < 10) continue;
       const k = t.toLowerCase(); if (seen.has(k)) continue; seen.add(k); texts.push(t);
+      const r = e.getBoundingClientRect(); textPos.push({ t, y: Math.round(r.top + window.scrollY) });
     }
     const census = {
       headings: document.querySelectorAll('h1,h2,h3,h4,h5,h6').length,
@@ -102,10 +105,10 @@ async function capture(ctx, target, isSource) {
       radii: [...radiusSet].sort((a, b) => a - b).slice(0, 8),
       contrastFails: cfails.sort((a, b) => a.ratio - b.ratio).slice(0, 40),
     };
-    return { texts, census, ds, pageH: document.documentElement.scrollHeight };
+    return { texts, textPos, census, ds, pageH: document.documentElement.scrollHeight };
   });
   const shot = PNG.sync.read(await p.screenshot({ fullPage: true }));
-  await p.close(); return { shot, texts: info.texts, census: info.census, ds: info.ds, pageH: info.pageH };
+  await p.close(); return { shot, texts: info.texts, textPos: info.textPos, census: info.census, ds: info.ds, pageH: info.pageH };
 }
 
 // RESPONSIVE dimension — MOBILE-FIT: does the clone fit the 390px viewport without horizontal overflow?
@@ -183,17 +186,23 @@ function orderAgreement(srcOrder, cloneMobileOrder) {
   const hPen = Math.max(0.3, Math.min(1, 1 - Math.max(0, Math.abs(hRatio - 1) - 0.1) * 0.6));
   const visual = (0.5 * ssimMean + 0.5 * exactMean) * hPen;
 
-  // ---- editability: how much of the source's TEXT is reproduced as selectable clone text ----
-  const srcTexts = [...new Set(src.texts.map(norm))].filter((t) => t.length >= 4);
+  // ---- editability: source TEXT reproduced as selectable clone text, CREDITED BY VISUAL FIDELITY ----
+  // Un-gameable: a source run earns credit = (reproduced ? bandVisual(its y) : 0). So text shredded into a
+  // broken-looking band (low band SSIM/exact) earns little, rasterized text earns 0 (not selectable), and
+  // only FAITHFULLY-reproduced native text earns full credit. bands are the same 200px bands as `visual`.
+  const bandVisAt = (y) => { const b = Math.floor(y / BAND); if (b < 0 || b >= sArr.length) return 0.3; return Math.max(0, Math.min(1, 0.5 * sArr[b] + 0.5 * eArr[b])); };
+  const seenT = new Set(); const srcPos = [];
+  for (const p of (src.textPos || [])) { const t = norm(p.t); if (t.length < 4 || seenT.has(t)) continue; seenT.add(t); srcPos.push({ t, y: p.y }); }
   const cloneJoined = ' ' + cln.texts.map(norm).join(' | ') + ' ';
   const cloneSet = new Set(cln.texts.map(norm));
-  let covered = 0; for (const t of srcTexts) { if (cloneSet.has(t) || cloneJoined.includes(' ' + t + ' ') || cloneJoined.includes(t)) covered++; }
-  const textEditability = srcTexts.length ? covered / srcTexts.length : 0;
+  const isCovered = (t) => cloneSet.has(t) || cloneJoined.includes(' ' + t + ' ') || cloneJoined.includes(t);
+  let credit = 0, covered = 0;
+  for (const { t, y } of srcPos) { if (isCovered(t)) { covered++; credit += bandVisAt(y); } }
+  const editability = srcPos.length ? credit / srcPos.length : 0;       // visual-coupled (objective)
+  const textCoverage = srcPos.length ? covered / srcPos.length : 0;     // raw coverage (diagnostic only)
   // structure diagnostic: of the clone, how much is native widgets vs raster images
   const c = cln.census; const nativeW = (c.wHeading || 0) + (c.wText || 0) + (c.wButton || 0); const imgW = c.wImage || 0;
   const nativeRatio = (nativeW + imgW) ? nativeW / (nativeW + imgW) : 0;
-
-  const editability = textEditability; // primary, robust signal
 
   // ---- design-system dimension (port of the DESIGN.md lint rules) ----
   // Two flavors of "is the design system right": FIDELITY (clone reproduces the source's tokens) and
@@ -247,10 +256,10 @@ function orderAgreement(srcOrder, cloneMobileOrder) {
     source, clone,
     composite: +composite.toFixed(3),
     visual: +visual.toFixed(3), editability: +editability.toFixed(3), designSystem: +designSystem.toFixed(3), responsive: responsive != null ? +responsive.toFixed(3) : null,
-    breakdown: { ssim_mean: +ssimMean.toFixed(3), exactPixel_mean: +exactMean.toFixed(3), hRatio: +hRatio.toFixed(3), heightPenalty: +hPen.toFixed(3), textCoverage: +textEditability.toFixed(3), srcTextRuns: srcTexts.length, cloneTextRuns: cln.texts.length, nativeRatio: +nativeRatio.toFixed(3), cloneWidgets: { heading: c.wHeading, text: c.wText, button: c.wButton, image: c.wImage } },
+    breakdown: { ssim_mean: +ssimMean.toFixed(3), exactPixel_mean: +exactMean.toFixed(3), hRatio: +hRatio.toFixed(3), heightPenalty: +hPen.toFixed(3), textCoverage: +textCoverage.toFixed(3), editVisCoupled: +editability.toFixed(3), srcTextRuns: srcPos.length, cloneTextRuns: cln.texts.length, nativeRatio: +nativeRatio.toFixed(3), cloneWidgets: { heading: c.wHeading, text: c.wText, button: c.wButton, image: c.wImage } },
     designLint: { paletteFidelity: +palFid.toFixed(3), typeFidelity: +typeFid.toFixed(3), contrastPass: +contrastPass.toFixed(3), contrastPairs: cds.contrastPairs || 0, contrastFail: (cds.contrastPairs || 0) - (cds.contrastPass || 0), hasPrimary: !!hasPrimary, hasTypography: !!hasType, cloneFonts: cds.fontCount || 0, clonePalette: (cds.palette || []).length, cloneRadii: cds.radii || [] },
     responsiveDetail: responsive != null ? { mobileFit: +mobileFitV.toFixed(3), mobileOrder: +mobileOrderV.toFixed(3) } : null,
-    note: 'composite = 0.35*visual + 0.35*editability + 0.10*designSystem + 0.20*responsive (3-term 0.45/0.45/0.10 fallback when responsive unavailable; visual<0.5 floors it). designSystem = 0.35*paletteFidelity + 0.30*typeFidelity + 0.25*contrastPass(WCAG AA) + 0.10*completeness. responsive = 0.5*mobileFit(no 390px overflow) + 0.5*mobileOrder(clone mobile reading-order vs source, LCS).',
+    note: 'composite = 0.35*visual + 0.35*editability + 0.10*designSystem + 0.20*responsive (3-term 0.45/0.45/0.10 fallback when responsive unavailable; visual<0.5 floors it). editability = mean over source text runs of (reproduced-as-selectable ? bandVisual(y) : 0) — coupled to visual so shredded/broken-band text earns little (un-gameable); textCoverage is the raw uncoupled diagnostic. designSystem = 0.35*paletteFidelity + 0.30*typeFidelity + 0.25*contrastPass(WCAG AA) + 0.10*completeness. responsive = 0.5*mobileFit(no 390px overflow) + 0.5*mobileOrder(clone mobile reading-order vs source, LCS).',
   };
   console.log(JSON.stringify(report, null, 2));
   fs.writeFileSync(`${outDir}/report.json`, JSON.stringify(report, null, 2));

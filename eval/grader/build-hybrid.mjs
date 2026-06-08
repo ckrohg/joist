@@ -98,11 +98,11 @@ function classify(sec) {
   if (bigCanvas) return { kind: 'raster', reason: 'canvas/video' };
   if (isNav) return { kind: 'editable', reason: 'nav' };
   if (isFooter && textLeaves <= 80) return { kind: 'editable', reason: 'footer' };
-  // CYCLE-1: text-dominant + low media + height-capped → editable.
+  // CYCLE-1: text-dominant + low media + height-capped → editable. Tall/complex sections RASTER (pixel-perfect)
+  // — raster is 1:1, so when in doubt raster. The CYCLE-2 'text-dominance height-cap override' (let 3872px
+  // sections go editable) was REVERTED: it reconstructed dense code/feature sections into sparse broken native
+  // widgets that LOOKED wrong despite scoring well (grader-gaming the user caught 2026-06-08).
   if (textLeaves >= 2 && mediaFrac < 0.5 && h <= 2600) return { kind: 'editable', reason: `text${textLeaves}/media${mediaFrac}/h${h}` };
-  // CYCLE-2: TEXT-DOMINANT height-cap override — tall text-rich sections (tailwind [8]: 3872px/246 leaves)
-  // were rastered purely on height; lift the cap to 4000px when genuinely text-dominant.
-  if (textLeaves >= 8 && mediaFrac < 0.35 && h <= 4000) return { kind: 'editable', reason: `textdom${textLeaves}/media${mediaFrac}/h${h}` };
   return { kind: 'raster', reason: `media${mediaFrac}/text${textLeaves}/h${h}` };
 }
 
@@ -164,15 +164,26 @@ function classify(sec) {
       // section bg: the full-width element starting at y0
       for (const e of document.querySelectorAll('body *')) { const r = rectOf(e); if (Math.abs(r.y - y0) < 6 && r.w >= vw * 0.82 && r.h >= secH * 0.6) { const c = getComputedStyle(e).backgroundColor; if (opaque(c)) { bgColor = c; break; } } }
       for (const e of document.querySelectorAll('canvas, video')) { const r = rectOf(e); if (r.y + r.h / 2 >= y0 && r.y + r.h / 2 < y1 && r.w > 200 && r.h > 150) bigCanvas = true; }
+      // CODE BLOCKS reconstruct as token soup (syntax-highlight spans) → count their area as MEDIA so a
+      // code-heavy section RASTERIZES (pixel-perfect) instead of going sparse-editable with the text excluded.
+      for (const e of document.querySelectorAll('pre')) { const r = rectOf(e); if (r.y + r.h / 2 >= y0 && r.y + r.h / 2 < y1 && r.w > 80 && r.h > 40) mediaArea += r.w * r.h; }
       for (const el of leafEls) {
         if (!vis(el)) continue; const box = rectOf(el); const cy = box.y + box.h / 2; if (cy < y0 || cy >= y1) continue;
         const tag = el.tagName.toLowerCase(); const cs = getComputedStyle(el);
         if (tag === 'img') { const src = el.currentSrc || el.src; if (src && !src.startsWith('data:') && box.w >= 24 && box.h >= 24) { mediaArea += box.w * box.h; if (box.w >= 40 && box.h >= 40) leaves.push({ kind: 'image', src, box, alt: el.alt || '' }); } continue; }
         const own = [...el.childNodes].some((n) => n.nodeType === 3 && clean(n.textContent)); if (!own) continue;
+        // CODE-SHREDDING FIX: skip text inside code blocks (<pre>/<code>) — syntax-highlighted code shatters
+        // into per-token spans (<, div, class, =) that get emitted as individual widgets (the shredding the
+        // user caught). Excluding it leaves the section text-less → it rasterizes as ONE pixel-perfect image.
+        if (el.closest('pre,code')) continue;
         // EDITABILITY: include text-bearing <div> (the grader counts it) but only LEAF divs (no element
         // children) so a parent div's innerText doesn't duplicate its children's already-captured text.
         if (tag === 'div' && el.children.length > 0) continue;
         const t = clean(el.innerText || el.textContent); if (!t || t.length > 300) continue; if (parseFloat(cs.fontSize) < 10) continue;
+        // skip 1-char punctuation fragments (syntax-highlight tokens, stray symbols) on inline span/div leaves
+        if ((tag === 'span' || tag === 'div') && t.replace(/\s/g, '').length < 2) continue;
+        // skip CSS-class-string fragments (tailwind annotations like `flex flex-col items-center p-7 rounded-2xl`)
+        if ((tag === 'span' || tag === 'div') && /^[a-z0-9:\/\-\s"']+$/i.test(t) && /\b(flex|grid|p[xytrbl]?-\d|m[xytrbl]?-\d|text-|bg-|rounded|shadow|size-|gap-|w-|h-)\b/.test(t) && t.split(/\s+/).length >= 2 && !/\s[A-Z]/.test(t)) continue;
         const dk = t + '@' + Math.round(box.y / 8); if (seen.has(dk)) continue; seen.add(dk);
         const isH = /^h[1-6]$/.test(tag), isBtn = tag === 'a' || tag === 'button';
         if (isBtn) linkCount++;
@@ -218,21 +229,21 @@ function classify(sec) {
   const FORCE_ABS = process.argv.includes('--force-abs'); const AUTO_ABS = process.env.HYBRID_AUTO_ABS !== '0';
   for (const sec of model.sections) {
     let editEl = null;
-    // ABS RESCUE (opt-in, HYBRID_AUTO_ABS): a section classify() sent to RASTER because it's media-heavy, but
-    // which is actually TEXT-RICH + LAYERED (overlapping image+text showcase — e.g. framer [8]: 41 text runs
-    // under media1.08). flow can't represent it (overlap) and raster loses all its text; abs recovers the text
-    // as native widgets AT their source positions. Bounded: needs lots of text AND genuine overlap AND no canvas.
-    const rescuable = (AUTO_ABS || FORCE_ABS) && sec.kind !== 'editable' && !sec.bigCanvas && sec.leaves &&
+    // ABS RESCUE was REVERTED (2026-06-08): it pulled RASTER-classified complex sections (code/feature mixes)
+    // back into abs reconstruction → sparse broken pages that LOOKED wrong despite scoring well. Raster-classified
+    // sections now STAY raster (pixel-perfect). Re-enable for experiments with HYBRID_ABS_RESCUE=1.
+    const rescuable = process.env.HYBRID_ABS_RESCUE === '1' && (AUTO_ABS || FORCE_ABS) && sec.kind !== 'editable' && !sec.bigCanvas && sec.leaves &&
       sec.leaves.filter((l) => l.kind !== 'image').length >= 12 && needsAbsLayout(sec.leaves).abs;
     if (rescuable) {
       editEl = buildAbsEditableSection(sec); absCount++;
       console.log(`  [${sec.i}] ABS RESCUE from raster (textLeaves=${sec.leaves.filter((l) => l.kind !== 'image').length}, ${needsAbsLayout(sec.leaves).reason})`);
     } else if (sec.kind === 'editable' && sec.leaves.length) {
-      // AUTO_ABS routes a section to abs when flow can't represent it: layered/overlapping (needsAbsLayout) OR
-      // P1: MULTI-COLUMN (isMultiColumn — side-by-side columns flow flattens to a centered stack). Self-regulated
-      // by the objective: abs lowers mobile-order (responsive 0.20), so it only nets positive where the desktop
-      // visual gain outweighs the mobile cost. --force-abs forces all; HYBRID_NO_MULTICOL=1 disables the P1 path.
-      const ov = needsAbsLayout(sec.leaves); const mc = process.env.HYBRID_NO_MULTICOL === '1' ? { multi: false } : isMultiColumn(sec.leaves, { W });
+      // AUTO_ABS routes a section to abs ONLY when flow genuinely can't represent it: layered/overlapping
+      // (needsAbsLayout). P1 (isMultiColumn → abs) was REVERTED — corpus 0.807<0.836, tailwind drift 0.583
+      // (abs sections stacked to a 1.6x-tall sparse page). Multi-col stays on flow. --force-abs forces all;
+      // HYBRID_MULTICOL_ABS=1 re-enables the reverted P1 path for experiments only.
+      const ov = needsAbsLayout(sec.leaves);
+      const mc = process.env.HYBRID_MULTICOL_ABS === '1' ? isMultiColumn(sec.leaves, { W }) : { multi: false };
       const useAbs = FORCE_ABS || (AUTO_ABS && (ov.abs || mc.multi));
       if (useAbs) { editEl = buildAbsEditableSection(sec); absCount++; console.log(`  [${sec.i}] ABS layout (${ov.abs ? ov.reason : mc.reason})`); }
       else editEl = buildEditableSection(sec);
