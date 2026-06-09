@@ -26,6 +26,55 @@ const dE = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 function ssim(a, b, y0, y1) { const Wd = Math.min(a.width, b.width), win = 8, C1 = 6.5, C2 = 58.5; let tot = 0, n = 0; for (let by = y0; by + win <= y1; by += win) for (let bx = 0; bx + win <= Wd; bx += win) { let ma = 0, mb = 0; for (let y = 0; y < win; y++) for (let x = 0; x < win; x++) { const ia = ((by + y) * a.width + bx + x) * 4, ib = ((by + y) * b.width + bx + x) * 4; ma += gray(a.data, ia); mb += gray(b.data, ib); } const N = win * win; ma /= N; mb /= N; let va = 0, vb = 0, cov = 0; for (let y = 0; y < win; y++) for (let x = 0; x < win; x++) { const ia = ((by + y) * a.width + bx + x) * 4, ib = ((by + y) * b.width + bx + x) * 4; const da = gray(a.data, ia) - ma, db = gray(b.data, ib) - mb; va += da * da; vb += db * db; cov += da * db; } va /= N - 1; vb /= N - 1; cov /= N - 1; tot += ((2 * ma * mb + C1) * (2 * cov + C2)) / ((ma * ma + mb * mb + C1) * (va + vb + C2)); n++; } return n ? tot / n : 1; }
 function exactFrac(a, b, y0, y1) { let ex = 0, n = 0; const Wd = Math.min(a.width, b.width); for (let y = y0; y < y1; y += 2) for (let x = 0; x < Wd; x += 2) { const ia = (y * a.width + x) * 4, ib = (y * b.width + x) * 4; const d = dE(srgbLab(a.data[ia], a.data[ia + 1], a.data[ia + 2]), srgbLab(b.data[ib], b.data[ib + 1], b.data[ib + 2])); if (d < 8) ex++; n++; } return n ? ex / n : 0; }
 
+// CGM = Content-Grid Match (layout-engine effort #1, the GATE). An ALIGNMENT-TOLERANT, content-aware visual
+// signal that grade-structure's band-SSIM is BLIND to: it SEES whether content (icons, grid cells, code) is
+// PRESENT where the source has it, tolerating small (~1-cell ≈ 60px) misalignment — exactly the faithful-but-
+// shifted reconstruction SSIM scores flat. Per coarse cell (24 cols × ~band/40 rows): edge-density + mean
+// colour + L/R & T/B asymmetry. For each SOURCE content-cell, best mass-weighted match over a ±1 neighborhood;
+// colour + asymmetry penalise WRONG-POSITION content (anti-gaming: a horizontal MIRROR — visibly broken but
+// density-symmetric — must NOT score high). Over-density guard zeroes noise/shred floods. Verified on real
+// source PNGs: self=1.0, blank=0, noise~0.05, shift12px~0.76 (faithful-misalign passes), rollV~0.27,
+// mirror 0.40-0.57 (asymmetric pages ~0.4; a GENUINELY symmetric centered page ~0.57 — that residual is
+// fundamental: such a page truly resembles its mirror). REPORT-ONLY: cgm_mean is a diagnostic; it is folded
+// into `visual` ONLY behind GRADER_CGM=1 (default OFF → composite byte-identical), and only after the mirror
+// residual on symmetric pages is closed (the documented blend-gate condition).
+function cgmSig(img, gx, gy) {
+  const W = img.width, H = img.height, cw = W / gx, ch = H / gy, N = gx * gy;
+  const dens = new Float64Array(N), mr = new Float64Array(N), mg = new Float64Array(N), mb = new Float64Array(N), hA = new Float64Array(N), vA = new Float64Array(N);
+  for (let j = 0; j < gy; j++) for (let i = 0; i < gx; i++) {
+    const x0 = Math.floor(i * cw), x1 = Math.floor((i + 1) * cw), y0 = Math.floor(j * ch), y1 = Math.floor((j + 1) * ch), xm = (x0 + x1) / 2, ym = (y0 + y1) / 2;
+    let g = 0, r = 0, gg = 0, bb = 0, n = 0, L = 0, Ln = 0, R = 0, Rn = 0, T = 0, Tn = 0, Bv = 0, Bn = 0;
+    for (let y = y0; y < y1; y += 3) for (let x = x0; x < x1 - 1; x += 3) { const idx = (y * W + x) * 4; const a = gray(img.data, idx); g += Math.abs(a - gray(img.data, idx + 4)); r += img.data[idx]; gg += img.data[idx + 1]; bb += img.data[idx + 2]; n++; if (x < xm) { L += a; Ln++; } else { R += a; Rn++; } if (y < ym) { T += a; Tn++; } else { Bv += a; Bn++; } }
+    const k = j * gx + i; if (n) { dens[k] = g / n; mr[k] = r / n; mg[k] = gg / n; mb[k] = bb / n; hA[k] = (Ln ? L / Ln : 0) - (Rn ? R / Rn : 0); vA[k] = (Tn ? T / Tn : 0) - (Bn ? Bv / Bn : 0); }
+  }
+  return { dens, mr, mg, mb, hA, vA, gx, gy };
+}
+function cgm(A, B) {
+  const off = 1, floor = 4, maxC = 90, asymS = 45;
+  const H = Math.min(A.height, B.height), gx = 24, gy = Math.max(1, Math.round(H / 40));
+  const a = cgmSig({ width: A.width, height: H, data: A.data }, gx, gy), b = cgmSig({ width: B.width, height: H, data: B.data }, gx, gy);
+  let cred = 0, mass = 0, sTot = 0, cTot = 0;
+  for (let k = 0; k < a.dens.length; k++) { sTot += a.dens[k]; cTot += b.dens[k]; }
+  for (let j = 0; j < gy; j++) for (let i = 0; i < gx; i++) {
+    const k = j * gx + i, ds = a.dens[k]; if (ds < floor) continue;
+    let best = 0;
+    for (let dj = -off; dj <= off; dj++) for (let di = -off; di <= off; di++) {
+      const ni = i + di, nj = j + dj; if (ni < 0 || ni >= gx || nj < 0 || nj >= gy) continue;
+      const m = nj * gx + ni, dc = b.dens[m];
+      const dr = Math.min(ds, dc) / Math.max(ds, dc, 1e-6);
+      const dCol = Math.min(1, (Math.abs(a.mr[k] - b.mr[m]) + Math.abs(a.mg[k] - b.mg[m]) + Math.abs(a.mb[k] - b.mb[m])) / (3 * maxC));
+      const dAsym = Math.min(1, (Math.abs(a.hA[k] - b.hA[m]) + Math.abs(a.vA[k] - b.vA[m])) / (2 * asymS));
+      const sim = dr * (1 - 0.5 * dCol) * (1 - dAsym);
+      if (sim > best) best = sim;
+    }
+    cred += best * ds; mass += ds;
+  }
+  let v = mass ? cred / mass : 0;
+  const overDensity = cTot / Math.max(sTot, 1e-6);
+  if (overDensity > 1.5) v *= Math.max(0, sTot / cTot);
+  return { cgm: +v.toFixed(4), overDensity: +overDensity.toFixed(3) };
+}
+
 const norm = (s) => (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
 
 async function capture(ctx, target, isSource) {
@@ -184,7 +233,13 @@ function orderAgreement(srcOrder, cloneMobileOrder) {
   // stretched page. Penalize deviation from the source height (10% tolerance, floor 0.3). A 3x-tall clone
   // is broken regardless of how well its top third matches.
   const hPen = Math.max(0.3, Math.min(1, 1 - Math.max(0, Math.abs(hRatio - 1) - 0.1) * 0.6));
-  const visual = (0.5 * ssimMean + 0.5 * exactMean) * hPen;
+  // CGM (content-grid match) — alignment-tolerant content-fidelity signal (effort #1, the GATE). REPORT-ONLY by
+  // default: cgm_mean is a diagnostic and `visual` is byte-identical. GRADER_CGM=1 folds it in (33% weight) —
+  // enable ONLY after the symmetric-mirror residual is closed (the blend-gate condition, see cgm() comment).
+  const cgmRes = cgm(src.shot, cln.shot); const cgmMean = cgmRes.cgm;
+  const visual = (process.env.GRADER_CGM === '1')
+    ? (0.34 * ssimMean + 0.33 * exactMean + 0.33 * cgmMean) * hPen
+    : (0.5 * ssimMean + 0.5 * exactMean) * hPen;
 
   // ---- editability: source TEXT reproduced as selectable clone text, CREDITED BY VISUAL FIDELITY ----
   // Un-gameable: a source run earns credit = (reproduced ? bandVisual(its y) : 0). So text shredded into a
@@ -256,7 +311,7 @@ function orderAgreement(srcOrder, cloneMobileOrder) {
     source, clone,
     composite: +composite.toFixed(3),
     visual: +visual.toFixed(3), editability: +editability.toFixed(3), designSystem: +designSystem.toFixed(3), responsive: responsive != null ? +responsive.toFixed(3) : null,
-    breakdown: { ssim_mean: +ssimMean.toFixed(3), exactPixel_mean: +exactMean.toFixed(3), hRatio: +hRatio.toFixed(3), heightPenalty: +hPen.toFixed(3), textCoverage: +textCoverage.toFixed(3), editVisCoupled: +editability.toFixed(3), srcTextRuns: srcPos.length, cloneTextRuns: cln.texts.length, nativeRatio: +nativeRatio.toFixed(3), cloneWidgets: { heading: c.wHeading, text: c.wText, button: c.wButton, image: c.wImage } },
+    breakdown: { ssim_mean: +ssimMean.toFixed(3), exactPixel_mean: +exactMean.toFixed(3), cgm_mean: +cgmMean.toFixed(3), cgmOverDensity: cgmRes.overDensity, hRatio: +hRatio.toFixed(3), heightPenalty: +hPen.toFixed(3), textCoverage: +textCoverage.toFixed(3), editVisCoupled: +editability.toFixed(3), srcTextRuns: srcPos.length, cloneTextRuns: cln.texts.length, nativeRatio: +nativeRatio.toFixed(3), cloneWidgets: { heading: c.wHeading, text: c.wText, button: c.wButton, image: c.wImage } },
     designLint: { paletteFidelity: +palFid.toFixed(3), typeFidelity: +typeFid.toFixed(3), contrastPass: +contrastPass.toFixed(3), contrastPairs: cds.contrastPairs || 0, contrastFail: (cds.contrastPairs || 0) - (cds.contrastPass || 0), hasPrimary: !!hasPrimary, hasTypography: !!hasType, cloneFonts: cds.fontCount || 0, clonePalette: (cds.palette || []).length, cloneRadii: cds.radii || [] },
     responsiveDetail: responsive != null ? { mobileFit: +mobileFitV.toFixed(3), mobileOrder: +mobileOrderV.toFixed(3) } : null,
     note: 'composite = 0.35*visual + 0.35*editability + 0.10*designSystem + 0.20*responsive (3-term 0.45/0.45/0.10 fallback when responsive unavailable; visual<0.5 floors it). editability = mean over source text runs of (reproduced-as-selectable ? bandVisual(y) : 0) — coupled to visual so shredded/broken-band text earns little (un-gameable); textCoverage is the raw uncoupled diagnostic. designSystem = 0.35*paletteFidelity + 0.30*typeFidelity + 0.25*contrastPass(WCAG AA) + 0.10*completeness. responsive = 0.5*mobileFit(no 390px overflow) + 0.5*mobileOrder(clone mobile reading-order vs source, LCS).',
