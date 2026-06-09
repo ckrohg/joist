@@ -82,6 +82,15 @@ function detectGrid(sec) {
   const gMinY = Math.min(...realCols.flatMap((c) => c.items.map((l) => l.box.y)));
   return { columns: realCols, header: wide.filter((l) => l.box.y + l.box.h <= gMinY + 20).sort((a, b) => a.box.y - b.box.y), footer: wide.filter((l) => l.box.y > gMinY + 40).sort((a, b) => a.box.y - b.box.y) };
 }
+// Wave 3b MOTION (gated HYBRID_MOTION=1) — hover-lift + shadow on reconstructed grid cards via the durable
+// per-element custom_css channel. VALIDATED end-to-end: Elementor renders `selector:hover` → on real pointer
+// hover the card transform goes none→translateY(-6px) (probe on supabase 2467, 21 cards). transform/opacity
+// only (CWV-safe) + prefers-reduced-motion override. Source-matching (only add where the source hovers) + the
+// grade-motion stylesheet-parse measurement are the path to default-on.
+function applyCardHover(set) {
+  if (process.env.HYBRID_MOTION !== '1') return;
+  set.custom_css = (set.custom_css ? set.custom_css + '\n' : '') + 'selector{transition:transform .2s ease,box-shadow .2s ease}selector:hover{transform:translateY(-6px);box-shadow:0 10px 30px rgba(0,0,0,.15)}@media(prefers-reduced-motion:reduce){selector{transition:none}selector:hover{transform:none}}';
+}
 // Emit a true 2D CARD grid. Each column's leaves are grouped into CARDS by vertical gap (icon+heading+body that
 // belong together stay together — the per-card grouping flow loses); cards are laid out row-major into a single
 // flex-wrap row of fixed-width cells, so they reflow responsively AND preserve column count / card grouping /
@@ -110,7 +119,7 @@ function buildGridSection(sec, grid) {
   cards.sort((a, b) => (Math.round(a.y / rowQ) - Math.round(b.y / rowQ)) || (a.x - b.x));
   // Responsive widths so the grid REFLOWS instead of shrinking into overflow on mobile (the responsive regression):
   // desktop = 100/N%, tablet = 2-col (50%), mobile = 1-col (100%).
-  const cardEls = cards.map((card) => ({ elType: 'container', settings: { content_width: 'full', flex_direction: 'column', flex_gap: dim(6), width: { unit: '%', size: colW }, width_tablet: { unit: '%', size: N > 2 ? 48 : colW }, width_mobile: { unit: '%', size: 100 }, padding: { unit: 'px', top: '8', right: '8', bottom: '8', left: '8', isLinked: false } }, elements: card.items.map(leafToWidget).filter(Boolean) }));
+  const cardEls = cards.map((card) => { const cset = { content_width: 'full', flex_direction: 'column', flex_gap: dim(6), width: { unit: '%', size: colW }, width_tablet: { unit: '%', size: N > 2 ? 48 : colW }, width_mobile: { unit: '%', size: 100 }, padding: { unit: 'px', top: '8', right: '8', bottom: '8', left: '8', isLinked: false } }; applyCardHover(cset); return { elType: 'container', settings: cset, elements: card.items.map(leafToWidget).filter(Boolean) }; });
   els.push({ elType: 'container', settings: { content_width: 'full', flex_direction: 'row', flex_wrap: 'wrap', flex_gap: dim(16), flex_align_items: 'flex-start', flex_justify_content: 'center', padding: { unit: 'px', top: '12', right: '0', bottom: '12', left: '0', isLinked: false } }, elements: cardEls });
   for (const lf of grid.footer) { const w = leafToWidget(lf); if (w) els.push(w); }
   // NO TEXT LOSS — any leaf not placed in a card/header/footer (un-clustered narrow cells, mid-band wides) is
