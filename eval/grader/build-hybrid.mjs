@@ -68,19 +68,48 @@ function detectGrid(sec) {
   const cols = [];
   for (const l of cells.slice().sort((a, b) => a.box.x - b.box.x)) { const c = cols.find((c) => Math.abs(c.x - l.box.x) < W * 0.06); if (c) { c.items.push(l); c.x = (c.x * (c.items.length - 1) + l.box.x) / c.items.length; } else cols.push({ x: l.box.x, items: [l] }); }
   const realCols = cols.filter((c) => c.items.length >= 2).sort((a, b) => a.x - b.x);
-  if (realCols.length < 2 || realCols.length > 4) return null;
+  if (realCols.length < 2 || realCols.length > 5) return null;
   if (realCols[realCols.length - 1].x - realCols[0].x < W * 0.45) return null;            // must span the width
   if (realCols.reduce((n, c) => n + c.items.length, 0) < cells.length * 0.7) return null;  // most cells in columns
+  // BALANCED columns only — reject ragged single-column-ish lists masquerading as a grid (the corrected 2D-scan
+  // criterion that distinguished real card grids from the adversary's false "no grid exists" targets).
+  const counts = realCols.map((c) => c.items.length); const minC = Math.min(...counts), maxC = Math.max(...counts);
+  if (minC < maxC * 0.5) return null;
+  // EVEN-SPACING guard — a real grid has roughly uniform column gaps. Reject clustered-columns-plus-outlier
+  // false positives (e.g. resend[6] 421,516,630,1154 / tailwind[0] 81,1104,1292) that pass the span+balance
+  // tests but aren't grids. Tolerance 2.6× between widest and narrowest consecutive gap.
+  if (realCols.length >= 3) { const gaps = realCols.slice(1).map((c, k) => c.x - realCols[k].x); const gMin = Math.min(...gaps), gMax = Math.max(...gaps); if (gMin <= 0 || gMax / gMin > 2.6) return null; }
   const gMinY = Math.min(...realCols.flatMap((c) => c.items.map((l) => l.box.y)));
   return { columns: realCols, header: wide.filter((l) => l.box.y + l.box.h <= gMinY + 20).sort((a, b) => a.box.y - b.box.y), footer: wide.filter((l) => l.box.y > gMinY + 40).sort((a, b) => a.box.y - b.box.y) };
 }
+// Emit a true 2D CARD grid. Each column's leaves are grouped into CARDS by vertical gap (icon+heading+body that
+// belong together stay together — the per-card grouping flow loses); cards are laid out row-major into a single
+// flex-wrap row of fixed-width cells, so they reflow responsively AND preserve column count / card grouping /
+// spacing. Width = 100/N% per card. This is the diagnosed Stripe/clerk fix.
 function buildGridSection(sec, grid) {
   const els = [];
   for (const lf of grid.header) { const w = leafToWidget(lf); if (w) els.push(w); }
-  const N = grid.columns.length; const colW = +(100 / N - 2).toFixed(2);
-  const colEls = grid.columns.map((c) => ({ elType: 'container', settings: { content_width: 'full', flex_direction: 'column', flex_gap: dim(8), width: { unit: '%', size: colW }, padding: { unit: 'px', top: '0', right: '8', bottom: '0', left: '8', isLinked: false } }, elements: c.items.sort((a, b) => a.box.y - b.box.y).map(leafToWidget).filter(Boolean) }));
-  els.push({ elType: 'container', settings: { content_width: 'full', flex_direction: 'row', flex_wrap: 'wrap', flex_gap: dim(16), flex_align_items: 'flex-start', flex_justify_content: 'center', padding: { unit: 'px', top: '12', right: '0', bottom: '12', left: '0', isLinked: false } }, elements: colEls });
+  const N = grid.columns.length; const colW = +(100 / N - 3).toFixed(2);
+  // group each column's leaves into cards by intra-column vertical gap (>48px → new card)
+  const cards = [];
+  for (const col of grid.columns) {
+    const items = col.items.slice().sort((a, b) => a.box.y - b.box.y); let cur = [];
+    for (const it of items) { if (cur.length) { const prev = cur[cur.length - 1]; if (it.box.y - (prev.box.y + prev.box.h) > 48) { cards.push({ x: col.x, y: cur[0].box.y, items: cur }); cur = []; } } cur.push(it); }
+    if (cur.length) cards.push({ x: col.x, y: cur[0].box.y, items: cur });
+  }
+  // reading order: row-band (quantized y) then x — so cards lay out left-to-right, top-to-bottom
+  const rowQ = Math.max(60, sec.h / Math.max(1, Math.ceil(cards.length / N)));
+  cards.sort((a, b) => (Math.round(a.y / rowQ) - Math.round(b.y / rowQ)) || (a.x - b.x));
+  // Responsive widths so the grid REFLOWS instead of shrinking into overflow on mobile (the responsive regression):
+  // desktop = 100/N%, tablet = 2-col (50%), mobile = 1-col (100%).
+  const cardEls = cards.map((card) => ({ elType: 'container', settings: { content_width: 'full', flex_direction: 'column', flex_gap: dim(6), width: { unit: '%', size: colW }, width_tablet: { unit: '%', size: N > 2 ? 48 : colW }, width_mobile: { unit: '%', size: 100 }, padding: { unit: 'px', top: '8', right: '8', bottom: '8', left: '8', isLinked: false } }, elements: card.items.map(leafToWidget).filter(Boolean) }));
+  els.push({ elType: 'container', settings: { content_width: 'full', flex_direction: 'row', flex_wrap: 'wrap', flex_gap: dim(16), flex_align_items: 'flex-start', flex_justify_content: 'center', padding: { unit: 'px', top: '12', right: '0', bottom: '12', left: '0', isLinked: false } }, elements: cardEls });
   for (const lf of grid.footer) { const w = leafToWidget(lf); if (w) els.push(w); }
+  // NO TEXT LOSS — any leaf not placed in a card/header/footer (un-clustered narrow cells, mid-band wides) is
+  // appended as flow in source order. Grid reconstruction must never DROP content (the textCoverage regression).
+  const placed = new Set([...grid.header, ...grid.footer, ...cards.flatMap((c) => c.items)]);
+  const leftovers = (sec.leaves || []).filter((l) => l.box && l.box.w > 0 && !placed.has(l)).sort((a, b) => a.box.y - b.box.y);
+  for (const lf of leftovers) { const w = leafToWidget(lf); if (w) els.push(w); }
   const set = { content_width: 'full', flex_direction: 'column', flex_gap: dim(12), flex_align_items: 'center', flex_justify_content: 'center', min_height: { unit: 'px', size: Math.round(sec.h) }, padding: { unit: 'px', top: '24', right: '24', bottom: '24', left: '24', isLinked: false } };
   applySectionBg(set, sec);
   return { elType: 'container', settings: set, elements: els };
