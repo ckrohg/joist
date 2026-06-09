@@ -35,8 +35,17 @@ function downscale(src, f) { const w = Math.floor(src.width / f), h = Math.floor
 const dim = (n) => ({ unit: 'px', size: String(Math.round(n)) });
 function nativeTypo(t) { const s = {}; if (!t || !(t.size || t.family)) return s; s.typography_typography = 'custom'; const real = (t.family && t.family.length > 1 && !/^(-apple-system|blinkmacsystemfont|system-ui|sans-serif|serif|monospace|ui-|inherit|initial)/i.test(t.family)) ? t.family : null; const gf = real || gFont(t.family); if (gf) s.typography_font_family = gf; if (t.size) s.typography_font_size = { unit: 'px', size: Math.round(t.size) }; if (t.weight && /^\d+$/.test(String(t.weight))) s.typography_font_weight = String(t.weight); const lh = px(t.lineHeight); if (lh) s.typography_line_height = { unit: 'px', size: Math.round(lh) }; const ls = px(t.letterSpacing); if (ls !== null && t.letterSpacing !== 'normal') s.typography_letter_spacing = { unit: 'px', size: +ls.toFixed(1) }; if (t.transform && t.transform !== 'none') s.typography_text_transform = t.transform; if (t.style && t.style !== 'normal') s.typography_font_style = t.style.startsWith('oblique') ? 'oblique' : 'italic'; return s; }
 const solidColor = (c) => (c && /^(#|rgb)/.test(c) && c !== 'rgba(0, 0, 0, 0)') ? c : null;
+// Apply a section's background to a container settings object: solid color (always) + VERBATIM gradient
+// (gated HYBRID_SECTION_BG) emitted via the durable per-element custom_css channel (recipe round 45 proven
+// path — beats dominant-stop). Editable sections are transparent, so a captured gradient otherwise renders white.
+function applySectionBg(set, sec) {
+  if (sec.bg) { set.background_background = 'classic'; set.background_color = sec.bg; }
+  if (sec.bgGrad && process.env.HYBRID_SECTION_BG === '1') {
+    set.custom_css = (set.custom_css ? set.custom_css + '\n' : '') + `selector{background-image:${sec.bgGrad}!important}`;
+  }
+}
 function leafToWidget(n) {
-  if (n.kind === 'image') { if (!n.url) return null; const s = { image: { url: n.url }, image_size: 'full' }; if (n.box && n.box.w > 4) s.width = { unit: 'px', size: Math.round(n.box.w) }; return { elType: 'widget', widgetType: 'image', settings: s }; }
+  if (n.kind === 'image') { const url = n.url || n.src; if (!url) return null; const s = { image: { url }, image_size: 'full' }; if (n.box && n.box.w > 4) s.width = { unit: 'px', size: Math.round(n.box.w) }; return { elType: 'widget', widgetType: 'image', settings: s }; }
   const text = stripEmoji(n.text); if (!text) return null;
   const tc = solidColor(n.color);
   if (n.kind === 'heading') return { elType: 'widget', widgetType: 'heading', settings: { title: text, header_size: 'h' + Math.min(6, Math.max(1, n.level || 2)), ...nativeTypo(n.typo), ...(tc ? { title_color: tc } : {}), ...(n.align && n.align !== 'start' ? { align: n.align } : {}) } };
@@ -47,7 +56,67 @@ function leafToWidget(n) {
 // (column gaps/padding inflate past min_height → hRatio up to 1.86 → drift destroyed visual; corpus
 // composite 0.595→0.477). Restored the simple row-flow + min-height pin (best measured = 0.595).
 // Next: HEIGHT-FAITHFUL reconstruction (fit the band) before adding layout richness.
+// P1 LAYOUT ENGINE (DEFAULT-ON; opt out with HYBRID_GRID=0): detect a clean N-column card/cell grid — NARROW leaves (fit one
+// column, w < 40% W) cluster into 2–4 evenly-spaced columns spanning the section; WIDE leaves (≥40% W) are the
+// full-width header/footer. Flow flattens such grids into sparse stacks (the diagnosed Stripe/clerk failure);
+// this rebuilds the real columns. Returns a grid plan or null (→ fall back to flow). Conservative on purpose.
+function detectGrid(sec) {
+  const all = (sec.leaves || []).filter((l) => l.box && l.box.w > 0);
+  const cells = all.filter((l) => l.box.w < W * 0.40);
+  const wide = all.filter((l) => l.box.w >= W * 0.40);
+  if (cells.length < 4) return null;
+  const cols = [];
+  for (const l of cells.slice().sort((a, b) => a.box.x - b.box.x)) { const c = cols.find((c) => Math.abs(c.x - l.box.x) < W * 0.06); if (c) { c.items.push(l); c.x = (c.x * (c.items.length - 1) + l.box.x) / c.items.length; } else cols.push({ x: l.box.x, items: [l] }); }
+  const realCols = cols.filter((c) => c.items.length >= 2).sort((a, b) => a.x - b.x);
+  if (realCols.length < 2 || realCols.length > 5) return null;
+  if (realCols[realCols.length - 1].x - realCols[0].x < W * 0.45) return null;            // must span the width
+  if (realCols.reduce((n, c) => n + c.items.length, 0) < cells.length * 0.7) return null;  // most cells in columns
+  // BALANCED columns only — reject ragged single-column-ish lists masquerading as a grid (the corrected 2D-scan
+  // criterion that distinguished real card grids from the adversary's false "no grid exists" targets).
+  const counts = realCols.map((c) => c.items.length); const minC = Math.min(...counts), maxC = Math.max(...counts);
+  if (minC < maxC * 0.5) return null;
+  // EVEN-SPACING guard — a real grid has roughly uniform column gaps. Reject clustered-columns-plus-outlier
+  // false positives (e.g. resend[6] 421,516,630,1154 / tailwind[0] 81,1104,1292) that pass the span+balance
+  // tests but aren't grids. Tolerance 2.6× between widest and narrowest consecutive gap.
+  if (realCols.length >= 3) { const gaps = realCols.slice(1).map((c, k) => c.x - realCols[k].x); const gMin = Math.min(...gaps), gMax = Math.max(...gaps); if (gMin <= 0 || gMax / gMin > 2.6) return null; }
+  const gMinY = Math.min(...realCols.flatMap((c) => c.items.map((l) => l.box.y)));
+  return { columns: realCols, header: wide.filter((l) => l.box.y + l.box.h <= gMinY + 20).sort((a, b) => a.box.y - b.box.y), footer: wide.filter((l) => l.box.y > gMinY + 40).sort((a, b) => a.box.y - b.box.y) };
+}
+// Emit a true 2D CARD grid. Each column's leaves are grouped into CARDS by vertical gap (icon+heading+body that
+// belong together stay together — the per-card grouping flow loses); cards are laid out row-major into a single
+// flex-wrap row of fixed-width cells, so they reflow responsively AND preserve column count / card grouping /
+// spacing. Width = 100/N% per card. This is the diagnosed Stripe/clerk fix.
+function buildGridSection(sec, grid) {
+  const els = [];
+  for (const lf of grid.header) { const w = leafToWidget(lf); if (w) els.push(w); }
+  const N = grid.columns.length; const colW = +(100 / N - 3).toFixed(2);
+  // group each column's leaves into cards by intra-column vertical gap (>48px → new card)
+  const cards = [];
+  for (const col of grid.columns) {
+    const items = col.items.slice().sort((a, b) => a.box.y - b.box.y); let cur = [];
+    for (const it of items) { if (cur.length) { const prev = cur[cur.length - 1]; if (it.box.y - (prev.box.y + prev.box.h) > 48) { cards.push({ x: col.x, y: cur[0].box.y, items: cur }); cur = []; } } cur.push(it); }
+    if (cur.length) cards.push({ x: col.x, y: cur[0].box.y, items: cur });
+  }
+  // reading order: row-band (quantized y) then x — so cards lay out left-to-right, top-to-bottom
+  const rowQ = Math.max(60, sec.h / Math.max(1, Math.ceil(cards.length / N)));
+  cards.sort((a, b) => (Math.round(a.y / rowQ) - Math.round(b.y / rowQ)) || (a.x - b.x));
+  // Responsive widths so the grid REFLOWS instead of shrinking into overflow on mobile (the responsive regression):
+  // desktop = 100/N%, tablet = 2-col (50%), mobile = 1-col (100%).
+  const cardEls = cards.map((card) => ({ elType: 'container', settings: { content_width: 'full', flex_direction: 'column', flex_gap: dim(6), width: { unit: '%', size: colW }, width_tablet: { unit: '%', size: N > 2 ? 48 : colW }, width_mobile: { unit: '%', size: 100 }, padding: { unit: 'px', top: '8', right: '8', bottom: '8', left: '8', isLinked: false } }, elements: card.items.map(leafToWidget).filter(Boolean) }));
+  els.push({ elType: 'container', settings: { content_width: 'full', flex_direction: 'row', flex_wrap: 'wrap', flex_gap: dim(16), flex_align_items: 'flex-start', flex_justify_content: 'center', padding: { unit: 'px', top: '12', right: '0', bottom: '12', left: '0', isLinked: false } }, elements: cardEls });
+  for (const lf of grid.footer) { const w = leafToWidget(lf); if (w) els.push(w); }
+  // NO TEXT LOSS — any leaf not placed in a card/header/footer (un-clustered narrow cells, mid-band wides) is
+  // appended as flow in source order. Grid reconstruction must never DROP content (the textCoverage regression).
+  const placed = new Set([...grid.header, ...grid.footer, ...cards.flatMap((c) => c.items)]);
+  const leftovers = (sec.leaves || []).filter((l) => l.box && l.box.w > 0 && !placed.has(l)).sort((a, b) => a.box.y - b.box.y);
+  for (const lf of leftovers) { const w = leafToWidget(lf); if (w) els.push(w); }
+  const set = { content_width: 'full', flex_direction: 'column', flex_gap: dim(12), flex_align_items: 'center', flex_justify_content: 'center', min_height: { unit: 'px', size: Math.round(sec.h) }, padding: { unit: 'px', top: '24', right: '24', bottom: '24', left: '24', isLinked: false } };
+  applySectionBg(set, sec);
+  return { elType: 'container', settings: set, elements: els };
+}
+
 function buildEditableSection(sec) {
+  if (process.env.HYBRID_GRID !== '0') { const g = detectGrid(sec); if (g) { console.log(`  [${sec.i}] GRID ${g.columns.length}-col (${g.columns.map((c) => Math.round(c.x)).join(',')})`); return buildGridSection(sec, g); } }
   const leaves = sec.leaves.slice().sort((a, b) => (a.box.y - b.box.y) || (a.box.x - b.box.x));
   const rows = [];
   for (const lf of leaves) {
@@ -66,7 +135,7 @@ function buildEditableSection(sec) {
   const cx = sec.leaves.map((l) => l.box.x + l.box.w / 2); const meanCx = cx.reduce((a, b) => a + b, 0) / Math.max(1, cx.length);
   const centered = Math.abs(meanCx - W / 2) < W * 0.12;
   const set = { content_width: 'full', flex_direction: 'column', flex_gap: dim(12), flex_align_items: centered ? 'center' : 'flex-start', flex_justify_content: 'center', min_height: { unit: 'px', size: Math.round(sec.h) }, padding: { unit: 'px', top: '24', right: '24', bottom: '24', left: '24', isLinked: false } };
-  if (sec.bg) { set.background_background = 'classic'; set.background_color = sec.bg; }
+  applySectionBg(set, sec);
   return { elType: 'container', settings: set, elements: widgets };
 }
 
@@ -86,7 +155,7 @@ function buildAbsEditableSection(sec) {
   // HARDENED: the container pin + un-pin ride PER-ELEMENT custom_css (durable across Elementor regen), NOT
   // page custom_css (which regen drops → the observed abs degradation). min_height also kept as a setting.
   const set = { _element_id: eid, content_width: 'full', min_height: { unit: 'px', size: Math.round(sec.h) }, custom_css: absSectionCss(sec.h), padding: { unit: 'px', top: '0', right: '0', bottom: '0', left: '0', isLinked: true } };
-  if (sec.bg) { set.background_background = 'classic'; set.background_color = sec.bg; }
+  applySectionBg(set, sec);
   return { elType: 'container', settings: set, elements: els };
 }
 
@@ -143,7 +212,7 @@ function classify(sec) {
   await page.waitForTimeout(300);
 
   // SECTION SPLIT + per-section content + classification
-  model = await page.evaluate((vw) => {
+  model = await page.evaluate(([vw, iconsOn]) => {
     const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
     const vis = (el) => { const r = el.getBoundingClientRect(); if (!r.width || !r.height) return false; const cs = getComputedStyle(el); if (cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity < 0.05) return false; if (r.right < 0 || r.bottom < 0 || r.left > innerWidth + 60) return false; return true; };
     const rectOf = (el) => { const r = el.getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top + scrollY), w: Math.round(r.width), h: Math.round(r.height) }; };
@@ -158,11 +227,17 @@ function classify(sec) {
     const leafEls = [...document.querySelectorAll('h1,h2,h3,h4,h5,h6,p,a,button,img,span,li,div')];
     const seen = new Set();
     const sections = [];
+    let iconBudget = 24; // #4: page-wide icon cap (adversary constraint — bound the rasterization cost)
     for (let i = 0; i < bounds.length - 1; i++) {
       const y0 = bounds[i], y1 = bounds[i + 1]; const mid = (y0 + y1) / 2; const secH = y1 - y0;
       const leaves = []; let mediaArea = 0, textChars = 0, linkCount = 0, bigCanvas = false; let bgColor = null;
       // section bg: the full-width element starting at y0
       for (const e of document.querySelectorAll('body *')) { const r = rectOf(e); if (Math.abs(r.y - y0) < 6 && r.w >= vw * 0.82 && r.h >= secH * 0.6) { const c = getComputedStyle(e).backgroundColor; if (opaque(c)) { bgColor = c; break; } } }
+      // section GRADIENT bg (verbatim) — the largest full-width element overlapping the band with a CSS gradient
+      // background-image (these fall through to white today). Captured raw; emitted verbatim per-element (durable
+      // custom_css) under HYBRID_SECTION_BG. Area-ranked (not first), band-overlap (not strict start match).
+      let bgGrad = null, bgGradArea = 0;
+      for (const e of document.querySelectorAll('body *')) { const r = rectOf(e); if (r.w < vw * 0.82) continue; const ov = Math.min(r.y + r.h, y1) - Math.max(r.y, y0); if (ov < secH * 0.55) continue; const bi = getComputedStyle(e).backgroundImage; if (/^(linear|radial|conic)-gradient/.test(bi) && r.w * r.h > bgGradArea) { bgGrad = bi; bgGradArea = r.w * r.h; } }
       for (const e of document.querySelectorAll('canvas, video')) { const r = rectOf(e); if (r.y + r.h / 2 >= y0 && r.y + r.h / 2 < y1 && r.w > 200 && r.h > 150) bigCanvas = true; }
       // CODE BLOCKS reconstruct as token soup (syntax-highlight spans). Count their area as MEDIA (so a
       // code-DOMINANT section rasterizes whole) AND emit each as a rasterSlice image-leaf (Wave B sub-section
@@ -193,6 +268,29 @@ function classify(sec) {
         const btnBg = isBtn && opaque(cs.backgroundColor);
         leaves.push({ kind: isH ? 'heading' : (isBtn ? 'button' : 'text'), level: isH ? +tag[1] : null, text: t, href: isBtn && el.href ? el.href : null, typo: typo(cs), color: cs.color, align: cs.textAlign, btn: btnBg, bg: btnBg ? cs.backgroundColor : null, radius: cs.borderTopLeftRadius, box });
       }
+      // #4 ICON CAPTURE (gated HYBRID_ICONS) — decorative icons (inline SVG / tiny img / bg-image) are neither
+      // text nor img leaves, so reconstructed cards render empty. Detect icon-sized, roughly-square, INKED,
+      // visible boxes → push as rasterSlice image leaves (hosted later; clustered into card-tops by detectGrid).
+      // Do NOT add to mediaArea (would flip section classification editable->raster). Ink-gated, overlap-deduped,
+      // page-capped (iconBudget). Direct-src for <img> icons (skip hosting); rasterSlice for SVG/bg-image.
+      if (iconsOn && iconBudget > 0) {
+        for (const el of document.querySelectorAll('svg, img, i, [class*="icon"], [class*="Icon"]')) {
+          if (iconBudget <= 0) break;
+          const r = rectOf(el); const cy = r.y + r.h / 2; if (cy < y0 || cy >= y1) continue;
+          if (r.w < 14 || r.h < 14 || r.w > 96 || r.h > 96) continue;             // icon-sized
+          const ar = r.w / r.h; if (ar < 0.4 || ar > 2.5) continue;               // roughly square
+          if (!vis(el)) continue;
+          const tag = el.tagName.toLowerCase(); let inks = false, src = null;
+          if (tag === 'svg') inks = el.querySelector('path,circle,rect,polygon,line,g,ellipse') != null;
+          else if (tag === 'img') { src = el.currentSrc || el.src; inks = !!src && !src.startsWith('data:'); }
+          else { const bi = getComputedStyle(el).backgroundImage; inks = !!bi && bi !== 'none' && !/gradient/.test(bi); }
+          if (!inks) continue;
+          if (leaves.some((l) => l.icon && Math.abs(l.box.x - r.x) < 10 && Math.abs(l.box.y - r.y) < 10)) continue; // dedup nested
+          if (src) leaves.push({ kind: 'image', src, box: r, icon: true, alt: 'icon' });
+          else leaves.push({ kind: 'image', rasterSlice: true, icon: true, box: r, alt: 'icon' });
+          iconBudget--;
+        }
+      }
       const secArea = vw * secH; const mediaFrac = secArea ? mediaArea / secArea : 0;
       const textLeaves = leaves.filter((l) => l.kind !== 'image').length;
       const isNav = i === 0 && secH <= 160 && linkCount >= 3;
@@ -200,7 +298,7 @@ function classify(sec) {
       // CLASSIFICATION (editable vs raster) is done node-side in classify() — NOT here — so a cached raw
       // capture can be re-built deterministically and any gate change re-runs on the frozen capture.
       // ALWAYS keep leaves (even for would-be-raster) so re-classification can flip a section to editable.
-      sections.push({ i, y0, y1, h: secH, bg: bgColor, textLeaves, mediaFrac: +mediaFrac.toFixed(2), linkCount, bigCanvas, isNav, isFooter, leaves });
+      sections.push({ i, y0, y1, h: secH, bg: bgColor, bgGrad, textLeaves, mediaFrac: +mediaFrac.toFixed(2), linkCount, bigCanvas, isNav, isFooter, leaves });
     }
     // PAGE CANVAS background — dark-canvas sites (resend, framer) paint the bg on <body>/<html>, NOT on
     // per-section elements, so section bgColor stays null and transparent editable sections (nav/footer/
@@ -208,7 +306,7 @@ function classify(sec) {
     const bodyBg = getComputedStyle(document.body).backgroundColor, htmlBg = getComputedStyle(document.documentElement).backgroundColor;
     const pageBg = opaque(bodyBg) ? bodyBg : (opaque(htmlBg) ? htmlBg : null);
     return { vw: innerWidth, pageH, pageBg, sections };
-  }, W);
+  }, [W, process.env.HYBRID_ICONS === '1']);
 
   // full-page screenshot for raster sections
   await page.evaluate(() => window.scrollTo(0, 0)); await page.waitForTimeout(200);
