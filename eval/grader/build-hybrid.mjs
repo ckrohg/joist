@@ -35,6 +35,15 @@ function downscale(src, f) { const w = Math.floor(src.width / f), h = Math.floor
 const dim = (n) => ({ unit: 'px', size: String(Math.round(n)) });
 function nativeTypo(t) { const s = {}; if (!t || !(t.size || t.family)) return s; s.typography_typography = 'custom'; const real = (t.family && t.family.length > 1 && !/^(-apple-system|blinkmacsystemfont|system-ui|sans-serif|serif|monospace|ui-|inherit|initial)/i.test(t.family)) ? t.family : null; const gf = real || gFont(t.family); if (gf) s.typography_font_family = gf; if (t.size) s.typography_font_size = { unit: 'px', size: Math.round(t.size) }; if (t.weight && /^\d+$/.test(String(t.weight))) s.typography_font_weight = String(t.weight); const lh = px(t.lineHeight); if (lh) s.typography_line_height = { unit: 'px', size: Math.round(lh) }; const ls = px(t.letterSpacing); if (ls !== null && t.letterSpacing !== 'normal') s.typography_letter_spacing = { unit: 'px', size: +ls.toFixed(1) }; if (t.transform && t.transform !== 'none') s.typography_text_transform = t.transform; if (t.style && t.style !== 'normal') s.typography_font_style = t.style.startsWith('oblique') ? 'oblique' : 'italic'; return s; }
 const solidColor = (c) => (c && /^(#|rgb)/.test(c) && c !== 'rgba(0, 0, 0, 0)') ? c : null;
+// Apply a section's background to a container settings object: solid color (always) + VERBATIM gradient
+// (gated HYBRID_SECTION_BG) emitted via the durable per-element custom_css channel (recipe round 45 proven
+// path — beats dominant-stop). Editable sections are transparent, so a captured gradient otherwise renders white.
+function applySectionBg(set, sec) {
+  if (sec.bg) { set.background_background = 'classic'; set.background_color = sec.bg; }
+  if (sec.bgGrad && process.env.HYBRID_SECTION_BG === '1') {
+    set.custom_css = (set.custom_css ? set.custom_css + '\n' : '') + `selector{background-image:${sec.bgGrad}!important}`;
+  }
+}
 function leafToWidget(n) {
   if (n.kind === 'image') { if (!n.url) return null; const s = { image: { url: n.url }, image_size: 'full' }; if (n.box && n.box.w > 4) s.width = { unit: 'px', size: Math.round(n.box.w) }; return { elType: 'widget', widgetType: 'image', settings: s }; }
   const text = stripEmoji(n.text); if (!text) return null;
@@ -73,7 +82,7 @@ function buildGridSection(sec, grid) {
   els.push({ elType: 'container', settings: { content_width: 'full', flex_direction: 'row', flex_wrap: 'wrap', flex_gap: dim(16), flex_align_items: 'flex-start', flex_justify_content: 'center', padding: { unit: 'px', top: '12', right: '0', bottom: '12', left: '0', isLinked: false } }, elements: colEls });
   for (const lf of grid.footer) { const w = leafToWidget(lf); if (w) els.push(w); }
   const set = { content_width: 'full', flex_direction: 'column', flex_gap: dim(12), flex_align_items: 'center', flex_justify_content: 'center', min_height: { unit: 'px', size: Math.round(sec.h) }, padding: { unit: 'px', top: '24', right: '24', bottom: '24', left: '24', isLinked: false } };
-  if (sec.bg) { set.background_background = 'classic'; set.background_color = sec.bg; }
+  applySectionBg(set, sec);
   return { elType: 'container', settings: set, elements: els };
 }
 
@@ -97,7 +106,7 @@ function buildEditableSection(sec) {
   const cx = sec.leaves.map((l) => l.box.x + l.box.w / 2); const meanCx = cx.reduce((a, b) => a + b, 0) / Math.max(1, cx.length);
   const centered = Math.abs(meanCx - W / 2) < W * 0.12;
   const set = { content_width: 'full', flex_direction: 'column', flex_gap: dim(12), flex_align_items: centered ? 'center' : 'flex-start', flex_justify_content: 'center', min_height: { unit: 'px', size: Math.round(sec.h) }, padding: { unit: 'px', top: '24', right: '24', bottom: '24', left: '24', isLinked: false } };
-  if (sec.bg) { set.background_background = 'classic'; set.background_color = sec.bg; }
+  applySectionBg(set, sec);
   return { elType: 'container', settings: set, elements: widgets };
 }
 
@@ -117,7 +126,7 @@ function buildAbsEditableSection(sec) {
   // HARDENED: the container pin + un-pin ride PER-ELEMENT custom_css (durable across Elementor regen), NOT
   // page custom_css (which regen drops → the observed abs degradation). min_height also kept as a setting.
   const set = { _element_id: eid, content_width: 'full', min_height: { unit: 'px', size: Math.round(sec.h) }, custom_css: absSectionCss(sec.h), padding: { unit: 'px', top: '0', right: '0', bottom: '0', left: '0', isLinked: true } };
-  if (sec.bg) { set.background_background = 'classic'; set.background_color = sec.bg; }
+  applySectionBg(set, sec);
   return { elType: 'container', settings: set, elements: els };
 }
 
@@ -194,6 +203,11 @@ function classify(sec) {
       const leaves = []; let mediaArea = 0, textChars = 0, linkCount = 0, bigCanvas = false; let bgColor = null;
       // section bg: the full-width element starting at y0
       for (const e of document.querySelectorAll('body *')) { const r = rectOf(e); if (Math.abs(r.y - y0) < 6 && r.w >= vw * 0.82 && r.h >= secH * 0.6) { const c = getComputedStyle(e).backgroundColor; if (opaque(c)) { bgColor = c; break; } } }
+      // section GRADIENT bg (verbatim) — the largest full-width element overlapping the band with a CSS gradient
+      // background-image (these fall through to white today). Captured raw; emitted verbatim per-element (durable
+      // custom_css) under HYBRID_SECTION_BG. Area-ranked (not first), band-overlap (not strict start match).
+      let bgGrad = null, bgGradArea = 0;
+      for (const e of document.querySelectorAll('body *')) { const r = rectOf(e); if (r.w < vw * 0.82) continue; const ov = Math.min(r.y + r.h, y1) - Math.max(r.y, y0); if (ov < secH * 0.55) continue; const bi = getComputedStyle(e).backgroundImage; if (/^(linear|radial|conic)-gradient/.test(bi) && r.w * r.h > bgGradArea) { bgGrad = bi; bgGradArea = r.w * r.h; } }
       for (const e of document.querySelectorAll('canvas, video')) { const r = rectOf(e); if (r.y + r.h / 2 >= y0 && r.y + r.h / 2 < y1 && r.w > 200 && r.h > 150) bigCanvas = true; }
       // CODE BLOCKS reconstruct as token soup (syntax-highlight spans). Count their area as MEDIA (so a
       // code-DOMINANT section rasterizes whole) AND emit each as a rasterSlice image-leaf (Wave B sub-section
@@ -231,7 +245,7 @@ function classify(sec) {
       // CLASSIFICATION (editable vs raster) is done node-side in classify() — NOT here — so a cached raw
       // capture can be re-built deterministically and any gate change re-runs on the frozen capture.
       // ALWAYS keep leaves (even for would-be-raster) so re-classification can flip a section to editable.
-      sections.push({ i, y0, y1, h: secH, bg: bgColor, textLeaves, mediaFrac: +mediaFrac.toFixed(2), linkCount, bigCanvas, isNav, isFooter, leaves });
+      sections.push({ i, y0, y1, h: secH, bg: bgColor, bgGrad, textLeaves, mediaFrac: +mediaFrac.toFixed(2), linkCount, bigCanvas, isNav, isFooter, leaves });
     }
     // PAGE CANVAS background — dark-canvas sites (resend, framer) paint the bg on <body>/<html>, NOT on
     // per-section elements, so section bgColor stays null and transparent editable sections (nav/footer/
