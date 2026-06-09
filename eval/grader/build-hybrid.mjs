@@ -45,7 +45,7 @@ function applySectionBg(set, sec) {
   }
 }
 function leafToWidget(n) {
-  if (n.kind === 'image') { if (!n.url) return null; const s = { image: { url: n.url }, image_size: 'full' }; if (n.box && n.box.w > 4) s.width = { unit: 'px', size: Math.round(n.box.w) }; return { elType: 'widget', widgetType: 'image', settings: s }; }
+  if (n.kind === 'image') { const url = n.url || n.src; if (!url) return null; const s = { image: { url }, image_size: 'full' }; if (n.box && n.box.w > 4) s.width = { unit: 'px', size: Math.round(n.box.w) }; return { elType: 'widget', widgetType: 'image', settings: s }; }
   const text = stripEmoji(n.text); if (!text) return null;
   const tc = solidColor(n.color);
   if (n.kind === 'heading') return { elType: 'widget', widgetType: 'heading', settings: { title: text, header_size: 'h' + Math.min(6, Math.max(1, n.level || 2)), ...nativeTypo(n.typo), ...(tc ? { title_color: tc } : {}), ...(n.align && n.align !== 'start' ? { align: n.align } : {}) } };
@@ -56,7 +56,7 @@ function leafToWidget(n) {
 // (column gaps/padding inflate past min_height → hRatio up to 1.86 → drift destroyed visual; corpus
 // composite 0.595→0.477). Restored the simple row-flow + min-height pin (best measured = 0.595).
 // Next: HEIGHT-FAITHFUL reconstruction (fit the band) before adding layout richness.
-// P1 LAYOUT ENGINE (gated HYBRID_GRID=1): detect a clean N-column card/cell grid — NARROW leaves (fit one
+// P1 LAYOUT ENGINE (DEFAULT-ON; opt out with HYBRID_GRID=0): detect a clean N-column card/cell grid — NARROW leaves (fit one
 // column, w < 40% W) cluster into 2–4 evenly-spaced columns spanning the section; WIDE leaves (≥40% W) are the
 // full-width header/footer. Flow flattens such grids into sparse stacks (the diagnosed Stripe/clerk failure);
 // this rebuilds the real columns. Returns a grid plan or null (→ fall back to flow). Conservative on purpose.
@@ -116,7 +116,7 @@ function buildGridSection(sec, grid) {
 }
 
 function buildEditableSection(sec) {
-  if (process.env.HYBRID_GRID === '1') { const g = detectGrid(sec); if (g) { console.log(`  [${sec.i}] GRID ${g.columns.length}-col (${g.columns.map((c) => Math.round(c.x)).join(',')})`); return buildGridSection(sec, g); } }
+  if (process.env.HYBRID_GRID !== '0') { const g = detectGrid(sec); if (g) { console.log(`  [${sec.i}] GRID ${g.columns.length}-col (${g.columns.map((c) => Math.round(c.x)).join(',')})`); return buildGridSection(sec, g); } }
   const leaves = sec.leaves.slice().sort((a, b) => (a.box.y - b.box.y) || (a.box.x - b.box.x));
   const rows = [];
   for (const lf of leaves) {
@@ -212,7 +212,7 @@ function classify(sec) {
   await page.waitForTimeout(300);
 
   // SECTION SPLIT + per-section content + classification
-  model = await page.evaluate((vw) => {
+  model = await page.evaluate(([vw, iconsOn]) => {
     const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
     const vis = (el) => { const r = el.getBoundingClientRect(); if (!r.width || !r.height) return false; const cs = getComputedStyle(el); if (cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity < 0.05) return false; if (r.right < 0 || r.bottom < 0 || r.left > innerWidth + 60) return false; return true; };
     const rectOf = (el) => { const r = el.getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top + scrollY), w: Math.round(r.width), h: Math.round(r.height) }; };
@@ -227,6 +227,7 @@ function classify(sec) {
     const leafEls = [...document.querySelectorAll('h1,h2,h3,h4,h5,h6,p,a,button,img,span,li,div')];
     const seen = new Set();
     const sections = [];
+    let iconBudget = 24; // #4: page-wide icon cap (adversary constraint — bound the rasterization cost)
     for (let i = 0; i < bounds.length - 1; i++) {
       const y0 = bounds[i], y1 = bounds[i + 1]; const mid = (y0 + y1) / 2; const secH = y1 - y0;
       const leaves = []; let mediaArea = 0, textChars = 0, linkCount = 0, bigCanvas = false; let bgColor = null;
@@ -267,6 +268,29 @@ function classify(sec) {
         const btnBg = isBtn && opaque(cs.backgroundColor);
         leaves.push({ kind: isH ? 'heading' : (isBtn ? 'button' : 'text'), level: isH ? +tag[1] : null, text: t, href: isBtn && el.href ? el.href : null, typo: typo(cs), color: cs.color, align: cs.textAlign, btn: btnBg, bg: btnBg ? cs.backgroundColor : null, radius: cs.borderTopLeftRadius, box });
       }
+      // #4 ICON CAPTURE (gated HYBRID_ICONS) — decorative icons (inline SVG / tiny img / bg-image) are neither
+      // text nor img leaves, so reconstructed cards render empty. Detect icon-sized, roughly-square, INKED,
+      // visible boxes → push as rasterSlice image leaves (hosted later; clustered into card-tops by detectGrid).
+      // Do NOT add to mediaArea (would flip section classification editable->raster). Ink-gated, overlap-deduped,
+      // page-capped (iconBudget). Direct-src for <img> icons (skip hosting); rasterSlice for SVG/bg-image.
+      if (iconsOn && iconBudget > 0) {
+        for (const el of document.querySelectorAll('svg, img, i, [class*="icon"], [class*="Icon"]')) {
+          if (iconBudget <= 0) break;
+          const r = rectOf(el); const cy = r.y + r.h / 2; if (cy < y0 || cy >= y1) continue;
+          if (r.w < 14 || r.h < 14 || r.w > 96 || r.h > 96) continue;             // icon-sized
+          const ar = r.w / r.h; if (ar < 0.4 || ar > 2.5) continue;               // roughly square
+          if (!vis(el)) continue;
+          const tag = el.tagName.toLowerCase(); let inks = false, src = null;
+          if (tag === 'svg') inks = el.querySelector('path,circle,rect,polygon,line,g,ellipse') != null;
+          else if (tag === 'img') { src = el.currentSrc || el.src; inks = !!src && !src.startsWith('data:'); }
+          else { const bi = getComputedStyle(el).backgroundImage; inks = !!bi && bi !== 'none' && !/gradient/.test(bi); }
+          if (!inks) continue;
+          if (leaves.some((l) => l.icon && Math.abs(l.box.x - r.x) < 10 && Math.abs(l.box.y - r.y) < 10)) continue; // dedup nested
+          if (src) leaves.push({ kind: 'image', src, box: r, icon: true, alt: 'icon' });
+          else leaves.push({ kind: 'image', rasterSlice: true, icon: true, box: r, alt: 'icon' });
+          iconBudget--;
+        }
+      }
       const secArea = vw * secH; const mediaFrac = secArea ? mediaArea / secArea : 0;
       const textLeaves = leaves.filter((l) => l.kind !== 'image').length;
       const isNav = i === 0 && secH <= 160 && linkCount >= 3;
@@ -282,7 +306,7 @@ function classify(sec) {
     const bodyBg = getComputedStyle(document.body).backgroundColor, htmlBg = getComputedStyle(document.documentElement).backgroundColor;
     const pageBg = opaque(bodyBg) ? bodyBg : (opaque(htmlBg) ? htmlBg : null);
     return { vw: innerWidth, pageH, pageBg, sections };
-  }, W);
+  }, [W, process.env.HYBRID_ICONS === '1']);
 
   // full-page screenshot for raster sections
   await page.evaluate(() => window.scrollTo(0, 0)); await page.waitForTimeout(200);
