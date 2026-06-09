@@ -171,7 +171,7 @@ function buildAbsEditableSection(sec) {
 // raw capture re-runs the gate deterministically — separating builder/gate changes from capture noise.
 // Conservative: editable ONLY when genuinely text-dominant (raster is 1:1, so when in doubt raster).
 function classify(sec) {
-  const { bigCanvas, isNav, isFooter, textLeaves, mediaFrac, h } = sec;
+  const { bigCanvas, isNav, isFooter, textLeaves, mediaFrac, imgFrac = 0, h } = sec;
   if (bigCanvas) return { kind: 'raster', reason: 'canvas/video' };
   if (isNav) return { kind: 'editable', reason: 'nav' };
   if (isFooter && textLeaves <= 80) return { kind: 'editable', reason: 'footer' };
@@ -186,6 +186,12 @@ function classify(sec) {
   // #1 coverage lever, 0.633->0.716). Fires rarely (1/8 cached sites); LOOK-confirmed faithful+editable, hRatio
   // 1.008 (no drift). n=1 corpus sample but strong + bounded (mediaFrac<0.4) + reversible. Judge new cases by EYE.
   if (process.env.HYBRID_TALLTEXT !== '0' && textLeaves >= 20 && mediaFrac < 0.4 && h <= 6000) return { kind: 'editable', reason: `talltext${textLeaves}/media${mediaFrac}/h${h}` };
+  // MEDIA-SPLIT (gated HYBRID_MEDIASPLIT) — a media-HEAVY section rasters today, but if its media is dominated by
+  // reconstructable IMG-TAG leaves (imgFrac covers most of mediaFrac) rather than canvas/background, it rebuilds
+  // fully editable: images→image widgets, text→text widgets, grid handles layout. e.g. supabase [2] media0.77 but
+  // 9 img mockups + 23 text in a grid. Requires NO non-img media to sub-raster. Text-rich + height-bounded. The
+  // canvas/background-media case (sub-raster) is a separate, riskier follow-on (cycle-2 territory).
+  if (process.env.HYBRID_MEDIASPLIT === '1' && textLeaves >= 8 && imgFrac >= mediaFrac * 0.7 && mediaFrac >= 0.5 && h <= 4000) return { kind: 'editable', reason: `mediasplit${textLeaves}/img${imgFrac}/media${mediaFrac}/h${h}` };
   return { kind: 'raster', reason: `media${mediaFrac}/text${textLeaves}/h${h}` };
 }
 
@@ -244,7 +250,7 @@ function classify(sec) {
     let iconBudget = 48; // #4: page-wide icon cap (bound total cost); per-section cap below prevents one logo-wall starving later card grids
     for (let i = 0; i < bounds.length - 1; i++) {
       const y0 = bounds[i], y1 = bounds[i + 1]; const mid = (y0 + y1) / 2; const secH = y1 - y0;
-      const leaves = []; let mediaArea = 0, textChars = 0, linkCount = 0, bigCanvas = false; let bgColor = null;
+      const leaves = []; let mediaArea = 0, imgLeafArea = 0, textChars = 0, linkCount = 0, bigCanvas = false; let bgColor = null;
       // section bg: the full-width element starting at y0
       for (const e of document.querySelectorAll('body *')) { const r = rectOf(e); if (Math.abs(r.y - y0) < 6 && r.w >= vw * 0.82 && r.h >= secH * 0.6) { const c = getComputedStyle(e).backgroundColor; if (opaque(c)) { bgColor = c; break; } } }
       // section GRADIENT bg (verbatim) — the largest full-width element overlapping the band with a CSS gradient
@@ -261,7 +267,7 @@ function classify(sec) {
       for (const el of leafEls) {
         if (!vis(el)) continue; const box = rectOf(el); const cy = box.y + box.h / 2; if (cy < y0 || cy >= y1) continue;
         const tag = el.tagName.toLowerCase(); const cs = getComputedStyle(el);
-        if (tag === 'img') { const src = el.currentSrc || el.src; if (src && !src.startsWith('data:') && box.w >= 24 && box.h >= 24) { mediaArea += box.w * box.h; if (box.w >= 40 && box.h >= 40) leaves.push({ kind: 'image', src, box, alt: el.alt || '' }); } continue; }
+        if (tag === 'img') { const src = el.currentSrc || el.src; if (src && !src.startsWith('data:') && box.w >= 24 && box.h >= 24) { mediaArea += box.w * box.h; if (box.w >= 40 && box.h >= 40) { leaves.push({ kind: 'image', src, box, alt: el.alt || '' }); imgLeafArea += box.w * box.h; } } continue; }
         const own = [...el.childNodes].some((n) => n.nodeType === 3 && clean(n.textContent)); if (!own) continue;
         // CODE-SHREDDING FIX: skip text inside code blocks (<pre>/<code>) — syntax-highlighted code shatters
         // into per-token spans (<, div, class, =) that get emitted as individual widgets (the shredding the
@@ -306,14 +312,14 @@ function classify(sec) {
           iconBudget--; secIcons++;
         }
       }
-      const secArea = vw * secH; const mediaFrac = secArea ? mediaArea / secArea : 0;
+      const secArea = vw * secH; const mediaFrac = secArea ? mediaArea / secArea : 0; const imgFrac = secArea ? imgLeafArea / secArea : 0;
       const textLeaves = leaves.filter((l) => l.kind !== 'image').length;
       const isNav = i === 0 && secH <= 160 && linkCount >= 3;
       const isFooter = i === bounds.length - 2 && linkCount >= 6;
       // CLASSIFICATION (editable vs raster) is done node-side in classify() — NOT here — so a cached raw
       // capture can be re-built deterministically and any gate change re-runs on the frozen capture.
       // ALWAYS keep leaves (even for would-be-raster) so re-classification can flip a section to editable.
-      sections.push({ i, y0, y1, h: secH, bg: bgColor, bgGrad, textLeaves, mediaFrac: +mediaFrac.toFixed(2), linkCount, bigCanvas, isNav, isFooter, leaves });
+      sections.push({ i, y0, y1, h: secH, bg: bgColor, bgGrad, textLeaves, mediaFrac: +mediaFrac.toFixed(2), imgFrac: +imgFrac.toFixed(2), linkCount, bigCanvas, isNav, isFooter, leaves });
     }
     // PAGE CANVAS background — dark-canvas sites (resend, framer) paint the bg on <body>/<html>, NOT on
     // per-section elements, so section bgColor stays null and transparent editable sections (nav/footer/
