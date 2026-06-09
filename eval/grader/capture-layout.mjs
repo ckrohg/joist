@@ -377,9 +377,83 @@ function cropPng(png, box, dpr) {
   // (zero visible area) are dropped. Vertical capture / scroll-height is untouched. CAPTURE_NO_CLIP=1 restores
   // the old full-rect behaviour.
   try { await page.evaluate((off) => { window.__NO_CLIP = off; }, process.env.CAPTURE_NO_CLIP === '1'); } catch {}
+  // HIDDEN-STATE reversibility (hover/click-only overlay fix): the static walk runs AFTER the reveal pass has
+  // scrolled every band into view + finished scroll-triggered animations, so legit scroll-reveal SECTIONS are
+  // landed at opacity:1. But a Framer logo HOVER-CARD ("Copy / Logo as SVG / Brand Guidelines") and tooltips
+  // ("Start with AI" is genuinely on-page, but its sibling hover-card flyouts are not) sit in their PRE-reveal
+  // state — an ancestor div is opacity:0 with a CSS opacity transition (fades in only on :hover) — while the
+  // leaf <p> itself is opacity:1/visible. visible() checks only the element's OWN opacity, so those phantom
+  // overlay leaves were captured and pinned into the clone as ghost text over the nav. FIX: visible() also
+  // rejects an element gated by a HOVER/TRANSITION-DRIVEN opacity:0 ancestor (see hiddenByHoverOverlay in the
+  // walk closure). It is SCROLL-SAFE: a scroll-reveal section that re-hid (opacity:0) has transition-duration:0
+  // (its reveal is JS/WAAPI/transform-driven, not a CSS opacity transition) so it is NEVER caught — only true
+  // hover/transition fade-in overlays (duration>0, or pointer-events:none) are. CAPTURE_NO_HIDDEN_STATE=1
+  // (→ __NO_HIDDEN_STATE) restores the old behaviour (capture overlay phantoms as visible).
+  try { await page.evaluate((off) => { window.__NO_HIDDEN_STATE = off; }, process.env.CAPTURE_NO_HIDDEN_STATE === '1'); } catch {}
+  // FORM-RECOVERY reversibility (form-recovery fix): the walk has NO branch for <input>/<textarea>/<select> — they
+  // fall through to leaf(), which reads innerText/textContent and returns null because a control's value/placeholder
+  // live in ATTRIBUTES (not text nodes) → every visible form control is silently dropped (a <form> then collapses to
+  // whatever stray label text survives, never reaching the build as a form). FIX: an early walk() intercept emits a
+  // kind:'input' leaf for each VISIBLE input/textarea/select (and a kind:'button' for an <input type=button/submit>),
+  // carrying type/value/placeholder/box/typo/paint/bg/border/radius so build-absolute can stamp a REAL VISIBLE
+  // Elementor control. The grader's form signal (visN('input,textarea,select').length>=2 → form=1) then matches the
+  // source. Reversible: BUILD_NO_FORM_RECOVERY=1 (shared with the builder so one env disables BOTH ends) or
+  // CAPTURE_NO_FORM_RECOVERY=1 (capture-only). When OFF the controls fall through exactly as before → byte-identical.
+  try { await page.evaluate((off) => { window.__NO_FORM_RECOVERY = off; }, (process.env.BUILD_NO_FORM_RECOVERY === '1' || process.env.CAPTURE_NO_FORM_RECOVERY === '1')); } catch {}
+  // FONT-RESOLVE (default ON; CAP_NO_FONTRESOLVE=1 → legacy split(',')[0]): resolve each text leaf's typo.family to
+  // the first family in its CSS font-family STACK that is actually a LOADED face (document.fonts). Fixes the supabase
+  // class of bug where the stack is `Circular, custom-font, …` but `Circular` is NEVER web-served (no @font-face, not
+  // in document.fonts) → the legacy split(',')[0] kept the dead "Circular" so REGFONTS["Circular"] missed → Inter
+  // fallback. With this ON the leaf reports `custom-font` (the real self-hosted face that IS loaded), matching the
+  // family key registerSourceFonts hosts → the real face renders. No-op when the FIRST family is itself loaded
+  // (vercel headings = `Geist` is loaded → unchanged); falls back to split(',')[0] when NO stack family is loaded.
+  try { await page.evaluate((off) => { window.__NO_FONTRESOLVE = off; }, process.env.CAP_NO_FONTRESOLVE === '1'); } catch {}
+  // MARQUEE-VISIBLE (default ON; CAPTURE_NO_MARQUEE_VISIBLE=1 → __NO_MARQUEE_VISIBLE true → legacy collapse): the
+  // mono-dominance code-collapse (the DIV-BASED CODE EDITOR branch) judged a container "code" purely by font-family
+  // share (monoTextFrac >= 0.6). On resend's React-email IDE showcase the OUTER <section> measures 0.768 mono —
+  // because the syntax-highlighted <pre> code panel out-texts everything — so the WHOLE 3-region showcase (file-tile
+  // list + <pre> code panel + rendered email-preview <table>) collapsed into ONE dark 'code' leaf that renders as a
+  // black void (band §10 y6616-7411: srcEnergy 0.27, cloneEnergy 0 → content-void, visual capped 0.866→0.30). The
+  // VISIBLE-in-viewport cards are recoverable: gate the collapse so it does NOT swallow a MULTI-REGION container —
+  // when `el` is NOT itself a code panel (not mono-self, not structural-code) but merely CONTAINS a descendant code
+  // panel (a <pre> / structural-code subtree) AND ALSO carries substantial non-mono visible content OUTSIDE that
+  // panel, fall through to normal recursion so each visible region is captured natively at its painted position
+  // (the dedicated <pre> branch still collapses the code panel itself; file-tiles → native buttons; email-preview →
+  // table/mockup). Off-screen marquee siblings stay zero-box and drop via the existing w/h guards (no h-scroll, no
+  // off-screen content added). A genuine single div-based code editor (mono-self, or no separate code panel) is
+  // UNTOUCHED → still collapses. Reversible: CAPTURE_NO_MARQUEE_VISIBLE=1.
+  try { await page.evaluate((off) => { window.__NO_MARQUEE_VISIBLE = off; }, process.env.CAPTURE_NO_MARQUEE_VISIBLE === '1'); } catch {}
+  // COLLAPSED-FLOW WRAPPER recovery (default ON; CAPTURE_NO_COLLAPSEDFLOW=1 → __NO_COLLAPSEDFLOW true → legacy
+  // drop): recurse through a static wrapper collapsed to zero-height by a position:fixed/sticky/absolute child
+  // (linear's Header_root → fixed <header>/<nav>) so the painted header nav links are no longer silently dropped.
+  try { await page.evaluate((off) => { window.__NO_COLLAPSEDFLOW = off; }, process.env.CAPTURE_NO_COLLAPSEDFLOW === '1'); } catch {}
+  // CODE-PANEL STYLE RECOVERY (default ON; CAPTURE_NO_CODE_PANEL_RECOVER=1 → __NO_CODE_PANEL_RECOVER true → legacy
+  // per-cs values): recover the dark panel bg + card radius + real mono family + dominant code-text color for a
+  // collapsed kind:'code' leaf (resend/linear code editors rendered as a void / light-bg illegible run-on before).
+  try { await page.evaluate((off) => { window.__NO_CODE_PANEL_RECOVER = off; }, process.env.CAPTURE_NO_CODE_PANEL_RECOVER === '1'); } catch {}
+  // SINGLE-IMG MOCKUP RECOVERY (void-imagery fix): CAPTURE_NO_IMGRECOVER=1 → __NO_IMGRECOVER true → revert to the
+  // legacy whole-region raster for single-image bands (and disable the node-side black-void SKIP guard below).
+  try { await page.evaluate((off) => { window.__NO_IMGRECOVER = off; }, process.env.CAPTURE_NO_IMGRECOVER === '1'); } catch {}
 
   const data = await page.evaluate(() => {
     const MAXD = 8; const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
+    // LOADED-FACE family set (normalized, lowercased, quotes/space stripped) — the families document.fonts reports as
+    // actually loaded. resolveFamily(stack) walks the CSS font-family stack and returns the FIRST family whose
+    // normalized name is in this set, so a dead leading family (supabase `Circular` — no @font-face, never served)
+    // is skipped in favour of the real self-hosted face (`custom-font`). Falls back to the raw first family if NONE
+    // of the stack is loaded (e.g. a pure system-font stack, or a face still loading). CAP_NO_FONTRESOLVE=1 reverts.
+    const NO_FONTRESOLVE = window.__NO_FONTRESOLVE === true;
+    const _famNorm = (s) => String(s || '').replace(/['"]/g, '').trim().toLowerCase();
+    const loadedFams = new Set();
+    try { document.fonts.forEach((f) => { if (f.status === 'loaded') loadedFams.add(_famNorm(f.family)); }); } catch {}
+    const firstFamily = (fontFamily) => (fontFamily || '').split(',')[0].replace(/['"]/g, '').trim();
+    const resolveFamily = (fontFamily) => {
+      const first = firstFamily(fontFamily);
+      if (NO_FONTRESOLVE || !loadedFams.size) return first;
+      const parts = (fontFamily || '').split(',').map((s) => s.replace(/['"]/g, '').trim()).filter(Boolean);
+      for (const p of parts) if (loadedFams.has(_famNorm(p))) return p;   // first stack family that is actually loaded
+      return first;                                                        // none loaded → keep the legacy first family
+    };
     const nz = (v) => v && v !== 'none' && v !== 'normal' && !/^(rgba\(0, 0, 0, 0\)|0px)/.test(v);
     // backdrop-filter (glassmorphism blur etc) — captured for the EFFECTS sub-score (presence). vendor-prefixed too.
     const bdfOf = (cs) => { const v = cs.backdropFilter || cs.getPropertyValue('-webkit-backdrop-filter') || cs.getPropertyValue('backdrop-filter') || ''; return nz(v) ? v : null; };
@@ -398,11 +472,151 @@ function cropPng(png, box, dpr) {
     // text-rich descendants collapsed to 4 leaves (the 0.413 corpus floor). Treat a display:contents
     // element as visible (so walk recurses THROUGH it into the real laid-out children that follow);
     // honour only display:none / visibility:hidden which DO suppress the subtree.
-    const visible = (el) => { const cs = getComputedStyle(el); if (cs.display === 'contents') return cs.visibility !== 'hidden'; const r = el.getBoundingClientRect(); if (!r.width || !r.height) return false; if (cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity < 0.05) return false; if (r.right < 0 || r.bottom < 0 || r.left > innerWidth + 60) return false; if (cs.clip === 'rect(1px, 1px, 1px, 1px)' || cs.clipPath === 'inset(50%)') return false; return true; };
+    // ─── HIDDEN-STATE (hover/click-only overlay) GATE ────────────────────────────────────────────────
+    // An element is part of a HOVER/TRANSITION-DRIVEN overlay (a flyout/tooltip/hover-card that fades in only
+    // on :hover or :focus) when it ITSELF or an ancestor has effective opacity≈0 AND that opacity:0 node carries
+    // a CSS opacity transition (transition-property covers opacity/all with duration>0) OR is pointer-events:none.
+    // The walk runs AFTER the reveal pass (scroll-into-view + getAnimations().finish()), so a legit scroll-reveal
+    // SECTION is already at opacity:1; one that re-hid has transition-duration:0 (reveal is JS/WAAPI/transform-
+    // driven, NOT a CSS opacity transition) → opacityTransSec===0 AND pointer-events:auto → NOT caught here. Only
+    // true CSS fade-in overlays match. Verified on framer.com: logo hover-card div.framer-1jqjsza = opacity:0 +
+    // transition 'all 0.2s' + pointer-events:none → DROP; scroll-reveal div.framer-1gip8ag = opacity:0 +
+    // transition 'all 0s' + pointer-events:auto → KEEP. Gated behind __NO_HIDDEN_STATE (CAPTURE_NO_HIDDEN_STATE=1).
+    const opacityTransSec = (cs) => {
+      const props = (cs.transitionProperty || '').split(',').map((s) => s.trim());
+      const durs = (cs.transitionDuration || '').split(',').map((s) => s.trim());
+      const parseS = (v) => { if (!v) return 0; if (/ms$/.test(v)) return parseFloat(v) / 1000; if (/s$/.test(v)) return parseFloat(v); return 0; };
+      let d = 0;
+      for (let i = 0; i < props.length; i++) { if (props[i] === 'opacity' || props[i] === 'all') { const dv = parseS(durs[i] != null ? durs[i] : durs[0]); if (dv > d) d = dv; } }
+      return d;
+    };
+    const hiddenByHoverOverlay = (el) => {
+      if (window.__NO_HIDDEN_STATE === true) return false;
+      let p = el, depth = 0;
+      while (p && p !== document.documentElement && depth < 24) {
+        let cs; try { cs = getComputedStyle(p); } catch { p = p.parentElement; depth++; continue; }
+        if (+cs.opacity < 0.05) {
+          // this node is the gate. It is a hover/transition-driven overlay iff it fades in (opacity transition
+          // duration>0) OR is non-interactive (pointer-events:none — Framer's pre-reveal hover-card state). A
+          // scroll-reveal that re-hid has duration:0 + pointer-events:auto → returns false (kept for the builder
+          // to place; the reveal pass usually lands it at opacity:1 anyway). NEVER treat <=0.05-but-transitionless
+          // interactive content as an overlay.
+          if (opacityTransSec(cs) > 0 || cs.pointerEvents === 'none') return true;
+          return false; // opacity:0, but not hover/transition-gated (e.g. transient scroll-reveal) → don't drop here
+        }
+        p = p.parentElement; depth++;
+      }
+      return false;
+    };
+    const visible = (el) => { const cs = getComputedStyle(el); if (cs.display === 'contents') return cs.visibility !== 'hidden'; const r = el.getBoundingClientRect(); if (!r.width || !r.height) return false; if (cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity < 0.05) return false; if (r.right < 0 || r.bottom < 0 || r.left > innerWidth + 60) return false; if (cs.clip === 'rect(1px, 1px, 1px, 1px)' || cs.clipPath === 'inset(50%)') return false; if (hiddenByHoverOverlay(el)) return false; return true; };
+    // ─── COLLAPSED-FLOW WRAPPER (navgap fix — zero-height-ancestor drop) ───────────────────────────────
+    // ROOT CAUSE (proven on linear.app): a static wrapper whose ONLY content is a position:fixed / :sticky /
+    // :absolute child is removed-from-flow, so the wrapper's getBoundingClientRect() collapses to W×0 (linear's
+    // `div.Header_root` = 1440×0). visible() then FAILS it on the `!r.height` guard, walk() returns null AT the
+    // wrapper, and never recurses into the real, painted, opacity:1 <header>/<nav> beneath it — the 9 header nav
+    // links vanish (capture nav=0 vs source nav=1). This is NOT a hidden/overlay/clip drop (none of those gates
+    // fired); it is purely the collapsed flow box. FIX: when an element fails visible() ONLY because it has zero
+    // area (display/visibility/opacity/clip/hover-overlay all PASS), but it has a POSITIONED (fixed/sticky/
+    // absolute) DESCENDANT that itself passes visible() AND is laid out on/near screen, treat the wrapper as a
+    // pass-through and recurse into it (the children carry the real captured boxes). NEVER recovers genuinely
+    // hidden content: display:none / visibility:hidden / opacity<0.05 / clip / hover-overlay wrappers still fail
+    // (checked first), and only a child that PAINTS (passes visible()) re-opens the descent. Reversible:
+    // CAPTURE_NO_COLLAPSEDFLOW=1 (→ __NO_COLLAPSEDFLOW). Bounded scan (cap depth+count) — pure geometry, no waits.
+    const collapsedFlowWrapper = (el) => {
+      if (window.__NO_COLLAPSEDFLOW === true) return false;
+      let cs; try { cs = getComputedStyle(el); } catch { return false; }
+      if (cs.display === 'contents') return false;            // contents has no box of its own — handled by visible()
+      const r = el.getBoundingClientRect();
+      if (r.width && r.height) return false;                  // not collapsed — visible() handles it normally
+      // it must have failed visible() PURELY on zero-area: every OTHER hide reason must be absent.
+      if (cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity < 0.05) return false;
+      if (cs.clip === 'rect(1px, 1px, 1px, 1px)' || cs.clipPath === 'inset(50%)') return false;
+      if (hiddenByHoverOverlay(el)) return false;
+      // does it own a POSITIONED, PAINTED descendant (the fixed/sticky/absolute child pulled out of flow)?
+      // Scan a bounded number of descendant elements; the qualifying child must (a) be fixed/sticky/absolute,
+      // (b) pass visible() (real painted box, on/near screen, opacity ok), and (c) actually carry capturable
+      // content (own text OR a media/anchor/heading descendant) so we never re-open a decorative zero-box shell.
+      let scanned = 0;
+      for (const d of el.querySelectorAll('*')) {
+        if (++scanned > 400) break;
+        let dcs; try { dcs = getComputedStyle(d); } catch { continue; }
+        if (!/^(fixed|sticky|absolute)$/.test(dcs.position)) continue;
+        if (!visible(d)) continue;
+        if (hasOwnText(d) || d.querySelector('a[href],button,img,svg,h1,h2,h3,h4,h5,h6,nav')) return true;
+      }
+      return false;
+    };
     const paintOf = (cs) => { const clip = (cs.getPropertyValue('-webkit-background-clip') || cs.getPropertyValue('background-clip') || ''); const bg = cs.backgroundImage; const fill = cs.getPropertyValue('-webkit-text-fill-color'); const tf = fill === 'rgba(0, 0, 0, 0)' || fill === 'transparent'; if ((clip.includes('text') || tf) && bg && bg !== 'none' && /gradient/.test(bg)) return { kind: 'gradient-text', value: bg }; return { kind: 'solid', value: (fill && !tf && fill !== cs.color) ? fill : cs.color }; };
-    const typo = (cs) => ({ family: cs.fontFamily.split(',')[0].replace(/['"]/g, '').trim(), size: Math.round(parseFloat(cs.fontSize)), weight: cs.fontWeight, style: cs.fontStyle, lineHeight: cs.lineHeight, letterSpacing: cs.letterSpacing, transform: cs.textTransform, align: cs.textAlign });
+    const typo = (cs) => ({ family: resolveFamily(cs.fontFamily), size: Math.round(parseFloat(cs.fontSize)), weight: cs.fontWeight, style: cs.fontStyle, lineHeight: cs.lineHeight, letterSpacing: cs.letterSpacing, transform: cs.textTransform, align: cs.textAlign });
+    // FOOTER-LINK-COLOR fix (link-color emission gap): a kind:'list' node was captured WITHOUT any color — the
+    // builder's textColor(n) early-returns null when n.paint is absent, so the <ul>/<a> emitted NO inline color and
+    // the host theme's default `a{color:#007bff}` painted footer links bright blue + the theme `<ul>` got disc
+    // bullets+40px padding. Resend/linear footer columns are muted plain-text links (rgb(161,164,165) /
+    // rgb(138,143,152)), no bullets. listItemColor() reads the ACTUAL rendered cs.color off the element that paints
+    // each item's glyphs (the link <a>, else the <li>) so a genuinely-blue source link KEEPS its blue — never a
+    // blanket gray. Skip fully-transparent colors (return null → builder falls back to typo/global). listColorMeta()
+    // derives the list-level representative link color (the most common item color) for the <ul> text_color stamp,
+    // and records the source <ul>'s own list-style-type so the builder can faithfully reset spurious theme bullets
+    // when the source had none. Reversible: window.__NO_LIST_LINK_COLOR skips both → legacy colorless list node.
+    const listItemColor = (e) => { if (window.__NO_LIST_LINK_COLOR === true || !e) return null; let c; try { c = getComputedStyle(e).color; } catch { return null; } if (!c || c === 'rgba(0, 0, 0, 0)' || c === 'transparent') return null; return c; };
+    const listColorMeta = (lel, items) => {
+      if (window.__NO_LIST_LINK_COLOR === true) return {};
+      const out = {};
+      // dominant item color = the most frequent non-null per-item color (the column's link color)
+      const tally = new Map();
+      for (const it of items) { if (it && it.color) tally.set(it.color, (tally.get(it.color) || 0) + 1); }
+      let best = null, bestN = 0; for (const [c, n2] of tally) if (n2 > bestN) { best = c; bestN = n2; }
+      if (best) out.linkColor = best;
+      // source <ul>/<ol> list-style-type — so the builder resets theme bullets ONLY when the source had none.
+      try { const ls = getComputedStyle(lel).listStyleType; if (ls) out.listStyleType = ls; } catch {}
+      return out;
+    };
     const bgOf = (cs) => { const o = {}; if (cs.backgroundColor && cs.backgroundColor !== 'rgba(0, 0, 0, 0)' && cs.backgroundColor !== 'transparent') o.color = cs.backgroundColor; const bi = cs.backgroundImage; if (bi && bi !== 'none') { if (/gradient/.test(bi)) o.gradient = bi; else if (/url\(/.test(bi)) { const m = bi.match(/url\(["']?([^"')]+)["']?\)/); if (m) o.image = m[1]; } } return Object.keys(o).length ? o : null; };
     const layoutOf = (cs) => { const o = { display: cs.display }; if (/flex|grid/.test(cs.display)) { o.flexDirection = cs.flexDirection; o.flexWrap = cs.flexWrap; o.justify = cs.justifyContent; o.align = cs.alignItems; o.gap = cs.gap; if (cs.display.includes('grid')) { o.gridCols = cs.gridTemplateColumns; } } return o; };
+    // CODE-PANEL STYLE RECOVERY (code-panel-render fix): when a `<pre>`/mono container is collapsed to one
+    // kind:'code' leaf, the leaf's OWN cs frequently loses the panel's real look — the dark background lives on
+    // an ANCESTOR div (resend `dark:bg-background`, linear `page_panel`), the rounded card radius lives one wrapper
+    // OUT, the monospace font lives on a `<pre>` DESCENDANT (the container's own font is the page sans, e.g. inter),
+    // and the readable text color is the per-token span color, not the container color. The result was a void /
+    // light-bg illegible run-on. This helper recovers the RECOVERABLE look: a dark panel bg + radius, the real
+    // mono family, and a legible code-text color. It is pure-read (no DOM mutation) and bounded (≤6 ancestors).
+    // Reversible: window.__NO_CODE_PANEL_RECOVER restores the legacy per-cs values.
+    const rgbToArr = (s) => { const m = String(s || '').match(/rgba?\(([^)]+)\)/); if (!m) return null; const p = m[1].split(',').map((x) => parseFloat(x)); if (p.length < 3) return null; const a = p.length >= 4 ? p[3] : 1; return [p[0], p[1], p[2], a]; };
+    const lumaOf = (s) => { const a = rgbToArr(s); if (!a || a[3] < 0.5) return null; return 0.2126 * a[0] + 0.7152 * a[1] + 0.0722 * a[2]; };
+    const monoReCL = /\bmono|consol|courier|menlo|sf ?mono|jetbrains|fira ?code|source ?code|ubuntu ?mono|cascadia|berkeley|commit ?mono|monospace/;
+    const codePanelStyle = (el, cs, panelBox) => {
+      if (window.__NO_CODE_PANEL_RECOVER === true) return { bg: (cs.backgroundColor !== 'rgba(0, 0, 0, 0)' ? cs.backgroundColor : null), radius: cs.borderTopLeftRadius, mono: null, codeColor: null };
+      const out = { bg: null, radius: null, mono: null, codeColor: null };
+      const pArea = Math.max(1, (panelBox.w || 0) * (panelBox.h || 0));
+      // (1) DARK PANEL BG: prefer the element's own opaque bg; else scan ANCESTORS (the dark panel `dark:bg-background`
+      //     / `page_panel` that wraps the transparent <pre>) and DESCENDANTS (a single inner panel div) for a node
+      //     whose bg is opaque, covers most of the panel box, and is the darkest such bg. radius rides along with it.
+      const consider = (e) => { try { const c = getComputedStyle(e); const lum = lumaOf(c.backgroundColor); if (lum == null) return; const r = e.getBoundingClientRect(); const area = r.width * r.height; if (area < pArea * 0.5) return; const cur = out.__bgLuma; if (cur == null || lum < cur) { out.bg = c.backgroundColor; out.__bgLuma = lum; const rad = c.borderTopLeftRadius; if (nz(rad)) out.radius = rad; } } catch {} };
+      consider(el);
+      { let a = el.parentElement, hops = 0; while (a && hops < 6) { consider(a); hops++; a = a.parentElement; } }
+      // a single inner panel that paints the dark surface (the <pre> sits transparent inside it)
+      try { for (const d of el.querySelectorAll('div,pre,table')) { const r = d.getBoundingClientRect(); if (r.width * r.height >= pArea * 0.6) consider(d); } } catch {}
+      // ROUNDED-CARD radius: the visible code panel is wrapped in a rounded card (resend rounded-3xl=24px, linear
+      // 22px) whose radius often lives on a DIFFERENT ancestor than the dark bg. Prefer the closest ancestor/self
+      // (within 6 hops) that has a non-zero radius AND covers most of the panel box — the card chrome.
+      if (!out.radius) { if (nz(cs.borderTopLeftRadius)) out.radius = cs.borderTopLeftRadius; else { let a = el.parentElement, hops = 0; while (a && hops < 6) { try { const c = getComputedStyle(a); const r = a.getBoundingClientRect(); if (nz(c.borderTopLeftRadius) && r.width * r.height >= pArea * 0.6) { out.radius = c.borderTopLeftRadius; break; } } catch {} hops++; a = a.parentElement; } } }
+      delete out.__bgLuma;
+      // (2) MONO FONT: the container font is often the page sans; find the real monospace family on the <pre> or any
+      //     mono descendant. resolveFamily keeps the first ACTUALLY-LOADED stack family.
+      try { let monoEl = el.matches('pre') ? el : el.querySelector('pre'); if (!monoEl) { for (const d of el.querySelectorAll('code,span,div')) { const ff = (getComputedStyle(d).fontFamily || '').toLowerCase(); if (monoReCL.test(ff) && clean(d.innerText || '').length >= 8) { monoEl = d; break; } } }
+        const ffSelf = (cs.fontFamily || '').toLowerCase();
+        if (monoEl) out.mono = resolveFamily(getComputedStyle(monoEl).fontFamily);
+        else if (monoReCL.test(ffSelf)) out.mono = resolveFamily(cs.fontFamily); } catch {}
+      // (3) CODE TEXT COLOR: the dominant legible token color. Tally per-span colors weighted by text length and
+      //     pick the one with the most painted chars (Shiki/syntax-highlight "default text" token = the bulk). Skip
+      //     fully-transparent and tiny-weight colors. Fallback to the <pre>/mono element's own color.
+      try { const tally = new Map(); let monoEl = el.matches('pre') ? el : (el.querySelector('pre') || el);
+        const spans = monoEl.querySelectorAll('span,code'); let scanned = 0;
+        for (const sp of spans) { if (scanned > 800) break; scanned++; let own = ''; for (const x of sp.childNodes) if (x.nodeType === 3) own += x.textContent; own = clean(own); if (own.length < 1) continue; const col = getComputedStyle(sp).color; const a = rgbToArr(col); if (!a || a[3] < 0.5) continue; tally.set(col, (tally.get(col) || 0) + own.length); }
+        let best = null, bestN = 0; for (const [c, n2] of tally) if (n2 > bestN) { best = c; bestN = n2; }
+        if (best) out.codeColor = best; else { const mc = getComputedStyle(monoEl).color; if (rgbToArr(mc)) out.codeColor = mc; } } catch {}
+      return out;
+    };
     const boxModel = (cs) => ({ padding: [cs.paddingTop, cs.paddingRight, cs.paddingBottom, cs.paddingLeft], margin: [cs.marginTop, cs.marginRight, cs.marginBottom, cs.marginLeft] });
     const hasOwnText = (el) => { for (const n of el.childNodes) if (n.nodeType === 3 && clean(n.textContent)) return true; return false; };
     // ownText (image-honesty gap-map #3): a node is "text-bearing" if it OWNS a visible non-empty text node
@@ -499,7 +713,23 @@ function cropPng(png, box, dpr) {
       const isH = /^h[1-6]$/.test(tag), isBtn = tag === 'a' || tag === 'button';
       const ia = {}; const exp = el.getAttribute('aria-expanded'); if (exp != null) ia.expanded = exp; const hp = el.getAttribute('aria-haspopup'); if (hp) ia.haspopup = hp; const role = el.getAttribute('role'); if (role && /tab|menu|button|switch|disclosure/.test(role)) ia.role = role;
       const cfx = isBtn ? id0() : null; if (cfx != null) el.setAttribute('data-cfx', String(cfx));
-      return { kind: isH ? 'heading' : (isBtn ? 'button' : 'text'), tag, level: isH ? +tag[1] : null, text: t, href: isBtn && el.href ? el.href : null, paint: paintOf(cs), typo: typo(cs), box, bg: (cs.backgroundColor !== 'rgba(0, 0, 0, 0)' ? cs.backgroundColor : null), radius: cs.borderTopLeftRadius, boxShadow: nz(cs.boxShadow) ? cs.boxShadow : null, backdropFilter: bdfOf(cs), interactive: Object.keys(ia).length ? ia : null, cfx };
+      // CTA-PAINT CAPTURE (body-CTA fix): a button-kind leaf paints its fill in THREE ways the old capture missed
+      // on the build side — (1) solid backgroundColor (already in `bg`), (2) a gradient/image background-image
+      // (e.g. resend nav/hero "Get started" paints via linear-gradient with backgroundColor:transparent), and
+      // (3) a visible BORDER (outlined CTAs / resend's 1-2px solid ring). Record border + the gradient/image fill
+      // + the button padding so build-absolute can emit a styled-anchor twin matching the source's actual paint
+      // instead of bare colored text. Recorded for buttons (and any leaf carrying a visible border) only — plain
+      // text leaves get border:null so build never invents a pill on prose. Reversible: CAPTURE_NO_CTA_PAINT=1.
+      let ctaBorder = null, ctaBgImage = null, ctaPad = null;
+      if (window.__NO_CTA_PAINT !== true) {
+        const bw = parseFloat(cs.borderTopWidth) || 0;
+        if (bw > 0 && cs.borderTopStyle !== 'none' && nz(cs.borderTopColor) && cs.borderTopColor !== 'rgba(0, 0, 0, 0)') ctaBorder = `${cs.borderTopWidth} ${cs.borderTopStyle} ${cs.borderTopColor}`;
+        if (isBtn) {
+          const bi = cs.backgroundImage; if (bi && bi !== 'none' && /gradient|url\(/.test(bi)) ctaBgImage = bi;
+          ctaPad = [cs.paddingTop, cs.paddingRight, cs.paddingBottom, cs.paddingLeft];
+        }
+      }
+      return { kind: isH ? 'heading' : (isBtn ? 'button' : 'text'), tag, level: isH ? +tag[1] : null, text: t, href: isBtn && el.href ? el.href : null, paint: paintOf(cs), typo: typo(cs), box, bg: (cs.backgroundColor !== 'rgba(0, 0, 0, 0)' ? cs.backgroundColor : null), bgImage: ctaBgImage, border: ctaBorder, btnPad: ctaPad, radius: cs.borderTopLeftRadius, boxShadow: nz(cs.boxShadow) ? cs.boxShadow : null, backdropFilter: bdfOf(cs), interactive: Object.keys(ia).length ? ia : null, cfx };
     }
     // ─── WAVE-5 #4 SYMMETRIC DECORATIVE-FRAGMENT MERGE (completeness fix) ─────────────────────────────
     // WHY: the per-element grader (perelement-score.mjs) flattens this box-tree into a leaf+container node
@@ -519,11 +749,23 @@ function cropPng(png, box, dpr) {
     // NEVER drops real content: a fragment is removed ONLY when a real-content sibling exists in the same band,
     // so a band that is purely decorative keeps its node (no content loss). Reversible: CAPTURE_NO_FRAGMERGE=1.
     const NO_FRAGMERGE = window.__NO_FRAGMERGE === true;
+    // LOGO/ICON-WALL guard (navgap fix — customer-logos void): count the NON-TINY svg/image leaves a subtree
+    // holds (recursively). A "wall" of >=3 substantial wordmark/logo SVGs (linear's 8 customer logos, each
+    // 70-114px wide) is REAL, matchable content — NOT a bag of decorative fragments. ROOT CAUSE: hasRealContent
+    // counted svg/image leaves as NOTHING (only image-KIND leaves, list/tabs/etc. count), so the whole logo
+    // <a>→<ul>→8×svg subtree measured hasRealContent=false; with no border/radius/shadow signal it then matched
+    // isDecorativeFragment and mergeDecorativeFragments FOLDED the entire customer-logo band away (proven: the 8
+    // logo SVGs at y≈1408 vanished, list 6→5, the band dropped from LayoutContent's children). A tiny icon (caret/
+    // sparkle ≤40px) is still decorative; only substantial logo glyphs (>40px on the long axis) count toward a wall.
+    const TINY_MEDIA = 40;
+    const isWallMediaLeaf = (n) => (n && (n.kind === 'svg' || n.kind === 'image') && n.box && Math.max(n.box.w || 0, n.box.h || 0) > TINY_MEDIA);
+    const wallMediaCount = (n) => { if (!n) return 0; if (isWallMediaLeaf(n)) return 1; if (n.kind === 'container') { let c = 0; for (const k of (n.children || [])) { c += wallMediaCount(k); if (c >= 3) return c; } return c; } return 0; };
     // a node carries REAL content the grader will want to match: own text, OR a structural content kind
-    // (list/tabs/accordion/code/image/video/mockup), OR a container that (recursively) holds such content.
+    // (list/tabs/accordion/code/image/video/mockup), OR a logo/icon WALL (>=3 substantial svg/image leaves), OR
+    // a container that (recursively) holds such content.
     const hasRealContent = (n) => {
       if (!n) return false;
-      if (n.kind === 'container') return (n.children || []).some(hasRealContent);
+      if (n.kind === 'container') return wallMediaCount(n) >= 3 || (n.children || []).some(hasRealContent);
       if (n.kind === 'image' || n.kind === 'video' || n.kind === 'mockup' || n.kind === 'code' || n.kind === 'list' || n.kind === 'tabs' || n.kind === 'accordion') return true;
       if (n.text && n.text.trim().length >= 3) return true; // 1-2 char glyphs are NOT real content (see below)
       return false;
@@ -563,9 +805,57 @@ function cropPng(png, box, dpr) {
     };
     // recursive walk → container node OR leaf; prune pass-through wrappers; cap depth
     function walk(el, depth) {
-      if (!visible(el)) return null;
+      if (!visible(el)) {
+        // COLLAPSED-FLOW WRAPPER (navgap fix): a static wrapper collapsed to zero-height because its only content
+        // is a position:fixed/sticky/absolute child (linear's Header_root → fixed <header>). Don't stop here:
+        // recurse into the children (which carry the real painted boxes) and return them as a transparent
+        // pass-through container. The wrapper's own 0-area box is NOT used; children supply geometry. Depth-capped.
+        if (depth < MAXD && collapsedFlowWrapper(el)) {
+          const ck = [...el.children].filter((c) => !['script', 'style', 'noscript', 'template'].includes(c.tagName.toLowerCase()));
+          const cc = mergeDecorativeFragments(ck.map((c) => walk(c, depth + 1)).filter(Boolean));
+          if (cc.length === 1) return cc[0];
+          if (cc.length) { const cb = getComputedStyle(el); return { kind: 'container', tag: el.tagName.toLowerCase(), box: rectOf(el), layout: layoutOf(cb), ...boxModel(cb), background: bgOf(cb), border: null, radius: null, boxShadow: null, position: 'static', children: cc }; }
+        }
+        return null;
+      }
       const tag = el.tagName.toLowerCase(); const cs = getComputedStyle(el);
       if (tag === 'img' || tag === 'svg') return leaf(el, cs);
+      // FORM CONTROLS (form-recovery fix): <input>/<textarea>/<select> are SINGLE tags whose visible content
+      // (value/placeholder/options) lives in ATTRIBUTES, not text nodes, so the generic recursion below reaches
+      // leaf() which reads innerText/textContent (empty) and returns null → the control is silently DROPPED. That
+      // is why framer's two visible consent buttons (input[type=button] "Reject"/"Accept" at ~(40,826)/(205,826))
+      // and any real form field never reach the build, and the clone's grader form-signal stays 0 while the source
+      // is 1. Intercept EARLY (before recursion) and emit ONE leaf per control carrying everything build-absolute
+      // needs to stamp a REAL, VISIBLE Elementor widget at the captured box. Two kinds:
+      //   • <input type=button|submit|reset|image> with a value → kind:'button' (a clickable control with a label).
+      //   • everything else (text/email/search/textarea/select/checkbox/radio/…) → kind:'input' with a field type,
+      //     value, placeholder, and a captured border/bg/radius so the builder renders a genuinely-visible field
+      //     box (not a transparent phantom). NEVER captured when hidden — visible() above already drops
+      //     display:none / zero-box / type=hidden controls, so the burger-toggle checkbox & tracking inputs vanish.
+      // Reversible: __NO_FORM_RECOVERY (BUILD_NO_FORM_RECOVERY=1 / CAPTURE_NO_FORM_RECOVERY=1) → fall through as before.
+      if ((tag === 'input' || tag === 'textarea' || tag === 'select') && window.__NO_FORM_RECOVERY !== true) {
+        const box = rectOf(el); if (box.w < 4 || box.h < 4) return null;
+        const itype = (tag === 'input' ? (el.getAttribute('type') || 'text') : tag).toLowerCase();
+        if (itype === 'hidden') return null;
+        const val = clean(el.value || el.getAttribute('value') || '');
+        const ph = clean(el.getAttribute('placeholder') || '');
+        // a select's "value" is its selected option's text; fall back to the first option.
+        let selText = '';
+        if (tag === 'select') { try { const o = el.options[el.selectedIndex] || el.options[0]; selText = o ? clean(o.textContent) : ''; } catch {} }
+        const border = nz(cs.borderTopWidth) ? `${cs.borderTopWidth} ${cs.borderTopStyle} ${cs.borderTopColor}` : null;
+        const base = { tag, inputType: itype, value: val || selText, placeholder: ph, box, typo: typo(cs), paint: paintOf(cs),
+          bg: (cs.backgroundColor !== 'rgba(0, 0, 0, 0)' && cs.backgroundColor !== 'transparent' ? cs.backgroundColor : null),
+          border, radius: nz(cs.borderTopLeftRadius) ? cs.borderTopLeftRadius : null,
+          boxShadow: nz(cs.boxShadow) ? cs.boxShadow : null };
+        // a button-like control (push button / submit / reset / image) is a clickable LABEL → kind:'button'.
+        if (tag === 'input' && /^(button|submit|reset|image)$/.test(itype)) {
+          const label = val || (itype === 'submit' ? 'Submit' : (itype === 'reset' ? 'Reset' : 'Button'));
+          // formControl:true tells build-absolute to emit a REAL <input type=button> (the grader counts
+          // input/textarea/select tags, not <a>), keeping the source's form-signal honest.
+          return { ...base, kind: 'button', formControl: true, text: label, href: null };
+        }
+        return { ...base, kind: 'input' };
+      }
       // VIDEO: a <video> OR a <iframe> embedding youtube/vimeo/wistia/loom. Both are SINGLE tags whose
       // children carry no text, so the generic recursion below would return null and DROP them. Intercept
       // EARLY (before any recursion) and emit one 'video' node. Gate MIRRORS grade-sections.mjs:57 exactly
@@ -593,8 +883,15 @@ function cropPng(png, box, dpr) {
         const box = rectOf(el); if (box.w < 40 || box.h < 30) return null;
         let src = el.currentSrc || el.src || el.getAttribute('src') || '';
         if (!src) { const s = el.querySelector('source'); if (s) src = s.src || s.getAttribute('src') || ''; }
-        if (src && !src.startsWith('blob:')) return { kind: 'video', provider: 'hosted', src, box, radius: nz(cs.borderTopLeftRadius) ? cs.borderTopLeftRadius : null };
-        return { kind: 'video', provider: 'hosted', src: '', box, radius: nz(cs.borderTopLeftRadius) ? cs.borderTopLeftRadius : null };
+        // DECORATIVE-VIDEO MEDIA ATTRS (icon-fix): capture the source's own playback intent so the builder can
+        // reproduce the element as-it-renders instead of bolting on native player chrome. A decorative loop
+        // (autoplay/loop/muted, NO controls — e.g. resend's 170×170 3D .mp4 brand icons) MUST NOT get a player
+        // control overlay; and `poster` is the element's OWN fallback raster (the icon frame). el.poster /
+        // el.{autoplay,loop,muted,controls} are live DOM PROPERTIES (already absolutized + reflect attr+JS state).
+        const poster = el.poster && !/^blob:/.test(el.poster) ? el.poster : null;
+        const va = { autoplay: !!el.autoplay, loop: !!el.loop, muted: !!el.muted, controls: !!el.controls, poster };
+        if (src && !src.startsWith('blob:')) return { kind: 'video', provider: 'hosted', src, box, ...va, radius: nz(cs.borderTopLeftRadius) ? cs.borderTopLeftRadius : null };
+        return { kind: 'video', provider: 'hosted', src: '', box, ...va, radius: nz(cs.borderTopLeftRadius) ? cs.borderTopLeftRadius : null };
       }
       // ─── SURFACE-RASTER (surface-raster pass) ────────────────────────────────────────────────────────
       // WHY: the diagnosis (canvasRendersHeadless=true; kinds=webgl-canvas/cross-origin-preview-iframe/
@@ -741,7 +1038,8 @@ function cropPng(png, box, dpr) {
         // GUARD#3 (capture-markup-flow-gate): a scrollable code panel (overflowY auto/scroll && clientHeight<scrollHeight)
         // is bounded to its VISIBLE clientHeight so box.h does not anchor to the full code length (hRatio drift fix).
         if (/^(auto|scroll)$/.test(cs.overflowY) && el.clientHeight < el.scrollHeight && el.clientHeight > 20) pb.h = el.clientHeight;
-        return { kind: 'code', text: t.slice(0, 3000), box: pb, typo: typo(cs), paint: paintOf(cs), bg: (cs.backgroundColor !== 'rgba(0, 0, 0, 0)' ? cs.backgroundColor : null), radius: cs.borderTopLeftRadius }; }
+        const cps = codePanelStyle(el, cs, pb); const ty = typo(cs); if (cps.mono) ty.family = cps.mono;
+        return { kind: 'code', text: t.slice(0, 3000), box: pb, typo: ty, paint: paintOf(cs), codeColor: cps.codeColor, bg: cps.bg, radius: cps.radius || cs.borderTopLeftRadius }; }
       // DIV-BASED CODE EDITOR (capture-recovery): modern docs render code in <div>s with syntax-highlight
       // <span> tokens (NOT <pre>) → the walk recurses into per-token spans and DROPS them (resend's code
       // samples = the bulk of its capture-loss). Detect a MONOSPACE container with code-like multiline text
@@ -762,7 +1060,36 @@ function cropPng(png, box, dpr) {
         // structural prose block that merely cites markup is NOT structural, so its text gets the GUARD#2 strip.
         const structural = isStructuralCode(el);
         const mono = structural || isMono(el) || monoTextFrac(el) >= 0.6;
-        if (mono) { let t = el.innerText || ''; const mb = rectOf(el);
+        // MARQUEE-VISIBLE multi-region guard (resend React-email IDE void): the mono gate above flags `el` as a
+        // code panel by font-family SHARE. But a MULTI-REGION showcase (a file-tile sidebar + a <pre> code panel +
+        // a rendered email-preview <table>, all in one rounded card) is mono-DOMINANT only because the <pre> out-
+        // texts its siblings — collapsing the whole card into one dark 'code' leaf voids the band. So when `el`
+        // is NOT itself a code panel (not structural-code, not mono-self) but merely CONTAINS a code panel as a
+        // PROPER descendant, AND there is substantial NON-mono visible content OUTSIDE that panel (a sibling table/
+        // file-list region), DO NOT collapse — fall through to normal recursion so each VISIBLE region is captured
+        // natively at its painted position (the <pre> branch collapses the code panel itself; the table → mockup;
+        // the file tiles → buttons). This NEVER fires on a genuine lone code editor (mono-self / single panel /
+        // no out-of-panel content). Reversible: __NO_MARQUEE_VISIBLE restores the legacy whole-container collapse.
+        let multiRegionSkip = false;
+        if (mono && window.__NO_MARQUEE_VISIBLE !== true && !structural && !isMono(el)) {
+          // a descendant code panel = a <pre>, or a mono-self element that is a PROPER descendant of `el`.
+          const panels = [...el.querySelectorAll('pre')];
+          if (!panels.length) for (const d of el.querySelectorAll('div,code,span')) { if (d !== el && isMono(d) && clean(d.innerText || '').length >= 60) { panels.push(d); break; } }
+          if (panels.length) {
+            // sum the OWN-text length of visible text-bearing leaves that are NOT inside any code panel — the
+            // "other regions" (email-preview table cells, file-tile labels, the section heading/intro). Substantial
+            // out-of-panel text (>= 80 chars across >= 2 distinct text leaves) ⇒ this is a multi-region showcase.
+            const inPanel = (n) => panels.some((p) => p === n || p.contains(n));
+            let outChars = 0, outLeaves = 0;
+            for (const te of el.querySelectorAll('h1,h2,h3,h4,h5,h6,p,td,th,li,button,a,span,div')) {
+              if (inPanel(te)) continue; if (!visible(te)) continue; if (!ownText(te)) continue;
+              const tt = clean(te.innerText || te.textContent); if (tt.length < 2) continue;
+              outChars += tt.length; outLeaves++; if (outChars >= 80 && outLeaves >= 2) break;
+            }
+            if (outChars >= 80 && outLeaves >= 2) multiRegionSkip = true;
+          }
+        }
+        if (mono && !multiRegionSkip) { let t = el.innerText || ''; const mb = rectOf(el);
           // GUARD#2 (capture-markup-flow-gate): on a NON-structural block, strip tag tokens ONLY in the MIXED
           // band (0.3<mf<0.6) → the code-as-art hero collapses to rendered prose. A pure code-DISPLAY panel
           // (structural OR mf>=0.6, e.g. "<!DOCTYPE html>") keeps its code VERBATIM. NEVER shatter into N leaves.
@@ -772,7 +1099,8 @@ function cropPng(png, box, dpr) {
           // box.h does not anchor to the full code length (hRatio drift fix).
           if (/^(auto|scroll)$/.test(cs.overflowY) && el.clientHeight < el.scrollHeight && el.clientHeight > 20) mb.h = el.clientHeight;
           if (cl.length >= 20 && cl.length <= 4000 && (t.includes('\n') || el.querySelectorAll('span,code').length >= 3) && mb.w >= 100 && mb.h >= 30) {
-            return { kind: 'code', text: t.slice(0, 4000), box: mb, typo: typo(cs), paint: paintOf(cs), bg: (cs.backgroundColor !== 'rgba(0, 0, 0, 0)' ? cs.backgroundColor : null), radius: cs.borderTopLeftRadius }; } } }
+            const cps = codePanelStyle(el, cs, mb); const ty = typo(cs); if (cps.mono) ty.family = cps.mono;
+            return { kind: 'code', text: t.slice(0, 4000), box: mb, typo: ty, paint: paintOf(cs), codeColor: cps.codeColor, bg: cps.bg, radius: cps.radius || cs.borderTopLeftRadius }; } } }
       // VISUAL MOCKUP: a composite-media region (product dashboard, gradient promo card, brand-story card,
       // chart/diagram). Recursing LEAKS its table cells / tokens as one-text-widget-per-line AND drops the
       // visual, leaving an 800–1500px white VOID (the #1 Stripe defect per the vision diagnostic). Region-
@@ -855,6 +1183,51 @@ function cropPng(png, box, dpr) {
           // mockup, so the line is rebuilt as editable text. Guard: only short, sane runs; cap to avoid leaking
           // a whole leaked label list (those are why we rasterize); if none found, return the bare mockup as before.
           const mock = { kind: 'mockup', box: mb, bg: (cs.backgroundColor !== 'rgba(0, 0, 0, 0)' ? cs.backgroundColor : null), radius: cs.borderTopLeftRadius };
+          // SINGLE-IMG MOCKUP RECOVERY (void-imagery fix; CAPTURE_NO_IMGRECOVER=1 to disable): the diagnosed
+          // resend "empty dark void" defect — a band whose visual IS one real <img> (the dashboard / zoom-panel
+          // screenshots: screenshot-metrics.png, screenshot-zoom-audience/analytics.png) was routed here and
+          // baked into a whole-region crop of the FULL-PAGE screenshot. That crop is a black void when (a) the
+          // <img loading=lazy> never painted at capture time (nat 0x0 — metrics.png's only src was the 3840px 2x
+          // variant, so the eager-force pass couldn't settle it), or (b) the crop is dominated by the surrounding
+          // dark gutter/chrome rather than the bounded screenshot. Either way the region-crop is strictly WORSE
+          // than the real <img src>: the build's uploadImage() fetches the URL and gets the FULLY-loaded asset
+          // regardless of the page's lazy/paint state, and a native image leaf is editable (relink/swap) + bounded
+          // to the img's own box (not the band's dark gutter). DETECT: the region's dominant media is a SINGLE
+          // <img> with a usable src that covers a large fraction of mb → emit a native kind:'image' leaf at the
+          // img's own box instead of the raster. This is the hard rule "copying imagery is ALLOWED; render the
+          // ACTUAL source image" — NEVER a placeholder/fill. Guards keep it surgical: exactly one substantial
+          // <img> (no multi-image collage — those keep rasterizing); a real http(s) src (currentSrc OR the src/
+          // srcset attribute, since a never-painted lazy img has empty currentSrc but a valid src); the img covers
+          // >=60% of mb width AND >=45% of mb area (it genuinely IS the visual, not a small inset); and the only
+          // OTHER media are tiny (<=2% area each — decorative chrome). Pure CSS/canvas mockups, collages, and
+          // gradient promos have no single covering <img> and still rasterize exactly as before (byte-identical).
+          if (window.__NO_IMGRECOVER !== true) {
+            const imgsHere = [...el.querySelectorAll('img')].filter((im) => visible(im));
+            // resolve a usable URL even for a never-painted lazy img: currentSrc → src attr → largest srcset entry.
+            const imgUrl = (im) => {
+              let u = im.currentSrc || im.getAttribute('src') || '';
+              if ((!u || u.startsWith('data:')) && im.getAttribute('srcset')) {
+                const cand = im.getAttribute('srcset').split(',').map((s) => s.trim().split(/\s+/)[0]).filter((s) => s && !s.startsWith('data:'));
+                if (cand.length) u = cand[cand.length - 1]; // last srcset entry = highest-res variant
+              }
+              return (u && !u.startsWith('data:')) ? u : '';
+            };
+            // measure each img's coverage of mb (layout box; a never-painted lazy img still has a layout rect).
+            let domImg = null, domArea = 0, secondArea = 0;
+            for (const im of imgsHere) { const r = im.getBoundingClientRect(); const a = r.width * r.height; if (a > domArea) { secondArea = domArea; domArea = a; domImg = im; } else if (a > secondArea) { secondArea = a; } }
+            if (domImg && boxArea > 0) {
+              const r = domImg.getBoundingClientRect();
+              const coversW = mb.w > 0 && (r.width / mb.w) >= 0.6;
+              const coversArea = (domArea / boxArea) >= 0.45;
+              const noBigSecond = (secondArea / boxArea) <= 0.02; // any other img is decorative-tiny → still a single-image visual
+              const url = imgUrl(domImg);
+              if (url && coversW && coversArea && noBigSecond) {
+                const ibox = rectOf(domImg); // the img's OWN box — bounded, faithful position/size (no dark gutter)
+                const ics = getComputedStyle(domImg);
+                return { kind: 'image', tag: 'img', src: url, alt: domImg.alt || '', objectFit: ics.objectFit, box: (ibox.w >= 8 && ibox.h >= 8) ? ibox : mb, radius: cs.borderTopLeftRadius, boxShadow: nz(ics.boxShadow) ? ics.boxShadow : null, backdropFilter: bdfOf(ics), recovered: 'mockup-img' };
+              }
+            }
+          }
           // WIDENED TEXT RESCUE (editability gap-map #2): the raster STAYS for the visual, but far more of the
           // SOURCE WORDS are rebuilt natively (editable) instead of baked into pixels. We hard-rule: REBUILD words,
           // never screenshot them. Changes vs the narrow round-1 recipe: (a) cap 4 → 40 rescued runs; (b) selector
@@ -1002,6 +1375,43 @@ function cropPng(png, box, dpr) {
       // the grader's live-DOM gate counts them (tabsGate=1) — the rounds-7/8 miss was the <details>/<summary>
       // structure, not role= stripping. tightest guard (no child already holds all the tabs) avoids swallowing
       // a parent section; size guard keeps it a widget, not a page band; skip nav/header (menubars use role=tab too).
+      // TAB-CODE-PANEL recovery (resend SDK void fix): the resend "Integrate this morning" SDK section is a
+      // [role=tablist] (Node.js / Ruby / Python …) whose ACTIVE tab panel renders a DARK MONOSPACE code panel
+      // (a real <pre> with line numbers, commitMono, light text on black). Captured as kind:'tabs' it was routed
+      // through the BARE unstyled tabs build path → an illegible light run-on (the resend defect). Detect when the
+      // active tab's panel is a genuine code panel (has a <pre>, or is monospace-dominant) and recover the SAME
+      // RECOVERABLE look the kind:'code' branch does: the <pre> code TEXT (newlines/indent preserved, 3000-cap like
+      // the code branch — NOT the 400-char clean()'d blob), plus the dark panel bg + mono family + code-text color
+      // via codePanelStyle. The INACTIVE tabs are NOT in the DOM (lazy-gated; panelsWithText==1) so only the active
+      // tab's code is recoverable — that's an honest ceiling, not a bug. Returns {code,bg,mono,codeColor,radius} or
+      // null. Reversible: window.__NO_TAB_CODE_PANEL restores the legacy bare-tabs behavior.
+      const tabCodePanel = (tablistRoot, tabEls2) => {
+        if (window.__NO_TAB_CODE_PANEL === true) return null;
+        try {
+          const act = tabEls2.find((t) => t.getAttribute('aria-selected') === 'true') || tabEls2[0];
+          if (!act) return null;
+          const pid = act.getAttribute('aria-controls'); const panel = pid && document.getElementById(pid);
+          if (!panel) return null;
+          const pre = panel.querySelector('pre');
+          // mono-dominance fallback when the panel uses div-based syntax highlighting (no <pre>)
+          const monoReTab = /\bmono|consol|courier|menlo|sf ?mono|jetbrains|fira ?code|source ?code|ubuntu ?mono|cascadia|berkeley|commit ?mono|monospace/;
+          const panelMono = monoReTab.test((getComputedStyle(panel).fontFamily || '').toLowerCase());
+          const codeEl = pre || (panelMono ? panel : null);
+          if (!codeEl) return null;
+          // preserve newlines/indent exactly like the kind:'code' branch (do NOT clean() — that collapses the
+          // gutter + indentation into a single-space run-on). Normalize non-breaking spaces only.
+          const raw = (codeEl.innerText || '').replace(/ /g, ' ');
+          if (!clean(raw)) return null;
+          const pbCode = rectOf(codeEl);
+          const cps = codePanelStyle(codeEl, getComputedStyle(codeEl), pbCode);
+          // codeBox = the actual code-panel surface rect (the dark <pre>/panel), which can DIFFER from the tablist
+          // box: resend's file-tab row (`user-welcome.tsx` ...) is a tiny 183x152 chip but its code panel is ~1030x650
+          // elsewhere. The builder sizes the dark panel widget to codeBox so 2k chars don't wrap into a 4800px-tall
+          // sliver (height-overflow). Prefer the panel rect (full dark surface); fall back to the <pre> rect.
+          const panelBox = rectOf(panel); const codeBox = (panelBox && panelBox.w >= pbCode.w) ? panelBox : pbCode;
+          return { code: raw.slice(0, 3000), bg: cps.bg, mono: cps.mono, codeColor: cps.codeColor, radius: cps.radius, codeBox };
+        } catch { return null; }
+      };
       const tablistEl = el.getAttribute && el.getAttribute('role') === 'tablist' ? el : null;
       const tabEls = [...el.querySelectorAll('[role="tab"]')].filter(visible);
       if (!el.closest('nav,header,[role=banner],[role=menubar]') && (tablistEl || tabEls.length >= 2) && accBox.h >= 24 && accBox.h <= 2200) {
@@ -1017,7 +1427,11 @@ function cropPng(png, box, dpr) {
             if (panel) { content = clean(panel.innerText || panel.textContent).slice(0, 400); }
             return { title, content };
           }).filter((it) => it.title);
-          if (items.length >= 2) return { kind: 'tabs', box: rectOf(tablistEl || el), typo: typo(cs), items };
+          if (items.length >= 2) {
+            const cp = tabCodePanel(tablistEl || el, tabEls);
+            const ty = typo(cs); if (cp && cp.mono) ty.family = cp.mono;
+            return { kind: 'tabs', box: rectOf(tablistEl || el), typo: ty, items, ...(cp ? { codePanel: cp } : {}) };
+          }
         }
       }
       // LIST (ul/ol): a real bullet/numbered list = a <ul>/<ol> with >=3 DIRECT <li> children, NOT inside nav.
@@ -1034,9 +1448,12 @@ function cropPng(png, box, dpr) {
             // single-link item → keep the href so the list stays navigable/editable as a link list
             const links = [...li.querySelectorAll('a[href]')];
             const href = (links.length === 1 && clean(links[0].innerText) === txt && links[0].href) ? links[0].href : null;
-            return { text: txt, href };
+            // FOOTER-LINK-COLOR fix: record the ACTUAL rendered glyph color of THIS item — the link <a> when it's a
+            // link item, else the <li> text color. build-absolute stamps it inline so the captured (often muted)
+            // color beats the host theme's a{color:#007bff} default; a genuinely-blue source link keeps its blue.
+            return { text: txt, href, color: listItemColor(href ? links[0] : li) };
           }).filter(Boolean);
-          if (items.length >= 3) return { kind: 'list', tag, ordered: tag === 'ol', box: rectOf(el), typo: typo(cs), items };
+          if (items.length >= 3) return { kind: 'list', tag, ordered: tag === 'ol', box: rectOf(el), typo: typo(cs), items, ...listColorMeta(el, items) };
         }
       }
       const kidEls = [...el.children].filter((c) => !['script', 'style', 'noscript', 'template'].includes(c.tagName.toLowerCase()));
@@ -1062,7 +1479,7 @@ function cropPng(png, box, dpr) {
         // each so the grader's video count matches the source. Build already lands video — this is detection-only.
         const videoLeaf = (d, dcs) => { const dtag = d.tagName.toLowerCase(); const box = rectOf(d);
           if (dtag === 'iframe') { const isrc = d.src || d.getAttribute('src') || ''; if (/youtube|youtu\.be|vimeo|wistia|loom/.test(isrc) && box.w >= 40 && box.h >= 30) { const provider = /vimeo/.test(isrc) ? 'vimeo' : (/wistia/.test(isrc) ? 'wistia' : (/loom/.test(isrc) ? 'loom' : 'youtube')); return { kind: 'video', provider, src: isrc, box, radius: nz(dcs.borderTopLeftRadius) ? dcs.borderTopLeftRadius : null }; } return null; }
-          if (box.w < 40 || box.h < 30) return null; let vsrc = d.currentSrc || d.src || d.getAttribute('src') || ''; if (!vsrc) { const s = d.querySelector('source'); if (s) vsrc = s.src || s.getAttribute('src') || ''; } if (vsrc && vsrc.startsWith('blob:')) vsrc = ''; return { kind: 'video', provider: 'hosted', src: vsrc, box, radius: nz(dcs.borderTopLeftRadius) ? dcs.borderTopLeftRadius : null }; };
+          if (box.w < 40 || box.h < 30) return null; let vsrc = d.currentSrc || d.src || d.getAttribute('src') || ''; if (!vsrc) { const s = d.querySelector('source'); if (s) vsrc = s.src || s.getAttribute('src') || ''; } if (vsrc && vsrc.startsWith('blob:')) vsrc = ''; const dposter = d.poster && !/^blob:/.test(d.poster) ? d.poster : null; return { kind: 'video', provider: 'hosted', src: vsrc, box, autoplay: !!d.autoplay, loop: !!d.loop, muted: !!d.muted, controls: !!d.controls, poster: dposter, radius: nz(dcs.borderTopLeftRadius) ? dcs.borderTopLeftRadius : null }; };
         // DEEP-LIST FLATTEN-RESCUE (structural-detection — lists; analogous to the video rescue above): the
         // top-level LIST detector (L344) only fires when walk() RECURSES to the <ul>/<ol>. On deeply-nested
         // sites (framer, source blocks.list=8) the MAXD depth cap is hit FIRST, so a real list buried below
@@ -1078,10 +1495,11 @@ function cropPng(png, box, dpr) {
             const txt = clean(li.innerText || li.textContent); if (!txt || txt.length > 300) return null;
             const links = [...li.querySelectorAll('a[href]')];
             const href = (links.length === 1 && clean(links[0].innerText) === txt && links[0].href) ? links[0].href : null;
-            return { text: txt, href };
+            // FOOTER-LINK-COLOR fix (mirrors the top-level detector): record this item's actual rendered color.
+            return { text: txt, href, color: listItemColor(href ? links[0] : li) };
           }).filter(Boolean);
           if (items.length < 3) return null;
-          return { kind: 'list', tag: lel.tagName.toLowerCase(), ordered: lel.tagName.toLowerCase() === 'ol', box: rectOf(lel), typo: typo(lcs), items };
+          return { kind: 'list', tag: lel.tagName.toLowerCase(), ordered: lel.tagName.toLowerCase() === 'ol', box: rectOf(lel), typo: typo(lcs), items, ...listColorMeta(lel, items) };
         };
         // DEEP-TABS FLATTEN-RESCUE (structural gap#2; analogous to the video/list rescues above): the top-level
         // TABS detector (L338) only fires when walk() RECURSES to the [role=tablist]. On deeply-nested sites the
@@ -1100,7 +1518,26 @@ function cropPng(png, box, dpr) {
             return { title, content };
           }).filter((it) => it.title);
           if (items.length < 2) return null;
-          return { kind: 'tabs', box: rectOf(tlel), typo: typo(tlcs), items };
+          // TAB-CODE-PANEL recovery (resend SDK void fix) -- same as the top-level detector, inlined here because
+          // this helper is in a sibling block scope. Recover the active tab's <pre> code TEXT + dark panel look.
+          let cp = null;
+          if (window.__NO_TAB_CODE_PANEL !== true) {
+            try {
+              const act = tbs.find((t) => t.getAttribute('aria-selected') === 'true') || tbs[0];
+              const pid = act && act.getAttribute('aria-controls'); const panel = pid && document.getElementById(pid);
+              if (panel) {
+                const monoReTab = /\bmono|consol|courier|menlo|sf ?mono|jetbrains|fira ?code|source ?code|ubuntu ?mono|cascadia|berkeley|commit ?mono|monospace/;
+                const pre = panel.querySelector('pre');
+                const codeEl = pre || (monoReTab.test((getComputedStyle(panel).fontFamily || '').toLowerCase()) ? panel : null);
+                if (codeEl) {
+                  const raw = (codeEl.innerText || '').replace(/ /g, ' ');
+                  if (clean(raw)) { const pbC = rectOf(codeEl); const c2 = codePanelStyle(codeEl, getComputedStyle(codeEl), pbC); const panelB = rectOf(panel); const codeBox = (panelB && panelB.w >= pbC.w) ? panelB : pbC; cp = { code: raw.slice(0, 3000), bg: c2.bg, mono: c2.mono, codeColor: c2.codeColor, radius: c2.radius, codeBox }; }
+                }
+              }
+            } catch {}
+          }
+          const tyT = typo(tlcs); if (cp && cp.mono) tyT.family = cp.mono;
+          return { kind: 'tabs', box: rectOf(tlel), typo: tyT, items, ...(cp ? { codePanel: cp } : {}) };
         };
         // Intercept qualifying list subtrees first; mark their descendants so the flat-leaf loop skips them.
         const listEls = []; const inList = new Set();
@@ -1134,13 +1571,42 @@ function cropPng(png, box, dpr) {
     const root = walk(document.body, 0);
     // page-level
     const fonts = []; try { document.fonts.forEach((f) => { if (f.status === 'loaded') fonts.push({ family: f.family.replace(/['"]/g, ''), weight: f.weight, style: f.style }); }); } catch {}
+    // CSSOM @font-face MAP (family → [{url, weight, style}]) — the AUTHORITATIVE family↔file association, read from
+    // every SAME-ORIGIN stylesheet's @font-face rules (cross-origin sheets throw on .cssRules → skipped silently).
+    // build-absolute's basename-prefix matcher CANNOT associate content-hashed woff2 to a family (vercel's `Geist`
+    // body face is served as `fef07dbb….woff2` / `caa3a2e1….woff2` — basenames with NO "geist" token → 0 hits →
+    // Inter), nor a family whose NAME has an extra suffix the file lacks (`geistMonoFont` vs `GeistMono_Variable`).
+    // This map gives the exact pairing the matcher can't guess; build-absolute resolves each url's basename against
+    // the network-captured absolute fontFiles. URLs here are resolved to absolute against the sheet href / baseURI.
+    const fontFaceMap = {};
+    try {
+      for (const sheet of document.styleSheets) {
+        let baseHref = sheet.href || document.baseURI;
+        let rules; try { rules = sheet.cssRules; } catch { continue; }   // cross-origin → blocked, skip
+        if (!rules) continue;
+        for (const r of rules) {
+          const isFF = (r.constructor && r.constructor.name === 'CSSFontFaceRule') || (r.cssText && r.cssText.slice(0, 10) === '@font-face');
+          if (!isFF || !r.style) continue;
+          const fam = (r.style.getPropertyValue('font-family') || '').replace(/['"]/g, '').trim();
+          if (!fam) continue;
+          const src = r.style.getPropertyValue('src') || '';
+          const wt = (r.style.getPropertyValue('font-weight') || '').trim() || '400';
+          const st = (r.style.getPropertyValue('font-style') || '').trim() || 'normal';
+          const urls = [...src.matchAll(/url\(\s*["']?([^"')]+\.woff2?[^"')]*)["']?\s*\)/gi)].map((m) => {
+            try { return new URL(m[1], baseHref).href; } catch { return m[1]; }
+          });
+          if (!urls.length) continue;
+          (fontFaceMap[fam] = fontFaceMap[fam] || []).push({ urls, weight: wt, style: st });
+        }
+      }
+    } catch {}
     let nodes = 0, leaves = 0, maxDepth = 0, withBg = 0; const capturedTexts = new Set(); const tally = (n, d) => { if (!n) return; maxDepth = Math.max(maxDepth, d); if (n.kind === 'container') { nodes++; if (n.background) withBg++; (n.children || []).forEach((c) => tally(c, d + 1)); } else { leaves++; if (n.text) capturedTexts.add(clean(n.text)); } }; tally(root, 0);
     // P1 COVERAGE GATE: count VISIBLE text runs in the live DOM and compare to what we captured. Low
     // coverage = the walk silently dropped content (e.g. the content-visibility:auto / reveal-animation
     // bug that deleted ~60% of picocss.com). Surfaced in stats so the pipeline can flag/refuse a thin capture.
     let domVisibleTexts = 0; for (const e of document.querySelectorAll('h1,h2,h3,h4,h5,h6,p,a,button,span,li')) { const own = [...e.childNodes].some((n) => n.nodeType === 3 && clean(n.textContent)); if (!own) continue; const t = clean(e.innerText); if (!t || t.length > 200) continue; if (visible(e) && parseFloat(getComputedStyle(e).fontSize) >= 11) domVisibleTexts++; }
     const coverage = domVisibleTexts ? +(capturedTexts.size / domVisibleTexts).toFixed(2) : 1;
-    return { url: location.href, title: document.title, pageBg: getComputedStyle(document.body).backgroundColor, pageH: document.documentElement.scrollHeight, vw: innerWidth, root, fonts, stats: { containers: nodes, leaves, maxDepth, containersWithBg: withBg, capturedTexts: capturedTexts.size, domVisibleTexts, coverage } };
+    return { url: location.href, title: document.title, pageBg: getComputedStyle(document.body).backgroundColor, pageH: document.documentElement.scrollHeight, vw: innerWidth, root, fonts, fontFaceMap, stats: { containers: nodes, leaves, maxDepth, containersWithBg: withBg, capturedTexts: capturedTexts.size, domVisibleTexts, coverage } };
   });
   data.fontFiles = [...fontUrls];
 
@@ -1211,19 +1677,53 @@ function cropPng(png, box, dpr) {
       };
       // dark OR saturated (a colored brand band) — ignore plain light/white gutters (avoid false-positives on light sites)
       const isDarkOrColored = (r, g, b) => { const avg = (r + g + b) / 3; const chroma = Math.max(r, g, b) - Math.min(r, g, b); return avg < 110 || (avg <= 230 && chroma >= 60); };
-      let bandAdopt = 0;
+      // DARK-FLOOR SNAP (reversible: CAPTURE_NO_BANDBG_DARKFLOOR=1 ⇒ pre-fix gutter-only behavior). The gutter
+      // sampler EXCLUDES every child box, so on a band whose content (cards/heading/grid) tiles nearly the whole
+      // width, only the thin inter-card margins remain — a tiny, contamination-prone sliver. resend's "Reach humans"
+      // black band (y7412) is a textbook case: the band's TRUE base fill is pure black rgb(8,8,8) painting behind ALL
+      // content (97% of the full band area), but the surviving gutter sliver sits over a faint glow region and reads
+      // rgb(40,40,56) — an OVER-painted blue-purple that exists NOWHERE in the source as a flat bg. The clone then
+      // rendered a rgb(40,40,56) panel (meanDE ~21, vis ~0.13). FIX: when the gutter accepted a DARK/colored bg, also
+      // measure the WHOLE-band dominant (children INCLUDED — a section's base bg paints behind all its content, so the
+      // area-dominant color IS the base). If that whole-band dominant is itself DARK (avg<48 — far below the 110 "dark"
+      // gate so a genuine colored brand band, e.g. solid purple, never trips it), owns a clear majority of the band
+      // (>=0.6), and is meaningfully DARKER than the gutter color (avg delta>=12 — only ever correcting an over-paint
+      // lift, never lightening), SNAP the adopted bg to that true dark floor. No-op on light sites (whole-band dominant
+      // is light → not dark), on genuine dark bands the gutter already read right (delta<12 → no snap), and on colored
+      // bands (whole-band dominant is the color, not dark → no snap). Generalizes the fix beyond resend.
+      const DARKFLOOR_SNAP = process.env.CAPTURE_NO_BANDBG_DARKFLOOR !== '1';
+      const wholeBandDominant = (box) => {
+        const W = png.width, H = png.height;
+        const x0 = Math.max(0, (box.x * dpr) | 0), y0 = Math.max(0, (box.y * dpr) | 0), x1 = Math.min(W, ((box.x + box.w) * dpr) | 0), y1 = Math.min(H, ((box.y + box.h) * dpr) | 0);
+        if (x1 - x0 < 16 || y1 - y0 < 16) return null;
+        const sx = Math.max(2, ((x1 - x0) / 50) | 0), sy = Math.max(2, ((y1 - y0) / 50) | 0);
+        const buckets = new Map(); let tot = 0;
+        for (let y = y0; y < y1; y += sy) for (let x = x0; x < x1; x += sx) { const i = (y * W + x) * 4; const k = (png.data[i] >> 4) + ',' + (png.data[i + 1] >> 4) + ',' + (png.data[i + 2] >> 4); buckets.set(k, (buckets.get(k) || 0) + 1); tot++; }
+        if (tot < 24) return null;
+        let best = null, bc = 0; for (const [k, c] of buckets) if (c > bc) { bc = c; best = k; }
+        if (!best) return null;
+        const [r, g, b] = best.split(',').map((n) => +n * 16 + 8);
+        return { r, g, b, frac: bc / tot };
+      };
+      let bandAdopt = 0, bandSnap = 0;
       const cr = contentRootOf(data.root);
       for (const band of boxKidsOf(cr)) {
         if (!band.box || band.box.w < 140 || band.box.h < 44) continue;
         const c = gutterBg(band.box, descendantBoxes(band));
         if (!c || !isDarkOrColored(c.r, c.g, c.b)) continue;
-        const col = `rgb(${c.r}, ${c.g}, ${c.b})`;
+        let { r, g, b } = c;
+        if (DARKFLOOR_SNAP) {
+          const wb = wholeBandDominant(band.box);
+          const gutAvg = (c.r + c.g + c.b) / 3;
+          if (wb) { const wbAvg = (wb.r + wb.g + wb.b) / 3; if (wbAvg < 48 && wb.frac >= 0.6 && gutAvg - wbAvg >= 12) { r = wb.r; g = wb.g; b = wb.b; bandSnap++; } }
+        }
+        const col = `rgb(${r}, ${g}, ${b})`;
         band.bgSampled = col;
         if (!band.background) band.background = {};
         band.background.color = col;
         bandAdopt++;
       }
-      console.log(`  CAPTURE_BANDBG: adopted dark/colored gutter bg on ${bandAdopt} top-level band(s)`);
+      console.log(`  CAPTURE_BANDBG: adopted dark/colored gutter bg on ${bandAdopt} top-level band(s)${DARKFLOOR_SNAP ? ` (dark-floor snap on ${bandSnap})` : ''}`);
     }
     // S8: rasterize WebGL-canvas / animated gradient regions (unrepresentable as CSS) → PNG, recorded
     // as data.rasters[{box,file}] so the builder can set them as section backgrounds.
@@ -1245,6 +1745,21 @@ function cropPng(png, box, dpr) {
     // dark text/charts), so the 92% WebGL threshold falsely dropped rendered dashboards. Only SKIP a
     // mockup if it's ~uniformly white (>98.5% near-white) AND has almost no dark ink — i.e. truly empty.
     const mockBlank = (im) => { let lo = 0, dark = 0, n = 0; for (let i = 0; i < im.data.length; i += 4 * 97) { n++; const r = im.data[i], g = im.data[i + 1], b = im.data[i + 2]; if (r > 235 && g > 235 && b > 235) lo++; if (r < 160 && g < 160 && b < 160) dark++; } return n && lo / n > 0.985 && dark / n < 0.003; };
+    // BLACK-VOID GUARD (void-imagery fix; mirror of mockBlank for the dark theme): mockBlank only catches a
+    // near-WHITE empty crop. The diagnosed resend defect is the OPPOSITE — a crop that is a TRULY UNIFORM BLACK
+    // void (a lazy <img> that never painted → the full-page screenshot has only the section's black gutter there,
+    // so the crop uploads as an empty dark rectangle). The single-img recovery above now emits the real <img> for
+    // those bands, but this is the belt-and-suspenders fallback for any residual mockup that still rasterizes a
+    // dead-black rectangle. SKIP only a GENUINE void: ~uniform (very low luminance variance) AND >=99.5% pure-near-
+    // black AND essentially no bright ink. A real dark-themed dashboard screenshot (mock7/9: ~99% dark BUT carries
+    // bright glyphs/charts + meaningful variance) does NOT trip this — it has lit UI detail, so it stays.
+    const blackVoid = (im) => {
+      let pureBlack = 0, bright = 0, n = 0, sum = 0, sum2 = 0;
+      for (let i = 0; i < im.data.length; i += 4 * 97) { n++; const r = im.data[i], g = im.data[i + 1], b = im.data[i + 2]; const lum = (r + g + b) / 3; sum += lum; sum2 += lum * lum; if (r < 24 && g < 24 && b < 24) pureBlack++; if (lum > 90) bright++; }
+      if (!n) return true;
+      const variance = sum2 / n - (sum / n) * (sum / n);
+      return pureBlack / n > 0.995 && bright / n < 0.002 && variance < 30; // dead-uniform black → empty void, not content
+    };
     // TEXT-MASK (USER-FEEDBACK #4): white-fill a crop-local rectangle so the text BAKED into the raster is
     // erased — only the live overlay text (rebuilt as native leaves) then shows. Mask boxes arrive in page
     // coords (same system as n.box) via n.textMask; translate to crop-local pixels and clamp to the crop.
@@ -1331,6 +1846,7 @@ function cropPng(png, box, dpr) {
         const f = `/tmp/surface-${srcTag}-${mi++}.png`; fs.writeFileSync(f, PNG.sync.write(cr)); n.raster = f; surfOk++; return;
       }
       if (!cr || mockBlank(cr)) { n.raster = 'SKIP'; return; }
+      if (process.env.CAPTURE_NO_IMGRECOVER !== '1' && blackVoid(cr)) { n.raster = 'SKIP'; return; } // dead-uniform black void → don't upload an empty dark rectangle
       if (Array.isArray(n.textMask)) { for (const m of n.textMask) { if (m && m.w > 0 && m.h > 0) { maskRect(cr, n, m); mmask++; } } }
       const f = `/tmp/mockup-${srcTag}-${mi++}.png`; fs.writeFileSync(f, PNG.sync.write(cr)); n.raster = f; mok++; } };
     doMockup(data.root);
@@ -1345,5 +1861,5 @@ function cropPng(png, box, dpr) {
   console.log(`LAYOUT TREE captured → ${out}`);
   if (CAPTURE_HEADED) console.log(`  CAPTURE_HEADED path: ${capturedHeadedPath}`);
   console.log(`  containers: ${data.stats.containers} | leaves: ${data.stats.leaves} | max depth: ${data.stats.maxDepth} | containers w/ background: ${data.stats.containersWithBg}`);
-  console.log(`  painted-color sampled on ${painted} text leaves | fonts: ${data.fonts.length} loaded, ${data.fontFiles.length} files`);
+  console.log(`  painted-color sampled on ${painted} text leaves | fonts: ${data.fonts.length} loaded, ${data.fontFiles.length} files, ${Object.keys(data.fontFaceMap || {}).length} CSSOM @font-face famil(ies)`);
 })();

@@ -67,6 +67,14 @@ const DET_MASTER = !process.env.GRADER_NO_DETECTORS;
 const DET_TEXTCOLLIDE = DET_MASTER && !process.env.GRADER_NO_TEXTCOLLIDE;
 const DET_FULLBLEED = DET_MASTER && !process.env.GRADER_NO_FULLBLEED;
 const DET_CHUNKEDMEDIA = DET_MASTER && !process.env.GRADER_NO_CHUNKEDMEDIA;
+// DECHUNK-FAITHFUL (honesty fix): the chunked-media detector previously counted EVERY large clone media leaf
+// sitting in a many-source-media band as one "chunk" — so a FAITHFUL native gallery (clone reproduced 6-12
+// distinct img/video widgets) was scored as 6-12 collapsed rasters and false-deflated structural. A genuine
+// chunk is the clone COLLAPSING many source media into ~1 big raster, NOT reproducing them as many distinct
+// leaves. With this on (default), a band only counts as chunked when the clone actually collapsed — its
+// distinct media count in the band is far below the source's. Reversible: GRADER_NO_DECHUNK=1 (or
+// BUILD_NO_DECHUNK=1) restores the old per-leaf count. No-op on self-test (clone media == source media).
+const DECHUNK_FAITHFUL = !process.env.GRADER_NO_DECHUNK && !process.env.BUILD_NO_DECHUNK;
 const DET_REALNAV = DET_MASTER && !process.env.GRADER_NO_REALNAV;
 const DET_K1 = 0.5;            // text-collision visual-multiplier strength: visual×(1 - K1·collisionRate)
 
@@ -85,6 +93,57 @@ const DET_HOVERFLOW_K = 1.4;   // horizontal-overflow severity: visual×max(HOVE
 const DET_HOVERFLOW_FLOOR = 0.25; // a fully-broken h-scroll page (e.g. 2430/1440 = 1.69×) bottoms out near here
 const DET_OVERLAP2_K = 2.2;    // widget-overlap severity: visual×max(OVERLAP2_FLOOR, 1 - K·excessOverlapFrac)
 const DET_OVERLAP2_FLOOR = 0.4;
+
+// ---- CONTENT-VOID PENALTY (fixes the SSIM-void-perversity) -------------------------------------------------
+// THE PERVERSITY: SSIM + exact-pixel both REWARD a uniform band. A clone that renders a band VOID (a flat band
+// of ~background color where the SOURCE has real content — testimonial cards, logos, animated text) can score
+// AS HIGH AS or HIGHER than a clone that DID render content but is phase/position-misaligned. So the grader was
+// rewarding ABSENCE over PRESENCE → filling a void could DROP the visual score. Perverse.
+//
+// THE FIX (per-band, INSIDE the visual term — no new top-level composite weight): measure each band's CONTENT
+// ENERGY (luma variance + edge density) on the SOURCE shot and the CLONE shot INDEPENDENTLY (NOT the cross-SSIM).
+// A band is a CONTENT-VOID when the SOURCE band has SUBSTANTIAL content energy AND the CLONE band collapses to
+// near the page-background level (near-uniform). Such a void is forced to a LOW visual ceiling (VOID_CEIL), so it
+// scores CLEARLY BELOW a band where the clone rendered matched content. Because the penalty keys on the CLONE's
+// own texture being near-background WHILE the source's is high, it CANNOT punish a band where the clone actually
+// rendered content (that band has high clone texture → not a void → untouched). Recovering content is therefore
+// NEVER punished: presence (high clone texture) always scores ≥ a void (low clone texture). It does NOT reward
+// filling with garbage — WHAT is rendered is still governed by per-element/editability/structural; this term only
+// guarantees ABSENCE < PRESENCE. Source-vs-source self-test: clone==source → cloneTexture==sourceTexture → the
+// void condition (clone near-bg while source high) is impossible → no-op → composite stays 1.0.
+// Reversible: GRADER_NO_VOID_PENALTY=1.
+const DET_VOIDPENALTY = DET_MASTER && !process.env.GRADER_NO_VOID_PENALTY;
+const VOID_SRC_CONTENT = 0.06;  // SOURCE band counts as "has substantial content" when its content-energy >= this
+const VOID_CLONE_FLOOR = 0.30;  // CLONE band counts as a void when its energy <= this FRACTION of the source band's
+const VOID_BG_ABS = 0.020;      // ...AND the clone band's absolute energy <= this (near page-background uniform)
+const VOID_CEIL = 0.30;         // a confirmed content-void's per-band visual is capped at this LOW ceiling
+
+// ---- VISIBLE-BLOCKS HARDENING (anti-gaming) ----
+// structuralFidelity counts, per source block type {form/video/table/list/tabs/accordion/nav}, how many the clone
+// reproduces. The plain `vis()` gate (display/visibility/opacity) is satisfiable by an INVISIBLE element: a prior
+// round stamped a transparent, pointer-events:none <form> twin to fire form 0→1 with ZERO visual change. This gate
+// requires GENUINE VISIBILITY for an element to count toward a block type: opacity>=0.05 AND visibility!=hidden AND
+// display!=none AND NOT (pointer-events:none AND visually transparent) AND non-trivial rendered area AND within/near
+// the viewport-document (not off-screen). Applied SYMMETRICALLY to source AND clone counting (both go through the
+// same capture() path) so source-vs-source self-test stays 1.0 — real visible blocks count identically on both
+// sides; only invisible (paint-zero) twins are ignored. Reversible: GRADER_NO_VISIBLE_BLOCKS=1 → old vis() gate.
+const USE_VISIBLE_BLOCKS = !process.env.GRADER_NO_VISIBLE_BLOCKS;
+
+// ---- FORM-CLUSTER HARDENING (grader-detection honesty) ----
+// The "form" block has two acceptance shapes: (a) a real <form> with >=1 visible input (strong, unchanged), OR
+// (b) a STANDALONE-INPUT fallback for forms authored without a wrapping <form> tag. The old fallback fired on
+// `>=2 visible inputs ANYWHERE on the page`. That is a FALSE POSITIVE on a marketing page that scatters product-
+// DEMO input widgets across thousands of vertical px (e.g. linear.app: a "Message …" textarea at y1148, an
+// "Assign to…" input at y5309, a diff-editor input/textarea pair at y6459/6544, a search at y9880 — NONE share a
+// container, NONE are a fillable form). The grader counted that phantom as form:1 and then permanently dinged
+// every clone's structuralFidelity for not reproducing a form that does not exist. A GENUINE form (an Elementor
+// `form` widget, a contact/signup block) is a TIGHT FIELD GROUP: >=2 inputs sharing ONE compact common ancestor.
+// HARDENED fallback: the standalone-input shape fires only when >=2 visible inputs share a compact common ancestor
+// (a real field group) — scattered page-wide demo inputs no longer fabricate a form. Applied SYMMETRICALLY to
+// source AND clone (same capture path) so source-vs-source self-test stays 1.0, and a REAL clustered form (one
+// container holding the fields) STILL counts on BOTH sides → genuinely-absent forms are still MISSED (no gaming;
+// a clone that drops a real form still scores the miss). Reversible: GRADER_NO_FORM_CLUSTER=1 → old page-wide >=2.
+const FORM_CLUSTER = !process.env.GRADER_NO_FORM_CLUSTER;
 
 // ---- pure detector helpers (geometry already in hand; NO network) ----
 const _iou = (a, b) => {
@@ -134,25 +193,60 @@ function fullBleed(srcBands, cloneBands, vw) {
   return { srcFrac, cloneFrac, ok };
 }
 
-// DETECTOR(3) CHUNKED-MEDIA: detect a CLONE leaf that is a SINGLE large raster (area >= 12% of its band area)
-// sitting in a y-region where the SOURCE had MANY (>= 4) distinct small media (logo wall / icon row chunk-
-// screenshotted into one image). For each clone large-media leaf, find the band it lives in, and count how many
-// DISTINCT source media leaves fall in that same y-band; if >= 4 → that's a chunked region. Source-vs-source:
-// the source's own per-element media are NOT single large rasters over a many-media region → 0. Returns
-// { count, regions }.
-function chunkedMedia(srcMedia, cloneMedia, bands, vw) {
+// DETECTOR(3) CHUNKED-MEDIA: detect the clone COLLAPSING a many-small-media source region (logo wall / icon row /
+// product gallery) into a SINGLE big raster instead of authoring the media as distinct widgets. The honest signal
+// for a real collapse is NOT "a clone leaf is big" (every faithful gallery card is big relative to its short band)
+// — it is that the clone reproduced the region with FAR FEWER distinct media leaves than the source had. So we
+// score PER BAND: a band counts as chunked only when (a) the source had MANY distinct media (>= SRC_MANY), (b) a
+// large clone raster sits in it (area >= 12% of band), AND (c) the clone collapsed — its distinct media-leaf count
+// in the band is <= CLONE_COLLAPSE_MAX (the clone painted ~1 raster, not a gallery of distinct widgets).
+//
+// Why the count change matters (DECHUNK_FAITHFUL): the old per-clone-leaf count flagged a FAITHFUL native gallery
+// (clone emitted 6-12 distinct img/video widgets, each its own card, screenshot-confirmed) as 6-12 collapsed
+// rasters — false-deflating structural on a clone that did the RIGHT thing. Counting collapsed BANDS (clone media
+// far below source) keeps the genuine 1-raster collapse (linear hero: src 45 → clone 1) while no longer punishing
+// a many-distinct-widget gallery (framer: src 60 → clone 12 distinct image widgets). Reversible: with
+// DECHUNK_FAITHFUL off (GRADER_NO_DECHUNK=1) the original per-leaf count returns.
+// Source-vs-source: clone media == source media in every band → no band collapses → 0. Returns { count, regions }.
+const CHUNK_SRC_MANY = 4;          // a source band must hold >= this many distinct media to be a candidate region
+const CHUNK_CLONE_COLLAPSE_MAX = 2;// the clone "collapsed" the region only if it has <= this many distinct media leaves there
+function chunkedMedia(srcMedia, cloneMedia, bands, vw, dechunkFaithful = true) {
   const sBands = (bands || []).filter((b) => b.h > 0);
   if (!sBands.length) return { count: 0, regions: [] };
   const bandOf = (y) => { let best = null; for (const b of sBands) { if (y >= b.y && y < b.y + b.h) { if (!best || b.h < best.h) best = b; } } return best; };
   const srcInBand = (b) => (srcMedia || []).filter((m) => m.area > 0 && m.y + m.h / 2 >= b.y && m.y + m.h / 2 < b.y + b.h);
-  const regions = []; let count = 0;
+  const cloneInBand = (b) => (cloneMedia || []).filter((m) => m.area > 0 && m.y + m.h / 2 >= b.y && m.y + m.h / 2 < b.y + b.h);
+  if (!dechunkFaithful) {
+    // LEGACY per-leaf count (reversible path).
+    const regions = []; let count = 0;
+    for (const cm of (cloneMedia || [])) {
+      if (cm.area <= 0) continue;
+      const b = bandOf(cm.y + cm.h / 2); if (!b) continue;
+      const bandArea = Math.max(1, b.w * b.h);
+      if (cm.area < 0.12 * bandArea) continue;
+      const srcHere = srcInBand(b);
+      if (srcHere.length >= CHUNK_SRC_MANY) { count++; regions.push({ bandY: b.y, cloneMediaArea: cm.area, srcMediaCount: srcHere.length }); }
+    }
+    return { count, regions };
+  }
+  // HONEST per-band collapse count: walk each distinct candidate band once.
+  const regions = []; let count = 0; const seen = new Set();
   for (const cm of (cloneMedia || [])) {
     if (cm.area <= 0) continue;
     const b = bandOf(cm.y + cm.h / 2); if (!b) continue;
+    if (seen.has(b.y)) continue; seen.add(b.y);
     const bandArea = Math.max(1, b.w * b.h);
-    if (cm.area < 0.12 * bandArea) continue;               // not a SINGLE large raster → skip
     const srcHere = srcInBand(b);
-    if (srcHere.length >= 4) { count++; regions.push({ bandY: b.y, cloneMediaArea: cm.area, srcMediaCount: srcHere.length }); }
+    if (srcHere.length < CHUNK_SRC_MANY) continue;          // source wasn't a many-media region → nothing to collapse
+    const cloneHere = cloneInBand(b);
+    const bigRaster = cloneHere.some((m) => m.area >= 0.12 * bandArea);
+    if (!bigRaster) continue;                               // clone has no large raster here → not a collapse
+    // COLLAPSE test: clone painted the many-media region with very few distinct media leaves (≈1 big raster).
+    // A faithful gallery (many distinct clone media) is NOT a collapse and is NOT counted.
+    if (cloneHere.length <= CHUNK_CLONE_COLLAPSE_MAX) {
+      count++;
+      regions.push({ bandY: b.y, cloneMediaArea: Math.max(...cloneHere.map((m) => m.area)), srcMediaCount: srcHere.length, cloneMediaCount: cloneHere.length });
+    }
   }
   return { count, regions };
 }
@@ -260,6 +354,32 @@ const srgbLab = (r, g, b) => { const f = (c) => { c /= 255; return c <= 0.04045 
 const dE = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 function ssim(a, b, y0, y1) { const Wd = Math.min(a.width, b.width), win = 8, C1 = 6.5, C2 = 58.5; let tot = 0, n = 0; for (let by = y0; by + win <= y1; by += win) for (let bx = 0; bx + win <= Wd; bx += win) { let ma = 0, mb = 0; for (let y = 0; y < win; y++) for (let x = 0; x < win; x++) { const ia = ((by + y) * a.width + bx + x) * 4, ib = ((by + y) * b.width + bx + x) * 4; ma += gray(a.data, ia); mb += gray(b.data, ib); } const N = win * win; ma /= N; mb /= N; let va = 0, vb = 0, cov = 0; for (let y = 0; y < win; y++) for (let x = 0; x < win; x++) { const ia = ((by + y) * a.width + bx + x) * 4, ib = ((by + y) * b.width + bx + x) * 4; const da = gray(a.data, ia) - ma, db = gray(b.data, ib) - mb; va += da * da; vb += db * db; cov += da * db; } va /= N - 1; vb /= N - 1; cov /= N - 1; tot += ((2 * ma * mb + C1) * (2 * cov + C2)) / ((ma * ma + mb * mb + C1) * (va + vb + C2)); n++; } return n ? tot / n : 1; }
 function bandStats(a, b, y0, y1) { let ex = 0, n = 0, sde = 0; const Wd = Math.min(a.width, b.width); for (let y = y0; y < y1; y += 2) for (let x = 0; x < Wd; x += 2) { const ia = (y * a.width + x) * 4, ib = (y * b.width + x) * 4; const d = dE(srgbLab(a.data[ia], a.data[ia + 1], a.data[ia + 2]), srgbLab(b.data[ib], b.data[ib + 1], b.data[ib + 2])); if (d < 8) ex++; sde += d; n++; } return { exact: n ? ex / n : 0, meanDE: n ? sde / n : 0 }; }
+// bandTexture — CONTENT-ENERGY of a SINGLE image's band, INDEPENDENT of the cross-SSIM. Combines normalized luma
+// variance (does the band hold a range of tones, or is it one flat color?) and edge density (mean abs horizontal+
+// vertical luma gradient → real glyphs/cards/logos produce many edges; a flat ~bg band produces ~none). Both terms
+// are normalized to ~[0,1] and averaged. A near-uniform band (flat dark/light fill ≈ page background) → energy ≈ 0;
+// a band full of text/cards/logos → energy well above the VOID_SRC_CONTENT threshold. Pure read of one shot.
+function bandTexture(img, y0, y1) {
+  const Wd = img.width; const step = 2;
+  let sum = 0, sumSq = 0, n = 0, edge = 0, en = 0;
+  for (let y = y0; y < y1; y += step) {
+    for (let x = 0; x < Wd; x += step) {
+      const i = (y * Wd + x) * 4; const g = gray(img.data, i);
+      sum += g; sumSq += g * g; n++;
+      // horizontal + vertical gradient against the next sampled neighbor (in-band only)
+      if (x + step < Wd) { const ir = (y * Wd + (x + step)) * 4; edge += Math.abs(g - gray(img.data, ir)); en++; }
+      if (y + step < y1) { const id = ((y + step) * Wd + x) * 4; edge += Math.abs(g - gray(img.data, id)); en++; }
+    }
+  }
+  if (!n) return { energy: 0, varNorm: 0, edgeNorm: 0 };
+  const mean = sum / n; const variance = Math.max(0, sumSq / n - mean * mean);
+  // 255²≈65025 is the max possible luma variance; a flat band → ~0. sqrt → std in luma units; /64 maps a ~half-tone
+  // contrast band to ~1. edge: mean abs gradient in luma units; /48 maps a busy-text band to ~1. Clamp to [0,1].
+  const varNorm = Math.min(1, Math.sqrt(variance) / 64);
+  const edgeNorm = Math.min(1, (en ? edge / en : 0) / 48);
+  const energy = +(0.5 * varNorm + 0.5 * edgeNorm).toFixed(4);
+  return { energy, varNorm: +varNorm.toFixed(4), edgeNorm: +edgeNorm.toFixed(4) };
+}
 const norm = (s) => (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
 
 async function capture(ctx, target, withSections) {
@@ -269,9 +389,67 @@ async function capture(ctx, target, withSections) {
   await p.evaluate(async () => { const h = document.documentElement.scrollHeight; for (let y = 0; y <= h; y += 600) { window.scrollTo(0, y); await new Promise(r => setTimeout(r, 180)); } window.scrollTo(0, 0); });
   try { await p.waitForLoadState('networkidle', { timeout: 8000 }); } catch {}
   await p.waitForTimeout(700);
-  const info = await p.evaluate(({ vw, withSections }) => {
+  const info = await p.evaluate(({ vw, withSections, useVisibleBlocks, formCluster }) => {
     const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
     const vis = (el) => { const r = el.getBoundingClientRect(); if (!r.width || !r.height) return false; const cs = getComputedStyle(el); return !(cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity < 0.05); };
+    // visStrict — the HARDENED GENUINE-VISIBILITY gate for block-type counting (anti-gaming). An element counts
+    // toward a block type only if it is actually PAINTED, not merely present in the DOM. Beyond the base vis()
+    // (display/visibility/opacity), it additionally rejects:
+    //   • PAINT-ZERO TWINS: pointer-events:none AND the element contributes no visible paint of its own — no
+    //     non-transparent background-color, no visible (non-zero, non-fully-transparent) border, no background
+    //     image, and no own rendered text glyphs (color fully transparent or no text). This is the exact signature
+    //     of a transparent landmark/form twin stamped only to fire a tag-based counter.
+    //   • TRIVIAL AREA: a rendered box smaller than MIN_BLOCK_AREA px² (an 8×8 probe / collapsed sliver can't be a
+    //     real form/video/table/etc.).
+    //   • OFF-SCREEN: the box sits entirely outside the document/viewport extent (negative far-right/left or far
+    //     below the rendered page), i.e. parked where a human never sees it.
+    // The gate is applied symmetrically to source AND clone (both via this same capture path), so a REAL visible
+    // block counts identically on both sides → source-vs-source self-test stays 1.0; only paint-zero twins drop.
+    const MIN_BLOCK_AREA = 144; // 12×12px floor — below this a box cannot be a genuine interactive/content block
+    const _alphaZero = (c) => !c || c === 'transparent' || /rgba?\([^)]*,\s*0(?:\.0+)?\s*\)\s*$/i.test(c);
+    const _hasOwnText = (el) => {
+      const cs = getComputedStyle(el);
+      if (_alphaZero(cs.color)) return false; // transparent glyph color → paints no visible text
+      // any descendant text node with actual characters (covers wrapped twin links/labels)
+      const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
+      let n; while ((n = tw.nextNode())) { if (clean(n.textContent)) return true; }
+      return false;
+    };
+    const _paintsSomething = (el) => {
+      const cs = getComputedStyle(el);
+      // visible (non-transparent) background color?
+      if (!_alphaZero(cs.backgroundColor)) return true;
+      // background image / gradient?
+      if (cs.backgroundImage && cs.backgroundImage !== 'none') return true;
+      // visible border (any side: non-zero width AND non-transparent color)?
+      for (const side of ['Top', 'Right', 'Bottom', 'Left']) {
+        const w = parseFloat(cs['border' + side + 'Width'] || '0');
+        if (w >= 0.5 && cs['border' + side + 'Style'] !== 'none' && !_alphaZero(cs['border' + side + 'Color'])) return true;
+      }
+      // box shadow?
+      if (cs.boxShadow && cs.boxShadow !== 'none') return true;
+      // an embedded replaced/media element that paints (img/svg/canvas/video/iframe) inside?
+      if (/^(IMG|SVG|CANVAS|VIDEO|IFRAME|PICTURE)$/.test(el.tagName)) return true;
+      if (el.querySelector && el.querySelector('img,svg,canvas,video,iframe,picture')) return true;
+      // own rendered text glyphs?
+      if (_hasOwnText(el)) return true;
+      return false;
+    };
+    const visStrict = (el) => {
+      if (!vis(el)) return false;                       // base display/visibility/opacity gate
+      const r = el.getBoundingClientRect();
+      if (r.width * r.height < MIN_BLOCK_AREA) return false; // trivial rendered area
+      const docW = document.documentElement.scrollWidth || vw;
+      const docH = document.documentElement.scrollHeight || window.innerHeight || 900;
+      const top = r.top + scrollY, left = r.left + scrollX, bottom = r.bottom + scrollY, right = r.right + scrollX;
+      // entirely off the rendered document/viewport (parked where a human never sees it)
+      if (bottom <= 0 || right <= 0 || top >= docH || left >= docW) return false;
+      const cs = getComputedStyle(el);
+      // PAINT-ZERO TWIN: non-interactive (pointer-events:none) AND contributes no visible paint → ignore.
+      if (cs.pointerEvents === 'none' && !_paintsSomething(el)) return false;
+      return true;
+    };
+    const gate = useVisibleBlocks ? visStrict : vis;    // reversible: GRADER_NO_VISIBLE_BLOCKS=1 → old vis()
     const texts = []; const seen = new Set();
     // DETECTOR(1) TEXT-COLLISION raw feed: ALL visible text leaves with FULL boxes, captured BEFORE the seen-set
     // dedup (overlapping doubled text would otherwise be deduped away and become invisible to the grader). Pure
@@ -344,8 +522,32 @@ async function capture(ctx, target, withSections) {
     })();
     // ELEMENT-TYPE (structural-fidelity) — detect block TYPES GENERICALLY (works on source AND on an Elementor
     // clone, so source-vs-source self-test stays 1.0). A form rebuilt as plain text → no inputs → structural miss.
-    const visN = (sel) => [...document.querySelectorAll(sel)].filter(vis);
-    const forms = visN('form').filter((f) => f.querySelector('input,textarea,select')).length || (visN('input,textarea,select').length >= 2 ? 1 : 0);
+    // BLOCK-TYPE counters use `gate` (visStrict when hardened) so an INVISIBLE/paint-zero twin never fires a type.
+    // For a form, the form element AND its inner controls must be genuinely visible (a transparent twin <form> with
+    // hidden/zero-paint inputs no longer counts). Same hardened gate for standalone inputs.
+    const visN = (sel) => [...document.querySelectorAll(sel)].filter(gate);
+    // STANDALONE-INPUT FALLBACK (no wrapping <form>): a GENUINE form is a TIGHT FIELD GROUP — >=2 visible inputs
+    // sharing ONE compact common ancestor (height<=600 AND width<=760, the size of a real contact/signup card).
+    // Scattered page-wide demo inputs (a marketing page's product widgets) do NOT share such an ancestor → no
+    // phantom form. Reversible: formCluster=false (GRADER_NO_FORM_CLUSTER=1) → old page-wide `>=2 anywhere`.
+    const _maxCompactInputGroup = () => {
+      const ins = visN('input,textarea,select');
+      let best = ins.length ? 1 : 0;
+      for (const el of ins) {
+        let node = el;
+        for (let i = 0; i < 8 && node && node !== document.body; i++) {
+          node = node.parentElement; if (!node) break;
+          const r = node.getBoundingClientRect();
+          if (r.height <= 600 && r.width <= 760) {
+            const grouped = [...node.querySelectorAll('input,textarea,select')].filter(gate).length;
+            if (grouped >= 2 && grouped > best) best = grouped;
+          }
+        }
+      }
+      return best;
+    };
+    const standaloneForm = formCluster ? (_maxCompactInputGroup() >= 2 ? 1 : 0) : (visN('input,textarea,select').length >= 2 ? 1 : 0);
+    const forms = visN('form').filter((f) => [...f.querySelectorAll('input,textarea,select')].some(gate)).length || standaloneForm;
     const blocks = {
       form: forms,
       video: visN('video').length + visN('iframe').filter((f) => /youtube|vimeo|wistia|loom/.test(f.src || '')).length,
@@ -356,7 +558,7 @@ async function capture(ctx, target, withSections) {
       nav: visN('nav,[role=navigation]').length ? 1 : 0,
     };
     return { texts, sections, imgs, blocks, pageH: document.documentElement.scrollHeight, textLeaves, bands, mediaLeaves, navStruct, docScrollW, docClientW, leafBoxes };
-  }, { vw: W, withSections });
+  }, { vw: W, withSections, useVisibleBlocks: USE_VISIBLE_BLOCKS, formCluster: FORM_CLUSTER });
   const shot = PNG.sync.read(await p.screenshot({ fullPage: true }));
   await p.close(); return { shot, texts: info.texts, sections: info.sections, imgs: info.imgs, blocks: info.blocks, pageH: info.pageH, textLeaves: info.textLeaves, bands: info.bands, mediaLeaves: info.mediaLeaves, navStruct: info.navStruct, docScrollW: info.docScrollW, docClientW: info.docClientW, leafBoxes: info.leafBoxes };
 }
@@ -383,7 +585,21 @@ async function capture(ctx, target, withSections) {
     const gy1 = Math.min(H, y1); const gradable = gy1 - y0 > 8;
     const s = gradable ? ssim(src.shot, cln.shot, y0, gy1) : 0;
     const px = gradable ? bandStats(src.shot, cln.shot, y0, gy1) : { exact: 0, meanDE: 99 };
-    const visualRaw = +(0.5 * s + 0.5 * px.exact).toFixed(3);
+    const visualPreVoid = +(0.5 * s + 0.5 * px.exact).toFixed(3);
+    // CONTENT-VOID detection (inside the visual term; reversible GRADER_NO_VOID_PENALTY=1). Measure each side's
+    // band CONTENT ENERGY independently. SELFTEST (clone==source) → identical energies → void impossible → no-op.
+    const srcTex = (DET_VOIDPENALTY && gradable) ? bandTexture(src.shot, y0, gy1) : { energy: 0, varNorm: 0, edgeNorm: 0 };
+    const cloneTex = (DET_VOIDPENALTY && gradable) ? (SELFTEST ? srcTex : bandTexture(cln.shot, y0, gy1)) : { energy: 0, varNorm: 0, edgeNorm: 0 };
+    // A band is a CONTENT-VOID iff the SOURCE has substantial content AND the CLONE collapsed to near-background:
+    // clone energy is both a small FRACTION of the source's AND below an absolute near-uniform floor.
+    const isVoid = DET_VOIDPENALTY && gradable && !SELFTEST
+      && srcTex.energy >= VOID_SRC_CONTENT
+      && cloneTex.energy <= VOID_CLONE_FLOOR * srcTex.energy
+      && cloneTex.energy <= VOID_BG_ABS;
+    // A confirmed void is forced to a LOW ceiling so it scores clearly below a content-bearing band. Because the
+    // condition keys on the CLONE's own texture being near-bg, a clone that DID render content (high clone texture)
+    // is never a void → never capped → presence always scores ≥ a void.
+    const visualRaw = isVoid ? +Math.min(visualPreVoid, VOID_CEIL).toFixed(3) : visualPreVoid;
     const secTexts = src.texts.filter((t) => t.y >= y0 && t.y < y1 && norm(t.t).length >= 4).map((t) => norm(t.t));
     const uniq = [...new Set(secTexts)];
     const matched = uniq.filter(inClone).length;
@@ -399,15 +615,19 @@ async function capture(ctx, target, withSections) {
     // attribution
     const fails = []; const why = [];
     if (rasteredText) { fails.push('visual'); why.push('rastered-text-cheat'); }
+    if (isVoid) { fails.push('visual'); why.push('content-void'); }
     if (editability < TGT.editability && uniq.length) { fails.push('editability'); const lost = uniq.filter((t) => !inClone(t)); const capLost = layoutTexts ? lost.filter((t) => !inLayout(t)).length : null; why.push(layoutTexts ? (capLost > lost.length / 2 ? 'capture-lost-text' : 'build-lost-text') : 'missing-text'); }
-    if (visual < TGT.visual && !rasteredText) { fails.push('visual'); if (px.meanDE > 12) why.push('color/background'); else if (editability >= TGT.editability) why.push('font/geometry'); else why.push('visual-degraded'); }
+    if (visual < TGT.visual && !rasteredText && !isVoid) { fails.push('visual'); if (px.meanDE > 12) why.push('color/background'); else if (editability >= TGT.editability) why.push('font/geometry'); else why.push('visual-degraded'); }
     const verdict = fails.length === 0 ? 'pass' : 'fail';
     const areaFrac = (y1 - y0) / src.pageH;
     const severity = +(((1 - Math.min(visual, editability))) * (0.5 + areaFrac)).toFixed(3);
-    sections.push({ idx: i, y0, y1, visual, editability, srcTextCount: uniq.length, rasteredText, meanDE: +px.meanDE.toFixed(1), verdict, fails: [...new Set(fails)], why: [...new Set(why)], severity, example: uniq.filter((t) => !inClone(t))[0]?.slice(0, 50) });
+    sections.push({ idx: i, y0, y1, visual, editability, srcTextCount: uniq.length, rasteredText, contentVoid: isVoid, srcEnergy: srcTex.energy, cloneEnergy: cloneTex.energy, visualPreVoid, meanDE: +px.meanDE.toFixed(1), verdict, fails: [...new Set(fails)], why: [...new Set(why)], severity, example: uniq.filter((t) => !inClone(t))[0]?.slice(0, 50) });
   }
   const mean = (f) => sections.length ? +(sections.reduce((a, s) => a + f(s), 0) / sections.length).toFixed(3) : 0;
   const failing = sections.filter((s) => s.verdict === 'fail').sort((a, b) => b.severity - a.severity);
+  // CONTENT-VOID aggregate (telemetry; the per-band cap is already folded into each band's visual above).
+  const voidBands = sections.filter((s) => s.contentVoid);
+  const voidCount = voidBands.length;
   // STRUCTURAL FIDELITY: source block-TYPES reproduced as same-type elements in the clone (count-matched).
   // A form/video/table/list/tabs the source has but the clone rebuilt as text/raster → structural miss.
   const sB = src.blocks || {}, cB = cln.blocks || {};
@@ -453,7 +673,7 @@ async function capture(ctx, target, withSections) {
   const fullBleedOk = SELFTEST ? true : fbRaw.ok;
   const fullBleedMult = (DET_FULLBLEED && !fullBleedOk) ? 0.9 : 1;
   // (3) CHUNKED-MEDIA → structural penalty when the clone chunk-screenshotted a many-small-media region.
-  const cmRaw = DET_CHUNKEDMEDIA ? chunkedMedia(src.mediaLeaves, cln.mediaLeaves, src.bands, W) : { count: 0, regions: [] };
+  const cmRaw = DET_CHUNKEDMEDIA ? chunkedMedia(src.mediaLeaves, cln.mediaLeaves, src.bands, W, DECHUNK_FAITHFUL) : { count: 0, regions: [] };
   const chunkedMediaCount = SELFTEST ? 0 : cmRaw.count;
   // each chunked region costs 0.08 structural, capped at 0.32 (a soft, additive structural penalty).
   const chunkedMediaMult = (DET_CHUNKEDMEDIA && chunkedMediaCount > 0) ? +(1 - Math.min(0.32, 0.08 * chunkedMediaCount)).toFixed(4) : 1;
@@ -535,9 +755,10 @@ async function capture(ctx, target, withSections) {
     // GRADER-HONESTY DETECTORS (each env-flag-gated; default ON; GRADER_NO_DETECTORS=1 master-off). Required
     // report fields + telemetry. Penalties already folded into visualMean (text-collision, full-bleed) and the
     // adjusted structuralFidelity (chunked-media, real-nav). visualMeanPre/structuralFidelityPre = pre-penalty.
-    collisionRate, fullBleedOk, chunkedMediaCount, realNavOk, overflowRatio, excessOverlap,
+    collisionRate, fullBleedOk, chunkedMediaCount, realNavOk, overflowRatio, excessOverlap, contentVoidCount: voidCount,
     detectors: {
-      enabled: { master: DET_MASTER, textCollide: DET_TEXTCOLLIDE, fullBleed: DET_FULLBLEED, chunkedMedia: DET_CHUNKEDMEDIA, realNav: DET_REALNAV, hOverflow: DET_HOVERFLOW, overlap2: DET_OVERLAP2 },
+      enabled: { master: DET_MASTER, textCollide: DET_TEXTCOLLIDE, fullBleed: DET_FULLBLEED, chunkedMedia: DET_CHUNKEDMEDIA, realNav: DET_REALNAV, hOverflow: DET_HOVERFLOW, overlap2: DET_OVERLAP2, voidPenalty: DET_VOIDPENALTY },
+      contentVoid: { enabled: DET_VOIDPENALTY, count: voidCount, ceil: VOID_CEIL, srcContentThresh: VOID_SRC_CONTENT, cloneFloorFrac: VOID_CLONE_FLOOR, bgAbs: VOID_BG_ABS, bands: voidBands.map((b) => ({ idx: b.idx, yRange: [b.y0, b.y1], srcEnergy: b.srcEnergy, cloneEnergy: b.cloneEnergy, visualPreVoid: b.visualPreVoid, visual: b.visual })) },
       textCollision: { rate: collisionRate, rawRate: tcRaw.rate, pairs: tcRaw.pairs, mult: textCollideMult },
       fullBleed: { ok: fullBleedOk, srcFrac: fbRaw.srcFrac, cloneFrac: fbRaw.cloneFrac, mult: fullBleedMult },
       chunkedMedia: { count: chunkedMediaCount, rawCount: cmRaw.count, regions: cmRaw.regions, mult: chunkedMediaMult },
@@ -566,11 +787,11 @@ async function capture(ctx, target, withSections) {
     const peOk = !report.usePerElement || (report.perElement && ['color', 'typography', 'position', 'text', 'effects', 'coverage'].every((k) => Math.abs(report.perElement[k] - 1) <= 0.005));
     const respOk = !report.useResponsive || (report.responsive && Math.abs(report.responsive.score - 1) <= 0.005);
     // DETECTORS must be NO-OPS on source-vs-source (every multiplier == 1, no penalty applied).
-    const detOk = textCollideMult === 1 && fullBleedMult === 1 && chunkedMediaMult === 1 && realNavMult === 1 && hOverflowMult === 1 && overlap2Mult === 1 && collisionRate === 0 && fullBleedOk && chunkedMediaCount === 0 && realNavOk && overflowRatio <= 1.02 && excessOverlap === 0;
+    const detOk = textCollideMult === 1 && fullBleedMult === 1 && chunkedMediaMult === 1 && realNavMult === 1 && hOverflowMult === 1 && overlap2Mult === 1 && collisionRate === 0 && fullBleedOk && chunkedMediaCount === 0 && realNavOk && overflowRatio <= 1.02 && excessOverlap === 0 && voidCount === 0;
     const ok = report.composite >= 0.99 && report.atTarget && peOk && respOk && detOk;
     const peStr = report.perElement ? ` perElement{color ${report.perElement.color} typo ${report.perElement.typography} pos ${report.perElement.position} text ${report.perElement.text} effects ${report.perElement.effects} cov ${report.perElement.coverage}}` : ' perElement(SSIM-only)';
     const respStr = report.useResponsive ? ` responsive{score ${report.responsive.score} edge ${report.responsive.edgeSet} layout ${report.responsive.layout} cov ${report.responsive.coverage}${report.responsive.subprocessScore != null ? ` subproc ${report.responsive.subprocessScore}` : ''}}` : ' responsive(off)';
-    const detStr = ` detectors{textCollide ${textCollideMult} fullBleed ${fullBleedMult} chunkedMedia ${chunkedMediaMult} realNav ${realNavMult} hOverflow ${hOverflowMult}(ratio ${overflowRatio}) overlap2 ${overlap2Mult}(excess ${excessOverlap}) → ${detOk ? 'no-op' : 'FIRED (drift!)'}}`;
+    const detStr = ` detectors{textCollide ${textCollideMult} fullBleed ${fullBleedMult} chunkedMedia ${chunkedMediaMult} realNav ${realNavMult} hOverflow ${hOverflowMult}(ratio ${overflowRatio}) overlap2 ${overlap2Mult}(excess ${excessOverlap}) contentVoid ${voidCount} → ${detOk ? 'no-op' : 'FIRED (drift!)'}}`;
     console.log(`SELFTEST composite ${report.composite} atTarget ${report.atTarget}${peStr}${respStr}${detStr} → ${ok ? 'PASS (judge consistent)' : 'FAIL (grader drift!)'}`);
     process.exit(ok ? 0 : 1);
   }
@@ -580,5 +801,6 @@ async function capture(ctx, target, withSections) {
   if (report.blockMisses.length) console.log('block-type misses (source → clone): ' + report.blockMisses.map((b) => `${b.block} ${b.source}→${b.clone}`).join(', '));
   if (DET_MASTER) console.log(`detectors: collisionRate ${report.collisionRate} (×${textCollideMult}) · fullBleedOk ${report.fullBleedOk} (src ${fbRaw.srcFrac}/clone ${fbRaw.cloneFrac}, ×${fullBleedMult}) · chunkedMediaCount ${report.chunkedMediaCount} (×${chunkedMediaMult}) · realNavOk ${report.realNavOk} (src ${rnRaw.srcReal}/clone ${rnRaw.cloneReal}, ×${realNavMult})`);
   if (DET_MASTER) console.log(`reality: hOverflow ratio ${report.overflowRatio} (cloneScrollW ${hoRaw.cloneScrollW}/srcScrollW ${hoRaw.srcScrollW}/denom ${hoRaw.denom}, ×${hOverflowMult}) · widgetOverlap excess ${report.excessOverlap} (clone ${woClone.overlapFrac}@${woClone.pairs}pairs / src ${woSrc.overlapFrac}@${woSrc.pairs}pairs, ×${overlap2Mult})`);
+  if (DET_VOIDPENALTY) { console.log(`content-void: ${voidCount} band(s) penalized (cap ${VOID_CEIL})`); for (const b of voidBands) console.log(`  §${b.idx} y${b.y0}-${b.y1} srcEnergy ${b.srcEnergy} cloneEnergy ${b.cloneEnergy} → visual ${b.visualPreVoid}→${b.visual}`); }
   console.log('top defects:'); for (const d of report.rankedDefects.slice(0, 6)) console.log(`  §${d.section} y${d.yRange[0]}-${d.yRange[1]} sev ${d.severity} [${d.fails.join('+')}: ${d.why.join(',')}] vis ${d.visual} edit ${d.editability}${d.example ? ' e.g. "' + d.example + '"' : ''}`);
 })();
