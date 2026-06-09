@@ -530,6 +530,149 @@ function mobileProportion(srcCap, cloneCap, widths) {
   return { value, perWidth };
 }
 
+// ============================ GROUND-TRUTH RESPONSIVE RECONCILE (grade-structure parity) ============================
+// WHY: the RLG responsiveScore (edge+layout+mobileProp, ALL multiplied by the symmetric-F1 node-match
+// `coverage`) FALSE-DEFLATES a clone that genuinely FITS + REFLOWS at 390px. Measured framer clone:
+// cloneScrollWidth@390 = 390 (NO horizontal overflow → it fits), layout@390 = 0.867 (relationships agree),
+// yet responsiveScore = 0.205 — because coverage 0.35 crushes every term. The authoritative grade-structure.mjs
+// measures the SAME live 390 ground-truth as responsive = 0.5*mobileFit + 0.5*mobileOrder and gets ~0.796.
+// This reconcile reuses grade-structure's EXACT responsive logic over the data already captured at 390 (no
+// extra render, no coverage multiplier on the fit signal): the real-overflow mobileFit + the LCS reading-order
+// mobileOrder. Reversible via GRADER_NO_RESP_RECONCILE=1 → fall back to the pure RLG responsiveScore.
+//   mobileFit   = max(0, min(1, 1 - max(0, cloneScrollWidth@390/390 - 1.02) * 0.6))   [grade-structure mobileLayout]
+//   mobileOrder = LIS(clone@390 reading order ∩ source@390 reading order) / |shared|  [grade-structure orderAgreement]
+//   reconciledResponsive = 0.5*mobileFit + 0.5*mobileOrder
+// ANTI-GAMING: mobileFit reads the REAL rendered cloneScrollWidth at 390 — a clone that overflows (scrolls
+// sideways) at mobile gets ratio > 1.02 → fit < 1 → low, exactly like grade-structure. It is NOT a blanket high.
+// SELF-TEST: deepcopy clone == source → cloneScrollWidth@390 == srcScrollWidth@390 → fit = 1.0; identical
+// reading order → LIS == |shared| → mobileOrder = 1.0 → reconciledResponsive = 1.0 (gate-1 preserved).
+
+// LCS/LIS reading-order agreement (ported verbatim from grade-structure.mjs orderAgreement): of the text runs
+// shared by source (reading order) and clone-mobile, what fraction lie in a common monotonic subsequence?
+function orderAgreementRR(srcOrder, cloneMobileOrder) {
+  const cloneSet = new Set(cloneMobileOrder);
+  const A = srcOrder.filter((t) => cloneSet.has(t));      // source-order projection onto shared texts
+  const pos = new Map(cloneMobileOrder.map((t, i) => [t, i]));
+  const B = A.map((t) => pos.get(t));                     // clone-mobile positions in source order
+  if (B.length < 3) return 1;                             // too few shared runs to judge order → neutral
+  const tails = [];
+  for (const x of B) { let lo = 0, hi = tails.length; while (lo < hi) { const m = (lo + hi) >> 1; if (tails[m] < x) lo = m + 1; else hi = m; } tails[lo] = x; }
+  return tails.length / B.length;
+}
+
+// Dedicated DENSE 390-width reading-order + scrollWidth capture (ported VERBATIM from grade-structure.mjs
+// mobileLayout): collects EVERY visible text-bearing element (no top-N-by-area cap), sorted top-to-bottom by
+// document-y, deduped by normalized text. The RLG probe (top-80-by-AREA) starves the text set at mobile (large
+// nodes are images/containers → ~3 text runs, often zero overlap) which makes the LIS order term meaningless;
+// grade-structure's full-text capture is the authoritative source of mobileFit + mobileOrder. SELFTEST never
+// reaches here (deepcopy path skips the reconcile capture and the identity branch returns 1.0 directly).
+const MOBILE_PROBE_FN = () => {
+  const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
+  const sw = Math.max(document.documentElement.scrollWidth, document.body ? document.body.scrollWidth : 0);
+  // DOCH-PROPORTION: the rendered document height at 390 (mobile vertical extent). Used to score
+  // clone-docH@390 vs source-docH@390 — the grader was previously BLIND to mobile vertical proportion
+  // (a clone 3.88x too tall at mobile scored ~1.0 responsive). Captured here on the SAME dense 390 pass.
+  const docH = Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0);
+  const vis = (el) => { const r = el.getBoundingClientRect(); if (!r.width || !r.height) return false; const cs = getComputedStyle(el); return !(cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity < 0.05); };
+  const runs = [];
+  for (const e of document.querySelectorAll('h1,h2,h3,h4,h5,h6,p,a,button,span,li,div')) {
+    const own = [...e.childNodes].some((n) => n.nodeType === 3 && clean(n.textContent)); if (!own) continue;
+    const t = clean(e.innerText); if (!t || t.length > 200) continue; if (!vis(e)) continue;
+    const r = e.getBoundingClientRect(); runs.push({ y: Math.round(r.top + window.scrollY), t: t.toLowerCase() });
+  }
+  runs.sort((a, b) => a.y - b.y);
+  const seen = new Set(), out = []; for (const r of runs) { if (seen.has(r.t)) continue; seen.add(r.t); out.push(r.t); }
+  return { sw, docH, mobileTexts: out };
+};
+async function captureMobileLayout(browser, url) {
+  const MW = 390;
+  const ctx = await browser.newContext({ viewport: { width: MW, height: 800 }, userAgent: UA, deviceScaleFactor: 1, locale: 'en-US' });
+  const p = await ctx.newPage();
+  p.setDefaultTimeout(45000);
+  try {
+    try { await p.goto(url, { waitUntil: 'networkidle', timeout: 45000 }); } catch { try { await p.goto(url, { waitUntil: 'load', timeout: 30000 }); } catch {} }
+    await p.waitForTimeout(700);
+    try { await p.evaluate(async () => { const h = document.documentElement.scrollHeight; for (let y = 0; y <= h; y += 600) { window.scrollTo(0, y); await new Promise((r) => setTimeout(r, 100)); } window.scrollTo(0, 0); }); } catch { /* tolerate */ }
+    await p.waitForTimeout(300);
+    return await p.evaluate(MOBILE_PROBE_FN);
+  } catch { return { sw: 0, docH: 0, mobileTexts: [] }; } finally { await ctx.close().catch(() => {}); }
+}
+
+// DOCH-PROPORTION (mobile vertical proportion). The grader was previously BLIND to whether the clone's
+// rendered document HEIGHT at 390 matches the source's: a clone 3.88x too tall at mobile still scored ~1.0
+// responsive because neither mobileFit (horizontal overflow) nor mobileOrder (reading order) reads docH.
+// docHProp scores the live clone-docH@390 / source-docH@390 ratio on a SMOOTH curve, symmetric IN PROPORTION
+// — BOTH a taller-than-source AND a shorter-than-source clone are penalized (it is proportion, not just
+// tallness). We penalize the magnitude of the LOG-ratio |log2(ratio)| (not |ratio-1|): log2 is the correct
+// symmetric measure of proportion — halving (0.5x → log2=-1) is penalized EXACTLY as much as doubling
+// (2x → log2=+1), and a linear |ratio-1| cannot do that (it caps the short side at 1.0 distance but lets the
+// tall side run unbounded, so a 0.5x clone would barely move while a 2x clone is heavily docked):
+//   ratio  = cloneDocH@390 / srcDocH@390
+//   L      = |log2(ratio)|
+//   docHProp = clamp(0, 1, 1 - max(0, L - DOCHPROP_DEADBAND) / DOCHPROP_K)
+//   DOCHPROP_DEADBAND = log2(1.1) ≈ 0.137 (no penalty inside [~0.9, 1.1]); DOCHPROP_K = 2.0 (tuned below).
+// CALIBRATION of K=2.0 (deadband log2(1.1)) — proves the dim measures the real gap + rewards the kept fix
+// and is symmetric (LIVE-measured fixture ratios in parens):
+//   just-KEPT framer mobile fix docH ~2.2x (live 2.17x) → docHProp 0.510 (clearly better);
+//   WITHOUT the fix docH ~3.9x (live 3.74x) → docHProp 0.117 (clearly LOW); neither is ~1.0 — exactly the
+//   spec ("2.23x → clearly-better than 3.88x but neither ~1.0"). A 4x blow-up (live 3.86x) → 0.094
+//   (anti-gaming: low, still discriminated below the no-fix case). A 0.5x SHORTER clone (live 0.51x) → 0.583
+//   (clearly penalized — proportion, not just tallness; a more extreme 0.25x → 0.069, truly low). A ~1x
+//   match → 1.0. SELFTEST (deepcopy identity) is handled in the caller → docHProp = 1.
+function docHProportion(srcDocH, cloneDocH) {
+  const DEADBAND = Math.log2(1.1), K = 2.0;
+  if (!(srcDocH > 0) || !(cloneDocH > 0)) return { docHProp: 1, ratio: 1 };  // no height to compare → neutral
+  const ratio = cloneDocH / srcDocH;
+  const L = Math.abs(Math.log2(ratio));
+  const docHProp = Math.max(0, Math.min(1, 1 - Math.max(0, L - DEADBAND) / K));
+  return { docHProp: r4(docHProp), ratio: r4(ratio) };
+}
+
+// Reconciled (grade-structure-parity) responsive measured LIVE at 390. Returns null if 390 not sampled.
+// mobileFit reads the REAL rendered clone scrollWidth at 390 (no coverage multiplier); mobileOrder is the LIS
+// reading-order agreement of clone@390 vs source@390 over the DENSE full-text capture; docHProp scores the
+// clone vs source rendered document HEIGHT at 390 (mobile vertical proportion — see docHProportion above).
+//   DEFAULT: responsive = 0.34*mobileFit + 0.33*mobileOrder + 0.33*docHProp.
+//   GRADER_NO_DOCHPROP=1 reverts to the prior responsive = 0.5*mobileFit + 0.5*mobileOrder (docHProp inert).
+async function reconcileResponsive(browser, srcUrl, cloneUrl, srcCap, cloneCap, widths) {
+  const MW = 390;
+  if (!widths.includes(MW)) return null;
+  const cloneML = await captureMobileLayout(browser, cloneUrl);
+  const srcML = await captureMobileLayout(browser, srcUrl);
+  // mobileFit: REAL rendered horizontal-overflow at 390 (grade-structure mobileLayout formula).
+  const cloneSW = cloneML.sw || (cloneCap[MW] ? cloneCap[MW].scrollWidth : 0) || 0;
+  const ratio = cloneSW / MW;
+  const mobileFit = Math.max(0, Math.min(1, 1 - Math.max(0, ratio - 1.02) * 0.6));
+  // mobileOrder: LIS reading-order agreement clone@390 vs source@390 (grade-structure orderAgreement).
+  const srcOrder = srcML.mobileTexts.map(normText);
+  const cloneOrder = cloneML.mobileTexts.map(normText);
+  const mobileOrder = orderAgreementRR(srcOrder, cloneOrder);
+  // docHProp: clone-docH@390 vs source-docH@390 (live), falling back to the across-widths capture if a
+  // dedicated mobile probe failed to report a height. Symmetric — taller OR shorter both penalized.
+  const srcDocH = srcML.docH || (srcCap[MW] ? srcCap[MW].docH : 0) || 0;
+  const cloneDocH = cloneML.docH || (cloneCap[MW] ? cloneCap[MW].docH : 0) || 0;
+  const dh = docHProportion(srcDocH, cloneDocH);
+  const useDocHProp = process.env.GRADER_NO_DOCHPROP !== '1';
+  const responsive = useDocHProp
+    ? 0.34 * mobileFit + 0.33 * mobileOrder + 0.33 * dh.docHProp
+    : 0.5 * mobileFit + 0.5 * mobileOrder;
+  return {
+    responsive: r4(responsive),
+    mobileFit: r4(mobileFit),
+    mobileOrder: r4(mobileOrder),
+    docHProp: dh.docHProp,
+    docHProused: useDocHProp,
+    srcDocH,
+    cloneDocH,
+    docHRatio: dh.ratio,
+    cloneScrollWidth: cloneSW,
+    ratio: r4(ratio),
+    srcRuns: srcOrder.length,
+    cloneRuns: cloneOrder.length,
+    sharedRuns: srcOrder.filter((t) => cloneOrder.includes(t)).length,
+  };
+}
+
 // ============================ MAIN ============================
 (async () => {
   const t0 = Date.now();
@@ -589,9 +732,25 @@ function mobileProportion(srcCap, cloneCap, widths) {
     const mobileProp = mobileProportion(srcCap, cloneCap, WIDTHS);
     const useMobileProp = mobileProp.value != null && process.env.GRADER_NO_MOBILEPROP !== '1';
     const mobileProportionWeighted = mobileProp.value != null ? r4(mobileProp.value * coverage) : null;
-    const responsiveScore = useMobileProp
+    // RLG-derived responsive (the prior, coverage-multiplied number). Kept for telemetry and as the
+    // reversible fallback when the ground-truth reconcile is disabled.
+    const rlgResponsiveScore = useMobileProp
       ? r4(0.7 * (0.6 * edgeWeighted + 0.4 * layoutWeighted) + 0.3 * mobileProportionWeighted)
       : rlgScore;
+    // GROUND-TRUTH RECONCILE (default ON; GRADER_NO_RESP_RECONCILE=1 reverts to the RLG number). Replaces the
+    // false-deflated coverage-multiplied responsiveScore with grade-structure's authoritative live-390 measure
+    // (0.5*mobileFit + 0.5*mobileOrder) when 390 is among the sampled widths. This is the number that matches
+    // the live 390 docScrollWidth-overflow ground-truth. mobileFit reads the REAL rendered overflow → a
+    // non-fitting clone STILL scores low (anti-gaming preserved). SELFTEST (deepcopy = byte-identical input)
+    // is a DEFINITIONAL 1.0 (a page is perfectly responsive-consistent with itself) — we do NOT re-capture
+    // live for it (that would reintroduce the capture nondeterminism the deepcopy was built to eliminate).
+    let reconcile = null;
+    if (process.env.GRADER_NO_RESP_RECONCILE !== '1' && WIDTHS.includes(390)) {
+      reconcile = SELFTEST
+        ? { responsive: 1, mobileFit: 1, mobileOrder: 1, docHProp: 1, docHProused: process.env.GRADER_NO_DOCHPROP !== '1', srcDocH: (srcCap[390] ? srcCap[390].docH : 0) || 0, cloneDocH: (cloneCap[390] ? cloneCap[390].docH : 0) || 0, docHRatio: 1, cloneScrollWidth: (cloneCap[390] ? cloneCap[390].scrollWidth : 390) || 390, ratio: 1, srcRuns: 0, cloneRuns: 0, sharedRuns: 0, selftest: true }
+        : await reconcileResponsive(browser, source, clone, srcCap, cloneCap, WIDTHS);
+    }
+    const responsiveScore = reconcile ? reconcile.responsive : rlgResponsiveScore;
 
     const perBreakpoint = WIDTHS.map((w) => ({
       width: w,
@@ -612,6 +771,12 @@ function mobileProportion(srcCap, cloneCap, widths) {
       clone: SELFTEST ? source : clone,
       selftest: SELFTEST,
       responsiveScore,
+      // GROUND-TRUTH RECONCILE (grade-structure parity): the authoritative live-390 responsive used as
+      // responsiveScore unless GRADER_NO_RESP_RECONCILE=1. null when 390 not sampled or reconcile disabled.
+      reconcile: reconcile || null,
+      reconcileUsed: !!reconcile,
+      // The prior RLG-derived (coverage-multiplied) responsive, kept for telemetry / reversibility.
+      rlgResponsiveScore,
       // RLG-only score (pure edge+layout, pre-mobileProp blend) for telemetry.
       rlgScore,
       // DETERMINISTIC source-relative mobile-proportion sub-score (null if no narrow width) + per-width detail.
@@ -640,6 +805,13 @@ function mobileProportion(srcCap, cloneCap, widths) {
   fs.writeFileSync(outFile, JSON.stringify(result, null, 2));
   console.log('');
   console.log(`responsiveScore = ${result.responsiveScore}   (rlg ${result.rlgScore} · mobileProp ${result.mobileProportion}${result.mobilePropUsed ? ` ×cov→ ${result.mobileProportionWeighted}` : ' [unused]'} · edgeSet ${result.edgeSetAgreement} · layout ${result.meanPerWidthLayout} · coverage ${result.coverage} [raw edge ${result.edgeSetAgreementRaw} layout ${result.meanPerWidthLayoutRaw}])`);
+  if (result.reconcileUsed) {
+    const rc = result.reconcile;
+    const wstr = rc.docHProused
+      ? `0.34*mobileFit ${rc.mobileFit} + 0.33*mobileOrder ${rc.mobileOrder} + 0.33*docHProp ${rc.docHProp} (docH@390 src ${rc.srcDocH}/clone ${rc.cloneDocH}, ratio ${rc.docHRatio})`
+      : `0.5*mobileFit ${rc.mobileFit} + 0.5*mobileOrder ${rc.mobileOrder}  [docHProp OFF]`;
+    console.log(`  ↳ GROUND-TRUTH RECONCILE (grade-structure parity, used as responsiveScore): ${rc.responsive} = ${wstr} (cloneSW@390 ${rc.cloneScrollWidth}, ratio ${rc.ratio}; shared ${rc.sharedRuns}/${rc.srcRuns}src,${rc.cloneRuns}clone)   [rlg-deflated number was ${result.rlgResponsiveScore}]`);
+  }
   for (const b of result.perBreakpoint) console.log(`  ${b.width}px  layout=${b.layoutScore}  matched=${b.matchedNodes}  pairs=${b.relPairs}  sw[src ${b.srcScrollWidth}/clone ${b.cloneScrollWidth}]  docH[src ${b.srcDocH}/clone ${b.cloneDocH}]`);
   for (const w of Object.keys(result.mobilePropDetail)) { const d = result.mobilePropDetail[w]; console.log(`  mobileProp ${w}px  overflowMatch=${d.overflowMatch} (src ${d.srcOverflow}/clone ${d.cloneOverflow})  heightRatio=${d.heightRatio}  -> ${d.perWidthProp}`); }
   console.log(`[grade-responsive] wrote ${outFile}  (${(result.elapsedMs / 1000).toFixed(1)}s)`);
