@@ -143,7 +143,7 @@ async function capture(ctx, target, isSource) {
           const fam = (cs.fontFamily || '').split(',')[0].replace(/["']/g, '').trim().toLowerCase();
           const fk = `${fam}|${Math.round(fsz)}|${fw}`; fonts.set(fk, (fonts.get(fk) || 0) + 1);
           const fg = parseRGB(cs.color);
-          if (fg && fg.a > 0.3) { const bgc = bgOf(e); const rr = cratio(fg, bgc); const large = fsz >= 24 || (fsz >= 18.66 && (+fw >= 700 || fw === 'bold')); contrastPairs++; if (rr >= (large ? 3 : 4.5)) contrastPass++; else if (cfails.length < 120) cfails.push({ fg: `rgb(${Math.round(fg.r)},${Math.round(fg.g)},${Math.round(fg.b)})`, bg: `rgb(${Math.round(bgc.r)},${Math.round(bgc.g)},${Math.round(bgc.b)})`, ratio: +rr.toFixed(2), fsz: Math.round(fsz), y: Math.round(r.top + window.scrollY), text: clean(e.innerText).slice(0, 48) }); if (sat(fg) > 0.25) hasAccent = true; }
+          if (fg && fg.a > 0.3) { const bgc = bgOf(e); const rr = cratio(fg, bgc); const large = fsz >= 24 || (fsz >= 18.66 && (+fw >= 700 || fw === 'bold')); contrastPairs++; if (rr >= (large ? 3 : 4.5)) contrastPass++; else if (cfails.length < 120) cfails.push({ fg: `rgb(${Math.round(fg.r)},${Math.round(fg.g)},${Math.round(fg.b)})`, bg: `rgb(${Math.round(bgc.r)},${Math.round(bgc.g)},${Math.round(bgc.b)})`, ratio: +rr.toFixed(2), fsz: Math.round(fsz), x: Math.round(r.left), y: Math.round(r.top + window.scrollY), w: Math.round(r.width), h: Math.round(r.height), text: clean(e.innerText).slice(0, 48) }); if (sat(fg) > 0.25) hasAccent = true; }
         }
       }
     }
@@ -325,12 +325,26 @@ const refreshSource = process.argv.includes('--refresh-source');
     : 0.45 * visual + 0.45 * editability + 0.10 * designSystem;
   // FLOOR: a broken-looking page can't score high on the other dimensions alone
   if (visual < 0.5) composite = Math.min(composite, visual + 0.1);
+  // HUMAN-SALIENT DEFECT PENALTY (grader-truth, anti-overstatement) — the grader over-credits geometry and
+  // under-penalizes defects a human sees instantly. INVISIBLE TEXT: a salient heading/large run (>=18px) whose
+  // computed contrast is ~nil (<1.3). BUT computed color lies for gradient/background-clip:text (resend's hero
+  // "Email for developers" reads black via getComputedStyle yet RENDERS light) → so PIXEL-VERIFY against the actual
+  // clone screenshot: only count it invisible if the rendered bbox is genuinely FLAT (luminance range < 24). This
+  // kills the false-deflation (resend dropped 0.733->0.48 on visible-but-gradient headings). Bounded (cap 0.20).
+  const lumRange = (img, bx, by, bw, bh) => {
+    let lo = 255, hi = 0, n = 0; const x1 = Math.min(img.width, bx + bw), y1b = Math.min(img.height, by + bh);
+    for (let y = Math.max(0, by); y < y1b; y += 2) for (let x = Math.max(0, bx); x < x1; x += 2) { const i = (y * img.width + x) * 4; const L = 0.299 * img.data[i] + 0.587 * img.data[i + 1] + 0.114 * img.data[i + 2]; if (L < lo) lo = L; if (L > hi) hi = L; n++; }
+    return n ? hi - lo : 0;
+  };
+  const invisRuns = (cds.contrastFails || []).filter((f) => f.ratio < 1.3 && f.fsz >= 18 && f.w > 0 && lumRange(cln.shot, f.x, f.y, f.w, f.h) < 24);
+  const invisDefect = process.env.GRADER_NODEFECT === '1' ? 0 : Math.min(0.20, invisRuns.length * 0.04);
+  composite = composite * (1 - invisDefect);
 
   const report = {
     source, clone,
     composite: +composite.toFixed(3),
     visual: +visual.toFixed(3), editability: +editability.toFixed(3), designSystem: +designSystem.toFixed(3), responsive: responsive != null ? +responsive.toFixed(3) : null,
-    breakdown: { ssim_mean: +ssimMean.toFixed(3), exactPixel_mean: +exactMean.toFixed(3), cgm_mean: +cgmMean.toFixed(3), cgmOverDensity: cgmRes.overDensity, hRatio: +hRatio.toFixed(3), heightPenalty: +hPen.toFixed(3), textCoverage: +textCoverage.toFixed(3), editVisCoupled: +editability.toFixed(3), srcTextRuns: srcPos.length, cloneTextRuns: cln.texts.length, nativeRatio: +nativeRatio.toFixed(3), cloneWidgets: { heading: c.wHeading, text: c.wText, button: c.wButton, image: c.wImage } },
+    breakdown: { ssim_mean: +ssimMean.toFixed(3), exactPixel_mean: +exactMean.toFixed(3), cgm_mean: +cgmMean.toFixed(3), cgmOverDensity: cgmRes.overDensity, hRatio: +hRatio.toFixed(3), heightPenalty: +hPen.toFixed(3), textCoverage: +textCoverage.toFixed(3), editVisCoupled: +editability.toFixed(3), srcTextRuns: srcPos.length, cloneTextRuns: cln.texts.length, nativeRatio: +nativeRatio.toFixed(3), invisibleText: invisRuns.length, invisibleDefect: +invisDefect.toFixed(3), cloneWidgets: { heading: c.wHeading, text: c.wText, button: c.wButton, image: c.wImage } },
     designLint: { paletteFidelity: +palFid.toFixed(3), typeFidelity: +typeFid.toFixed(3), contrastPass: +contrastPass.toFixed(3), contrastPairs: cds.contrastPairs || 0, contrastFail: (cds.contrastPairs || 0) - (cds.contrastPass || 0), hasPrimary: !!hasPrimary, hasTypography: !!hasType, cloneFonts: cds.fontCount || 0, clonePalette: (cds.palette || []).length, cloneRadii: cds.radii || [] },
     responsiveDetail: responsive != null ? { mobileFit: +mobileFitV.toFixed(3), mobileOrder: +mobileOrderV.toFixed(3) } : null,
     note: 'composite = 0.35*visual + 0.35*editability + 0.10*designSystem + 0.20*responsive (3-term 0.45/0.45/0.10 fallback when responsive unavailable; visual<0.5 floors it). editability = mean over source text runs of (reproduced-as-selectable ? bandVisual(y) : 0) — coupled to visual so shredded/broken-band text earns little (un-gameable); textCoverage is the raw uncoupled diagnostic. designSystem = 0.35*paletteFidelity + 0.30*typeFidelity + 0.25*contrastPass(WCAG AA) + 0.10*completeness. responsive = 0.5*mobileFit(no 390px overflow) + 0.5*mobileOrder(clone mobile reading-order vs source, LCS).',
