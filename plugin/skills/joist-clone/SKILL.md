@@ -48,8 +48,10 @@ Verify these in order. Fail fast if any are missing — don't start the loop on 
 
 Before any hand-authoring, run the **deterministic pipeline** (`pipeline/clone-fast.mjs`): it captures the source's
 real DOM, builds a NATIVE Elementor widget tree (hybrid: editable simple sections + rastered hard sections), writes
-it to the page, and grades it — **one pass, ~3–5 min, no iteration**. On standard marketing/SaaS sites it lands
-~0.80–0.84 with real editable widgets (measured: supabase 0.844, notion 0.822, cal.com 0.803 first-try).
+it to the page, and grades it — **one pass, ~3–5 min, no iteration**. Quality is SITE-DEPENDENT, not guaranteed:
+it lands ~0.80–0.84 editable on sites that render fully headless with clean section structure (supabase 0.844,
+notion 0.822, cal.com 0.803) — but is much weaker on heavy SPAs (clerk.com 0.56 sparse; posthog.com 0.44 — only
+the first viewport rendered headless). ~0.8 is a CEILING on suitable sites, not a floor. **Always LOOK + fall back.**
 
 ```bash
 cd pipeline && npm install && npx playwright install chromium   # once

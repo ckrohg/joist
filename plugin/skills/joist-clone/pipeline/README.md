@@ -27,16 +27,27 @@ Returns the grade (composite + per-dimension) and the live URL.
 
 ## When to use this vs the vision loop
 
-- **This (deterministic):** standard marketing/SaaS landing pages — faster, editable, measured. DEFAULT.
-- **Vision loop (skill phases 1–6):** fallback when this fails (headless-unrenderable / heavily animated
-  sites), or when pixel/motion fidelity matters more than round-trip editability.
+- **This (deterministic):** DEFAULT for a first pass — faster, editable, measured. **But its quality is
+  site-dependent and NOT guaranteed (see the boundary below) — always LOOK at the result and fall back.**
+- **Vision loop (skill phases 1–6):** the fallback whenever this is weak/fails — heavy SPAs that don't fully
+  render headless, sparsely-reconstructed pages, or when pixel/motion fidelity matters over editability.
 
-## Honest boundary
+## Honest boundary (evidence-based, do NOT assume "marketing/SaaS = good")
 
-Clones standard marketing/SaaS pages to ~85% with real editable widgets. Code-heavy docs and
-motion/image-heavy sites are partially rasterized (faithful look, less editable). Not pixel-perfect or
-animation-faithful. Grades on the trustworthy grade-structure objective (visual + visual-coupled editability
-+ design-system + mobile responsive).
+Quality is **site-structure + render dependent**, measured on the trustworthy grade-structure objective
+(0–1: visual + visual-coupled editability + design-system + mobile). Two failure modes the term "marketing/SaaS"
+does NOT predict:
+
+| outcome | example (composite) | why |
+|---|---|---|
+| **Good** (~0.80–0.84, editable) | cal.com 0.80 · supabase 0.84 · notion 0.82 | renders fully in headless + clean full-width section structure |
+| **Weak** (~0.5–0.6, sparse) | clerk.com 0.56 | renders, but middle sections reconstruct sparsely |
+| **Fails** (~0.4, ~1 flat section) | posthog.com 0.44 | heavy SPA — only the initial viewport renders in headless (`pageH≈900`) |
+
+So **~0.8 is the ceiling on the sites it suits, not a floor.** ALWAYS screenshot the result and judge it by eye;
+if it's sparse, flat, or short (capture didn't render the full page), fall back to the vision loop. Code-heavy
+docs and motion/image-heavy sites are partially rasterized (faithful look, less editable). Not pixel-perfect or
+animation-faithful.
 
 ## Files
 - `clone-fast.mjs` — entry (build-hybrid → grade-structure)
