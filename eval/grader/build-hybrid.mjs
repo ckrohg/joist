@@ -180,6 +180,11 @@ function classify(sec) {
   // sections go editable) was REVERTED: it reconstructed dense code/feature sections into sparse broken native
   // widgets that LOOKED wrong despite scoring well (grader-gaming the user caught 2026-06-08).
   if (textLeaves >= 2 && mediaFrac < 0.5 && h <= 2600) return { kind: 'editable', reason: `text${textLeaves}/media${mediaFrac}/h${h}` };
+  // TALL-TEXT override (gated HYBRID_TALLTEXT) — RE-ATTEMPT of the reverted cycle-2, now that grid reconstruction
+  // + sub-block code-raster + min_height pinning exist (cycle-2 failed with bare flow → sparse broken widgets).
+  // ONLY very text-heavy, low-media tall sections (e.g. tailwind [8]: 87 text runs rastered = the #1 coverage
+  // lever). Judge by EYE with skepticism — the cycle-2 trap was "scores well, looks wrong".
+  if (process.env.HYBRID_TALLTEXT === '1' && textLeaves >= 20 && mediaFrac < 0.4 && h <= 6000) return { kind: 'editable', reason: `talltext${textLeaves}/media${mediaFrac}/h${h}` };
   return { kind: 'raster', reason: `media${mediaFrac}/text${textLeaves}/h${h}` };
 }
 
