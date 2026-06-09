@@ -44,6 +44,14 @@ function applySectionBg(set, sec) {
     set.custom_css = (set.custom_css ? set.custom_css + '\n' : '') + `selector{background-image:${sec.bgGrad}!important}`;
   }
 }
+// Wave 3b MOTION (gated HYBRID_MOTION=1) — SCROLL-REVEAL via Elementor's NATIVE entrance animation (free, no
+// custom CSS): a section fades+slides up as it scrolls into view (Elementor's frontend fires it on viewport
+// entry → grade-motion's scroll-trajectory detector sees opacity 0→1 + translateY collapse = a reveal). The #1
+// source motion class (67% of SaaS pages). Skip nav/footer (they're above/below the fold reveal band).
+function applyEntranceMotion(set, sec) {
+  if (process.env.HYBRID_MOTION !== '1' || (sec && (sec.isNav || sec.isFooter))) return;
+  set.animation = 'fadeInUp'; set.animation_duration = 'fast';
+}
 function leafToWidget(n) {
   if (n.kind === 'image') { const url = n.url || n.src; if (!url) return null; const s = { image: { url }, image_size: 'full' }; if (n.box && n.box.w > 4) s.width = { unit: 'px', size: Math.round(n.box.w) }; return { elType: 'widget', widgetType: 'image', settings: s }; }
   const text = stripEmoji(n.text); if (!text) return null;
@@ -128,7 +136,7 @@ function buildGridSection(sec, grid) {
   const leftovers = (sec.leaves || []).filter((l) => l.box && l.box.w > 0 && !placed.has(l)).sort((a, b) => a.box.y - b.box.y);
   for (const lf of leftovers) { const w = leafToWidget(lf); if (w) els.push(w); }
   const set = { content_width: 'full', flex_direction: 'column', flex_gap: dim(12), flex_align_items: 'center', flex_justify_content: 'center', min_height: { unit: 'px', size: Math.round(sec.h) }, padding: { unit: 'px', top: '24', right: '24', bottom: '24', left: '24', isLinked: false } };
-  applySectionBg(set, sec);
+  applySectionBg(set, sec); applyEntranceMotion(set, sec);
   return { elType: 'container', settings: set, elements: els };
 }
 
@@ -152,7 +160,7 @@ function buildEditableSection(sec) {
   const cx = sec.leaves.map((l) => l.box.x + l.box.w / 2); const meanCx = cx.reduce((a, b) => a + b, 0) / Math.max(1, cx.length);
   const centered = Math.abs(meanCx - W / 2) < W * 0.12;
   const set = { content_width: 'full', flex_direction: 'column', flex_gap: dim(12), flex_align_items: centered ? 'center' : 'flex-start', flex_justify_content: 'center', min_height: { unit: 'px', size: Math.round(sec.h) }, padding: { unit: 'px', top: '24', right: '24', bottom: '24', left: '24', isLinked: false } };
-  applySectionBg(set, sec);
+  applySectionBg(set, sec); applyEntranceMotion(set, sec);
   return { elType: 'container', settings: set, elements: widgets };
 }
 

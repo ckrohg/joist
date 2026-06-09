@@ -15,6 +15,7 @@
 import { chromium } from 'playwright';
 import { PNG } from 'pngjs';
 import fs from 'fs';
+import { dominantBoxBg } from './_bgsample.mjs';
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 const arg = (n, d = null) => { const i = process.argv.indexOf('--' + n); return i > -1 && process.argv[i + 1] ? process.argv[i + 1] : d; };
 const source = arg('source'); const out = arg('out', './layout.json'); const width = parseInt(arg('width', '1440'), 10);
@@ -455,6 +456,28 @@ function cropPng(png, box, dpr) {
       return first;                                                        // none loaded → keep the legacy first family
     };
     const nz = (v) => v && v !== 'none' && v !== 'normal' && !/^(rgba\(0, 0, 0, 0\)|0px)/.test(v);
+    // SHADOW NORMALIZER (whitepill-shadow fix): the legacy `nz(cs.boxShadow)` used the `^`-anchored regex above,
+    // which DROPS any box-shadow whose SERIALIZED form leads with `rgba(0, 0, 0, 0)` or `0px` — i.e. exactly the
+    // Tailwind `ring` composite (`--tw-shadow, --tw-ring-offset-shadow, <ring>`) where the first 1-2 layers are
+    // transparent placeholders and the LAST layer is the real visible inset ring
+    // (`rgb(217,219,227) 0px 0px 0px 1px inset` on react.dev's white-pill CTA). The whole multi-layer shadow was
+    // zeroed → the pill chrome was lost at capture → the clone rendered the CTA as bare bold text. shadowOf splits
+    // the computed value into LAYERS (commas outside parens), drops fully-transparent layers AND layers with all-
+    // zero geometry (no offset/blur/spread → no visible pixels), and keeps the meaningful layer(s). A genuinely
+    // shadow-less element (nav links: `boxShadow:none`) still yields null → no false signal. This recovers the
+    // distinguishing ring on the pill that nav links do NOT have. Reversible at the BUILD side (BUILD_NO_WHITEPILL).
+    const shadowOf = (v) => {
+      if (!v || v === 'none') return null;
+      const layers = []; let depth = 0, cur = '';
+      for (const ch of v) { if (ch === '(') depth++; else if (ch === ')') depth--; if (ch === ',' && depth === 0) { layers.push(cur.trim()); cur = ''; } else cur += ch; }
+      if (cur.trim()) layers.push(cur.trim());
+      const keep = layers.filter((L) => {
+        if (/rgba\(\s*0\s*,\s*0\s*,\s*0\s*,\s*0\s*\)/.test(L)) return false;      // fully-transparent layer → invisible
+        const nums = (L.match(/-?\d*\.?\d+px/g) || []).map((s) => parseFloat(s)); // offset-x/y, blur, spread
+        return nums.some((n) => Math.abs(n) > 0.001);                            // all-zero geometry → no pixels
+      });
+      return keep.length ? keep.join(', ') : null;
+    };
     // backdrop-filter (glassmorphism blur etc) — captured for the EFFECTS sub-score (presence). vendor-prefixed too.
     const bdfOf = (cs) => { const v = cs.backdropFilter || cs.getPropertyValue('-webkit-backdrop-filter') || cs.getPropertyValue('backdrop-filter') || ''; return nz(v) ? v : null; };
     // CRITICAL: do NOT pass contentVisibilityAuto:true to checkVisibility. Modern sites (picocss.com,
@@ -729,7 +752,7 @@ function cropPng(png, box, dpr) {
           ctaPad = [cs.paddingTop, cs.paddingRight, cs.paddingBottom, cs.paddingLeft];
         }
       }
-      return { kind: isH ? 'heading' : (isBtn ? 'button' : 'text'), tag, level: isH ? +tag[1] : null, text: t, href: isBtn && el.href ? el.href : null, paint: paintOf(cs), typo: typo(cs), box, bg: (cs.backgroundColor !== 'rgba(0, 0, 0, 0)' ? cs.backgroundColor : null), bgImage: ctaBgImage, border: ctaBorder, btnPad: ctaPad, radius: cs.borderTopLeftRadius, boxShadow: nz(cs.boxShadow) ? cs.boxShadow : null, backdropFilter: bdfOf(cs), interactive: Object.keys(ia).length ? ia : null, cfx };
+      return { kind: isH ? 'heading' : (isBtn ? 'button' : 'text'), tag, level: isH ? +tag[1] : null, text: t, href: isBtn && el.href ? el.href : null, paint: paintOf(cs), typo: typo(cs), box, bg: (cs.backgroundColor !== 'rgba(0, 0, 0, 0)' ? cs.backgroundColor : null), bgImage: ctaBgImage, border: ctaBorder, btnPad: ctaPad, radius: cs.borderTopLeftRadius, boxShadow: shadowOf(cs.boxShadow), backdropFilter: bdfOf(cs), interactive: Object.keys(ia).length ? ia : null, cfx };
     }
     // ─── WAVE-5 #4 SYMMETRIC DECORATIVE-FRAGMENT MERGE (completeness fix) ─────────────────────────────
     // WHY: the per-element grader (perelement-score.mjs) flattens this box-tree into a leaf+container node
@@ -1640,7 +1663,23 @@ function cropPng(png, box, dpr) {
     // PAINTED BACKGROUND sampling: computed-style bgOf() misses backgrounds on pruned/wrapper containers
     // (the dark code-editor panel rendered as white → ΔE-81 bands). Sample the MODAL color from the actual
     // screenshot pixels in each container's box (bg dominates by area) → faithful panel/section backgrounds.
-    const modalBg = (box) => { const W = png.width, H = png.height; const x0 = Math.max(0, (box.x * dpr) | 0), y0 = Math.max(0, (box.y * dpr) | 0), x1 = Math.min(W, ((box.x + box.w) * dpr) | 0), y1 = Math.min(H, ((box.y + box.h) * dpr) | 0); if (x1 - x0 < 16 || y1 - y0 < 16) return null; const buckets = new Map(); const sx = Math.max(2, ((x1 - x0) / 50) | 0), sy = Math.max(2, ((y1 - y0) / 50) | 0); let tot = 0; for (let y = y0; y < y1; y += sy) for (let x = x0; x < x1; x += sx) { const i = (y * W + x) * 4; const k = (png.data[i] >> 4) + ',' + (png.data[i + 1] >> 4) + ',' + (png.data[i + 2] >> 4); buckets.set(k, (buckets.get(k) || 0) + 1); tot++; } let best = null, bc = 0; for (const [k, c] of buckets) if (c > bc) { bc = c; best = k; } if (!best || bc / tot < 0.45) return null; const [r, g, b] = best.split(',').map((n) => +n * 16 + 8); return `rgb(${r}, ${g}, ${b})`; };
+    // modalBg → dominantBoxBg (exported pure helper in _bgsample.mjs). The vertical-discontinuity guard makes a
+    // wrapper container that spans a light region over a dark region (tailwind §9 "Ship faster and smaller" headline
+    // sitting above the dark code-editor panel) ABSTAIN instead of over-painting the whole wrapper with the dark
+    // sub-region's modal colour. OPT-IN (default OFF, byte-identical to the pre-2026-06-09 path): enable with
+    // CAPTURE_SPLITBG=1. RATIONALE for opt-in (2026-06-09): a capture A/B confirmed it correctly drops the dark
+    // over-paint on the §9 wrapper, BUT that wrapper is the ONLY container carrying the §10 code-editor's dark bg
+    // (the clone collapsed headline+editor into one flat wrapper — see memory tailwind_bg_overpaint_structural), so
+    // abstaining also turns the editor white. That is a NET fidelity TRADEOFF (fixes §9, de-themes §10) whose sign
+    // needs a full rebuild+grade corpus-regression to settle — not run-able tonight. Kept opt-in until then; the
+    // real fix is structural (split the wrapper / raster the editor). Reversible/legacy also via CAPTURE_LEGACY=1.
+    const SPLIT_GUARD = process.env.CAPTURE_LEGACY !== '1' && process.env.CAPTURE_SPLITBG === '1';
+    const modalBg = (box) => {
+      const W = png.width, H = png.height;
+      const x0 = Math.max(0, (box.x * dpr) | 0), y0 = Math.max(0, (box.y * dpr) | 0), x1 = Math.min(W, ((box.x + box.w) * dpr) | 0), y1 = Math.min(H, ((box.y + box.h) * dpr) | 0);
+      const px = (x, y) => { const i = (y * W + x) * 4; return [png.data[i], png.data[i + 1], png.data[i + 2]]; };
+      return dominantBoxBg(px, x0, y0, x1, y1, { splitGuard: SPLIT_GUARD });
+    };
     let bgSamp = 0; const sampleBg = (n) => { if (!n) return; if (n.kind === 'container') { if (n.box && n.box.w >= 140 && n.box.h >= 44) { const c = modalBg(n.box); if (c) { n.bgSampled = c; bgSamp++; } } (n.children || []).forEach(sampleBg); } }; sampleBg(data.root);
     console.log(`  painted-bg sampled on ${bgSamp} containers`);
     // CAPTURE_BANDBG (default OFF ⇒ byte-identical) — GUTTER-SAMPLED top-level band backgrounds. modalBg samples a

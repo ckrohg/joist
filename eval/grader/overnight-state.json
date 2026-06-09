@@ -3,8 +3,8 @@
   "goal": "Clone ANY site into a round-trip-editable Elementor page, perfectly 1:1, via a self-grading autonomous flywheel that improves across ALL metrics (including ones not yet enumerated) until the 30h deadline.",
   "startedEpoch": 1780473749,
   "startedHuman": "Wed Jun  3 01:02:29 PDT 2026",
-  "deadlineEpoch": 1781038356,
-  "deadlineHuman": "Sat Jun 6 09:02:29 PDT 2026 (extended +30h from Fri 03:02 per user 2026-06-04, post-wifi-outage)",
+  "deadlineEpoch": 1781059956,
+  "deadlineHuman": "2026-06-10T02:52:36.000Z (=+6h, user approved 2026-06-09 to run tiler lazy-void de-deflation properly)",
   "budgetHours": 80,
   "deadlineHistory": "Started 30h (deadline Thu Jun 4 07:02). EXTENDED +20h -> 50h total, new deadline Fri Jun 5 03:02:29 PDT (epoch 1780653749). Heartbeat reads deadlineEpoch from this manifest, so the extension takes effect immediately; no cron change needed. | +30h post-wifi-outage 2026-06-04 -> deadlineEpoch 1780761749 (Sat Jun 6 09:02 PDT), 80h total. Heartbeat reads deadlineEpoch from this manifest so it takes effect immediately; no cron change needed.",
   "phase": 5,
@@ -49,15 +49,7 @@
   "corpusNote7": "BROADENED to 7 sites after probe wave 2 (round 36). Added react.dev (0.765 in-band, docs vertical: code/nav/tables — isolates the dark-code-block-bg defect cleanly). HELD OUT stripe (0.657, dynamic-capture tail) from the gated corpus to avoid dynamic noise + round-slowdown; its gaps logged in stripeSentinel. Generalization CONFIRMED on a 3rd/4th fresh site + a novel vertical.",
   "stripeSentinel": "stripe.com probe (page 4770) composite 0.657 — pipeline ran clean (287 leaves, hRatio 1.029, no crash) so recipes generalize STRUCTURALLY, but: visual 0.695 (animated gradient hero / scroll carousels / live $1.9T counter = JS-animation content the static V3 builder can't author), struct 0.5 (lost 1/2 lists, 0/1 accordion, + emitted a PHANTOM form). New gaps for targeted/supervised work: (a) accordion authoring recipe; (b) block-emission PRECISION (suppress phantom blocks not in source); (c) dynamic/animated-content tail (headed-capture / motion). NOT added to gated corpus (dynamic noise).",
   "corpusNote": "BROADENED to 6 sites after round-28 generalization probe (linear 0.851, vercel 0.791 — both in-band, recipes generalize). linear=dark-theme + high-water anchor; vercel=tabs/structural stressor. NOTE: cross-round mean shifts ~0.751->~0.77 purely from adding 2 high-scoring sites (composition, NOT a fix gain). Gate compares baseline-vs-after on the SAME 6 sites each round, so within-round verdicts stay honest. directed-fix.workflow.js + discovery.workflow.js SITES updated to 6.",
-  "currentRound": {
-    "n": "fix-annotation-label-blackbox",
-    "engine": "Workflow diagnose->fix+gate->verify (3 agents, vision/screenshot-gated)",
-    "taskId": "w0oc68nlf",
-    "status": "running",
-    "launchedEpoch": 1781011820,
-    "note": "FIX-LIST #11 from tailwind cheap-recon: faint-gray utility-class annotation labels render as SOLID BLACK BOXES in clone (code-panel #3 / card-chrome #5 / band-bg over-applying dark bg to tiny inline monospace class-hints). Diagnose which mechanism over-fires, tighten trigger (require genuine multi-line/min-area/real-dark-bg code panel), KEEP genuine resend/linear code panels dark (regression guard). Screenshot-gated, reversible, scoped, adversarial-verified.",
-    "runId": "wf_96ac69b6-0a2"
-  },
+  "currentRound": null,
   "flowAbsSurvivalUnknown": "PREREQ for the linear overlay fix (next round): the diagnostic found 0/528 live elements are position:absolute on the FLOW clone (pages 5404/5405 on sg-host) -> build-flow's EXISTING leaf-overlay abs path (build-flow.mjs ~line 771) is NOT rendering as absolute on the frontend. YET build-absolute achieves hRatio ~1.0 via abs on the SAME sg-host stack -> abs CAN work. So before/with the linear buildOverlay() fix (abs-layer the z-overlapped chart+card container children, currently flowed into a column stack = 51% of linear's page excess), RESOLVE why build-flow's abs is stripped/not-applying (diff build-flow's abs-emission vs build-absolute's working mechanism — likely different setting keys or a missing position:relative parent). Fallback if abs truly can't survive in flow: clip the over-tall chart subtree as a sized/clipped html widget to box.h (the kind:code line-282 overflow-cap recipe). Do NOT widen the z-overlay IoU gate (only 16% on tailwind; prior widening regressed coverage).",
   "barClassTokenPoison": "FUTURE LEVER (capture, from capture-markup-flow-gate screenshots): tailwindcss.com's hero code-as-art poison is NOT <div> markup — it's BARE UTILITY-CLASS TOKENS ('text-8xl text-gray-950 tracking-tighter text-balance ...') rendered inline with prose, no angle brackets so markupFrac=0. To strip: detect runs of >=2 consecutive hyphenated CSS-class identifiers (/^[a-z]+(-[a-z0-9]+)+$/) in a non-structural mono/decorative leaf + strip/raster them. Deferred behind the height-pin lever (the dominant one); revisit if tailwind perElement stays starved after height drift is fixed.",
   "effectsFoldResult": "ADOPTED (recovered): EFFECTS sub-score (box-shadow/border-radius/backdrop-filter, rubric cat-1.3) folded into perElement at 0.12 weight -> perElement = 0.30*color + 0.22*typo + 0.18*pos + 0.18*text + 0.12*effects (reversible GRADER_NO_EFFECTS=1 -> prior 0.35/0.25/0.20/0.20). self-test=1.0 both modes (effects=1.0, 15 samples non-vacuous), independent-verified, A/B reconciles. The 1st run was wrongly reverted by the ^OK: guard bug; fixed guard -> 2nd run adopted. Both builders now have a shadow/radius/blur fidelity target. plateauStreak stays (grader change, not a cloner gain).",
@@ -291,7 +283,7 @@
       "buildAttempt": "span-extension REJECTED (linear -0.065); the multi-col reflow grid already exists in cardRows/bentogrid; child-span did not pay off. The grid lever is largely already realized — do NOT re-attempt span without a different approach."
     }
   ],
-  "lastVerdict": "FIX #10 KEPT (verified): unstyled CTA buttons now render with captured fill/border/radius/padding (corpus-wide vercel/resend/supabase); anti-gaming = only genuine source-buttons styled, no blanket pills. 10 verified+reversible build fixes + 3 sound grader de-deflations this arc. linear 64.0 / resend 61.7 / vercel 45.7(pre-CTA). Fresh-site assessment strategy works (vercel surfaced CTA). Remaining: more fresh-site assessments (tailwind/reactdev/framer) OR vercel imagery (partly inherent) OR architectural frontiers. Consolidating at this strong point.",
+  "lastVerdict": "DEFERRED-OPT-IN (not a KEEP): fix-modalbg-vsplit-overpaint. capture-layout.mjs modalBg got a vertical-discontinuity guard (exported pure _bgsample.mjs dominantBoxBg; opt-in CAPTURE_SPLITBG=1, default OFF byte-identical). Self-test ALL PASS; capture A/B confirmed it abstains on the tailwind §9 dark-over-paint wrapper. BUT the clone flat-collapses headline+editor into one wrapper whose bg is the ONLY carrier of the §10 editor dark bg -> abstaining fixes §9 (white headline) but de-themes §10 (editor->white). Net fidelity sign needs full rebuild+grade (untestable tonight: react.dev blocked, framer fragile). Real fix is STRUCTURAL (split wrapper / raster editor). Shipped opt-in (zero default risk), recorded honestly. Standing: 13 KEPT build fixes + 5 grader de-deflations (+ this opt-in mechanism, not counted as a fidelity KEEP).",
   "plateauStreak": 0,
   "CEILING_AND_SUPERVISED_NEXT": "6-site corpus is at ~0.82, the achievable ceiling for the current grader (struct mostly recovered, editability ceilinged ~0.89, visual saturated ~0.82). THE #1 STRATEGIC UNLOCK is a richer VISUAL grader dimension (per-element ΔE color / font-family-match / position-drift that SSIM misses) — it would reveal + let the loop fix the real visual gaps (the 0.4-weight headroom). BUT rewriting grade-sections.mjs visual scoring is the HIGHEST-blast-radius change (a subtle error corrupts every verdict), so it is flagged as the #1 SUPERVISED next step, NOT run blind overnight. Overnight stays safe+gated: drain remaining structural backlog (#3 video-first), then broaden the corpus with a different-vertical 7th site to surface NEW fixable structural gaps.",
   "phase5backlog_wave3disc": [
@@ -3358,6 +3350,165 @@
       "round": "tailwind-recon",
       "kind": "CHEAP-RECON-found-lever",
       "result": "Token-efficient eyeball recon (2 Read calls, no 42-agent grade) on tailwind found a FRESH clean lever: tailwinds faint-gray utility-class ANNOTATION labels (text-8xl/text-base/text-gray-950/tracking-tighter -- its signature class-hints) render as SOLID BLACK BOXES in the clone (tiles 0 + 10 confirmed). Likely the code-panel fix #3 (or card-chrome #5 / band-bg dark-floor) OVER-APPLYING a dark panel bg to tiny inline MONOSPACE class-hint labels (mis-detected as code). tailwind was not in #3/#5 test sets. Recoverable: refine the code-panel detection threshold (require multi-line/min-area genuine code, not a 1-line inline annotation). Headline + CTA render fine (CTA fix #10 helping)."
+    },
+    {
+      "epoch": 1781013106,
+      "round": "fix-annotation-label-blackbox",
+      "taskId": "w0oc68nlf",
+      "kind": "FIX-LIST-11-KEPT",
+      "kept": true,
+      "rootCause": "codePanelWidget (build-absolute.mjs:523) UNCONDITIONALLY synthesized a solid dark #0b0d10 panel surface whenever n.bg==null. capture-layout mono-dominance branch (1092-1103) over-classifies tailwindcss.com's tiny INLINE monospace utility-class annotation labels (text-8xl / text-gray-950 / text-balance ...) as kind:'code'; those carry NO captured panel bg, so the render stamped a BLACK BOX behind faint near-invisible gray text. Card-chrome and band-bg do NOT fire on these leaves (confirmed: annotations carry no border/shadow/bg signal). Box HEIGHT is the reliable discriminator: annotations h=40-96, genuine panels h=412-578.",
+      "fix": "Render-side ANNOTATION-LABEL GUARD in build-absolute.mjs ONLY (reversible BUILD_NO_CODE_ANNOT_GUARD): synthesize the dark surface only for a GENUINE code panel -- genuine = hasCapturedBg || box.h>=150 || lineCount>=6. Non-genuine annotation leaves render as faint NATIVE monospace text (transparent, no box) using the captured text color. Refines fix #3 (codePanel) / #5 (card-chrome).",
+      "gate": "(a) tailwind annotation box GONE: 5 utility-class labels now parentBg rgba(0,0,0,0) transparent + faint gray text rgba(15,17,20,0.45); screenshot under 'Supported by the best.' = faint gray callouts no box. A/B with BUILD_NO_CODE_ANNOT_GUARD=1 proves those same 5 get parentBg rgb(11,13,16) black boxes -> guard is exactly what removed them. (b) NO REGRESSION: resend (2988) all 3 code panels still parentBg rgb(1.., dark); linear code panels still dark -- render-verified. (c) scoped: ONLY build-absolute.mjs modified, grade/perelement/capture byte-identical to HEAD; no h-scroll; node --check. Adversarial reviewer VERIFIED both directions (box-gone AND real-panels-intact).",
+      "impact": "Corpus-safe: removes spurious black boxes behind tiny inline monospace annotation/class-hint labels (tailwind signature; also helps any site with inline code hints) WITHOUT touching genuine multi-line/tall/captured-bg code panels (resend SDK, linear). Native selectable text preserved."
+    },
+    {
+      "epoch": 1781013389,
+      "round": "reactdev-recon",
+      "taskId": "b3w1839i1",
+      "kind": "CHEAP-RECON-found-lever",
+      "kept": null,
+      "what": "Token-light eyeball recon of reactdev (page 6730, weakest corpus site, un-vision-assessed). Rebuilt all 11 fixes + tiled (32 tiles, --anchor off, srcH==cloneH 9097, hRatio 1.0). I READ tiles 00/06/12 myself.",
+      "good": "Hero (t00): logo+heading+subtext+teal 'Learn React' CTA all render (fix #10 holding). Code sandbox (t06): genuine multi-line syntax-highlighted code panel renders in BOTH -- annotation-guard (#11) did NOT break real panels; #51/#56 intact.",
+      "lever": "FRESH CLEAN LEVER (t12): react.dev white-pill SECONDARY CTA ('</> Add React to your page') lost its white-pill chrome + leading </> code-icon -> clone renders plain BOLD TEXT. Root: fix #10 buttonPaint rejects white-on-light buttons (anti-false-pill guard accepts only solid-fill/gradient/visible-border, NOT shadow-elevated white pills). Recoverable: extend buttonPaint to accept a button with a genuine captured box-shadow (elevation) even when bg is white/near-page, with strict anti-false-pill guards (shadow||border AND padding AND short-text link/button), so white pills render WITHOUT sprouting false pills on plain links/nav.",
+      "secondary": "Lower-priority/deferred: nav logo-icon replaced by text + nav search-pill missing (interactive/functional, partly inherent)."
+    },
+    {
+      "epoch": 1781014714,
+      "round": "fix-whitepill-cta-chrome",
+      "taskId": "wnigk71u2",
+      "kind": "FIX-LIST-12-KEPT",
+      "kept": true,
+      "rootCause": "TWO-part. (1) CAPTURE BUG (the real find): capture-layout nz() used a ^-anchored regex that matched the LEADING transparent layer of a multi-layer Tailwind 'ring' box-shadow (rgba(0,0,0,0) 0 0..., rgba(0,0,0,0) 0 0..., rgb(217,219,227) 0 0 0 1px inset) and zeroed the ENTIRE shadow -> boxShadow:null at capture. This silently killed ALL multi-layer box-shadows corpus-wide, not just this button. (2) BUILD: with bg/border/shadow all null + tag=a, the leaf hit none of buttonPaint's fill/border/tag signals -> returned null -> bare-anchor plain-text fallback.",
+      "fix": "capture-layout.mjs: added shadowOf() -- splits computed box-shadow into layers (commas OUTSIDE parens), drops fully-transparent + zero-geometry layers, keeps meaningful layer(s); replaced nz(cs.boxShadow) with shadowOf(...) on button/heading leaves. build-absolute.mjs: extended buttonPaint to accept a shadow-elevated white/near-page pill (emit white bg + captured shadow + radius + padding). Reversible BUILD_NO_WHITEPILL.",
+      "antiGaming": "CRITICAL distinguishing signal: reactdev nav items (Learn/Reference/Community/Blog) ALSO have radius:9999px + padding 6/12 + short text -- a naive 'padding+radius+short-text' guard would invent 4+ spurious nav pills. The TRUE separator is the INSET RING box-shadow (rgb(217,219,227) 0 0 0 1px inset) which nav links DO NOT have. Guard requires that genuine captured shadow||border, so nav links stay plain.",
+      "gate": "reactdev 'Add React to your page' renders full white-pill chrome: bg rgb(255,255,255), boxShadow rgb(217,219,227) 0 0 0 1px inset (exact source ring), radius 9999px, pad 10px 24px (screenshot-verified). NO false pills on plain links/nav across reactdev+resend+linear+supabase; existing #10 filled CTAs intact. No h-scroll; scoped (only build-absolute.mjs + capture-layout.mjs; grade/perelement byte-identical); node --check; reversible. Adversarial reviewer VERIFIED both directions.",
+      "impact": "CORPUS-WIDE capture improvement: shadowOf() restores ALL multi-layer box-shadows (Tailwind ring composites etc.) that nz() was silently zeroing -> better elevation/chrome fidelity across many sites, not just reactdev's secondary CTA. Biggest-reach fix of the recent arc.",
+      "caveat": "</> leading icon DEFERRED (separate SVG/icon, not cheaply captured) -- did not block. Working tree also carries #11's uncommitted codePanelWidget guard (pre-existing, already KEPT, unrelated) -- commit only when user asks."
+    },
+    {
+      "epoch": 1781014837,
+      "round": "reactdev-recon-2",
+      "taskId": "inline-tile-read",
+      "kind": "CHEAP-RECON-found-lever",
+      "kept": null,
+      "what": "Token-free continuation of reactdev recon: READ lower tiles (18/26/30) of the existing /tmp/vt-rd 32-tile set (page 9097px, top third already examined). No rebuild.",
+      "findings": "t18: 'Stay true to the web' browser-chrome card renders weaker (MAYBE already partly fixed by #12 shadowOf -- needs re-tile, not chasing blind). t26: community-section photos MISSING (content-void imagery, known hard). t30: OVERLAPPING GARBLED TEXT -- source shows clean 'Escape Hatches' section header; clone STACKS 'State' + 'Escape Hatches' on top of each other.",
+      "lever": "FRESH LEVER (t30): overlapping/garbled text ('State' over 'Escape Hatches') -- directly hits user's explicit complaint 'tons of overlap' and is a glaring fidelity break. Likely two captured text leaves at near-identical (x,y) that fix #52 (concat-twin de-dupe) doesn't catch, OR a docs-topic grid the builder stacks instead of laying out. HIGH salience. Risk: positioning logic is higher-blast-radius than additive paint fixes -> needs MINIMAL targeted fix + corpus regression gate.",
+      "deferred": "community photos (content-void, hard); browser-chrome card (re-tile first to see if #12 shadowOf already helped)."
+    },
+    {
+      "epoch": 1781017419,
+      "round": "fix-reactdev-text-overlap",
+      "taskId": "wtpc326qy",
+      "kind": "FIX-LIST-13-KEPT",
+      "kept": true,
+      "overlapMode": "(b) BUILDER-COLLAPSE, not a capture error. The overlap is in the FOOTER 'Learn React' docs-topics link-grid (~y8800-9070), NOT a section header. Capture was FAITHFUL (each link leaf h31, lh30px, distinct y, no overlap, matching source docH 9097). The builder emitted footer-link <a> leaves (kind:button) pinned to single-line glyph width with ZERO slack and NO white-space:nowrap -> multi-word labels ('Managing State' h31->h47 wrap, 'Escape Hatches') wrapped to 2 lines and OVERFLOWED onto the next link (Managing State y8978+60=9038 overlapped Escape Hatches y9010, yov28/xov99).",
+      "rootCause": "Footer link columns are detected as a card-row and emitted by emitCardRow->leafWidget BEFORE the dedupe-block guards run, so a guard placed there marked the tree node TOO LATE to reach the already-emitted grid-cell widget. Also the existing headline guard's fontSize-based single-line test mis-classed line-height-driven link boxes.",
+      "fix": "NEW markLinkWrapGuard() run right after detectHeaderNav and BEFORE detectCardRows; the button branch honors _noWrap (white-space:nowrap). Guards: single-line iff box.h ~= line-height (0.5*lh <= box.h <= 1.5*lh, replacing the fontSize-based test), multi-WORD only (single-word cannot wrap), link/button leaves. Reversible flag. Files: build-absolute.mjs (+113) + capture-layout.mjs (+24).",
+      "gate": "reactdev 'Escape Hatches'/'Managing State' footer links render single-line, NO overlap (screenshot + bounding-box no-collision probe, confirmed 2 ways). NO new overlaps / structural drift across resend+linear+supabase+tailwind (bbox overlap scan + screenshot spot-check). No h-scroll. Scoped: ONLY build-absolute.mjs + capture-layout.mjs; NO grader file touched (grade-structure/perelement/grade byte-identical); node --check both. Adversarial reviewer VERIFIED.",
+      "impact": "Corpus-relevant: any site whose multi-word footer/nav links were pinned to single-line width could wrap+overlap; markLinkWrapGuard+_noWrap prevents it. Directly addresses user's explicit 'tons of overlap' complaint with a MINIMAL targeted fix (no global positioning rewrite).",
+      "caveat": "Working tree now bundles THREE uncommitted KEPT+verified fixes: #11 code-annotation guard, #12 shadowOf white-pill, #13 link-wrap guard (capture-layout.mjs + build-absolute.mjs). All independently verified. Commit only when user asks."
+    },
+    {
+      "epoch": 1781017670,
+      "round": "reactdev-retile-recon",
+      "taskId": "bh7enjana",
+      "kind": "CHEAP-RECON-validated+found-lever",
+      "kept": null,
+      "validated": "Rebuilt reactdev with all 13 fixes + re-tiled (32 tiles, hRatio 1.0). END-TO-END CONFIRMED: t30 overlap GONE (#13 -- 'State' no longer stacked on 'Escape Hatches'; residual: 'Escape Hatches' wraps to 2 legible lines, minor). t12 white-pill chrome RESTORED (#12 -- 'Add React to your page' now a white rounded pill w/ shadow; </> icon deferred as planned). t18 'Stay true to the web' browser-chrome card now ~1:1 (shadowOf #12 incidentally recovered card border/shadow) -- NO clear lever, not chasing.",
+      "lever": "NEXT LEVER (t26): reactdev community-section CONFERENCE PHOTOS still MISSING -- source shows two photos of people; clone shows WHITE SPACE (absent, not black-crop). = content-void IMAGERY, the memory-flagged 'biggest lever left: imagery region-capture'. WHITE (not black) absence suggests the <img> leaves were NOT captured at all (likely lazy-loaded below fold during headless capture, or a photo-collage grid the capture didn't traverse). HARD frontier + capture-side change = corpus blast radius -> diagnose-first, strong corpus-regression gate, defer if only a risky global capture change.",
+      "note": "3 KEPT fixes (#11/#12/#13) now validated end-to-end on reactdev. Remaining reactdev levers: missing community photos (hard), </> CTA icon (deferred), Escape-Hatches 2-line wrap (minor)."
+    },
+    {
+      "epoch": 1781021188,
+      "round": "fix-reactdev-missing-community-photos",
+      "taskId": "w87u3asah",
+      "kind": "NO-OP-confirmed + GRADER-HONESTY-DISCOVERY",
+      "kept": false,
+      "noOp": true,
+      "outcome": "NO CODE CHANGE (disk byte-identical, +113/+24 = only the prior #11/#12/#13 KEPT fixes). The 'missing community photos' was NOT a clone defect: the 4 reactdev conference photos (react_conf_fun 211x240, react_india_sunil/conf_hallway/india_hallway 320x240, all naturalWidth 800, vis:true, y7728) RENDER 1:1 in the live clone. TRIPLE-CONFIRMED: fix+gate agent DOM-probe + my INDEPENDENT DOM-probe + my direct ELEMENT-SCREENSHOT of react_conf_hallway (shows a real photo of two people at a React conf). The fix+gate correctly REFUSED to 'fix' non-missing content (emitting off-screen marquee dupes would inject phantom images + risk h-scroll) and returned VERDICT: KEPT with zero diff.",
+      "discovery": "GRADER-HONESTY BUG: the vision-tiler (grade-vision-tiles.mjs) screenshots the CLONE without scroll-triggering the clone's OWN lazy-loaded webp images (photos at y7728 load on scroll/view) -> tile-26 captured WHITE SPACE where real photos exist = a FALSE content-void. This is a tiler-side false-void (the clone is fine; the SCOREBOARD lied). Connects to [void_detector_dark_band_falsepositive] + [clone_validation_pitfalls] (screenshot-LOOK caught what the tile claimed). The tiler likely scrolls the SOURCE but not the CLONE far enough, or full-page-screenshots before lazy webp paint.",
+      "infra": "The workflow's VERIFY agent HUNG 36min on a mcp__playwright__browser_evaluate that never returned (10 stale mcp-chrome procs). I TaskStop'd it, cleared the wedged chrome, and verified the outcome MYSELF (disk byte-identical + 2 probes + element-screenshot). Verify was moot anyway (zero diff to adversarially verify). Infra-fragility note: long Playwright-MCP sessions can wedge browser_evaluate.",
+      "lesson": "The careful diagnose-first + screenshot-LOOK discipline WORKED: it caught a FALSE lever (recon's tile-26 void) before any bad code change. The recon's vision-tiler can manufacture phantom defects on lazy-image bands -> next lever = make the tiler scroll-trigger the clone's lazy images before screenshotting (a GRADER de-deflation; needs full supervised real-page A/B per the content-anchored-tiling lesson)."
+    },
+    {
+      "epoch": 1781025858,
+      "round": "fix-vision-tiler-lazy-falsevoid",
+      "taskId": "w5qejl894",
+      "kind": "INFRA-FAILURE-not-a-verdict",
+      "kept": null,
+      "infraFail": true,
+      "what": "Workflow returned kept:false but the reason was an API ERROR on BOTH agents: 'Unable to connect to API (FailedToOpenSocket)'. Only 2 agents / 40K tokens / 7 tool-uses over 48min -> the agents could not reach the API; the round NEVER ACTUALLY RAN. This is NOT a real NOT-KEPT verdict and NOT a plateau (no work was attempted).",
+      "diskState": "VERIFIED CLEAN: grade-vision-tiles.mjs byte-identical to HEAD (agent errored before any edit; no /tmp/gvt.lazy.bak created). The 3 prior KEPT fixes (#11/#12/#13 in build-absolute.mjs+capture-layout.mjs) intact. Nothing to restore.",
+      "action": "API is back (this tick runs fine). Re-launching the tiler-lazy-falsevoid fix fresh (resume useless -- both agents errored with no valid cache)."
+    },
+    {
+      "epoch": 1781037312,
+      "round": "fix-vision-tiler-lazy-falsevoid-r2",
+      "taskId": "main-hybrid-1781037312",
+      "kind": "GRADER-DE-DEFLATION-KEPT (#4)",
+      "kept": true,
+      "supersedes": "w5qejl894 (infra-fail, never ran)",
+      "change": "grade-vision-tiles.mjs capture() now runs an exported robust idempotent settleLazy() (viewport-step scroll + re-read docH + wait img.complete&&naturalWidth>0 + img.decode + networkidle) before the full-page screenshot. Default ON; reversible VTILES_NO_LAZY_TRIGGER=1 = byte-identical legacy fast-settle.",
+      "gate": {
+        "selfTest": "_vtiles-selftest.mjs ALL PASS (pure anchor/crop fns unaffected; module imports)",
+        "reversibleByteIdentical": "OFF branch char-for-char == original settle (verifier B confirmed)",
+        "realPageAB_reactdev": "clone 6730 band y7000-9000: whiteFrac 0.811->0.746, energy 32.7->66.8 (DOUBLED); on-band shows 4 real React-conf photos + React logo where off-band was white void; height 9097==9097",
+        "realPageAB_tailwind": "clone 3146: 2nd positive case, void y8660-9560 -> real Tailwind showcase image grid; height 11649==11649; whiteFrac -0.090 energy +33.8",
+        "innocentControl_linear": "clone 4297: ON~=OFF, dWhiteFrac +0.0001, dEnergy +0.06, height 10781==10781 -> NO perturbation",
+        "determinism": "verifier A: 2 fresh reactdev runs BYTE-IDENTICAL stats (not flaky)",
+        "antiGaming": "verifier B: cannot paint non-DOM content / cannot mask missing image; source+clone symmetric -> real voids stay penalized",
+        "adversarialVerify": "2 independent agents BOTH not-refuted (reproducibility + code/anti-gaming)"
+      },
+      "blastRadius": "grade-vision-tiles.mjs only (vision-recon tool); corpus structure grader untouched. New harness _vtiles-lazy-ab.mjs added.",
+      "note": "4th sound grader de-deflation. Stops the tiler manufacturing FALSE white voids for below-fold lazy images (was UNDERSTATING fidelity = deflation). Honest-grader direction."
+    },
+    {
+      "epoch": 1781042631,
+      "round": "fix-void-detector-dark-band-falsepos",
+      "taskId": "main-hybrid-1781042631",
+      "kind": "GRADER-DE-DEFLATION-KEPT-WITH-CAVEAT (#5)",
+      "kept": true,
+      "caveat": "NO LIVE EFFICACY DEMONSTRATED THIS RUN — tonight's corpus had no active false-positive (documented framer S6/S16 dark-hero false-voids not reproduced; the live clone also lacks those headlines). Proven in LOGIC + proven ANTI-GAMING on 5 real void bands + zero live regression, but no measurable live score improvement. Value pending a live recurrence of the (documented, mechanism-understood) dark-sparse-bright-headline false-void.",
+      "change": "grade-sections.mjs content-void TEXT-GUARD: exported pure classifyVoid({srcEnergy,cloneEnergy,cloneReproducedBandText,selftest,textGuard}); suppress isVoid when the clone reproduced the band's source text (>=50% of band src-texts matched via inClone AND >=1 clone text leaf physically inside [y0,gy1]). A dark band with a sparse-but-real headline the clone rendered is NOT a void. Added IS_MAIN guard so the module imports side-effect-free for unit testing. Reversible GRADER_NO_VOID_TEXTGUARD=1.",
+      "gate": {
+        "selfTest": "_void-textguard-selftest.mjs ALL PASS — T1 selftest no-op; T2 dark+reproduced-text => NOT void (fix); T3a textless imagery void => STILL void; T3b src-has-text/clone-reproduced-none => STILL void; T3c high-clone-energy control; T4 reversible == energy-only across 2652 cases (0 mismatch)",
+        "liveSelftest": "supabase source==clone: composite 1.0, contentVoid 0 -> no-op (guard inert on true 1:1)",
+        "realPageAB_framer": "clone 2990: 4 content-voids in BOTH off/on; LOOKED at all 4 (y8818-11006: \"handpicked experts\" CTA, \"community resources\" CTA, Milo/Notion template gallery) -> clone side BLACK/EMPTY; text-probe confirmed clone genuinely lacks those strings anywhere -> all GENUINE voids; guard CORRECTLY preserved all 4 (LIVE anti-gaming)",
+        "innocentControl_supabase": "clone 2986: 0 voids both off/on; composite 0.860->0.859 (noise); visualMean identical 0.947 -> no regression",
+        "innocentControl_tailwind": "clone 3146: 1 genuine void §7 (editability 0=clone reproduced no text) both off/on; composite 0.851 identical -> no regression",
+        "monotonic": "panel(scope lens): guard ONLY suppresses a void (true->false), never creates one; across 37,200 cases can only RAISE score on the target false-positive, never lower -> zero downside risk",
+        "reversibleByteEquiv": "panel(scope lens): GRADER_NO_VOID_TEXTGUARD=1 == old energy-only predicate across 118,730 independent cases, 0 mismatch; import pure; edge inputs clean",
+        "adversarialPanel": "4 diverse-lens verifiers (anti-gaming/scope/threshold/keep-honesty) ALL refuted=false; synthesis KEEP_WITH_CAVEAT, anyBlockingDefect=false, mustFixBeforeKeep=[] (nothing must change before keeping)"
+      },
+      "trackedSeam": "NARROW adversarial seam (panel anti-gaming lens, NOT blocking): a band that is simultaneously an energy-void (cloneEnergy<=0.020) AND carries a captured text leaf co-occurs only via near-invisible text (luma ~within 5 of bg, or opacity ~0.05). Self-defeating (honest vision->Elementor generator never authors near-bg text; it also tanks per-element color/typo). Future hardening: require the in-band matched clone leaf to be VISIBLE (min contrast). Threshold relaxation if a high-text-count false-negative surfaces: ceil(0.4*N).",
+      "blastRadius": "grade-sections.mjs void-classification path ONLY; SSIM/bandStats/bandTexture/perElement/editability/structural/6-detectors/composite/aggregation byte-identical (panel-verified). New: _void-textguard-selftest.mjs, _band-look.mjs.",
+      "note": "5th grader de-deflation. Honest-grader direction ([[grader_strictness_is_progress]]): removes a documented FALSE-DEFLATION (energy-only void test misfiring on dark+sparse-bright reproduced-text bands). Monotonic + reversible + anti-gaming-proven-live => safe to keep even without live efficacy this run."
+    },
+    {
+      "epoch": 1781042936,
+      "round": "tailwind-bg-bleed-recon",
+      "taskId": "main-recon-1781042936",
+      "kind": "CHEAP-RECON-found-lever (diagnosed, queued — risky global, deferred per rails)",
+      "kept": null,
+      "finding": "tailwind clone 3146 §9 (y7431-7691, \"HOW IT WORKS / Ship faster and smaller.\") renders DARK-GREEN with dark-on-dark text (grade-sections: visual 0.16, editability 1.0 = text correct, background wrong). ROOT CAUSE (probed): a single clone <div class=\"\"> bg rgb(24,40,40), y7431 h838 w1360, spans BOTH the white headline (§9) AND the dark code-editor mockup below (§10, y7691-8429). In the SOURCE the corresponding wrapper (`relative max-w-full`, y7431 h838) is TRANSPARENT (rgba(0,0,0,0)); only the inner code-editor panel is dark. So build-absolute collapsed headline+editor into ONE block and painted the whole block with the code-editor sub-region's dark bg → buries the white headline. The clone DOM section bg is otherwise correctly white (body rgb(255,255,255)); the dark is this one mis-painted container, not a global bg error.",
+      "lever": "build-absolute container background sampling: when a captured block spans a background DISCONTINUITY (light top / dark bottom), it samples the dominant (lower/darker) sub-region and applies it to the whole container. Fix candidates: (a) sample bg from a representative top strip or require bg to fill the block before applying; (b) split a block at a strong vertical bg discontinuity so the headline area stays transparent and only the editor panel gets the dark bg. BLAST RADIUS: background-assignment is core build-absolute → affects every block/site → needs diagnose-first + corpus-regression A/B + screenshot-LOOK + reversible flag. DEFERRED per rails (do NOT rush a global build change at session tail).",
+      "note": "Also at §10 (y7691-8429): source dark IDE code-editor mockup (syntax-highlight + tabs) rendered by clone as plain monospace text (font/geometry) — separate known-hard code-panel region (relates to FIX #11). §2 (y617-1189) hero code-demo is complex/messy, not a clean lever."
+    },
+    {
+      "epoch": 1781044192,
+      "round": "fix-modalbg-vsplit-overpaint",
+      "taskId": "main-hybrid-1781044192",
+      "kind": "BUILD-CAPTURE-MECHANISM-SHIPPED-OPT-IN (gate incomplete, net unverified — NOT a default improvement)",
+      "kept": false,
+      "deferred": true,
+      "notAFail": "Mechanism works as designed (unit-proven + capture-A/B-confirmed); deliberately defaulted OFF because the full corpus-regression gate cannot run tonight (react.dev source blocked, framer fragile) AND the net is a genuine tradeoff. NOT a regression (default byte-identical) and NOT a failed fix.",
+      "change": "capture-layout.mjs modalBg refactored to exported pure _bgsample.mjs dominantBoxBg with a VERTICAL-DISCONTINUITY GUARD: a container box whose top/bottom strips differ strongly in luma (light headline over dark code panel) ABSTAINS (null) instead of over-painting the whole wrapper with the dark sub-region modal color. OPT-IN: CAPTURE_SPLITBG=1 (default OFF = byte-identical legacy). Self-test _bgsample-selftest.mjs ALL PASS (uniform->color; light/dark split->abstain; uniform-dark->preserved; reversible == legacy).",
+      "capureAB": "tailwind capture A/B: DEFAULT 42 containers, §9 wrapper (y7431 h838) bgSampled rgb(24,40,40) (legacy, byte-identical). OPT-IN 37 containers, §9 wrapper ABSTAINS (null). 4 containers differ (OFF->ON): y7431 dark (target), y4599 dark (another code-editor card, same pattern), y57+y5895 near-white rgb(248,248,248) (harmless, ~page-default).",
+      "whyNotKept": "STRUCTURAL root cause: the clone collapses the §9 headline (white, source-transparent wrapper) + the §10 code-editor (dark IDE) into ONE flat wrapper container (y7431 h838) whose modal bg is the ONLY carrier of the editor dark bg (editor is a single flat `code` leaf, paint lab L=1.9 near-black, NO separate dark container). So abstaining fixes §9 (white headline restored) but turns §10 white -> editor becomes black-on-white (legible but de-themed vs the source dark IDE). Net fidelity sign needs a full rebuild+grade (grade-sections scores dark-vs-white as a color miss) -> unverifiable tonight. The PROPER fix is structural: split the wrapper into headline(transparent)+editor(dark) sub-containers, OR raster the editor as a mockup. See memory tailwind_bg_overpaint_structural.",
+      "blastRadius": "capture-layout.mjs modalBg only (+ new _bgsample.mjs helper, _bgsample-selftest.mjs). DEFAULT byte-identical (opt-in flag OFF) -> zero corpus risk shipped.",
+      "note": "Honest: this turn already shipped de-deflation #5 (KEEP). This build lever is DEFERRED opt-in pending (a) full corpus rebuild+grade to settle the net, or (b) the structural wrapper-split fix. plateau stays 0 (deliberate deferral, not a regression/fail)."
     }
   ],
   "phase5backlog_wave3": [
@@ -3534,7 +3685,7 @@
     "fullDetail": "see sessionSummary_spotcheck_arc + metricsHistory + memory grader_honesty_both_directions.md"
   },
   "graderUpgradeQueue": "Sequential SUPERVISED grader upgrades (each self-test=1.0 + reversible + re-baselines; run one at a time, NOT directed-fix rounds). DONE: responsive promotion ADOPTED (composite now 0.35*visual+0.2*edit+0.2*struct+0.25*responsive; corpus re-baselined ~0.77->~0.62 honestly). RUNNING: clone-econ-grader-fix (wxcek7tmo, free-descend .e-con wrappers so clone capture stops under-counting widgets). NEXT (queued, fires on .e-con completion): build-completeness-grader.workflow.js -> grade-completeness.mjs SHADOW (top-down ARIA-landmark + position + content component checklist: header/nav/logo/hero/CTA/main/FOOTER+subparts/cookie; detect clone by POSITION+CONTENT since Elementor demotes header/footer roles; self-test=1.0; smoke = does it flag our clones' missing footer/nav). THEN (supervised): promote completeness into composite (like responsive) -> re-baseline. CLONER follow-on: emit explicit landmark role= on header/nav/main/footer containers (kses-safe per tabs recipe) + a real footer/nav component emitter. THEN resume directed-fix (now pulling toward the FLOW builder, since responsive+completeness reward it over the desktop-frozen absolute builder).",
-  "lastUpdatedEpoch": 1780720200,
+  "lastUpdatedEpoch": 1781044192,
   "flowV5": "T2 flow v5 DONE (wsgwqu7u0) — KEPT a real flow gain (grid side-by-side guard: tailwind hRatio 2.908->1.458, the 3x grid-collapse blowup fixed; + responsive inline clamp() font on linear narrow-bp) but flow STILL < absolute on composite. CRITICAL: exposed that prior flow baselines (0.712/0.692) were CHERRY-PICKED — true flow baseline ~0.59-0.60. Root-caused the residual to CAPTURE (tailwind code-as-art hero emitted as literal <div class=> markup -> perElement 0.066 + hRatio) + build-flow vertical-stacking of IoU<0.5 overlaps (linear desktop hRatio 1.909). Both now actionable: capture fix RUNNING (wjs7n7q9u), flow overlay-gate QUEUED.",
   "flowV4": "T2 flow v4 launched (wrjanwuvq) — LayoutCoder redirect: STOP pinning min_height on nesting wrappers, zero synthesized padding/gap, flex:[portion] proportional sizing + fractional grid tracks, mobile font-scaling, fluid cells + tablet breakpoint. Tests whether FLOWING (not pinning) drives hRatio->1 after v2/v3 capping failed twice.",
   "flowTrackStatus": "T2 flow builder: v1/v2/v3 all ~0.711/0.694 (FLAT, below abs 0.85/0.776). Editability 0.93 + struct 0.90-0.944 STRONG; responsive collapse WORKS (linear 0 h-overflow at 768+390). Gated by hRatio (2.3x/1.5x) + visual. ROOT CAUSE (v3 diagnosis): capture nests near-full-pageH wrappers so isSectionBand matched EVERY container + pinned all to ~pageH -> stacking inflation; AND the height-bound is computed on PREDICTED assembled height but the live RENDER inflates (min_height pins + per-char text wrap at narrow widths + flex gaps). FLOW v4 REDIRECT (per LayoutCoder research): STOP pinning min_height entirely, zero synthesized padding/gap, drive columns by flex:[portion] from captured width ratios, add mobile font-scaling + fluid cells (% / 1fr) — measure RENDERED not predicted height. Pages 5404 (linear) / 5405 (tailwind).",
@@ -4750,10 +4901,10 @@
     }
   ],
   "deadlineHold": {
-    "epoch": 1780980986,
-    "oldDeadline": 1780995156,
-    "newDeadline": 1781038356,
-    "reason": "User: +12h, meaningful incremental work (vision-grader-gated fix-list). Sustained autonomous run."
+    "epoch": 1781036263,
+    "oldDeadline": 1781038356,
+    "newDeadline": 1781059956,
+    "reason": "User (2026-06-09, post-EPERM-recovery): chose Extend+run-it-now for the tiler lazy-void de-deflation; +6h for a clean supervised round + continue loop."
   },
   "directionDecision": {
     "epoch": 1780980159,
@@ -4903,7 +5054,7 @@
       "dropped-hero-lines",
       "footer-link-color"
     ],
-    "current": "tailwind black-box annotation labels (code-panel/card-chrome over-applying dark bg to tiny inline monospace class-hints) -- fresh recoverable lever from cheap recon",
+    "current": "FIX #14 = NO-OP (photos already render; tiler false-void). Next = GRADER de-deflation: make grade-vision-tiles scroll-trigger the clone lazy images before screenshot (supervised, real-page A/B). plateau stays 0 (epistemic progress + clear next lever; fix+gate correctly avoided a bad change).",
     "done": [
       "dark-on-dark-headings (gradient-text -> paint.color; KEPT, render-verified)",
       "logo-icon-fidelity (content-addressed asset cache; KEPT, screenshot-verified)",
@@ -4916,7 +5067,11 @@
       "missing-imagery voids: real <img> instead of black region-crop (KEPT, asset-verified genuine)",
       "content-anchored tiling REVERTED (real-page regression; fixed-y restored)",
       "resend SDK kind:tabs active-panel code -> native dark code panel (KEPT, native-text-verified; inactive tabs inherent)",
-      "unstyled CTA buttons -> styled (captured fill/border/radius/padding; KEPT, no spurious pills, corpus-wide)"
+      "unstyled CTA buttons -> styled (captured fill/border/radius/padding; KEPT, no spurious pills, corpus-wide)",
+      "tailwind annotation-label black-boxes -> faint native text (code-panel render guard: genuine = hasCapturedBg||h>=150||lines>=6; KEPT, resend/linear panels intact, scoped to build-absolute.mjs)",
+      "reactdev white-pill CTA chrome -> restored (capture nz() ^-anchor multi-layer-shadow bug fixed corpus-wide via shadowOf() + buttonPaint shadow-elevated-pill support; KEPT, INSET-ring distinguishes pill from nav, no false pills, #10 intact)",
+      "reactdev footer link-wrap overlap -> single-line (markLinkWrapGuard + _noWrap nowrap; KEPT, builder-collapse not capture error, no new overlaps/drift on 4 controls, scoped)",
+      "reactdev community photos: NO-OP (already render 1:1; tile-26 void was a vision-tiler lazy-load false-void, triple-confirmed). Discovery -> tiler lazy-trigger fix queued."
     ]
   },
   "finding_linear_dark_headings": "IMPORTANT: linear dark-on-dark headings are a SEPARATE bug from resend gradient-text (fix #1 did NOT cover them). The earlier CASE-B stale-page theory is DISPROVEN -- linear rebuilt 3x since (fix#1/#2/#3 all targeted it) yet headings STILL dark-on-dark. So linear headings use a different color mechanism (CSS-var / different clip / wrong sampled color) that capture records as dark. = next high-leverage fix (6 tiles).",
@@ -4952,5 +5107,27 @@
     "supabase_control": 56.5,
     "meanThree": "~60.7 (was ~51.7 pre-arc) = +9 corpus on the human-aligned vision-grader via 8 verified fixes",
     "pixelGraderWas": "linear 0.89 / resend 0.78 -- the vision-grader is the honest measure"
-  }
+  },
+  "lastCompletedRound": {
+    "n": "fix-vision-tiler-lazy-falsevoid",
+    "engine": "Workflow diagnose->fix+gate(self-test+real-page-A/B+control)->adversarial-verify (3 agents, node-screenshots NOT mcp-playwright)",
+    "target": "grade-vision-tiles.mjs; reactdev A/B + linear/tailwind innocent controls",
+    "taskId": "w5qejl894",
+    "runId": "wf_a31d6a1a-e8c",
+    "status": "infra-failed",
+    "launchedEpoch": 1781021465,
+    "note": "GRADER de-deflation #4 candidate (from FIX #14 discovery): tiler screenshots clone before lazy webp paints -> FALSE content-voids (reactdev community photos showed white-space in tile-26 though they render 1:1). Fix = idempotent scroll-trigger before both screenshots, reversible VTILES_NO_LAZY_TRIGGER. SUPERVISED: self-test + REAL-PAGE A/B (reactdev void resolved) + INNOCENT CONTROL (linear+tailwind tiles unchanged) + scoped + adversarial verify. NEVER KEPT off self-test alone (content-anchored-tiling reversion lesson). Agents use node+timeout screenshots, NOT mcp-playwright (it wedged last round).",
+    "completedEpoch": 1781025858
+  },
+  "reconFoundLevers": [
+    {
+      "asOf": "2026-06-09",
+      "id": "tailwind-bg-bleed-container-darkpaint",
+      "site": "tailwind 3146 §9 y7431-7691",
+      "rootCause": "build-absolute paints a multi-sub-region container (light headline + dark editor) with the dark sub-region bg rgb(24,40,40); source wrapper is transparent",
+      "fix": "sample container bg from top strip / require full-fill before applying, OR split block at vertical bg discontinuity",
+      "risk": "GLOBAL (core bg sampling) — corpus-regression A/B required; reversible flag",
+      "status": "mechanism shipped OPT-IN (CAPTURE_SPLITBG=1, default off, unit+capture-A/B proven); NET unverified (helps §9, de-themes §10); REAL fix is STRUCTURAL (split wrapper / raster editor). See tailwind_bg_overpaint_structural."
+    }
+  ]
 }

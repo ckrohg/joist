@@ -485,21 +485,45 @@ const _padCss = (arr) => {
 };
 // returns an inline-css string (fill/border/radius/padding/shadow) iff the SOURCE styles this leaf as a button,
 // else null (caller falls back to the bare-anchor path). Detection is conservative (see ANTI-GAMING above).
+const NO_WHITEPILL = process.env.BUILD_NO_WHITEPILL === '1';
+// LINK-WRAP GUARD (reversible): extend the stacked-headline wrap guard to footer-link `button` (`<a>`) leaves
+// whose multi-word label, pinned to its captured single-line width with zero slack, wraps to 2 lines in the
+// clone (the button branch emits no white-space:nowrap) and overflows down into the next tightly-stacked link
+// slot. ABS_NO_LINKWRAP=1 → old behavior (links can wrap → footer-grid collision). See the wrap-guard pre-pass.
+const NO_LINKWRAP = process.env.ABS_NO_LINKWRAP === '1';
 function buttonPaint(n) {
   if (NO_CTA_PAINT || n.kind !== 'button') return null;
   const hasSolid = _solidBg(n.bg);
   const hasGrad = n.bgImage && /gradient|url\(/.test(n.bgImage);
   const hasBorder = n.border && /^\d/.test(String(n.border)) && !/^0px/.test(String(n.border));
   const tagSignal = n.tag === 'button' || (n.interactive && n.interactive.role === 'button');
-  // A bare textual link (no fill, no border, no <button>/role tag) is NOT a styled button → leave it plain.
-  if (!hasSolid && !hasGrad && !hasBorder && !tagSignal) return null;
-  // If the ONLY signal is the tag (no fill, no border captured) the source renders it as a plain text link
-  // styled as a button elsewhere we cannot see → do NOT invent a pill (would be a spurious fill). Require a
-  // genuine paint (fill or border) to actually style it.
-  if (!hasSolid && !hasGrad && !hasBorder) return null;
+  // ── WHITE-PILL / SHADOW-ELEVATED path (whitepill-shadow fix; default ON, BUILD_NO_WHITEPILL=1 → legacy) ───────
+  // A CTA whose chrome is a transparent-bg + INSET-RING / elevation box-shadow (react.dev "Add React to your page":
+  // bg:rgba(0,0,0,0), border:0px, radius:9999px, padding:10px/24px, boxShadow: inset 1px ring rgb(217,219,227))
+  // hit NONE of the fill/border/tag signals → returned null → rendered as bare bold text. The capture now recovers
+  // the real (multi-layer) shadow (capture-layout shadowOf), so a genuine captured box-shadow is the distinguishing
+  // signal that nav links (boxShadow:none → null) and plain prose links do NOT carry. We add a SHADOW path GATED by
+  // a strict anti-false-pill guard so it fires ONLY on a real, padded, short-text button/link with a captured
+  // shadow — never on nav items or prose. When it fires with no captured fill, we synthesize a WHITE surface so the
+  // ring/elevation reads as a pill against the page (the source pill IS visually white-on-page chrome).
+  // capture-side shadowOf already dropped transparent/zero-geometry layers, so a non-null n.boxShadow is genuine;
+  // belt-and-suspenders for any legacy capture: require it to carry a color AND a px geometry token (a real shadow).
+  const hasShadow = !NO_WHITEPILL && !!n.boxShadow && /(#|rgb)/i.test(String(n.boxShadow)) && /-?\d*\.?\d+px/.test(String(n.boxShadow)) && !/^rgba\(0, 0, 0, 0\)/.test(String(n.boxShadow));
+  const padOk = !!_padCss(n.btnPad);                         // genuine non-zero padding (a pill has interior padding)
+  const shortText = ((n.text || '').trim().length <= 48);    // CTA/label length, not a prose paragraph
+  // A genuine shadow-elevated pill: captured visible shadow AND interior padding AND short button/link text.
+  const shadowPill = hasShadow && padOk && shortText;
+  // A bare textual link (no fill, no border, no <button>/role tag, no shadow-pill) is NOT a styled button → plain.
+  if (!hasSolid && !hasGrad && !hasBorder && !tagSignal && !shadowPill) return null;
+  // If the ONLY signal is the tag (no fill, no border, no shadow-pill) the source renders it as a plain text link
+  // styled as a button elsewhere we cannot see → do NOT invent a pill (would be a spurious fill). Require a genuine
+  // paint (fill / border / shadow-elevated pill) to actually style it.
+  if (!hasSolid && !hasGrad && !hasBorder && !shadowPill) return null;
   const parts = ['display:inline-block', 'text-decoration:none', 'box-sizing:border-box'];
   if (hasGrad) parts.push(`background-image:${n.bgImage}`);
   if (hasSolid) parts.push(`background-color:${n.bg}`); // solid sits under/with the gradient; both kses-safe
+  // shadow-elevated pill with NO captured fill → synthesize a white surface so the ring/elevation reads as a pill.
+  else if (shadowPill && !hasGrad) parts.push('background-color:#ffffff');
   if (hasBorder) parts.push(`border:${n.border}`);
   const rad = px(n.radius); if (rad) parts.push(`border-radius:${rad}px`);
   const pad = _padCss(n.btnPad) || '8px 18px'; parts.push(`padding:${pad}`);
@@ -523,6 +547,31 @@ const lumaCss = (s) => { const m = String(s || '').match(/rgba?\(([^)]+)\)/); if
 function codePanelWidget(n, P, PB) {
   const fs2 = (n.typo && n.typo.size) || 14;
   if (process.env.BUILD_NO_CODE_PANEL) { const cc = colorCss(n); return { elType: 'widget', widgetType: 'html', settings: { html: `<pre style="white-space:pre-wrap;font-family:${MONO_STACK};font-size:${fs2}px;margin:0${cc ? ';' + cc : ''}">${esc(n.text || '')}</pre>`, ...PB, ...P, ...mobileAbsenceHide(n, PB) } }; }
+  // ANNOTATION-LABEL GUARD (tailwind black-box fix): the capture's mono-dominance branch over-classifies a tiny
+  // inline monospace utility-class LABEL (tailwindcss.com's faint `text-8xl / text-gray-950 / …` callouts beside
+  // the demo cards) as kind:'code'. Those carry NO captured panel bg (n.bg==null), 0px radius, sit in a tiny box
+  // (h≤96, 2–4 short lines, sz≈12), and paint as faint near-transparent gray text. The dark-surface synthesis
+  // below would (and did) stamp a solid #0b0d10 PANEL behind them → a row of black boxes with invisible text.
+  // A GENUINE code panel is distinguished by ANY of: a real captured dark/opaque bg (resend rgb(0,0,0), linear
+  // rgb(8,9,10) — the #51 recovery, NEVER touched here), OR a substantial box (h≥150), OR multi-line code (≥6
+  // lines). tailwind's two REAL code samples on the same page pass (h=412/578, 19 lines) and stay dark panels;
+  // the 7 annotation labels (h=40–96, 2–4 lines, no bg) fail all three → render as faint NATIVE monospace text
+  // with NO box (transparent), matching the source. Reversible: BUILD_NO_CODE_ANNOT_GUARD=1 → legacy (always panel).
+  {
+    const hasBg = !!(n.bg && /^(#|rgb)/.test(n.bg));
+    const lineCount = String(n.text || '').split('\n').length;
+    const bh = (n.box && n.box.h) || 0;
+    const genuinePanel = hasBg || bh >= 150 || lineCount >= 6;
+    if (!genuinePanel && !process.env.BUILD_NO_CODE_ANNOT_GUARD) {
+      // faint inline annotation: keep the captured paint color when usable; else a sane faint gray (the source
+      // labels paint at ~20% black). NO panel/box — transparent, so it reads as a small gray callout, not a void.
+      const tc = (n.codeColor && /^(#|rgb)/.test(n.codeColor)) ? n.codeColor : (textColor(n) || 'rgba(15,17,20,0.45)');
+      const lh = (n.typo && n.typo.lineHeight) || `${Math.round(fs2 * 1.4)}px`;
+      const pre = `margin:0;white-space:pre-wrap;word-break:break-word;font-family:${MONO_STACK};font-size:${fs2}px;line-height:${lh};color:${tc};background:transparent;`;
+      const html = `<pre style="${pre}">${esc(n.text || '')}</pre>`;
+      return { elType: 'widget', widgetType: 'html', settings: { html, ...PB, ...P, ...mobileAbsenceHide(n, PB) } };
+    }
+  }
   const radius = px(n.radius) || 0;
   // recovered dark panel bg; else synthesize one so light code text stays legible (never a transparent void)
   let bg = (n.bg && /^(#|rgb)/.test(n.bg)) ? n.bg : null; const bgLum = bg ? lumaCss(bg) : null;
@@ -780,7 +829,11 @@ function leafWidget(n, target, origin) {
     // styled inline-block <a> carrying the captured fill/border/radius/padding/shadow so a filled/outlined CTA
     // renders as a real button instead of near-invisible plain text. Else fall back to the bare colored anchor.
     const btnCss = buttonPaint(n);
-    const anchorStyle = btnCss || cc;
+    // _noWrap (link-wrap guard): a tightly-stacked footer link whose source rendered on ONE line within its pinned
+    // width — keep it one line (white-space:nowrap) so the wider fallback font can't wrap it to 2 lines and overflow
+    // into the next link slot below (see the wrap-guard pre-pass in main()). Only set for true single-line links.
+    const baseAnchorStyle = btnCss || cc;
+    const anchorStyle = n._noWrap ? (baseAnchorStyle ? baseAnchorStyle + ';white-space:nowrap' : 'white-space:nowrap') : baseAnchorStyle;
     sink.push({ elType: 'widget', widgetType: 'text-editor', settings: { editor: `<a${n.href ? ` href="${esc(n.href)}"` : ''}${styleAttr(anchorStyle)}>${esc(text)}</a>`, ...nativeTypo(n), ...FF, ...(tc ? { text_color: tc } : {}), ...globalRefSettings(n, 'text_color'), ...P, ...mobileAbsenceHide(n, FF) } }); return;
   }
   // generic text: stamp inline on the <div> too (belt-and-suspenders vs theme/.elementor descendant rules).
@@ -1607,6 +1660,48 @@ function emitCardRow(row) {
 // ───────────────────────────────────────────────────────────────────────────
 function gatherLeaves(root) { const out = []; const g = (n) => { if (!n) return; if (n.kind === 'container') (n.children || []).forEach(g); else if (n.box) out.push(n); }; g(root); return out; }
 
+// ── LINK-WRAP GUARD (footer link-grid collision; reversible via ABS_NO_LINKWRAP) ────────────────────────────
+// Same overlap CLASS as the stacked-headline wrap guard, but for footer-link `button` (`<a>`) leaves. The headline
+// guard (in the dedupe block) can't catch these for two reasons: (1) it is `text`-only (kind:'button' skipped),
+// and (2) its single-line test uses fontSize (`box.h <= 1.5×fontSize`), which is WRONG for a link whose box.h is
+// driven by line-height (react.dev footer: box.h=31, line-height=30px, font-size=13px → 31 > 1.5×13=19.5 → the
+// headline guard would deem it "multi-line" and leave it wrapping). For a link, single-line ⇔ box.h ≈ line-height.
+// The button branch (leafWidget) emits no white-space:nowrap, so a multi-WORD label pinned to its exact single-line
+// glyph width (_element_custom_width, zero slack — whether page-absolute OR inside a card-row grid CELL) wraps to 2
+// lines → box grows 31→~60 → overflows ~28px into the next ~32px-spaced link slot below → the footer-grid collision.
+// FIX: for a single-line MULTI-WORD link with a stacked leaf directly below (within the wrap-growth zone), stamp
+// `_noWrap` → the button branch emits white-space:nowrap (faithful — the source rendered it on one line at this exact
+// width). Single-word links (can't wrap) and multi-line source links (box.h ≫ line-height) are untouched.
+//
+// CRITICAL ORDERING: this MUST run BEFORE detectCardRows()/emitCardRow() (the footer link columns are detected as a
+// reflowing card-row whose `walk` emits each link via leafWidget EARLY — before the dedupe block's guards run). A
+// late mark never reaches those already-emitted grid-cell widgets. So we mark here, right after nav detection (so
+// `_navConsumed` is meaningful) and before any leaf is emitted. Operates on L.root leaves in place.
+function markLinkWrapGuard(root) {
+  if (NO_LINKWRAP) { console.log('link-wrap guard: OFF (ABS_NO_LINKWRAP=1 → footer links can wrap → grid collision)'); return; }
+  const TEXTK = new Set(['heading', 'text', 'button']);
+  const leaves = gatherLeaves(root).filter((n) => n.box && TEXTK.has(n.kind) && !n._navConsumed && stripEmoji(n.text));
+  const fontPx = (n) => Math.round((n.typo && n.typo.size) || 0);
+  const lhPx = (n) => { const v = px(n.typo && n.typo.lineHeight); return v || fontPx(n) * 1.3 || 0; }; // captured line-height (px); fall back to ~1.3×font
+  const hOverlap = (a, b) => Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x) > Math.min(a.w, b.w) * 0.5;
+  let lwNoWrapped = 0; const lwEx = [];
+  for (const n of leaves) {
+    if (n.kind !== 'button') continue;             // footer links (`<a>`→button) — the leaves the headline guard skips
+    if (n._noWrap) continue;                       // already marked
+    const lh = lhPx(n); if (!lh) continue;
+    if (n.box.h < 0.5 * lh) continue;              // degenerate/clipped capture (h≪line-height, e.g. a 4px sliver from a
+                                                   // flex-wrapped card-link) — NOT a real single-line text box; skip it
+    if (n.box.h > 1.5 * lh) continue;              // multi-line in source → legitimately wraps, leave it
+    if (!/\s/.test(String(n.text || '').trim())) continue; // single-word → can't wrap → nothing to guard
+    // is there a stacked leaf directly below whose row a wrapped 2nd line (down to ~2×box.h) would cover?
+    const below = leaves.some((m) => m !== n && hOverlap(n.box, m.box) && m.box.y >= n.box.y + n.box.h - 8 && m.box.y < n.box.y + 2 * n.box.h);
+    if (!below) continue;
+    n._noWrap = true; lwNoWrapped++;
+    if (lwEx.length < 8) lwEx.push(`"${stripEmoji(n.text).slice(0, 24)}" @(${Math.round(n.box.x)},${Math.round(n.box.y)}) ${Math.round(n.box.w)}x${Math.round(n.box.h)} lh${Math.round(lh)}`);
+  }
+  console.log(`link-wrap guard: ${lwNoWrapped} single-line multi-word link(s) marked nowrap${lwEx.length ? ' — ' + lwEx.join('; ') : ''}`);
+}
+
 // (a) DETECT the header band + nav items / logo / CTA; stamps `_navConsumed`. Returns {nav, threshold} or null.
 function detectHeaderNav(root) {
   const leaves = gatherLeaves(root);
@@ -2065,6 +2160,10 @@ async function registerSourceFonts(b64v) {
   // subtrees are stamped `_navConsumed` → collectBg()/flatten() skip them (no double-emit). Everything else stays
   // abs-pinned + blanket recipe #20. ABS_NO_CARDREFLOW=1 → detector no-ops → old behavior.
   HEADER_Y = Math.round(headerThreshold || 0);
+  // LINK-WRAP GUARD — mark single-line multi-word footer links `_noWrap` BEFORE detectCardRows/emitCardRow emits
+  // them (the footer link columns are a reflowing card-row; emitCardRow's walk calls leafWidget EARLY, before the
+  // dedupe-block guards run, so a late mark never reaches the grid-cell widgets — see markLinkWrapGuard header).
+  markLinkWrapGuard(L.root);
   detectCardRows(L.root);
   let cardRowEmitted = 0;
   for (const row of cardRows) { const r = emitCardRow(row); cardRowEmitted++; console.log(`card-row reflow: ${row.cellCount} cell(s) → #${r.eid} grid repeat(${r.cols},1fr) desktop / repeat(2,1fr) tablet / repeat(1,1fr) mobile, gap ${r.colGap}/${r.rowGap}px, at (${Math.round(row.box.x)},${Math.round(row.box.y)},${Math.round(row.box.w)}x${Math.round(row.box.h)})`); }
