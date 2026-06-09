@@ -191,7 +191,10 @@ function classify(sec) {
   // fully editable: images→image widgets, text→text widgets, grid handles layout. e.g. supabase [2] media0.77 but
   // 9 img mockups + 23 text in a grid. Requires NO non-img media to sub-raster. Text-rich + height-bounded. The
   // canvas/background-media case (sub-raster) is a separate, riskier follow-on (cycle-2 territory).
-  if (process.env.HYBRID_MEDIASPLIT === '1' && textLeaves >= 8 && imgFrac >= mediaFrac * 0.7 && mediaFrac >= 0.5 && h <= 4000) return { kind: 'editable', reason: `mediasplit${textLeaves}/img${imgFrac}/media${mediaFrac}/h${h}` };
+  // imgFrac <= 1.0 = images TILE the section (non-overlapping grid → reconstructs clean, e.g. supabase [2] 0.77).
+  // imgFrac > 1 = OVERLAPPING/layered mockups (framer [8] 1.08, linear [3] 1.5) → editable reconstruction crowds/
+  // overlaps (LOOK-confirmed) → keep those as pixel-faithful raster. The clean-grid cut is the principled line.
+  if (process.env.HYBRID_MEDIASPLIT !== '0' && textLeaves >= 8 && imgFrac >= mediaFrac * 0.7 && imgFrac <= 1.0 && mediaFrac >= 0.5 && h <= 4000) return { kind: 'editable', reason: `mediasplit${textLeaves}/img${imgFrac}/media${mediaFrac}/h${h}` };
   return { kind: 'raster', reason: `media${mediaFrac}/text${textLeaves}/h${h}` };
 }
 
