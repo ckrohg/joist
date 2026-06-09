@@ -318,6 +318,7 @@ function orderAgreement(srcOrder, cloneMobileOrder) {
   };
   console.log(JSON.stringify(report, null, 2));
   fs.writeFileSync(`${outDir}/report.json`, JSON.stringify(report, null, 2));
+  try { fs.writeFileSync(`${outDir}/clone.png`, PNG.sync.write(cln.shot)); fs.writeFileSync(`${outDir}/source.png`, PNG.sync.write(src.shot)); } catch {}
   // --dumpContrast: show the worst failing text/bg pairs on the CLONE (root-cause probe for low contrastPass)
   if (process.argv.includes('--dumpContrast')) {
     const fails = (cln.ds && cln.ds.contrastFails) || [];
