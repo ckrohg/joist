@@ -180,11 +180,12 @@ function classify(sec) {
   // sections go editable) was REVERTED: it reconstructed dense code/feature sections into sparse broken native
   // widgets that LOOKED wrong despite scoring well (grader-gaming the user caught 2026-06-08).
   if (textLeaves >= 2 && mediaFrac < 0.5 && h <= 2600) return { kind: 'editable', reason: `text${textLeaves}/media${mediaFrac}/h${h}` };
-  // TALL-TEXT override (gated HYBRID_TALLTEXT) — RE-ATTEMPT of the reverted cycle-2, now that grid reconstruction
-  // + sub-block code-raster + min_height pinning exist (cycle-2 failed with bare flow → sparse broken widgets).
-  // ONLY very text-heavy, low-media tall sections (e.g. tailwind [8]: 87 text runs rastered = the #1 coverage
-  // lever). Judge by EYE with skepticism — the cycle-2 trap was "scores well, looks wrong".
-  if (process.env.HYBRID_TALLTEXT === '1' && textLeaves >= 20 && mediaFrac < 0.4 && h <= 6000) return { kind: 'editable', reason: `talltext${textLeaves}/media${mediaFrac}/h${h}` };
+  // TALL-TEXT override (DEFAULT-ON; opt out HYBRID_TALLTEXT=0) — RE-ATTEMPT of the reverted cycle-2, now that grid
+  // reconstruction + sub-block code-raster + min_height pinning exist (cycle-2 failed with bare flow → sparse broken
+  // widgets). ONLY very text-heavy, low-media tall sections (e.g. tailwind [8]: 87 text runs rastered = the corpus
+  // #1 coverage lever, 0.633->0.716). Fires rarely (1/8 cached sites); LOOK-confirmed faithful+editable, hRatio
+  // 1.008 (no drift). n=1 corpus sample but strong + bounded (mediaFrac<0.4) + reversible. Judge new cases by EYE.
+  if (process.env.HYBRID_TALLTEXT !== '0' && textLeaves >= 20 && mediaFrac < 0.4 && h <= 6000) return { kind: 'editable', reason: `talltext${textLeaves}/media${mediaFrac}/h${h}` };
   return { kind: 'raster', reason: `media${mediaFrac}/text${textLeaves}/h${h}` };
 }
 
