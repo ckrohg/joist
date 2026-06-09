@@ -47,7 +47,38 @@ function leafToWidget(n) {
 // (column gaps/padding inflate past min_height → hRatio up to 1.86 → drift destroyed visual; corpus
 // composite 0.595→0.477). Restored the simple row-flow + min-height pin (best measured = 0.595).
 // Next: HEIGHT-FAITHFUL reconstruction (fit the band) before adding layout richness.
+// P1 LAYOUT ENGINE (gated HYBRID_GRID=1): detect a clean N-column card/cell grid — NARROW leaves (fit one
+// column, w < 40% W) cluster into 2–4 evenly-spaced columns spanning the section; WIDE leaves (≥40% W) are the
+// full-width header/footer. Flow flattens such grids into sparse stacks (the diagnosed Stripe/clerk failure);
+// this rebuilds the real columns. Returns a grid plan or null (→ fall back to flow). Conservative on purpose.
+function detectGrid(sec) {
+  const all = (sec.leaves || []).filter((l) => l.box && l.box.w > 0);
+  const cells = all.filter((l) => l.box.w < W * 0.40);
+  const wide = all.filter((l) => l.box.w >= W * 0.40);
+  if (cells.length < 4) return null;
+  const cols = [];
+  for (const l of cells.slice().sort((a, b) => a.box.x - b.box.x)) { const c = cols.find((c) => Math.abs(c.x - l.box.x) < W * 0.06); if (c) { c.items.push(l); c.x = (c.x * (c.items.length - 1) + l.box.x) / c.items.length; } else cols.push({ x: l.box.x, items: [l] }); }
+  const realCols = cols.filter((c) => c.items.length >= 2).sort((a, b) => a.x - b.x);
+  if (realCols.length < 2 || realCols.length > 4) return null;
+  if (realCols[realCols.length - 1].x - realCols[0].x < W * 0.45) return null;            // must span the width
+  if (realCols.reduce((n, c) => n + c.items.length, 0) < cells.length * 0.7) return null;  // most cells in columns
+  const gMinY = Math.min(...realCols.flatMap((c) => c.items.map((l) => l.box.y)));
+  return { columns: realCols, header: wide.filter((l) => l.box.y + l.box.h <= gMinY + 20).sort((a, b) => a.box.y - b.box.y), footer: wide.filter((l) => l.box.y > gMinY + 40).sort((a, b) => a.box.y - b.box.y) };
+}
+function buildGridSection(sec, grid) {
+  const els = [];
+  for (const lf of grid.header) { const w = leafToWidget(lf); if (w) els.push(w); }
+  const N = grid.columns.length; const colW = +(100 / N - 2).toFixed(2);
+  const colEls = grid.columns.map((c) => ({ elType: 'container', settings: { content_width: 'full', flex_direction: 'column', flex_gap: dim(8), width: { unit: '%', size: colW }, padding: { unit: 'px', top: '0', right: '8', bottom: '0', left: '8', isLinked: false } }, elements: c.items.sort((a, b) => a.box.y - b.box.y).map(leafToWidget).filter(Boolean) }));
+  els.push({ elType: 'container', settings: { content_width: 'full', flex_direction: 'row', flex_wrap: 'wrap', flex_gap: dim(16), flex_align_items: 'flex-start', flex_justify_content: 'center', padding: { unit: 'px', top: '12', right: '0', bottom: '12', left: '0', isLinked: false } }, elements: colEls });
+  for (const lf of grid.footer) { const w = leafToWidget(lf); if (w) els.push(w); }
+  const set = { content_width: 'full', flex_direction: 'column', flex_gap: dim(12), flex_align_items: 'center', flex_justify_content: 'center', min_height: { unit: 'px', size: Math.round(sec.h) }, padding: { unit: 'px', top: '24', right: '24', bottom: '24', left: '24', isLinked: false } };
+  if (sec.bg) { set.background_background = 'classic'; set.background_color = sec.bg; }
+  return { elType: 'container', settings: set, elements: els };
+}
+
 function buildEditableSection(sec) {
+  if (process.env.HYBRID_GRID === '1') { const g = detectGrid(sec); if (g) { console.log(`  [${sec.i}] GRID ${g.columns.length}-col (${g.columns.map((c) => Math.round(c.x)).join(',')})`); return buildGridSection(sec, g); } }
   const leaves = sec.leaves.slice().sort((a, b) => (a.box.y - b.box.y) || (a.box.x - b.box.x));
   const rows = [];
   for (const lf of leaves) {
