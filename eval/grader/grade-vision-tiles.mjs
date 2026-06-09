@@ -90,13 +90,48 @@ async function leavesOf(page) {
   }).catch(() => []);
 }
 
+// Robust, idempotent lazy-content trigger (2026-06-09 de-deflation). The original fast settle (800px steps,
+// 60ms each) scrolls past `loading=lazy` / IntersectionObserver-gated images too quickly for them to fetch+
+// decode+paint before the screenshot, manufacturing FALSE white-space "voids" (see memory
+// vision-tiler-lazyload-falsevoid: reactdev community photos render 1:1 yet tiled as white). This version
+// scrolls in viewport-sized steps with real dwell time, re-reads the (possibly-growing) page height, WAITS for
+// every <img> to actually complete+decode, settles the network, and returns to top — so what we screenshot is
+// what a human who has scrolled the page sees. Idempotent: always ends at scrollY 0; running twice is a no-op
+// on an already-loaded page. REVERSIBLE: VTILES_NO_LAZY_TRIGGER=1 skips this and uses the legacy fast settle,
+// which is byte-identical to the pre-2026-06-09 capture path.
+export async function settleLazy(page) {
+  await page.evaluate(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const docH = () => document.body.scrollHeight;
+    // incremental scroll; re-read height each step since lazy content can extend the page. Cap iterations so a
+    // genuinely infinite-growth page (rare) can't hang the capture.
+    let y = 0, guard = 0;
+    while (y <= docH() && guard++ < 400) { window.scrollTo(0, y); await sleep(110); y += 600; }
+    window.scrollTo(0, docH()); await sleep(250);
+    // wait for in-DOM images to finish (complete + non-zero natural size), bounded
+    const pending = () => [...document.images].filter((im) => !(im.complete && im.naturalWidth > 0));
+    const deadline = Date.now() + 8000;
+    while (pending().length && Date.now() < deadline) await sleep(150);
+    // force-decode (paint readiness) of the images we have, best-effort & bounded
+    await Promise.all([...document.images].slice(0, 500).map((im) => im.decode && im.decode().catch(() => {})));
+    window.scrollTo(0, 0); await sleep(150);
+  }).catch(() => {});
+  await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+  await page.waitForTimeout(400);
+}
+
 async function capture(ctx, url) {
   const p = await ctx.newPage();
   await p.goto(url, { waitUntil: 'networkidle', timeout: 90000 }).catch(() => {});
   await p.waitForTimeout(2500);
-  // settle: scroll to bottom to trigger lazy content, then back to top
-  await p.evaluate(async () => { const h = document.body.scrollHeight; for (let y = 0; y < h; y += 800) { window.scrollTo(0, y); await new Promise((r) => setTimeout(r, 60)); } window.scrollTo(0, 0); });
-  await p.waitForTimeout(1200);
+  if (process.env.VTILES_NO_LAZY_TRIGGER) {
+    // LEGACY fast settle (byte-identical to pre-2026-06-09 behaviour) — the reversible OFF path.
+    await p.evaluate(async () => { const h = document.body.scrollHeight; for (let y = 0; y < h; y += 800) { window.scrollTo(0, y); await new Promise((r) => setTimeout(r, 60)); } window.scrollTo(0, 0); });
+    await p.waitForTimeout(1200);
+  } else {
+    // DEFAULT: robust lazy-image trigger so below-fold lazy content paints before the shot (de-deflation).
+    await settleLazy(p);
+  }
   // SCREENSHOT first, in the settled PAINTED state (this is what a human sees — drift and all). Identical to before.
   const shot = PNG.sync.read(await p.screenshot({ fullPage: true }));
   // THEN extract at-rest DOM landmarks (mutates the page: forces visibility) — only used for anchoring, never re-shot.

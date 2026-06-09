@@ -22,8 +22,13 @@ const arg = (n, d = null) => { const i = process.argv.indexOf('--' + n); return 
 const has = (n) => process.argv.includes('--' + n);
 const source = arg('source'), clone = arg('clone'), layoutPath = arg('layout'), outDir = arg('out', '/tmp/gsec'), W = 1440;
 const SELFTEST = has('selftest');
-if (!source || (!clone && !SELFTEST)) { console.error('need --source --clone (or --source --selftest)'); process.exit(2); }
-fs.mkdirSync(outDir, { recursive: true });
+// IS_MAIN = invoked as the CLI (not imported by a unit test for its pure exports like classifyVoid). Only then do
+// we require args / mkdir / launch the browser, so importing this module for testing is side-effect-free.
+const IS_MAIN = import.meta.url === `file://${process.argv[1]}` || (process.argv[1] && process.argv[1].endsWith('grade-sections.mjs'));
+if (IS_MAIN) {
+  if (!source || (!clone && !SELFTEST)) { console.error('need --source --clone (or --source --selftest)'); process.exit(2); }
+  fs.mkdirSync(outDir, { recursive: true });
+}
 const TGT = { visual: 0.97, editability: 0.95, hLo: 0.99, hHi: 1.01 };
 
 // ---- REVERSIBLE OBJECTIVE FLIP (USER-GREENLIT, supervised) ----
@@ -117,6 +122,30 @@ const VOID_SRC_CONTENT = 0.06;  // SOURCE band counts as "has substantial conten
 const VOID_CLONE_FLOOR = 0.30;  // CLONE band counts as a void when its energy <= this FRACTION of the source band's
 const VOID_BG_ABS = 0.020;      // ...AND the clone band's absolute energy <= this (near page-background uniform)
 const VOID_CEIL = 0.30;         // a confirmed content-void's per-band visual is capped at this LOW ceiling
+// TEXT-GUARD (2026-06-09 de-deflation). The energy-only void test FALSE-POSITIVES on DARK bands with sparse-but-
+// real BRIGHT content: a near-black hero with a left-aligned white headline has very low clone energy, and when the
+// SOURCE band also carries a position:fixed nav painted across it the energy RATIO mis-fires — the band is flagged
+// a content-void even though the clone clearly rendered the headline (framer S6 "Create, collaborate, and go live";
+// S16 "Scale without switching tools" — render-confirmed present). That DEFLATES a correct clone. The guard: a band
+// whose SOURCE text the CLONE actually reproduced (matched text leaves physically inside the clone band) is NOT a
+// void — the low energy is dark background, not absent content. It only suppresses when the source band HAS text AND
+// the clone reproduced it; a TEXTLESS imagery void (logos/cards, no source text) or a BLANK/rastered clone band (no
+// matched clone text leaves) is unaffected, so genuine voids stay penalized. Symmetric (clone==source → reproduced →
+// but selftest already no-ops). Reversible: GRADER_NO_VOID_TEXTGUARD=1 restores the energy-only over-firing.
+const VOID_TEXTGUARD = !process.env.GRADER_NO_VOID_TEXTGUARD;
+
+// Pure, exported void decision (unit-tested by _void-textguard-selftest.mjs). selftest short-circuits to false
+// (clone==source can never be a void). Otherwise: energy condition (source has content, clone collapsed to bg) AND
+// — unless the text-guard suppresses it because the clone reproduced the band's source text.
+export function classifyVoid({ srcEnergy, cloneEnergy, cloneReproducedBandText, selftest = false, textGuard = true }) {
+  if (selftest) return false;
+  const energyVoid = srcEnergy >= VOID_SRC_CONTENT
+    && cloneEnergy <= VOID_CLONE_FLOOR * srcEnergy
+    && cloneEnergy <= VOID_BG_ABS;
+  if (!energyVoid) return false;
+  if (textGuard && cloneReproducedBandText) return false; // dark + sparse-bright headline the clone rendered → not a void
+  return true;
+}
 
 // ---- VISIBLE-BLOCKS HARDENING (anti-gaming) ----
 // structuralFidelity counts, per source block type {form/video/table/list/tabs/accordion/nav}, how many the clone
@@ -563,7 +592,7 @@ async function capture(ctx, target, withSections) {
   await p.close(); return { shot, texts: info.texts, sections: info.sections, imgs: info.imgs, blocks: info.blocks, pageH: info.pageH, textLeaves: info.textLeaves, bands: info.bands, mediaLeaves: info.mediaLeaves, navStruct: info.navStruct, docScrollW: info.docScrollW, docClientW: info.docClientW, leafBoxes: info.leafBoxes };
 }
 
-(async () => {
+if (IS_MAIN) (async () => {
   const browser = await chromium.launch({ args: ['--disable-blink-features=AutomationControlled'] });
   const ctx = await browser.newContext({ viewport: { width: W, height: 900 }, deviceScaleFactor: 1 });
   await ctx.addInitScript(() => { Object.defineProperty(navigator, 'webdriver', { get: () => undefined }); });
@@ -590,12 +619,17 @@ async function capture(ctx, target, withSections) {
     // band CONTENT ENERGY independently. SELFTEST (clone==source) → identical energies → void impossible → no-op.
     const srcTex = (DET_VOIDPENALTY && gradable) ? bandTexture(src.shot, y0, gy1) : { energy: 0, varNorm: 0, edgeNorm: 0 };
     const cloneTex = (DET_VOIDPENALTY && gradable) ? (SELFTEST ? srcTex : bandTexture(cln.shot, y0, gy1)) : { energy: 0, varNorm: 0, edgeNorm: 0 };
-    // A band is a CONTENT-VOID iff the SOURCE has substantial content AND the CLONE collapsed to near-background:
-    // clone energy is both a small FRACTION of the source's AND below an absolute near-uniform floor.
-    const isVoid = DET_VOIDPENALTY && gradable && !SELFTEST
-      && srcTex.energy >= VOID_SRC_CONTENT
-      && cloneTex.energy <= VOID_CLONE_FLOOR * srcTex.energy
-      && cloneTex.energy <= VOID_BG_ABS;
+    // A band is a CONTENT-VOID iff the SOURCE has substantial content AND the CLONE collapsed to near-background
+    // (clone energy a small FRACTION of the source's AND below an absolute near-uniform floor) — UNLESS the
+    // TEXT-GUARD finds the clone actually reproduced this band's source text (a dark + sparse-bright headline the
+    // clone DID render → not a void; see classifyVoid + the VOID_TEXTGUARD note). We compute "reproduced" from the
+    // band's own source texts: it requires the source band to HAVE text and the clone to carry a meaningful share of
+    // it both in the matched-text set (inClone) AND as text leaves physically inside the clone band (not page-wide).
+    const bandSrcTexts = (DET_VOIDPENALTY && gradable && !SELFTEST) ? [...new Set(src.texts.filter((t) => t.y >= y0 && t.y < gy1 && norm(t.t).length >= 4).map((t) => norm(t.t)))] : [];
+    const bandMatched = bandSrcTexts.filter(inClone).length;
+    const cloneLeavesInBand = (DET_VOIDPENALTY && gradable && !SELFTEST) ? cln.texts.filter((t) => t.y >= y0 && t.y < gy1 && norm(t.t).length >= 4).length : 0;
+    const cloneReproducedBandText = bandSrcTexts.length >= 1 && bandMatched >= Math.max(1, Math.ceil(bandSrcTexts.length * 0.5)) && cloneLeavesInBand >= 1;
+    const isVoid = DET_VOIDPENALTY && gradable && classifyVoid({ srcEnergy: srcTex.energy, cloneEnergy: cloneTex.energy, cloneReproducedBandText, selftest: SELFTEST, textGuard: VOID_TEXTGUARD });
     // A confirmed void is forced to a LOW ceiling so it scores clearly below a content-bearing band. Because the
     // condition keys on the CLONE's own texture being near-bg, a clone that DID render content (high clone texture)
     // is never a void → never capped → presence always scores ≥ a void.
