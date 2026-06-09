@@ -213,13 +213,32 @@ function orderAgreement(srcOrder, cloneMobileOrder) {
   return tails.length / B.length;
 }
 
+// SOURCE CAPTURE CACHE — the clone (our static WP page) is deterministic, but the SOURCE (a live, often dynamic
+// site) re-renders run-to-run, injecting ±0.08 noise into the visual term (measured 2026-06-08: identical builds,
+// visual swung 0.084). Freezing the source reference makes grading reproducible AND faster. Default: use cache if
+// present; --refresh-source (or no http source) forces a live capture. Keyed by source URL.
+const SRC_CACHE_DIR = '/tmp/grade-src-cache';
+const srcTag = String(source).replace(/^https?:\/\//, '').replace(/[^a-z0-9]/gi, '').slice(0, 40);
+const refreshSource = process.argv.includes('--refresh-source');
 (async () => {
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: W, height: 900 }, deviceScaleFactor: 1 });
-  const src = await capture(ctx, source, true);
+  let src, srcMobileTexts = null;
+  const srcCacheJson = `${SRC_CACHE_DIR}/${srcTag}.json`, srcCachePng = `${SRC_CACHE_DIR}/${srcTag}.png`;
+  const useSrcCache = /^https?:/.test(source) && fs.existsSync(srcCacheJson) && fs.existsSync(srcCachePng) && !refreshSource;
+  if (useSrcCache) {
+    const meta = JSON.parse(fs.readFileSync(srcCacheJson, 'utf8'));
+    src = { shot: PNG.sync.read(fs.readFileSync(srcCachePng)), texts: meta.texts, textPos: meta.textPos, census: meta.census, ds: meta.ds, pageH: meta.pageH };
+    srcMobileTexts = meta.mobileTexts;
+  } else {
+    src = await capture(ctx, source, true);
+  }
   const cln = await capture(ctx, clone, false);
   const cloneML = await mobileLayout(ctx, clone); // clone mobile fit + reading order (390px)
-  const srcML = cloneML ? await mobileLayout(ctx, source) : null; // source mobile reading order (390px reference)
+  let srcML = cloneML ? (srcMobileTexts ? { mobileTexts: srcMobileTexts } : await mobileLayout(ctx, source)) : null; // source mobile reading order (390px reference)
+  if (!useSrcCache && /^https?:/.test(source)) { // persist a fresh source capture for deterministic future grades
+    try { fs.mkdirSync(SRC_CACHE_DIR, { recursive: true }); fs.writeFileSync(srcCachePng, PNG.sync.write(src.shot)); fs.writeFileSync(srcCacheJson, JSON.stringify({ texts: src.texts, textPos: src.textPos, census: src.census, ds: src.ds, pageH: src.pageH, mobileTexts: srcML ? srcML.mobileTexts : null })); } catch {}
+  }
   await browser.close();
 
   // ---- visual ----
