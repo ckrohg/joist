@@ -61,8 +61,8 @@ function leafToWidget(n) {
 // full-width header/footer. Flow flattens such grids into sparse stacks (the diagnosed Stripe/clerk failure);
 // this rebuilds the real columns. Returns a grid plan or null (→ fall back to flow). Conservative on purpose.
 function detectGrid(sec) {
-  const all = (sec.leaves || []).filter((l) => l.box && l.box.w > 0);
-  const cells = all.filter((l) => l.box.w < W * 0.40);
+  const all = (sec.leaves || []).filter((l) => l.box && l.box.w > 0 && !l.icon); // icons excluded from column
+  const cells = all.filter((l) => l.box.w < W * 0.40);                            // detection (they cluster wrong)
   const wide = all.filter((l) => l.box.w >= W * 0.40);
   if (cells.length < 4) return null;
   const cols = [];
@@ -97,6 +97,14 @@ function buildGridSection(sec, grid) {
     for (const it of items) { if (cur.length) { const prev = cur[cur.length - 1]; if (it.box.y - (prev.box.y + prev.box.h) > 48) { cards.push({ x: col.x, y: cur[0].box.y, items: cur }); cur = []; } } cur.push(it); }
     if (cur.length) cards.push({ x: col.x, y: cur[0].box.y, items: cur });
   }
+  // attach captured icons (#4) to their nearest card by column-x then y — icons are excluded from column
+  // detection (they'd pollute clustering) but belong at a card's top. Re-sort so the icon leads each card.
+  for (const ic of (sec.leaves || []).filter((l) => l.icon)) {
+    const icx = ic.box.x + ic.box.w / 2; let best = null, bestS = Infinity;
+    for (const card of cards) { const s = Math.abs(card.x - icx) * 2 + Math.abs(card.y - ic.box.y); if (s < bestS) { bestS = s; best = card; } }
+    if (best) best.items.push(ic);
+  }
+  for (const card of cards) card.items.sort((a, b) => a.box.y - b.box.y);
   // reading order: row-band (quantized y) then x — so cards lay out left-to-right, top-to-bottom
   const rowQ = Math.max(60, sec.h / Math.max(1, Math.ceil(cards.length / N)));
   cards.sort((a, b) => (Math.round(a.y / rowQ) - Math.round(b.y / rowQ)) || (a.x - b.x));
@@ -227,7 +235,7 @@ function classify(sec) {
     const leafEls = [...document.querySelectorAll('h1,h2,h3,h4,h5,h6,p,a,button,img,span,li,div')];
     const seen = new Set();
     const sections = [];
-    let iconBudget = 24; // #4: page-wide icon cap (adversary constraint — bound the rasterization cost)
+    let iconBudget = 48; // #4: page-wide icon cap (bound total cost); per-section cap below prevents one logo-wall starving later card grids
     for (let i = 0; i < bounds.length - 1; i++) {
       const y0 = bounds[i], y1 = bounds[i + 1]; const mid = (y0 + y1) / 2; const secH = y1 - y0;
       const leaves = []; let mediaArea = 0, textChars = 0, linkCount = 0, bigCanvas = false; let bgColor = null;
@@ -274,8 +282,9 @@ function classify(sec) {
       // Do NOT add to mediaArea (would flip section classification editable->raster). Ink-gated, overlap-deduped,
       // page-capped (iconBudget). Direct-src for <img> icons (skip hosting); rasterSlice for SVG/bg-image.
       if (iconsOn && iconBudget > 0) {
+        let secIcons = 0; // per-section cap so one logo-wall doesn't starve later card grids of their icons
         for (const el of document.querySelectorAll('svg, img, i, [class*="icon"], [class*="Icon"]')) {
-          if (iconBudget <= 0) break;
+          if (iconBudget <= 0 || secIcons >= 8) break;
           const r = rectOf(el); const cy = r.y + r.h / 2; if (cy < y0 || cy >= y1) continue;
           if (r.w < 14 || r.h < 14 || r.w > 96 || r.h > 96) continue;             // icon-sized
           const ar = r.w / r.h; if (ar < 0.4 || ar > 2.5) continue;               // roughly square
@@ -288,7 +297,7 @@ function classify(sec) {
           if (leaves.some((l) => l.icon && Math.abs(l.box.x - r.x) < 10 && Math.abs(l.box.y - r.y) < 10)) continue; // dedup nested
           if (src) leaves.push({ kind: 'image', src, box: r, icon: true, alt: 'icon' });
           else leaves.push({ kind: 'image', rasterSlice: true, icon: true, box: r, alt: 'icon' });
-          iconBudget--;
+          iconBudget--; secIcons++;
         }
       }
       const secArea = vw * secH; const mediaFrac = secArea ? mediaArea / secArea : 0;
