@@ -1,0 +1,1495 @@
+{
+  "url": "https://stripe.com/",
+  "title": "Stripe | Financial Infrastructure to Grow Your Revenue",
+  "pageBg": "rgba(0, 0, 0, 0)",
+  "pageHeight": 14601,
+  "blockCount": 172,
+  "blocks": [
+    {
+      "type": "button",
+      "level": null,
+      "text": "Products",
+      "fontSizePx": 14,
+      "fontWeight": "400",
+      "color": "rgb(6, 27, 49)",
+      "align": "center"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "Solutions",
+      "fontSizePx": 14,
+      "fontWeight": "400",
+      "color": "rgb(6, 27, 49)",
+      "align": "center"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "Developers",
+      "fontSizePx": 14,
+      "fontWeight": "400",
+      "color": "rgb(6, 27, 49)",
+      "align": "center"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "Resources",
+      "fontSizePx": 14,
+      "fontWeight": "400",
+      "color": "rgb(6, 27, 49)",
+      "align": "center"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "Pricing",
+      "fontSizePx": 14,
+      "fontWeight": "400",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "Sign in Sign in",
+      "fontSizePx": 14,
+      "fontWeight": "400",
+      "color": "rgb(83, 58, 253)",
+      "align": "start"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "Contact sales",
+      "fontSizePx": 14,
+      "fontWeight": "400",
+      "color": "rgb(255, 255, 255)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "Financial infrastructure to grow your revenue. Accept payments, offer financial services, and implement custom revenue models—from your first transaction to your billionth.",
+      "fontSizePx": 48,
+      "fontWeight": "300",
+      "color": "rgb(129, 184, 26)",
+      "align": "start"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "Get started",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(255, 255, 255)",
+      "align": "start"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "Sign up with Google",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(83, 58, 253)",
+      "align": "start"
+    },
+    {
+      "type": "image",
+      "src": "https://images.stripeassets.com/fzn2n1nzq965/115d4Vd5LVAsqFGDR1ClAv/0ceb2c44a7a7182cd624262420af7544/wave-fallback-desktop.png?w=1392&fm=webp&q=60",
+      "alt": "",
+      "w": 1392,
+      "h": 975
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Flexible solutions for every business model.",
+      "fontSizePx": 32,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "Grow your business with a comprehensive set of payments and financial tools⁠—⁠designed to work individually or together.",
+      "fontSizePx": 32,
+      "fontWeight": "300",
+      "color": "rgb(100, 116, 141)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Accept and optimize payments globally—online and in person",
+      "fontSizePx": 26,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "image",
+      "src": "https://images.stripeassets.com/fzn2n1nzq965/1Vf8oT9Fm6dEwpnEx5PgK1/055956f38d7fd8b0cc7419692ef29778/bento-terminal.png?w=308&fm=webp&q=90",
+      "alt": "",
+      "w": 280,
+      "h": 477
+    },
+    {
+      "type": "image",
+      "src": "https://images.stripeassets.com/fzn2n1nzq965/6BTjJGdjfGVA8brPwj7p3M/fcf084ff85142366e118fe85ee78b632/payments-electric-kettle.jpg?w=80&fm=webp&q=90",
+      "alt": "",
+      "w": 80,
+      "h": 86
+    },
+    {
+      "type": "image",
+      "src": "https://images.stripeassets.com/fzn2n1nzq965/5Dr3Oc550drIrxyzzXgFbq/f6e4fb0b8b4b40d73e94fdf7c9bc7028/payments-hoodie.jpg?w=80&q=90",
+      "alt": "",
+      "w": 80,
+      "h": 86
+    },
+    {
+      "type": "image",
+      "src": "https://images.stripeassets.com/fzn2n1nzq965/1UE1lPgwbfQRH586XfTWKM/f90bfc79f87b3e60a4189cc0f5a03228/showflix-streaming.jpg?w=80&q=90",
+      "alt": "",
+      "w": 80,
+      "h": 86
+    },
+    {
+      "type": "image",
+      "src": "https://images.stripeassets.com/fzn2n1nzq965/vYmk6v8n7oDAwbDpwhjV6/846f9b3e214549b8f14e2b8c8cfe9343/payment-bento-background.jpg?w=860&fm=webp&q=80",
+      "alt": "",
+      "w": 860,
+      "h": 712
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "Enable any billing model Pro Plan Billed monthly Tokens $0.01 per 1,000 units Usage meter Tokens used in the last 30 days 1,500,000,000",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(0, 0, 0)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Enable any billing model",
+      "fontSizePx": 26,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "Monetize through agentic commerce I’m refreshing my wardrobe. Can you recommend some cozy, comfortable basics in size M? Absolutely. Here are a few comfy essentials that pair well and could be a good starting point: Deluxe Shirt Essential Hoodie Blue - Medium Navy - Medium $26.00 $48.00 Cartsy Cartsy Buy now",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(0, 0, 0)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Monetize through agentic commerce",
+      "fontSizePx": 26,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "image",
+      "src": "https://images.stripeassets.com/fzn2n1nzq965/2rL4pJabxq9Yo0haXwK2HO/83c05122b463c882c8c89111154d77ec/shirt-blue.png?w=160&fm=webp&q=90",
+      "alt": "",
+      "w": 92,
+      "h": 92
+    },
+    {
+      "type": "image",
+      "src": "https://images.stripeassets.com/fzn2n1nzq965/6KmB7XGsUbTefNew25WF4T/6a949fbf5567dcd145339f5fcf207fae/hoodie-navy.png?w=160&fm=webp&q=90",
+      "alt": "",
+      "w": 92,
+      "h": 92
+    },
+    {
+      "type": "image",
+      "src": "https://images.stripeassets.com/fzn2n1nzq965/78eaknFXeySTtfpQUh4lD2/e2a97240d78e6e239bcfe045d5b21239/particles.png?w=514&fm=webp&q=90",
+      "alt": "",
+      "w": 447,
+      "h": 638
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "Create a card issuing program",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(0, 0, 0)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Create a card issuing program",
+      "fontSizePx": 26,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "image",
+      "src": "https://images.stripeassets.com/fzn2n1nzq965/1zneiFjZyS8cGQvki2cGqz/35294f1866720bec6d80fb2532270258/card-placeholder_2x.png?w=447&fm=webp&q=90",
+      "alt": "",
+      "w": 447,
+      "h": 728
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "Access borderless money movement with stablecoins and crypto",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(0, 0, 0)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Access borderless money movement with stablecoins and crypto",
+      "fontSizePx": 26,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "image",
+      "src": "https://images.stripeassets.com/fzn2n1nzq965/7dwxc06fkzWOmlwBs9GezW/667c1af2d03a023fc61ea4cec995204d/money-movement-fallback_2x.png?w=447&fm=webp&q=90",
+      "alt": "",
+      "w": 447,
+      "h": 728
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Embed payments in your platform",
+      "fontSizePx": 26,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "image",
+      "src": "https://images.stripeassets.com/fzn2n1nzq965/1j4wM9h2bBsyRFvTv6Wsn0/07f4b9b1e1e17fdc509d9087454dd8bc/ConnectBentoBackground.jpg?w=1242&fm=webp&q=90",
+      "alt": "",
+      "w": 1243,
+      "h": 454
+    },
+    {
+      "type": "image",
+      "src": "https://images.stripeassets.com/fzn2n1nzq965/2YFdgdFPeIiDpmQbhHPAx8/186752498bf713fea245f31bcec84f8a/sessions-2026-on-demand-bg.png?w=1632&fm=webp&q=90",
+      "alt": "",
+      "w": 1232,
+      "h": 400
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "Watch now",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(83, 58, 253)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "The backbone of global commerce",
+      "fontSizePx": 56,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "center"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "135+",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(0, 0, 0)",
+      "align": "center"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "135+",
+      "fontSizePx": 48,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "center"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "$1.9T",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(0, 0, 0)",
+      "align": "center"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "$1.9T",
+      "fontSizePx": 48,
+      "fontWeight": "300",
+      "color": "rgb(125, 139, 164)",
+      "align": "center"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "99.999%",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(0, 0, 0)",
+      "align": "center"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "99.999%",
+      "fontSizePx": 48,
+      "fontWeight": "300",
+      "color": "rgb(125, 139, 164)",
+      "align": "center"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "200M+",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(0, 0, 0)",
+      "align": "center"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "200M+",
+      "fontSizePx": 48,
+      "fontWeight": "300",
+      "color": "rgb(125, 139, 164)",
+      "align": "center"
+    },
+    {
+      "type": "image",
+      "src": "https://images.stripeassets.com/fzn2n1nzq965/7iwVhEHuNr5enwnkdi5vF0/221ef0ed4b2645423151dc17202ce4e4/dataviz-fallback_2x.png?w=1632&fm=webp&q=90",
+      "alt": "",
+      "w": 1234,
+      "h": 519
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Powering businesses of all sizes.",
+      "fontSizePx": 32,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "Run your business on a reliable platform that adapts to your needs.",
+      "fontSizePx": 32,
+      "fontWeight": "300",
+      "color": "rgb(100, 116, 141)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Transform your enterprise with agile financial infrastructure",
+      "fontSizePx": 26,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "Stripe for enterprises",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(255, 255, 255)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "50% of Fortune 100 companies have used Stripe to grow their businesses—from expanding internationally to reimagining the customer experience.",
+      "fontSizePx": 18,
+      "fontWeight": "300",
+      "color": "rgb(80, 97, 122)",
+      "align": "start"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "Hertz unifies commerce with Stripe.",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(0, 0, 0)",
+      "align": "left"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Hertz unifies commerce with Stripe.",
+      "fontSizePx": 22,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "left"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "Read the story",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(83, 58, 253)",
+      "align": "start"
+    },
+    {
+      "type": "image",
+      "src": "https://images.stripeassets.com/fzn2n1nzq965/24BNV3GGtvCprFLrYovyaa/b2eac20a1d5ec75e4bff3888b998d163/enterprise-accordion-hertz.png?w=1632&fm=webp&q=90",
+      "alt": "Aerial view of a street intersection where the crosswalks form a slanted parallelogram, imitating the Stripe logo.",
+      "w": 1232,
+      "h": 531
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "160",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "11K+",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "Products used",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "URBN consolidates $5 billion in online and in-store revenue onto Stripe.",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(0, 0, 0)",
+      "align": "left"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "URBN consolidates $5 billion in online and in-store revenue onto Stripe.",
+      "fontSizePx": 22,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "left"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "Instacart powers online grocery delivery with Stripe.",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(0, 0, 0)",
+      "align": "left"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Instacart powers online grocery delivery with Stripe.",
+      "fontSizePx": 22,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "left"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "Le Monde improves local and international payments with Stripe.",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(0, 0, 0)",
+      "align": "left"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Le Monde improves local and international payments with Stripe.",
+      "fontSizePx": 22,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "left"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "Professional services.",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "Get tailored guidance from Stripe on implementation, complex integrations, or major migrations.",
+      "fontSizePx": 16,
+      "fontWeight": "300",
+      "color": "rgb(80, 97, 122)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "Stripe-certified experts.",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "Work with a Stripe consulting partner that can integrate and deploy Stripe solutions on your behalf.",
+      "fontSizePx": 16,
+      "fontWeight": "300",
+      "color": "rgb(80, 97, 122)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "Support plans.",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "Receive ongoing assistance and day-to-day support for technical questions with tiered plans based on your needs.",
+      "fontSizePx": 16,
+      "fontWeight": "300",
+      "color": "rgb(80, 97, 122)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Build a foundation for your startup that enables faster growth",
+      "fontSizePx": 26,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "Stripe for startups",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(255, 255, 255)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "From stablecoin pioneers to 78% of the Forbes AI 50, Stripe helps startups build what’s next on easy-to-integrate financial infrastructure.",
+      "fontSizePx": 18,
+      "fontWeight": "300",
+      "color": "rgb(80, 97, 122)",
+      "align": "start"
+    },
+    {
+      "type": "image",
+      "src": "https://images.stripeassets.com/fzn2n1nzq965/1CBkJePR5Cwf2QNIVCia1I/c0a702cec7a3814c69f21f86b89ed718/lovable.png?w=432&fm=webp&q=90",
+      "alt": "",
+      "w": 344,
+      "h": 448
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "Lovable grows into a vibe-coding juggernaut with Stripe.",
+      "fontSizePx": 16,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "image",
+      "src": "https://images.stripeassets.com/fzn2n1nzq965/6fpvaTP1TZWXKWVMewABjV/4412b9ca2940d89d3834ac65c1fc329d/Runway.png?w=432&fm=webp&q=90",
+      "alt": "",
+      "w": 344,
+      "h": 448
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "Runway protects developer time with no-code solutions from Stripe.",
+      "fontSizePx": 16,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "image",
+      "src": "https://images.stripeassets.com/fzn2n1nzq965/7fM8bvEbivprOMM1zyow9N/3cad3cc826f96e4038b4ea88d81ebe3b/Supabase.png?w=432&fm=webp&q=90",
+      "alt": "",
+      "w": 344,
+      "h": 448
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "Supabase delivers its backend-as-a-service to 150 countries with Stripe.",
+      "fontSizePx": 16,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "image",
+      "src": "https://images.stripeassets.com/fzn2n1nzq965/4b8Ubw7N2kYwb7QZl3Ogri/422cc19f725aa68e647d90ce2833c8d0/linear.png?w=432&fm=webp&q=90",
+      "alt": "",
+      "w": 344,
+      "h": 448
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "Linear partners with Stripe to handle billing and payments.",
+      "fontSizePx": 16,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "image",
+      "src": "https://images.stripeassets.com/fzn2n1nzq965/JK7aZoMzWA3uUbLb35kxx/dea1444a0aee29751c0c7098ffb33534/Eleven_Labs.png?w=432&fm=webp&q=90",
+      "alt": "",
+      "w": 344,
+      "h": 448
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "ElevenLabs grows into a $3B AI audio leader with Stripe.",
+      "fontSizePx": 16,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "image",
+      "src": "https://images.stripeassets.com/fzn2n1nzq965/1NiQJZA0rKbwXZ7mD4BCrM/0abdaba77e564f858a33241a9aab0939/browserbase.png?w=432&fm=webp&q=90",
+      "alt": "",
+      "w": 344,
+      "h": 448
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "Browserbase offers usage-based billing for an AI agent browser with Stripe.",
+      "fontSizePx": 16,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "image",
+      "src": "https://images.stripeassets.com/fzn2n1nzq965/1hreJwxuVJ5ucPtuA7pRKH/3c5630387bca898d01ae17fc7ae2890a/decagon.png?w=432&fm=webp&q=90",
+      "alt": "",
+      "w": 344,
+      "h": 448
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "Decagon decreases support costs by 65% with Stripe-integrated agents.",
+      "fontSizePx": 16,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "Stripe Startups program.",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "Access financial benefits, a focused community, and expert resources to help you grow your business.",
+      "fontSizePx": 16,
+      "fontWeight": "300",
+      "color": "rgb(80, 97, 122)",
+      "align": "start"
+    },
+    {
+      "type": "image",
+      "src": "https://images.stripeassets.com/fzn2n1nzq965/1DZkp4Ce0kiwj2F2Z0kJ16/fcb4904fd728f49521385059618245b9/card_startups.png?w=585&fm=webp&q=90",
+      "alt": "",
+      "w": 585,
+      "h": 236
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "Stripe Atlas.",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "Incorporate and get everything you need to fundraise, bank, and accept payments in two business days.",
+      "fontSizePx": 16,
+      "fontWeight": "300",
+      "color": "rgb(80, 97, 122)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Make your SaaS platform a complete financial operating system",
+      "fontSizePx": 26,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "Stripe for platforms",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(255, 255, 255)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "From the Fortune 100 to the Forbes Cloud 100, vertical SaaS platforms use Stripe to expand their product offerings with embedded payments and financial services.",
+      "fontSizePx": 18,
+      "fontWeight": "300",
+      "color": "rgb(80, 97, 122)",
+      "align": "start"
+    },
+    {
+      "type": "image",
+      "src": "https://images.stripeassets.com/fzn2n1nzq965/5dQAw5oJf3TOO1Jt6IKDRH/f391594c11f38d821259acdd3412a7a6/platform-graphic-background_2x.png?w=1632&fm=webp&q=90",
+      "alt": "",
+      "w": 1232,
+      "h": 532
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "Get to market faster.",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "Launch and scale payments products with lower operational overhead using embedded components and no-code tools.",
+      "fontSizePx": 16,
+      "fontWeight": "300",
+      "color": "rgb(80, 97, 122)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "Grow new lines of revenue.",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "Monetize platform transactions—including payments, card interchange, and financing fees.",
+      "fontSizePx": 16,
+      "fontWeight": "300",
+      "color": "rgb(80, 97, 122)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "Manage platform risk.",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "Stay ahead of global regulations with tools for compliance, credit risk, fraud prevention, and account security.",
+      "fontSizePx": 16,
+      "fontWeight": "300",
+      "color": "rgb(80, 97, 122)",
+      "align": "start"
+    },
+    {
+      "type": "image",
+      "src": "https://images.stripeassets.com/fzn2n1nzq965/4oTkzvOAoM5Ruub2qYNVRC/cfb038e66b1d8bc034b6a178484862a8/KurtisMoyer.png?w=48&fm=webp&q=90",
+      "alt": "",
+      "w": 48,
+      "h": 48
+    },
+    {
+      "type": "image",
+      "src": "https://images.stripeassets.com/fzn2n1nzq965/jl91B2l5iqFZjgqFezN1R/95f1a9bb5592d29b245ac9fb2795f760/testimonial-headshot-jobber.png?w=48&q=90",
+      "alt": "",
+      "w": 48,
+      "h": 48
+    },
+    {
+      "type": "image",
+      "src": "https://images.stripeassets.com/fzn2n1nzq965/2aodX2UAzh9UTJJu5tmCNV/abe525bcc762939fb5c03436b6489af2/testimonial-headshot-substack.png?w=48&q=90",
+      "alt": "",
+      "w": 48,
+      "h": 48
+    },
+    {
+      "type": "image",
+      "src": "https://images.stripeassets.com/fzn2n1nzq965/6BDiRNAVvZNmAxlPtJKSD9/f821071a93166296d7b71794825b9eca/testimonial-headshot-lightspeed.png?w=48&q=90",
+      "alt": "",
+      "w": 48,
+      "h": 48
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Reliable, extensible infrastructure for every stack.",
+      "fontSizePx": 32,
+      "fontWeight": "300",
+      "color": "rgb(255, 255, 255)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "Adapt Stripe to your business needs with flexible integration options.",
+      "fontSizePx": 32,
+      "fontWeight": "300",
+      "color": "rgb(131, 155, 200)",
+      "align": "start"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "View developer docs",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(255, 255, 255)",
+      "align": "start"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "View Stripe’s GitHub",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(255, 255, 255)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Connect to existing systems.",
+      "fontSizePx": 26,
+      "fontWeight": "300",
+      "color": "rgb(255, 255, 255)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "Orchestrate payments across multiple processors, build custom workflows, and connect to third parties using APIs, partner apps, or prebuilt integrations.",
+      "fontSizePx": 26,
+      "fontWeight": "300",
+      "color": "rgb(131, 155, 200)",
+      "align": "start"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "App Marketplace",
+      "fontSizePx": 14,
+      "fontWeight": "400",
+      "color": "rgb(255, 255, 255)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Scale with confidence.",
+      "fontSizePx": 26,
+      "fontWeight": "300",
+      "color": "rgb(255, 255, 255)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "Handle thousands of transactions per second with consistent speed and reliability, even during peak traffic periods.",
+      "fontSizePx": 26,
+      "fontWeight": "300",
+      "color": "rgb(131, 155, 200)",
+      "align": "start"
+    },
+    {
+      "type": "image",
+      "src": "https://images.stripeassets.com/fzn2n1nzq965/1lk5Hfstc9dnE8xVFz1HeC/0dec8f2dde7f904eade36d8390d81c69/developer-wave-wide_2x.png?fm=webp&q=80",
+      "alt": "",
+      "w": 1232,
+      "h": 460
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "500M+",
+      "fontSizePx": 48,
+      "fontWeight": "300",
+      "color": "rgb(255, 255, 255)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "API requests per day",
+      "fontSizePx": 16,
+      "fontWeight": "300",
+      "color": "rgb(255, 255, 255)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "10K+",
+      "fontSizePx": 48,
+      "fontWeight": "300",
+      "color": "rgb(255, 255, 255)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "API requests per second",
+      "fontSizePx": 16,
+      "fontWeight": "300",
+      "color": "rgb(255, 255, 255)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "150K+",
+      "fontSizePx": 48,
+      "fontWeight": "300",
+      "color": "rgb(255, 255, 255)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "transactions per minute",
+      "fontSizePx": 16,
+      "fontWeight": "300",
+      "color": "rgb(255, 255, 255)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Choose an integration path.",
+      "fontSizePx": 26,
+      "fontWeight": "300",
+      "color": "rgb(255, 255, 255)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "With AI-powered support, rich documentation, and built-in debugging tools, you can quickly get started with the best option for your business.",
+      "fontSizePx": 26,
+      "fontWeight": "300",
+      "color": "rgb(131, 155, 200)",
+      "align": "start"
+    },
+    {
+      "type": "image",
+      "src": "https://images.stripeassets.com/fzn2n1nzq965/2AQaqFVlwXgXxBRIwIp9ry/c597bf42bd93eef022cbc6933c0d7cbc/QRCode.png?w=70&fm=webp&q=90",
+      "alt": "",
+      "w": 70,
+      "h": 66
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "Don’t code?",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(255, 255, 255)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "Set up billing, take in-person payments, or share a payment link—right from the Stripe Dashboard, no code required.",
+      "fontSizePx": 16,
+      "fontWeight": "300",
+      "color": "rgb(163, 181, 214)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "Use a pre-integrated platform.",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(255, 255, 255)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "Browse our directory of platforms that integrate Stripe with website-building tools.",
+      "fontSizePx": 16,
+      "fontWeight": "300",
+      "color": "rgb(163, 181, 214)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "Build your own integration.",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(255, 255, 255)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "Use our SDKs, APIs, MCP server, and AI developer tools to build and maintain your own integration with Stripe.",
+      "fontSizePx": 16,
+      "fontWeight": "300",
+      "color": "rgb(163, 181, 214)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "What’s happening",
+      "fontSizePx": 32,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "See the latest from Stripe.",
+      "fontSizePx": 32,
+      "fontWeight": "300",
+      "color": "rgb(100, 116, 141)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Businesses on Stripe generated $1.9T in 2025.",
+      "fontSizePx": 22,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "Our annual letter explores the trends defining the internet economy—including steeper growth for newer businesses, faster international expansion, stablecoin progress, agentic commerce, and more.",
+      "fontSizePx": 22,
+      "fontWeight": "300",
+      "color": "rgb(100, 116, 141)",
+      "align": "start"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "Read the letter",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(83, 58, 253)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "150K+ users have their best day ever on Stripe.",
+      "fontSizePx": 22,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "From Black Friday through Cyber Monday 2025, Stripe processed more than $40B for businesses while maintaining a 99.9999% uptime.",
+      "fontSizePx": 22,
+      "fontWeight": "300",
+      "color": "rgb(100, 116, 141)",
+      "align": "start"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "See the numbers",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(83, 58, 253)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Tidemark’s vertical and SMB SaaS benchmark report.",
+      "fontSizePx": 22,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "Learn what’s driving growth in vertical SaaS in 2025—going multiproduct, embedding fintech, and integrating AI into the core of their products.",
+      "fontSizePx": 22,
+      "fontWeight": "300",
+      "color": "rgb(100, 116, 141)",
+      "align": "start"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "Get the data",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(83, 58, 253)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Shopify’s Tobi Lütke sits down with John Collison.",
+      "fontSizePx": 22,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "Hear them discuss the choices that shaped Shopify and Stripe, the future of commerce, and their advice for founders.",
+      "fontSizePx": 22,
+      "fontWeight": "300",
+      "color": "rgb(100, 116, 141)",
+      "align": "start"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "Watch video",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(83, 58, 253)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "New tools to process payments outside app stores.",
+      "fontSizePx": 22,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "New regulations mean new opportunities. Read how Stripe can help you process payments outside of the iOS and Android app stores, giving you more control and helping grow your revenue.",
+      "fontSizePx": 22,
+      "fontWeight": "300",
+      "color": "rgb(100, 116, 141)",
+      "align": "start"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "Learn how",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(83, 58, 253)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Crypto.com partners with Stripe to enable better crypto payments.",
+      "fontSizePx": 22,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "Learn how the partnership can help you tap into a new global customer base by letting customers pay with their crypto balance directly at checkout.",
+      "fontSizePx": 22,
+      "fontWeight": "300",
+      "color": "rgb(100, 116, 141)",
+      "align": "start"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "View announcement",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(83, 58, 253)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Make your products shoppable through AI platforms.",
+      "fontSizePx": 22,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "Find out how the Agentic Commerce Protocol (ACP) allows any business to accept purchases from AI platforms without requiring any major technical changes.",
+      "fontSizePx": 22,
+      "fontWeight": "300",
+      "color": "rgb(100, 116, 141)",
+      "align": "start"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "Read more",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(83, 58, 253)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "How leading retailers unify customer experiences and drive growth.",
+      "fontSizePx": 22,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "Get insights into how other brands have unified their online and in-store experiences and optimized their checkouts for a seamless shopping experience.",
+      "fontSizePx": 22,
+      "fontWeight": "300",
+      "color": "rgb(100, 116, 141)",
+      "align": "start"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "Get the report",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(83, 58, 253)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Book of the week",
+      "fontSizePx": 32,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "Entrepreneurship starts with ideas.",
+      "fontSizePx": 32,
+      "fontWeight": "300",
+      "color": "rgb(100, 116, 141)",
+      "align": "start"
+    },
+    {
+      "type": "image",
+      "src": "https://images.stripeassets.com/fzn2n1nzq965/26NHeyMaX7Dgig3cgYEDIs/ec00dbaf725ed514b45b62bdefdb448b/Book_cover_The_Fabric_of_Civilization.png?w=592&fm=webp&q=90",
+      "alt": "The Fabric of Civilization: How Textiles Made the World book cover by Hachette UK",
+      "w": 296,
+      "h": 440
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "The Fabric of Civilization: How Textiles Made the World",
+      "fontSizePx": 26,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "For more ideas on economic progress and technological advancement, see our in-house publications:",
+      "fontSizePx": 12,
+      "fontWeight": "300",
+      "color": "rgb(80, 97, 122)",
+      "align": "start"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "Stripe Press",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(0, 0, 238)",
+      "align": "start"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "Works in Progress",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(0, 0, 238)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "Create an account instantly, or contact us to design a custom package for your business.",
+      "fontSizePx": 20,
+      "fontWeight": "300",
+      "color": "rgb(80, 97, 122)",
+      "align": "start"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "Start now",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(255, 255, 255)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "See what you’ll pay",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "Integrated per-transaction pricing with no hidden fees.",
+      "fontSizePx": 16,
+      "fontWeight": "300",
+      "color": "rgb(80, 97, 122)",
+      "align": "start"
+    },
+    {
+      "type": "heading",
+      "level": 4,
+      "text": "Start building",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "Get up and running with Stripe in as little as 10 minutes.",
+      "fontSizePx": 16,
+      "fontWeight": "300",
+      "color": "rgb(80, 97, 122)",
+      "align": "start"
+    },
+    {
+      "type": "button",
+      "level": null,
+      "text": "United States(English)",
+      "fontSizePx": 16,
+      "fontWeight": "400",
+      "color": "rgb(83, 58, 253)",
+      "align": "center"
+    },
+    {
+      "type": "text",
+      "level": null,
+      "text": "© 2026 Stripe, LLC.",
+      "fontSizePx": 16,
+      "fontWeight": "300",
+      "color": "rgb(6, 27, 49)",
+      "align": "start"
+    }
+  ]
+}
