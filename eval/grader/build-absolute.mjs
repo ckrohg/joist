@@ -477,8 +477,9 @@ const styleAttr = (css) => css ? ` style="${css}"` : '';
 //       the de-inlined render is color-equivalent to legacy by construction.
 //   (4) typography bleeds NOTHING → no typography reset; nativeTypo() stays the single typography channel.
 // The reset rides the SAME page-level custom_css channel as the fluid-font #ff-N rules (customCss assembly).
-// SCOPE: body-leaf text-editor emissions (list/button/text) + the __globals__ color refs (headings too). The
-// Path C nav builders keep their inline stamps (separate channel, no __globals__, untouched this round).
+// SCOPE: body-leaf text-editor emissions (list/button/text) + the __globals__ color refs (headings too) PLUS,
+// since C round 4, the NAV-CHANNEL text-editor emissions in buildRealHeader (logoText / Path A CTA / Path C
+// links + CTA) — see deinlineNavAnchor below. One flag governs the whole de-inline family.
 const DEINLINE = process.env.ABS_NO_DEINLINE !== '1';
 const deinlineResetCss = [];      // per-leaf `#<eid> a{color:inherit}` rules (joined into page custom_css)
 let DEINLINE_SEQ = 0;             // monotonic id seed for de-inlined anchor leaves with no prior _element_id
@@ -490,6 +491,20 @@ function deinlineAnchorReset(existing) {
   const eid = had || `dei-${DEINLINE_SEQ++}`;
   deinlineResetCss.push(`#${eid} a{color:inherit}`);
   return had ? {} : { _element_id: eid };
+}
+// NAV-CHANNEL de-inline (C round 4 — same flag, same mechanism, nav `dei-nav-N` namespace so body `dei-N` ids
+// stay byte-stable). RE-MEASURED on a 3146 scratch duplicate (22162, falsifier strip-first): with the inline
+// stamp stripped, the nav CTA <a> computes rgb(0,123,255) from a bare theme `a` stylesheet rule (CDP
+// matched-styles: selector `a`, origin sheet) — NOT the wrapper's native text_color → the per-leaf
+// `#<eid> a{color:inherit}` reset is REQUIRED on every nav anchor leaf, exactly finding (3) above. With native
+// text_color + this reset the anchor computes the captured color (parity) and a panel sentinel edit RENDERS
+// (#FF6600 → rgb(255,102,0) computed, kills the two C-r1 residual FAIL_INERTs: 3146 "Plus" / 2988 "Get started").
+// Returns the settings fragment for a nav text-editor anchor leaf; callers emit it only under DEINLINE.
+let DEINAV_SEQ = 0;
+function deinlineNavAnchor(color) {
+  const eid = `dei-nav-${DEINAV_SEQ++}`;
+  deinlineResetCss.push(`#${eid} a{color:inherit}`);
+  return { _element_id: eid, ...(color ? { text_color: color } : {}) };
 }
 
 // ── BODY-CTA STYLING (body-cta-paint fix; default ON, BUILD_NO_CTA_PAINT=1 → legacy bare-anchor) ──────────────
@@ -1852,7 +1867,9 @@ function buildRealHeader(nav, proMode, slug) {
   const logoWidget = (() => {
     if (nav.logo) { const src = localSrc(nav.logo.src || nav.logo.raster); if (src && src !== 'SKIP') { const h = round(Math.min(48, (nav.logo.box && nav.logo.box.h) || 32)); return { elType: 'widget', widgetType: 'html', settings: { html: `<img src="${esc(src)}" alt="${esc(nav.logo.alt || 'logo')}" style="display:block;height:${h}px;width:auto;max-width:200px">` } }; } }
     const lt = nav.logoText ? stripEmoji(nav.logoText.text) : '';
-    if (lt) return { elType: 'widget', widgetType: 'text-editor', settings: { editor: `<div style="font-weight:700;font-size:20px;${navColor ? `color:${navColor}` : ''}">${esc(lt)}</div>` } };
+    // DE-INLINE (nav-channel, C r4): native text_color authoritative; plain <div> leaf bleeds nothing (C-r1
+    // finding 4) → no reset. ABS_NO_DEINLINE=1 → legacy inline stamp, byte-identical.
+    if (lt) return { elType: 'widget', widgetType: 'text-editor', settings: { editor: `<div style="font-weight:700;font-size:20px;${(!DEINLINE && navColor) ? `color:${navColor}` : ''}">${esc(lt)}</div>`, ...(DEINLINE && navColor ? { text_color: navColor } : {}) } };
     return null;
   })();
   const elements = [];
@@ -1866,7 +1883,11 @@ function buildRealHeader(nav, proMode, slug) {
       menu_typography_typography: 'custom', menu_typography_font_size: { unit: 'px', size: navSize },
       color_menu_item: navColor, color_menu_item_hover: navColor,
     } });
-    if (nav.cta) { const t = stripEmoji(nav.cta.text); const cc = textColor(nav.cta) || '#ffffff'; elements.push({ elType: 'widget', widgetType: 'text-editor', settings: { editor: `<a href="${esc(nav.cta.href || '#')}" style="display:inline-block;padding:8px 18px;border-radius:6px;background:${cc === '#ffffff' ? '#111' : 'transparent'};color:${cc};text-decoration:none;font-weight:600;font-size:${navSize}px;white-space:nowrap">${esc(t)}</a>` } }); }
+    // DE-INLINE (nav-channel, C r4): the inline color stamp made the panel text_color edit RENDER-INERT (the two
+    // C-r1 residual targets — 3146 "Plus", 2988 "Get started" — were exactly THIS emission). Native text_color +
+    // per-leaf a{color:inherit} reset (measured: bare theme `a` rule bleeds rgb(0,123,255) once the stamp is
+    // gone). Chrome (bg/border-radius/padding/typography) stays inline. ABS_NO_DEINLINE=1 → legacy byte-identical.
+    if (nav.cta) { const t = stripEmoji(nav.cta.text); const cc = textColor(nav.cta) || '#ffffff'; elements.push({ elType: 'widget', widgetType: 'text-editor', settings: { editor: `<a href="${esc(nav.cta.href || '#')}" style="display:inline-block;padding:8px 18px;border-radius:6px;background:${cc === '#ffffff' ? '#111' : 'transparent'};${DEINLINE ? '' : `color:${cc};`}text-decoration:none;font-weight:600;font-size:${navSize}px;white-space:nowrap">${esc(t)}</a>`, ...(DEINLINE ? deinlineNavAnchor(cc) : {}) } }); }
     console.log(`header EMIT (Pro): sticky full-width header → logo${logoWidget ? '✓' : '✗'} + nav-menu(slug=${slug}) + CTA${nav.cta ? '✓' : '✗'}`);
     return { container: container(headerSettings, elements), fallbackCss: '' };
   }
@@ -1876,7 +1897,9 @@ function buildRealHeader(nav, proMode, slug) {
   // unlike per-link widgets which hardcode the nav in two places). Reversible: default OFF.
   if (NAV_SHORTCODE && slug) {
     elements.push({ elType: 'widget', widgetType: 'shortcode', settings: { _element_id: 'clone-navmenu', shortcode: `[joist_nav_menu menu="${slug}"]` } });
-    if (nav.cta) { const t = stripEmoji(nav.cta.text); const cc = textColor(nav.cta) || navColor; elements.push({ elType: 'widget', widgetType: 'text-editor', settings: { editor: `<a href="${esc(nav.cta.href || '#')}" style="display:inline-block;padding:8px 18px;border-radius:6px;border:1px solid currentColor;color:${cc};text-decoration:none;font-weight:600;font-size:${navSize}px;white-space:nowrap">${esc(t)}</a>`, _flex_grow: '0' } }); }
+    // DE-INLINE (nav-channel, C r4): same treatment as the Path A CTA. `border:1px solid currentColor` keeps
+    // tracking the text color — under de-inline currentColor = inherited native text_color via the reset.
+    if (nav.cta) { const t = stripEmoji(nav.cta.text); const cc = textColor(nav.cta) || navColor; elements.push({ elType: 'widget', widgetType: 'text-editor', settings: { editor: `<a href="${esc(nav.cta.href || '#')}" style="display:inline-block;padding:8px 18px;border-radius:6px;border:1px solid currentColor;${DEINLINE ? '' : `color:${cc};`}text-decoration:none;font-weight:600;font-size:${navSize}px;white-space:nowrap">${esc(t)}</a>`, _flex_grow: '0', ...(DEINLINE ? deinlineNavAnchor(cc) : {}) } }); }
     console.log(`header EMIT (Path C-shortcode): sticky full-width header → logo${logoWidget ? '✓' : '✗'} + [joist_nav_menu menu=${slug}] + CTA${nav.cta ? '✓' : '✗'}`);
     // wp_nav_menu renders a bare <ul class="joist-nav">; style it as a horizontal flex bar (was unstyled
     // vertical list — code-review fix). Rides the same page custom_css channel as the rest of Path C.
@@ -1887,11 +1910,14 @@ function buildRealHeader(nav, proMode, slug) {
   // PATH C (no Pro) — structural sticky header: per-link <a> widgets in a flex sub-container (_flex_grow:0 +
   // DEFAULT/auto width — NEVER width:0) + native CTA + a checkbox-hack hamburger. Hamburger/responsive CSS rides
   // in page_settings.custom_css (returned as fallbackCss).
-  const linkChildren = nav.items.map((it) => ({ elType: 'widget', widgetType: 'text-editor', settings: { editor: `<a href="${esc(it.url || '#')}" style="display:inline-block;margin:0 14px;text-decoration:none;font-size:${navSize}px;${it.color ? `color:${it.color}` : (navColor ? `color:${navColor}` : '')};white-space:nowrap">${esc(it.title)}</a>`, _flex_grow: '0' } }));
+  // DE-INLINE (nav-channel, C r4): per-link native text_color + per-leaf a{color:inherit} reset replace the
+  // inline stamp (same measured theme-`a` bleed as the CTA). ABS_NO_DEINLINE=1 → legacy byte-identical.
+  const linkChildren = nav.items.map((it) => ({ elType: 'widget', widgetType: 'text-editor', settings: { editor: `<a href="${esc(it.url || '#')}" style="display:inline-block;margin:0 14px;text-decoration:none;font-size:${navSize}px;${DEINLINE ? '' : `${it.color ? `color:${it.color}` : (navColor ? `color:${navColor}` : '')};`}white-space:nowrap">${esc(it.title)}</a>`, _flex_grow: '0', ...(DEINLINE ? deinlineNavAnchor(it.color || navColor) : {}) } }));
   const linksContainer = container({ flex_direction: 'row', flex_align_items: 'center', flex_justify_content: 'flex-end', _flex_grow: '0', _element_id: 'clone-navlinks' }, linkChildren);
   const burgerWidget = { elType: 'widget', widgetType: 'html', settings: { _element_id: 'clone-burger-wrap', html: `<input type="checkbox" id="burger" style="display:none"><label for="burger" style="display:none;cursor:pointer;font-size:26px;line-height:1;${navColor ? `color:${navColor}` : ''}">&#9776;</label>` } };
   elements.push(burgerWidget, linksContainer);
-  if (nav.cta) { const t = stripEmoji(nav.cta.text); const cc = textColor(nav.cta) || navColor; elements.push({ elType: 'widget', widgetType: 'text-editor', settings: { editor: `<a href="${esc(nav.cta.href || '#')}" style="display:inline-block;padding:8px 18px;border-radius:6px;border:1px solid currentColor;color:${cc};text-decoration:none;font-weight:600;font-size:${navSize}px;white-space:nowrap">${esc(t)}</a>`, _flex_grow: '0' } }); }
+  // DE-INLINE (nav-channel, C r4): same treatment as the shortcode-path CTA above.
+  if (nav.cta) { const t = stripEmoji(nav.cta.text); const cc = textColor(nav.cta) || navColor; elements.push({ elType: 'widget', widgetType: 'text-editor', settings: { editor: `<a href="${esc(nav.cta.href || '#')}" style="display:inline-block;padding:8px 18px;border-radius:6px;border:1px solid currentColor;${DEINLINE ? '' : `color:${cc};`}text-decoration:none;font-weight:600;font-size:${navSize}px;white-space:nowrap">${esc(t)}</a>`, _flex_grow: '0', ...(DEINLINE ? deinlineNavAnchor(cc) : {}) } }); }
   const fallbackCss = [
     '#clone-burger-wrap label{display:none}',
     '@media(max-width:1024px){',
