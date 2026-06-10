@@ -49,11 +49,7 @@
   "corpusNote7": "BROADENED to 7 sites after probe wave 2 (round 36). Added react.dev (0.765 in-band, docs vertical: code/nav/tables — isolates the dark-code-block-bg defect cleanly). HELD OUT stripe (0.657, dynamic-capture tail) from the gated corpus to avoid dynamic noise + round-slowdown; its gaps logged in stripeSentinel. Generalization CONFIRMED on a 3rd/4th fresh site + a novel vertical.",
   "stripeSentinel": "stripe.com probe (page 4770) composite 0.657 — pipeline ran clean (287 leaves, hRatio 1.029, no crash) so recipes generalize STRUCTURALLY, but: visual 0.695 (animated gradient hero / scroll carousels / live $1.9T counter = JS-animation content the static V3 builder can't author), struct 0.5 (lost 1/2 lists, 0/1 accordion, + emitted a PHANTOM form). New gaps for targeted/supervised work: (a) accordion authoring recipe; (b) block-emission PRECISION (suppress phantom blocks not in source); (c) dynamic/animated-content tail (headed-capture / motion). NOT added to gated corpus (dynamic noise).",
   "corpusNote": "BROADENED to 6 sites after round-28 generalization probe (linear 0.851, vercel 0.791 — both in-band, recipes generalize). linear=dark-theme + high-water anchor; vercel=tabs/structural stressor. NOTE: cross-round mean shifts ~0.751->~0.77 purely from adding 2 high-scoring sites (composition, NOT a fix gain). Gate compares baseline-vs-after on the SAME 6 sites each round, so within-round verdicts stay honest. directed-fix.workflow.js + discovery.workflow.js SITES updated to 6.",
-  "currentRound": {
-    "name": "b1-round-1-roundtrip-probe",
-    "status": "running",
-    "detail": "scratch-page/CAS-revert harness + control-edit render probe + differentiated baseline on 3 corpus clones; falsifier (tri-viewport correspondence, read-only) runs alongside"
-  },
+  "currentRound": null,
   "flowAbsSurvivalUnknown": "PREREQ for the linear overlay fix (next round): the diagnostic found 0/528 live elements are position:absolute on the FLOW clone (pages 5404/5405 on sg-host) -> build-flow's EXISTING leaf-overlay abs path (build-flow.mjs ~line 771) is NOT rendering as absolute on the frontend. YET build-absolute achieves hRatio ~1.0 via abs on the SAME sg-host stack -> abs CAN work. So before/with the linear buildOverlay() fix (abs-layer the z-overlapped chart+card container children, currently flowed into a column stack = 51% of linear's page excess), RESOLVE why build-flow's abs is stripped/not-applying (diff build-flow's abs-emission vs build-absolute's working mechanism — likely different setting keys or a missing position:relative parent). Fallback if abs truly can't survive in flow: clip the over-tall chart subtree as a sized/clipped html widget to box.h (the kind:code line-282 overflow-cap recipe). Do NOT widen the z-overlay IoU gate (only 16% on tailwind; prior widening regressed coverage).",
   "barClassTokenPoison": "FUTURE LEVER (capture, from capture-markup-flow-gate screenshots): tailwindcss.com's hero code-as-art poison is NOT <div> markup — it's BARE UTILITY-CLASS TOKENS ('text-8xl text-gray-950 tracking-tighter text-balance ...') rendered inline with prose, no angle brackets so markupFrac=0. To strip: detect runs of >=2 consecutive hyphenated CSS-class identifiers (/^[a-z]+(-[a-z0-9]+)+$/) in a non-structural mono/decorative leaf + strip/raster them. Deferred behind the height-pin lever (the dominant one); revisit if tailwind perElement stays starved after height drift is fixed.",
   "effectsFoldResult": "ADOPTED (recovered): EFFECTS sub-score (box-shadow/border-radius/backdrop-filter, rubric cat-1.3) folded into perElement at 0.12 weight -> perElement = 0.30*color + 0.22*typo + 0.18*pos + 0.18*text + 0.12*effects (reversible GRADER_NO_EFFECTS=1 -> prior 0.35/0.25/0.20/0.20). self-test=1.0 both modes (effects=1.0, 15 samples non-vacuous), independent-verified, A/B reconciles. The 1st run was wrongly reverted by the ^OK: guard bug; fixed guard -> 2nd run adopted. Both builders now have a shadow/radius/blur fidelity target. plateauStreak stays (grader change, not a cloner gain).",
@@ -3716,6 +3712,106 @@
       },
       "shape": "matches prediction: headings 17/18 PASS (sole non-PASS = resend hero \"Email for developers\" FAIL_MOBILE_MASKED — desktop PASS 13757px, hidden/masked on the 390 leg); text-editor 0/15 + button 0/15 ALL FAIL_INERT with data_verified=true (panel data writes + reads back, render does not change — build-absolute inline style in editor HTML wins over text_color). The indictment stands: editable-in-data ≠ editable-in-render; vs the ≥0.90 gate the corpus sits at ~0.29.",
       "reports": "eval/grader/roundtrip-baseline/ (roundtrip-3146/2986/2988.json + pooled.json); /tmp originals"
+    },
+    {
+      "name": "b1-round-1-verdict",
+      "date": "2026-06-10",
+      "verdict": "KEPT — probe stack + THE INDICTMENT BASELINE",
+      "detail": "scratch-harness.mjs + probe-roundtrip.mjs + selftest (commits b89b1f9/e283775/377b5e6/ae19740). Pooled control_edit_roundtrip 0.289 (corrected 0.282 with code-kind): headings 17/18 PASS, text 0/15, button 0/15 — ALL FAIL_INERT with data_verified=true (inline style in editor HTML beats panel setting; refine-clone.mjs:148-153 prediction CONFIRMED). +1 FAIL_MOBILE_MASKED (resend hero hidden @390). Crash-safety verified live by critic kill-tests (SIGTERM trap + SIGKILL->sweep, corpus timestamps untouched). 3 critic mustFixes applied post-round (stale-report guard, code-kind denominator, map_via surfaced — id-map was silently DEAD: 0/48, pb-ids need ABS_PERBP=1 at build; baseline ran on text-fallback whose binding accuracy is unverified). NEXT LEVER NAMED BY DATA: kill FAIL_INERT at build time (de-inline) -> overall pass 0.354->~0.94 ceiling, round-trip ->~0.77; then mapped_panel_rate becomes binding.",
+      "plateauEffect": "reset"
+    },
+    {
+      "name": "directed-fix-inlineSimple-verdict",
+      "date": "2026-06-10",
+      "verdict": "KEPT (af85a07) — biggest single-page composite gain of the arc",
+      "detail": "Mixed-inline paragraphs now merge to single text leaves (CAPTURE_NO_INLINEMERGE=1 reverts byte-identical). Bench 11067: textCoverage 0.413->0.763, editability 0.357->0.655, composite 0.695->0.820, +25347 chars (+67.9%), 0 dup pairs. Innocent controls clean (tailwind 0 diffs; linear within noise floor; supabase 191=191 leaves, buttons 21=21 — over-merge mechanism exists on crafted fixture but zero real-world hits). Critics: pass-with-notes/0 mustFix + pass/0 mustFix. Pre-existing residuals documented (>600 mixed para with block kid loses prose both modes; deep bare-text DIVs missed by flatten; trade-off: prose links lose paint/href/kind). NOTE: corpus captures now stale vs capture code (e622423+af85a07) — batch ONE corpus --refresh after B1 round 2 capture feed lands.",
+      "plateauEffect": "reset"
+    },
+    {
+      "name": "b1-round-2-verdict",
+      "date": "2026-06-10",
+      "verdict": "KEPT (report-only) — capture feed 3a80a78 + media-identity dim 28c6d3b; 4 fold-blockers documented; supabase validation BLOCKED by infra bug",
+      "detail": "Capture feed: img srcURL/natW/natH/objectPosition additive fields, 7/7 selftest, byte-identical off. Dim: per-band 0.6*identity(dHash+patch-dE)+0.4*presence, report-only PROVEN on degraded fixture + live tailwind A/B (composite byte-identical on/off); triple-test 30/30 incl. game-test (8px-probe + unpainted-stamp score nothing). Critics: pass-with-notes + pass. 4 FOLD-BLOCKERS measured and documented in header (presence-gaming 0.688-vs-0, bg-div false-low M=0 on byte-identical pixels = canonical Elementor shape, LQIP blur false-high 0.938, wrong-photo baseline 0.70) — these are B1 round 3 work items with committed attack harnesses zz-mi-attack(2).tmp.mjs. captureRetry added (page-close retry). INFRA BUG OPEN: grade-sections on supabase kills the browser instantly 3/3 (tailwind fine; isolated goto+screenshot fine) — codex-rescue investigating; supabase per-band validation pending.",
+      "plateauEffect": "reset"
+    },
+    {
+      "name": "corpus-refresh-newcaptures",
+      "date": "2026-06-10",
+      "era": "new-capture era: captures refreshed post e622423 (long-text split) + af85a07 (inline-merge) + 3a80a78 (img metadata); built via clone.mjs --mode absolute --cache --refresh, one site at a time",
+      "perSite": {
+        "tailwind": {
+          "page": 3146,
+          "composite": 0.694,
+          "visual": 0.802,
+          "editability": 0.462,
+          "responsive": 0.856,
+          "hRatio": 1
+        },
+        "supabase": {
+          "page": 2986,
+          "composite": 0.84,
+          "visual": 0.949,
+          "editability": 0.721,
+          "responsive": 0.815,
+          "hRatio": 1.015
+        },
+        "resend": {
+          "page": 2988,
+          "composite": 0.651,
+          "visual": 0.715,
+          "editability": 0.377,
+          "responsive": 0.88,
+          "hRatio": 1.001
+        },
+        "linear": {
+          "page": 4297,
+          "composite": 0.825,
+          "visual": 0.893,
+          "editability": 0.715,
+          "responsive": 0.847,
+          "hRatio": 1
+        },
+        "vercel": {
+          "page": 4296,
+          "composite": 0.789,
+          "visual": 0.906,
+          "editability": 0.604,
+          "responsive": 0.825,
+          "hRatio": 1
+        },
+        "reactdev": {
+          "page": 4771,
+          "composite": 0.823,
+          "visual": 0.886,
+          "editability": 0.67,
+          "responsive": 0.91,
+          "hRatio": 1
+        }
+      },
+      "bench11067": {
+        "page": 11067,
+        "composite": 0.82,
+        "visual": 0.856,
+        "editability": 0.655,
+        "responsive": 0.984,
+        "hRatio": 1,
+        "textCoverage": 0.763,
+        "note": "overreacted blog bench; textCoverage 0.413 -> 0.763 vs prove-verdict run (inline-merge af85a07 engaged); composite holds at 0.820"
+      },
+      "mean": 0.77,
+      "deltasVsRebaseline": {
+        "tailwind": "+0.003",
+        "supabase": "-0.001",
+        "resend": "+0.001",
+        "linear": "-0.003",
+        "vercel": "-0.018",
+        "reactdev": "-0.002",
+        "bench": "0.000"
+      },
+      "vercelNote": "biggest mover at -0.018 (under the 0.03 flag bar): editability 0.646->0.604 from fresh-capture source-text-run churn on a dynamic homepage; visual stable 0.907->0.906; report shows 0 invisibleText, no defects — capture variance, not a regression",
+      "framer": "SKIPPED (sentinel, per round spec)",
+      "infraFails": "none — all 7 builds captured+built+graded first try (cwd gotcha: clone.mjs must run from eval/grader/)",
+      "note": "captures refreshed post e622423+af85a07+3a80a78; supersedes workstream-A-rebaseline as the live baseline"
     }
   ],
   "phase5backlog_wave3": [
