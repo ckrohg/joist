@@ -40,9 +40,10 @@
  *     measures RENDER divergence only, never formula drift). Source side = the FROZEN grade-src-cache the full
  *     grade used (loadSrcCache; byte-identical src crop). Clone side = the very same capture() path
  *     (settleLazy ON, same text/img extraction) so void/rastered inputs are symmetric.
- *     `editability` is reported with editabilityScope:'band-local' (full-page perSection matches band source
- *     texts against the WHOLE clone; band-scratch can only match within the band) — secondary output, the
- *     contract is `visual`.
+ *     `editability`/`matchedTexts` are reported with editabilityScope:'band-local' and (C round 5) come from
+ *     the HARDENED bandLocalText feed — per-leaf visibility/contrast floor + band geometry bound + widget-type
+ *     weighting (see the bandLocalText block) — the page-wide joins remain as *PageWide telemetry. Secondary
+ *     output, the contract is `visual`.
  *
  * RAILS: graded/corpus pages receive ONLY GETs — every write goes through scratch-harness
  * (createScratch/assertScratchWritable/deletePage/sweep; tag-swept, signal-trapped, active-file forensics).
@@ -65,7 +66,7 @@ import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
 import { chromium } from 'playwright';
 import { PNG } from 'pngjs';
-import { perBandVisual, loadSrcCache, captureRetry, W } from './grade-sections.mjs';
+import { perBandVisual, loadSrcCache, captureRetry, W, norm, cropEnergy } from './grade-sections.mjs';
 import { createScratch, deletePage, sweep, assertScratchWritable, BASE, TAG, CORPUS } from './scratch-harness.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -268,6 +269,112 @@ export async function prepare({ source, pageId, treePath = null, boxIndexFile = 
   return { source, pageId: Number(pageId), srcCache, tree, treeMode, pageSettings, boxIndex, idMap, cloneFullH: boxIndex.cloneFullH };
 }
 
+// ---- BAND-LOCAL TEXT FEED (C round 5 gate hardening — closes the e7b4774 TEST-D holes D1/D2/D3) ----
+// The page-wide perBandVisual text join counted a source band text as "reproduced" if it appeared ANYWHERE in
+// the clone capture, at ANY visibility. Three measured evasions rode that: (D1) fade text to opacity 0.06 —
+// above capture()'s 0.05 vis floor, humanly unreadable, matched stays flat while band visual RISES; (D2) move
+// the widget below the band crop — gone from the band image, still in the page-wide join; (D3) swap a native
+// heading for an html widget with the same text — editability blind to the widget type. bandLocalText is the
+// hardened feed refine-sections' keep gates consume INSTEAD of the page-wide numbers (which stay in the report
+// as *PageWide telemetry):
+//   D1 VISIBILITY/CONTRAST FLOOR — a clone leaf counts only if (a) effective opacity (leaf `op`: own × ancestor
+//      product from capture()) >= VIS_OPACITY_FLOOR and glyph color alpha (`ca`) >= VIS_OPACITY_FLOOR, and
+//      (b) the leaf's RENDERED box has paint-energy >= VIS_PAINT_MIN (cropEnergy — the existing media paint-
+//      guard helper: flat ≈ 0; visible glyphs produce variance+edges far above the floor). 0.4 floor rationale:
+//      legit muted/secondary text sits at 0.5-0.7 opacity; below ~0.4 typical text is below WCAG readability —
+//      while the floor still rejects the 0.06 attack with a 6x margin. The pixel floor (0.045) is defense-in-
+//      depth for non-opacity invisibility (color-matched-to-bg text): a 0.06-fade region measures ~0.04, real
+//      low-contrast text >= ~0.1, typical text >= 0.2. Busy backgrounds give HIGH energy → fail-open (never a
+//      false rejection from an undecidable region; the keep gates are DELTA-based on top, so any systematic
+//      strictness hits baseline and candidate identically). Missing op/ca (old captures) → fail-open.
+//   D2 BAND GEOMETRY BOUND — the leaf's box must y-intersect THE BAND by >= min(8px, 25% of leaf height).
+//      Within-band movement keeps the overlap (E's reflow operators stay legal); moving out of the band zeroes
+//      it → matchedTexts drops. Any-positive-overlap is deliberately NOT enough (a 1px graze is not "in band").
+//   D3 WIDGET-TYPE-AWARE EDITABILITY — each matched text is weighted by its TREE carrier: a native Elementor
+//      text-carrying widget (any non-html widget's settings strings — heading.title, text-editor.editor,
+//      button.text, …) earns 1.0; text carried ONLY by an html widget (or untraceable to the tree) earns
+//      NONNATIVE_TEXT_WEIGHT (0.5). Replacing a native heading with an html blob keeps matchedTexts but drops
+//      editability by 0.5/srcTextCount >> EDIT_TOL → the editability keep gate fires.
+// CORPUS-WIDE SCOPE DECISION (D1, documented per the C-round-5 design guidance): this is the BAND-GATE-ONLY
+// fix — option (a). grade-sections' capture() vis floor (opacity < 0.05) and perBandVisual's page-wide join are
+// UNCHANGED (byte-identical corpus behavior; _gsec-srccache + _void-textguard selftests prove it). Rationale:
+// (1) raising the corpus floor changes BOTH capture sides while every frozen src cache was captured under the
+// old floor — clone-fresh vs src-frozen asymmetry would manufacture false lostTexts corpus-wide until every
+// cache is re-frozen (the exact "deflation lie" failure mode); (2) that change needs the full grader rails
+// (reversible flag, injected-defect, game-test, corpus A/B + innocent control) — its own round, not a rider;
+// (3) the live exploit path (refine keeps) is fully closed band-side, and no shipped builder emits faded text,
+// so corpus exposure is attack-only until that round lands.
+export const VIS_OPACITY_FLOOR = 0.4;     // effective-opacity AND color-alpha floor for a leaf to count
+export const VIS_PAINT_MIN = 0.045;       // cropEnergy floor — flat (unpainted/faded) leaf boxes sit below it
+export const NONNATIVE_TEXT_WEIGHT = 0.5; // editability weight for html/raster-carried (non-native) text
+export const BAND_OVERLAP_MIN_PX = 8;     // band y-intersection floor: min(this, 25% of leaf height)
+
+const _stripTags = (s) => String(s).replace(/<[^>]+>/g, ' ');
+// treeTextBlobs — normalized text carried by NATIVE widgets vs html widgets, from the band tree. Native = every
+// non-underscore string setting of any non-html widget (title/editor/text/item labels…), tags stripped. html =
+// the html widget's settings.html, tags stripped. custom_css and _-prefixed (advanced/layout) keys are skipped.
+export function treeTextBlobs(tree) {
+  const native = [], html = [];
+  const collect = (v, into) => {
+    if (typeof v === 'string') { const t = norm(_stripTags(v)); if (t) into.push(t); }
+    else if (Array.isArray(v)) v.forEach((x) => collect(x, into));
+    else if (v && typeof v === 'object') { for (const k of Object.keys(v)) { if (k.startsWith('_') || k === 'custom_css') continue; collect(v[k], into); } }
+  };
+  const w = (nodes) => {
+    for (const n of nodes || []) {
+      const s = (n && n.settings) || {};
+      if (n && n.elType === 'widget' && n.widgetType === 'html') { if (typeof s.html === 'string') { const t = norm(_stripTags(s.html)); if (t) html.push(t); } }
+      else collect(s, native);
+      w(n && n.elements);
+    }
+  };
+  w(Array.isArray(tree) ? tree : [tree]);
+  return { nativeBlob: ' ' + native.join(' | ') + ' ', htmlBlob: ' ' + html.join(' | ') + ' ' };
+}
+
+// bandLocalText — PURE. srcTexts = frozen source capture texts; leaves = clone capture textLeaves (op/ca per
+// capture()); shot = clone full-page PNG (null → pixel floor skipped, e.g. unit tests); tree = the band tree
+// whose render produced `leaves` (null → all matched text weighted native). Unit-pinned by
+// _refine-sections-selftest.mjs TEST D0.
+export function bandLocalText({ srcTexts, leaves, shot, y0, y1, tree }) {
+  const srcUniq = [...new Set((srcTexts || []).filter((t) => t.y >= y0 && t.y < y1 && norm(t.t).length >= 4).map((t) => norm(t.t)))];
+  const leafAudit = { eligible: 0, outOfBand: 0, lowOpacity: 0, lowPaint: 0 };
+  const elig = [];
+  for (const L of leaves || []) {
+    if (!L || typeof L.t !== 'string') continue;
+    const h = Math.max(1, Math.round(L.h || 0)), wdt = Math.max(0, Math.round(L.w || 0));
+    const ov = Math.min(L.y + h, y1) - Math.max(L.y, y0);
+    if (ov < Math.min(BAND_OVERLAP_MIN_PX, Math.max(1, Math.round(h * 0.25)))) { leafAudit.outOfBand++; continue; }     // D2
+    if ((L.op != null && L.op < VIS_OPACITY_FLOOR) || (L.ca != null && L.ca < VIS_OPACITY_FLOOR)) { leafAudit.lowOpacity++; continue; } // D1 (DOM)
+    if (shot && wdt >= 24 && h >= 8) {                                                                                   // D1 (pixels)
+      const cx0 = Math.max(0, Math.round(L.x)), cy0 = Math.max(0, Math.round(L.y));
+      const cx1 = Math.min(shot.width, Math.round(L.x) + wdt), cy1 = Math.min(shot.height, Math.round(L.y) + h);
+      if (cx1 - cx0 >= 24 && cy1 - cy0 >= 8) { // degenerate clamp → fail-open (D2 already owns out-of-crop)
+        if (cropEnergy(shot, { x: cx0, y: cy0, w: cx1 - cx0, h: cy1 - cy0 }).energy < VIS_PAINT_MIN) { leafAudit.lowPaint++; continue; }
+      }
+    }
+    leafAudit.eligible++;
+    elig.push(L);
+  }
+  const joined = ' ' + elig.map((L) => norm(L.t)).join(' | ') + ' ';
+  const matchedList = srcUniq.filter((t) => joined.includes(t));
+  const blobs = tree ? treeTextBlobs(tree) : null;
+  let wsum = 0, nonNative = 0;
+  for (const t of matchedList) {
+    const isNative = !blobs || blobs.nativeBlob.includes(t);                                                             // D3
+    if (!isNative) nonNative++;
+    wsum += isNative ? 1 : NONNATIVE_TEXT_WEIGHT;
+  }
+  return {
+    srcTextCount: srcUniq.length,
+    matchedTexts: matchedList.length,
+    editability: srcUniq.length ? +(wsum / srcUniq.length).toFixed(3) : 1,
+    lostTexts: srcUniq.filter((t) => !joined.includes(t)),
+    nonNativeMatched: nonNative,
+    leafAudit,
+  };
+}
+
 /**
  * sectionVisual — the primitive. opts:
  *   source, pageId, band:{y0,y1}                      (required)
@@ -321,6 +428,10 @@ export async function sectionVisual(opts) {
     const pb = gradable && cap.shot.height >= gy1
       ? perBandVisual({ srcShot: prep.srcCache.shot, cloneShot: cap.shot, srcTexts: prep.srcCache.texts, cloneTexts: cap.texts, cloneImgs: cap.imgs, y0, y1, H, selftest: false })
       : null;
+    // HARDENED band-local text feed (C round 5 — see bandLocalText header): visibility/contrast floor (D1) +
+    // band geometry bound (D2) + widget-type-aware editability (D3). This is what refine-sections' keep gates
+    // consume; the page-wide perBandVisual numbers stay below as *PageWide telemetry.
+    const blt = pb ? bandLocalText({ srcTexts: prep.srcCache.texts, leaves: cap.textLeaves, shot: cap.shot, y0, y1, tree: bandRoot }) : null;
     // LOOK artifacts: the two band crops (src side from the frozen cache, clone side from the scratch render)
     const shotSrc = path.join(outDir, `secvis-${pageId}-${y0}-${y1}-src.png`);
     const shotBand = path.join(outDir, `secvis-${pageId}-${y0}-${y1}-band.png`);
@@ -336,13 +447,17 @@ export async function sectionVisual(opts) {
       ssim: pb ? +pb.ssim.toFixed(3) : 0, exact: pb ? +pb.exact.toFixed(3) : 0, meanDE: pb ? +pb.meanDE.toFixed(1) : null,
       contentVoid: pb ? pb.contentVoid : false, rasteredText: pb ? pb.rasteredText : false,
       srcEnergy: pb ? pb.srcEnergy : 0, cloneEnergy: pb ? pb.cloneEnergy : 0,
-      editability: pb ? pb.editability : null, editabilityScope: 'band-local',
-      // band-local TEXT COVERAGE feed for refine-sections' anti-deletion keep gates (C round 3): srcTextCount is
-      // FROZEN (src cache) per band, so matchedTexts (absolute count of source band texts the scratch render
-      // reproduced) is the deletion-sensitive integer — deleting a matched heading drops it by >=1, zero noise.
-      srcTextCount: pb ? pb.srcTextCount : 0,
-      matchedTexts: pb ? pb.srcTextCount - pb.lostTexts.length : 0,
-      lostTexts: pb ? pb.lostTexts.slice(0, 20) : [],
+      editability: blt ? blt.editability : (pb ? pb.editability : null), editabilityScope: 'band-local',
+      // band-local TEXT COVERAGE feed for refine-sections' anti-deletion keep gates (C round 3, HARDENED C
+      // round 5 via bandLocalText): srcTextCount is FROZEN (src cache) per band, so matchedTexts (absolute
+      // count of source band texts the scratch render reproduced — VISIBLY, IN-BAND) is the deletion-sensitive
+      // integer — deleting/fading/moving-out a matched heading drops it by >=1, zero noise.
+      srcTextCount: blt ? blt.srcTextCount : (pb ? pb.srcTextCount : 0),
+      matchedTexts: blt ? blt.matchedTexts : 0,
+      lostTexts: blt ? blt.lostTexts.slice(0, 20) : [],
+      matchedTextsPageWide: pb ? pb.srcTextCount - pb.lostTexts.length : 0, // pre-hardening telemetry
+      editabilityPageWide: pb ? pb.editability : null,
+      nonNativeMatched: blt ? blt.nonNativeMatched : 0, leafAudit: blt ? blt.leafAudit : null,
       widgets: { included: stats.included, bgRects: stats.bgRects, header: stats.header, estimated: stats.estimated, excluded: stats.excluded },
       cssBytes: css.length, boxIndexHash: prep.boxIndex.hash, scratchHash, cloneFullH: prep.cloneFullH,
       srcCache: prep.srcCache.srcTag, shots: gradable ? { src: shotSrc, band: shotBand } : null,

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * @purpose Selftest for refine-sections.mjs (C round 3). Three tests on tailwind/3146 (graded page: GETs only):
+ * @purpose Selftest for refine-sections.mjs (C round 3, gate hardening enforced C round 5). Four tests on
+ * tailwind/3146 (graded page: GETs only):
  *  A NO-OP — the shipped 'noop' operator produces an identity candidate → rejected WITHOUT a render
  *    ('identity-no-op'); zero keeps, zero scored candidates, scratch torn down, graded hash unchanged.
  *  B ANTI-DELETION PIN (the critic's measured exploit: deleting the tailwind hero heading RAISED band visual
@@ -13,6 +14,16 @@
  *    (i.e. AFTER scratch creation + the baseline band render — genuinely mid-run, with band content live on the
  *    scratch page). No finally/trap can run. The debris page must be tag-swept to a verified 404, zero tagged
  *    scratch pages remain, and the graded page hash is unchanged.
+ *  D GATE HARDENING — ENFORCED (C round 5; formerly the e7b4774 xfail holes, now CLOSED by sectionvisual's
+ *    bandLocalText feed). D0: pure unit pins on bandLocalText (no render). Live, same unique-carrier heading as
+ *    TEST B, PROPOSAL mode:
+ *      D1 FADE-TO-INVISIBLE (opacity 0.06 wrapper) → REJECTED, textCoverage gate fires (Δmatched < 0): the
+ *         visibility/contrast floor stops counting humanly-unreadable text as reproduced.
+ *      D2 MOVE-OUT-OF-BAND (_offset_y past y1) → REJECTED, textCoverage gate fires: matchedTexts is bound to
+ *         band-local geometry (within-band movement stays legal — only leaving the band drops it).
+ *      D3 NATIVE→HTML SWAP (heading → html widget, same text, same position) → REJECTED, editability gate
+ *         fires (Δeditability < 0) — widget-type-aware weighting (native 1.0, html 0.5) — even when the text
+ *         still matches (Δmatched 0 when the swapped text renders visibly; recorded as telemetry).
  *
  * Band definitions are derived from the FROZEN source capture (srcCache.sections — same bounds grade-sections
  * uses), so this selftest needs no sections.json. Requires the tailwind src cache (run grade-sections once if
@@ -28,7 +39,7 @@ import { spawnSync, execSync } from 'child_process';
 import { chromium } from 'playwright';
 import { norm, W, loadSrcCache } from './grade-sections.mjs';
 import { sweep, TAG } from './scratch-harness.mjs';
-import { prepare, api, liveHash } from './sectionvisual.mjs';
+import { prepare, api, liveHash, bandLocalText } from './sectionvisual.mjs';
 import { refineSections, registerOperator } from './refine-sections.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -64,6 +75,11 @@ export function findDeletableHeading(tree, band, cap) {
   });
   for (const cand of inBand) {
     if (cand.node.widgetType !== 'heading' || typeof (cand.node.settings || {}).title !== 'string') continue;
+    // the chosen heading must sit FULLY inside the band (carriers above keep any-overlap semantics): the
+    // hardened band-local feed requires a real y-intersection, so an edge-grazing heading would make the
+    // delete/fade/move/swap triggers non-deterministic.
+    const bb = cand.node.id && boxes[cand.node.id];
+    if (!bb || bb.y < band.y0 || bb.y + bb.h > band.y1) continue;
     const title = norm(String(cand.node.settings.title).replace(/<[^>]+>/g, ' '));
     if (title.length < 4) continue;
     for (const st of srcBandTexts) {
@@ -84,10 +100,6 @@ export function findDeletableHeading(tree, band, cap) {
   const browser = await chromium.launch({ args: ['--disable-blink-features=AutomationControlled'] });
   let pass = true;
   const check = (name, cond, detail) => { const ok = !!cond; if (!ok) pass = false; console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${name}${detail ? ' — ' + detail : ''}`); return ok; };
-  // xfail — a KNOWN-HOLE expectation. Prints loudly but NEVER flips `pass`: the gates SHOULD reject the input
-  // but currently do not, and we want the suite to stay green while the hole is documented+locked. When a future
-  // gate fix makes the input get rejected, `cond` flips and the line reads "FIXED?" → update/retire the pin.
-  const xfail = (name, shouldRejectButKept, detail) => { console.log(`  ${shouldRejectButKept ? 'HOLE' : 'FIXED?'} ${name}${detail ? ' — ' + detail : ''}`); return shouldRejectButKept; };
   try {
     const ctx = await browser.newContext({ viewport: { width: W, height: 900 }, deviceScaleFactor: 1 });
     await ctx.addInitScript(() => { Object.defineProperty(navigator, 'webdriver', { get: () => undefined }); });
@@ -133,26 +145,26 @@ export function findDeletableHeading(tree, band, cap) {
     check('B graded page untouched', b.gradedUntouchedPreApply === true);
     if (bCand) console.log(`  note: visual Δ ${bCand.deltas.visual} (${bCand.gates.visual ? 'EXPLOIT REPRODUCED — visual rose past keep threshold yet candidate was rejected' : 'visual did not rise past threshold this run; rejection pinned by textCoverage regardless'})`);
 
-    // ---------- TEST D: KNOWN GATE HOLES (adversarial critic, C round 3 re-run) ----------
-    // Two band-local content degradations the anti-deletion keep gates DO NOT catch — pinned so a future gate
-    // fix trips this test and forces the pin to be retired. Both use the SAME unique-carrier heading TEST B
-    // found, in its band, in PROPOSAL mode (graded page GET-only):
-    //  D1 FADE-TO-INVISIBLE — wrap the heading title in opacity:0.06 (just ABOVE capture()'s `+cs.opacity<0.05`
-    //     visibility floor). The headline is humanly UNREADABLE, but capture() still extracts it → matchedTexts
-    //     and editability are UNCHANGED (Δ0); the void text-guard sees the text "reproduced" so no void fires;
-    //     and band visual RISES (the divergent dark glyphs stop painting) → KEEP. Root cause: the 0.05 vis floor
-    //     counts text a human cannot read (a clone-side, grader-wide hole that --apply's full regrade ALSO misses
-    //     because faded text raises visual while editability stays flat).
-    //  D2 MOVE-OUT-OF-BAND — shift the heading _offset_y beyond y1 (still on the page, just below the crop). It
-    //     leaves the band image → band visual RISES — but the matched/editability text join is computed PAGE-WIDE
-    //     on the clone side (inClone over ALL scratch text leaves), so matchedTexts/editability are UNCHANGED
-    //     (Δ0). The band gate is blind to "removed FROM THE BAND but kept ON THE PAGE".
-    // DETERMINISTIC hole signature (independent of the ±0.08 single-band visual noise): on BOTH, textCoverage +
-    // editability + noNewVoid all stay GREEN and Δmatched===0. The visual gate is the ONLY gate in play and it
-    // points the WRONG way (rewards the degradation). The keep/reject OUTCOME is visual-noise-dependent and is
-    // recorded as xfail telemetry, never as a hard pass/fail.
+    // ---------- TEST D: GATE HARDENING — ENFORCED (C round 5; the e7b4774 holes are CLOSED) ----------
+    // The malicious keeps the C-round-3 critic measured MUST now be REJECTED by a DETERMINISTIC gate (never the
+    // noisy visual gate). Same unique-carrier heading TEST B found, PROPOSAL mode (graded page GET-only).
     {
-      console.log(`\nTEST D (KNOWN GATE HOLES) band §${found.band.idx} y${found.band.y0}-${found.band.y1} — heading ${found.id}`);
+      console.log(`\nTEST D0 (bandLocalText unit pins — pure, no render)`);
+      const mkLeaf = (over = {}) => ({ t: 'unique probe headline text', x: 10, y: 100, w: 400, h: 40, op: 1, ca: 1, ...over });
+      const uSrc = [{ t: 'Unique Probe Headline Text', y: 110 }];
+      const natTree = [{ elType: 'container', settings: {}, elements: [{ id: 'n1', elType: 'widget', widgetType: 'heading', settings: { title: 'Unique Probe Headline Text' }, elements: [] }] }];
+      const htmTree = [{ elType: 'container', settings: {}, elements: [{ id: 'n1', elType: 'widget', widgetType: 'html', settings: { html: '<h2>Unique Probe Headline Text</h2>' }, elements: [] }] }];
+      const u = (leaves, tree) => bandLocalText({ srcTexts: uSrc, leaves, shot: null, y0: 0, y1: 500, tree });
+      const uBase = u([mkLeaf()], natTree), uFade = u([mkLeaf({ op: 0.06 })], natTree), uAlpha = u([mkLeaf({ ca: 0.1 })], natTree),
+        uMove = u([mkLeaf({ y: 1100 })], natTree), uIn = u([mkLeaf({ y: 470 })], natTree), uSwap = u([mkLeaf()], htmTree);
+      check('D0 visible native in-band → matched 1, editability 1', uBase.matchedTexts === 1 && uBase.editability === 1, JSON.stringify(uBase));
+      check('D0/D1 effective-opacity 0.06 leaf NOT counted', uFade.matchedTexts === 0 && uFade.leafAudit.lowOpacity === 1, JSON.stringify(uFade.leafAudit));
+      check('D0/D1 glyph-alpha 0.1 leaf NOT counted', uAlpha.matchedTexts === 0 && uAlpha.leafAudit.lowOpacity === 1, JSON.stringify(uAlpha.leafAudit));
+      check('D0/D2 out-of-band leaf NOT counted', uMove.matchedTexts === 0 && uMove.leafAudit.outOfBand === 1, JSON.stringify(uMove.leafAudit));
+      check('D0/D2 within-band movement STAYS counted (E reflow legal)', uIn.matchedTexts === 1, JSON.stringify(uIn));
+      check('D0/D3 html-carried text: matched 1 but editability 0.5 (widget-type-aware)', uSwap.matchedTexts === 1 && uSwap.editability === 0.5 && uSwap.nonNativeMatched === 1, JSON.stringify(uSwap));
+
+      console.log(`\nTEST D (gate hardening, live) band §${found.band.idx} y${found.band.y0}-${found.band.y1} — heading ${found.id}`);
       const setTitleSpan = (node, style) => { node.settings.title = `<span style="${style}">${node.settings.title}</span>`; };
       registerOperator('st-fade-heading', (tree, band, layout, capd, x) => {
         if (x.iteration > 1) return null;
@@ -166,31 +178,66 @@ export function findDeletableHeading(tree, band, cap) {
         walk(root.elements, (n) => { if (!done && n.id === found.id) { n.settings = { ...(n.settings || {}), _position: 'absolute', _offset_orientation_v: 'start', _offset_y: { unit: 'px', size: band.y1 + 600 } }; done = true; } });
         return done ? tree : null;
       });
-      const runHole = async (op, tag) => {
+      // D3: replace the native heading with an html widget carrying the SAME text at the SAME position (keeps
+      // the heading's title color/size inline so the text still renders VISIBLY in-band — the point is that the
+      // TYPE gate fires, not the coverage gate).
+      registerOperator('st-htmlswap-heading', (tree, band, layout, capd, x) => {
+        if (x.iteration > 1) return null;
+        const root = Array.isArray(tree) ? tree[0] : tree; let done = false;
+        walk(root.elements, (n) => {
+          if (done || n.id !== found.id || typeof (n.settings || {}).title !== 'string') return;
+          const s = n.settings;
+          const color = (typeof s.title_color === 'string' && s.title_color) ? s.title_color : '';
+          const fsz = (s.typography_font_size && typeof s.typography_font_size.size === 'number') ? s.typography_font_size.size : 32;
+          n.widgetType = 'html';
+          // schema-valid html widget: ONLY `html` + the `_`-prefixed advanced/common controls (position/offsets/
+          // width/z survive); heading-only controls (title/header_size/typography_*/title_color) would 422.
+          const next = { html: `<h2 style="margin:0;font-size:${fsz}px;line-height:1.1;${color ? 'color:' + color : ''}">${s.title}</h2>` };
+          for (const k of Object.keys(s)) if (k.startsWith('_')) next[k] = s[k];
+          n.settings = next;
+          done = true;
+        });
+        return done ? tree : null;
+      });
+      const runHole = async (op) => {
         const r = await refineSections({ source: SOURCE, pageId: PAGE, bands: [found.band], operatorName: op, apply: false, outDir: `/tmp/refine-st/${op}`, maxIters: 1, ctx });
         const cand = r.perBand[0] && r.perBand[0].candidates.find((c) => c.scored);
         return { r, cand };
       };
       const fade = await runHole('st-fade-heading');
       const move = await runHole('st-move-heading');
-      report.tests.gateHoles = {
+      const swap = await runHole('st-htmlswap-heading');
+      report.tests.gateHardening = {
         fade: { kept: fade.r.totalKept, candidate: fade.cand, gradedUntouched: fade.r.gradedUntouchedPreApply },
         move: { kept: move.r.totalKept, candidate: move.cand, gradedUntouched: move.r.gradedUntouchedPreApply },
+        swap: { kept: swap.r.totalKept, candidate: swap.cand, gradedUntouched: swap.r.gradedUntouchedPreApply },
       };
-      // hard DETERMINISTIC pins (lock the gate-blindness; trip when a fix makes any anti-deletion gate fire):
+      // D1 — fade-to-invisible MUST be rejected by the textCoverage gate (deterministic integer, never visual)
       check('D1 fade candidate scored', !!fade.cand, fade.cand ? '' : 'no scored candidate');
-      check('D1 anti-deletion gates BLIND to opacity-0.06 hide (textCoverage+editability+noNewVoid green, Δmatched 0)',
-        fade.cand && fade.cand.gates.textCoverage && fade.cand.gates.editability && fade.cand.gates.noNewVoid && fade.cand.deltas.matchedTexts === 0,
-        fade.cand ? `gates ${JSON.stringify(fade.cand.gates)} Δmatched ${fade.cand.deltas.matchedTexts}` : '');
-      xfail('D1 HOLE: humanly-invisible (opacity 0.06) headline was KEPT (should be rejected)', fade.r.totalKept > 0,
+      check('D1 REJECTED (zero keeps) — invisible text no longer counts as reproduced',
+        fade.r.totalKept === 0 && fade.cand && fade.cand.decision === 'rejected',
         fade.cand ? `decision ${fade.cand.decision} Δvisual ${fade.cand.deltas.visual} kept ${fade.r.totalKept}` : '');
+      check('D1 textCoverage gate fired (Δmatched < 0)',
+        fade.cand && fade.cand.gates.textCoverage === false && fade.cand.deltas.matchedTexts < 0,
+        fade.cand ? `gates ${JSON.stringify(fade.cand.gates)} Δmatched ${fade.cand.deltas.matchedTexts}` : '');
+      // D2 — move-out-of-band MUST be rejected by the textCoverage gate (band-local geometry bound)
       check('D2 move candidate scored', !!move.cand, move.cand ? '' : 'no scored candidate');
-      check('D2 anti-deletion gates BLIND to move-out-of-band (textCoverage+editability+noNewVoid green, Δmatched 0)',
-        move.cand && move.cand.gates.textCoverage && move.cand.gates.editability && move.cand.gates.noNewVoid && move.cand.deltas.matchedTexts === 0,
-        move.cand ? `gates ${JSON.stringify(move.cand.gates)} Δmatched ${move.cand.deltas.matchedTexts}` : '');
-      xfail('D2 HOLE: heading moved OUT of the band (gone from the crop, kept on page) was KEPT (should be rejected)', move.r.totalKept > 0,
+      check('D2 REJECTED (zero keeps) — text moved out of the band no longer counts',
+        move.r.totalKept === 0 && move.cand && move.cand.decision === 'rejected',
         move.cand ? `decision ${move.cand.decision} Δvisual ${move.cand.deltas.visual} kept ${move.r.totalKept}` : '');
-      check('D graded page untouched', fade.r.gradedUntouchedPreApply === true && move.r.gradedUntouchedPreApply === true);
+      check('D2 textCoverage gate fired (Δmatched < 0)',
+        move.cand && move.cand.gates.textCoverage === false && move.cand.deltas.matchedTexts < 0,
+        move.cand ? `gates ${JSON.stringify(move.cand.gates)} Δmatched ${move.cand.deltas.matchedTexts}` : '');
+      // D3 — native→html swap MUST be rejected by the WIDGET-TYPE-AWARE editability gate
+      check('D3 swap candidate scored', !!swap.cand, swap.cand ? '' : 'no scored candidate');
+      check('D3 REJECTED (zero keeps) — native heading swapped for html widget',
+        swap.r.totalKept === 0 && swap.cand && swap.cand.decision === 'rejected',
+        swap.cand ? `decision ${swap.cand.decision} Δvisual ${swap.cand.deltas.visual} kept ${swap.r.totalKept}` : '');
+      check('D3 editability gate fired (Δeditability < 0, widget-type-aware)',
+        swap.cand && swap.cand.gates.editability === false && swap.cand.deltas.editability < 0,
+        swap.cand ? `gates ${JSON.stringify(swap.cand.gates)} Δedit ${swap.cand.deltas.editability}` : '');
+      if (swap.cand) console.log(`  note: D3 Δmatched ${swap.cand.deltas.matchedTexts} (0 = the swapped text still rendered visibly in-band → the rejection is purely TYPE-aware, the strongest form of the pin)`);
+      check('D graded page untouched', fade.r.gradedUntouchedPreApply === true && move.r.gradedUntouchedPreApply === true && swap.r.gradedUntouchedPreApply === true);
     }
 
     // ---------- TEST C: crash-injection mid-run ----------
