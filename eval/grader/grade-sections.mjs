@@ -147,6 +147,52 @@ export function classifyVoid({ srcEnergy, cloneEnergy, cloneReproducedBandText, 
   return true;
 }
 
+// ---- MEDIA-IDENTITY DIMENSION (REPORT-ONLY this round — appears in the report, folds NOTHING into the
+// composite; the would-be fold is published under detectors.mediaIdentity.projected for the round-3 decision).
+// THE GAP (grader_overstates_top_end): the grader over-credits geometry and under-penalizes wrong-logos /
+// broken-heroes — a band can reproduce every text leaf, suppress the void penalty via the TEXT-GUARD, and still
+// have ALL its imagery missing or wrong with near-zero price. This dim measures, per source band, (a) PRESENCE
+// (did the clone paint comparable media area where the source had media?) and (b) IDENTITY (are the painted
+// pixels perceptually the SAME imagery? dHash + patch-ΔE over the two full-page shots — pure pixels, no vision
+// model, no network; URL-spoofing and invisible-element stamping score NOTHING by construction because only
+// RENDERED pixels are read). Per band: M_b = 0.6·identity + 0.4·presence; M_b = null (n/a) on bands with zero
+// eligible source media (text-only bands excluded, mirroring editability's n/a convention). Page aggregate is
+// srcMediaArea-weighted (hero imagery outweighs footer favicons). Source-vs-source: identical shots → hamming 0,
+// ΔE 0, equal areas → 1.0 (and SELFTEST additionally short-circuits the published score to the definitional 1,
+// raw kept for telemetry — the responsive-selftest pattern). HONEST blind spot (recorded, not papered over):
+// clone-side HALLUCINATED imagery in a band whose source has none is invisible here (n/a band; presence capped
+// at 1) — spurious imagery stays priced by SSIM/perElement; cloneOnlyMediaArea is reported as telemetry. A full-
+// band raster scores M~0.48 measured (giant leaf matches once but whole-band crop != leaf crop — zz-mi-attack
+// A4), i.e. identity partially DOUBLE-prices rasters on top of rastered-text/chunkedMedia/editability;
+// acceptable report-only, revisit at fold. Reversible: GRADER_NO_MEDIAID=1 → byte-identical
+// legacy report (no media fields anywhere) AND legacy capture/cache behavior (no tag field, legacy srcTag).
+// ---- FOLD-BLOCKERS (critic-measured 2026-06-10; ALL must be fixed before this dim folds into the composite —
+// round-3 work items, not report-only blockers; harnesses zz-mi-attack.tmp.mjs / zz-mi-attack2.tmp.mjs):
+//  1. PRESENCE GAMING: presence=min(1,cloneArea/srcArea) counts ANY painted media — decorative SVG gradients
+//     score 0.688 vs honest-omit 0 (A3); live tailwind §4: matched 0/36 yet presence 1.0 → M 0.4.
+//     Fix: identity-weight presence (matched-area based) or cap presence contribution when band identity ~0.
+//  2. BG-DIV FALSE-LOW: imagery painted via CSS background-image (Elementor section-bg / build-absolute bgRect —
+//     the CANONICAL clone shape) has no img element → empty clone mediaLeaves → M=0 on byte-identical pixels
+//     (F1). Fix: same-box pixel fallback mediaCropId(srcShot,box,cloneShot,box) gated on clone-side cropEnergy.
+//     Also repairs the tailwind §4 granularity mismatch (N source leaves vs 1-2 clone rasters → IoU<0.05).
+//  3. LQIP FALSE-HIGH: a blurred lazy-load placeholder scores id 0.938 (9x8 blur; 4x4 → 0.730, A2) — the
+//     broken-hero class this dim exists to catch. Fix: high-frequency term (per-cell variance ratio).
+//  4. WRONG-PHOTO UNDER-PRICING: unrelated busy imagery baselines at id~0.70 (attack2 W3); logos/graphics
+//     discriminate well (wrong-logo 0.27, rotated 0.145). Anisotropic stretch is invariant (0.978 — _poolGrid
+//     normalization) — add a natW/natH aspect-ratio term (fields already captured, commit 3a80a78).
+const USE_MEDIAID = !process.env.GRADER_NO_MEDIAID;
+const MI_MIN_LEAF = 24;        // leaf size floor (w AND h) — kills the 8px-probe-img trick by construction
+const MI_SRC_PAINT = 0.02;     // paint guard: a leaf whose own crop-energy < this was never painted → excluded
+                               // entirely (source side: lazy-fail false-positive protection; clone side: stamping
+                               // unpainted boxes — URL spoofing — scores nothing). Same scale as VOID_BG_ABS.
+const MI_DE_MAX = 40;          // patch-ΔE → similarity ramp: deSim = max(0, 1 - meanΔE/40). ΔE<8 ≈ same imagery
+                               // (the bandStats exact threshold); 40 ≈ unambiguously different imagery.
+const MI_MATCH_IOU = 0.05;     // min IoU to accept a clone candidate as the leaf's reproduction (else center-
+                               // distance fallback ≤ 0.5·max(w,h,120px) with area ratio ∈ [0.25,4])
+const MI_W_ID = 0.6, MI_W_PRESENCE = 0.4; // M_b = 0.6·identity + 0.4·presence
+const MI_FOLD_FLOOR = 0.45;    // ROUND-3 fold proposal (NOT applied): visual_b ×= (0.45 + 0.55·M_b) when the
+                               // band's source media covers ≥10% of the band — published as projected.* only.
+
 // ---- VISIBLE-BLOCKS HARDENING (anti-gaming) ----
 // structuralFidelity counts, per source block type {form/video/table/list/tabs/accordion/nav}, how many the clone
 // reproduces. The plain `vis()` gate (display/visibility/opacity) is satisfiable by an INVISIBLE element: a prior
@@ -204,7 +250,10 @@ const SRC_CACHE_DIR = '/tmp/grade-src-cache';
 // every JSON-serializable field capture() returns (everything except the PNG `shot`, persisted alongside).
 const SRC_CACHE_FIELDS = ['texts', 'sections', 'imgs', 'blocks', 'pageH', 'textLeaves', 'bands', 'mediaLeaves', 'navStruct', 'docScrollW', 'docClientW', 'leafBoxes'];
 const srcTag = String(source).replace(/^https?:\/\//, '').replace(/[^a-z0-9]/gi, '').slice(0, 40)
-  + '-gsec' + (USE_VISIBLE_BLOCKS ? '' : '-novb') + (FORM_CLUSTER ? '' : '-nofc') + (LAZY_SETTLE ? '' : '-nols');
+  + '-gsec' + (USE_VISIBLE_BLOCKS ? '' : '-novb') + (FORM_CLUSTER ? '' : '-nofc') + (LAZY_SETTLE ? '' : '-nols')
+  // media-identity needs `tag` on mediaLeaves entries (capture-affecting, additive) — distinct cache key so a
+  // stale tag-less cache is never served to a flagged-on run; flag-off keeps the exact legacy key + capture.
+  + (USE_MEDIAID ? '-mi' : '');
 const refreshSource = process.argv.includes('--refresh-source');
 
 // ---- pure detector helpers (geometry already in hand; NO network) ----
@@ -442,8 +491,169 @@ function bandTexture(img, y0, y1) {
   const energy = +(0.5 * varNorm + 0.5 * edgeNorm).toFixed(4);
   return { energy, varNorm: +varNorm.toFixed(4), edgeNorm: +edgeNorm.toFixed(4) };
 }
+
+// ---- MEDIA-IDENTITY pure pixel helpers (exported, unit-tested by _mediaid-selftest.mjs; NO network) ----
+// cropEnergy — bandTexture's exact content-energy math scoped to a BOX (x-bounded as well as y-bounded). Used as
+// the PAINT GUARD: a media element whose own crop is near-uniform was never painted (lazy-fail on the source side,
+// an unpainted/URL-spoofed stamp on the clone side) → it can assert nothing and is excluded entirely.
+export function cropEnergy(img, box) {
+  const step = 2;
+  const x0 = Math.max(0, Math.round(box.x)), y0 = Math.max(0, Math.round(box.y));
+  const x1 = Math.min(img.width, Math.round(box.x + box.w)), y1 = Math.min(img.height, Math.round(box.y + box.h));
+  let sum = 0, sumSq = 0, n = 0, edge = 0, en = 0;
+  for (let y = y0; y < y1; y += step) {
+    for (let x = x0; x < x1; x += step) {
+      const i = (y * img.width + x) * 4; const g = gray(img.data, i);
+      sum += g; sumSq += g * g; n++;
+      if (x + step < x1) { const ir = (y * img.width + (x + step)) * 4; edge += Math.abs(g - gray(img.data, ir)); en++; }
+      if (y + step < y1) { const id = ((y + step) * img.width + x) * 4; edge += Math.abs(g - gray(img.data, id)); en++; }
+    }
+  }
+  if (!n) return { energy: 0, varNorm: 0, edgeNorm: 0 };
+  const mean = sum / n; const variance = Math.max(0, sumSq / n - mean * mean);
+  const varNorm = Math.min(1, Math.sqrt(variance) / 64);
+  const edgeNorm = Math.min(1, (en ? edge / en : 0) / 48);
+  return { energy: +(0.5 * varNorm + 0.5 * edgeNorm).toFixed(4), varNorm: +varNorm.toFixed(4), edgeNorm: +edgeNorm.toFixed(4) };
+}
+// mean-pool a clipped box of a PNG into a gw×gh grid of [r,g,b] means (stride-2 sampling, same as bandStats).
+function _poolGrid(img, box, gw, gh) {
+  const x0 = Math.max(0, Math.round(box.x)), y0 = Math.max(0, Math.round(box.y));
+  const x1 = Math.min(img.width, Math.round(box.x + box.w)), y1 = Math.min(img.height, Math.round(box.y + box.h));
+  if (x1 <= x0 || y1 <= y0) return null;
+  const cells = Array.from({ length: gw * gh }, () => [0, 0, 0, 0]); // r,g,b,count
+  for (let y = y0; y < y1; y += 2) {
+    const gy = Math.min(gh - 1, Math.floor(((y - y0) / (y1 - y0)) * gh));
+    for (let x = x0; x < x1; x += 2) {
+      const gx = Math.min(gw - 1, Math.floor(((x - x0) / (x1 - x0)) * gw));
+      const i = (y * img.width + x) * 4; const c = cells[gy * gw + gx];
+      c[0] += img.data[i]; c[1] += img.data[i + 1]; c[2] += img.data[i + 2]; c[3]++;
+    }
+  }
+  return cells.map((c) => c[3] ? [c[0] / c[3], c[1] / c[3], c[2] / c[3]] : [0, 0, 0]);
+}
+// mediaCropId — perceptual SAME-IMAGERY score for one matched (source crop, clone crop) pair. Pure pixels:
+//   dHash: 9×8 luma grid → 64-bit difference hash → hashSim = 1 − hamming/64 (structure: edges/gradients)
+//   patch ΔE: 4×4 grid of RGB means → Lab → mean ΔE over 16 cells → deSim = max(0, 1 − meanΔE/MI_DE_MAX) (palette)
+//   id = clamp(0.5·hashSim + 0.5·deSim, 0, 1). Identical crops → exactly 1. Reads RENDERED pixels only.
+export function mediaCropId(srcShot, srcBox, cloneShot, cloneBox) {
+  const luma = (c) => 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
+  const bits = (img, box) => {
+    const g = _poolGrid(img, box, 9, 8); if (!g) return null;
+    const out = [];
+    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) out.push(luma(g[r * 9 + c]) < luma(g[r * 9 + c + 1]) ? 1 : 0);
+    return out;
+  };
+  const ha = bits(srcShot, srcBox), hb = bits(cloneShot, cloneBox);
+  const pa = _poolGrid(srcShot, srcBox, 4, 4), pb = _poolGrid(cloneShot, cloneBox, 4, 4);
+  if (!ha || !hb || !pa || !pb) return 0;
+  let ham = 0; for (let i = 0; i < 64; i++) if (ha[i] !== hb[i]) ham++;
+  const hashSim = 1 - ham / 64;
+  let sde = 0; for (let i = 0; i < 16; i++) sde += dE(srgbLab(pa[i][0], pa[i][1], pa[i][2]), srgbLab(pb[i][0], pb[i][1], pb[i][2]));
+  const deSim = Math.max(0, 1 - (sde / 16) / MI_DE_MAX);
+  return Math.max(0, Math.min(1, 0.5 * hashSim + 0.5 * deSim));
+}
+// mediaIdentityBand — the per-band dim (pure; exported for the unit harness). Inputs: the two full-page shots,
+// the two mediaLeaves lists ({x,y,w,h,area,tag?}), the band [y0,y1) (y1 pre-clamped to the gradable extent).
+// Eligibility (BOTH sides, symmetric): leaf center-y in band (the chunkedMedia binning convention — clone media
+// bin into the SOURCE band by clone y), w≥24 AND h≥24, clipped box non-empty, crop PAINTED (cropEnergy ≥
+// MI_SRC_PAINT). Nested/duplicate leaves deduped (a <picture> wrapping its <img> emits BOTH with ~the same box;
+// counting both would double srcMediaArea and false-halve presence on a faithful clone): drop any leaf ≥85%-
+// contained (inter/minArea) in an already-kept larger leaf. Identity-eligible: tag ∈ {img,picture,svg} (missing
+// tag → treated as img); video/canvas are PRESENCE-ONLY (animated/nondeterministic pixels). Matching: greedy by
+// descending source area, best clone candidate by IoU (accept ≥ MI_MATCH_IOU), else nearest center within
+// 0.5·max(w,h,120px) at area ratio ∈ [0.25,4]; each clone leaf matches at most one source leaf; no candidate →
+// MISSING (id 0). identity_b = Σ(area·id)/Σ(area) over identity-eligible; presence_b = min(1, cloneArea/srcArea)
+// over ALL eligible; M_b = 0.6·identity + 0.4·presence (presence-only when the band has no identity-eligible
+// leaves, e.g. video-only). Returns null score when the band has zero eligible source media (n/a band).
+export function mediaIdentityBand({ srcShot, cloneShot, srcMedia, cloneMedia, y0, y1, selftest = false }) {
+  const inBand = (m) => m.y + m.h / 2 >= y0 && m.y + m.h / 2 < y1;
+  const clip = (m, img) => {
+    const bx0 = Math.max(0, m.x), by0 = Math.max(y0, m.y);
+    const bx1 = Math.min(img.width, m.x + m.w), by1 = Math.min(y1, Math.min(img.height, m.y + m.h));
+    return (bx1 > bx0 && by1 > by0) ? { x: bx0, y: by0, w: bx1 - bx0, h: by1 - by0 } : null;
+  };
+  const eligible = (list, img) => {
+    const out = [];
+    for (const m of (list || [])) {
+      if (!inBand(m) || m.w < MI_MIN_LEAF || m.h < MI_MIN_LEAF) continue;       // size floor: 8px probes die here
+      const box = clip(m, img); if (!box) continue;
+      if (cropEnergy(img, box).energy < MI_SRC_PAINT) continue;                 // paint guard: unpainted → excluded
+      const tag = String(m.tag || 'img').toLowerCase();
+      out.push({ m, box, area: box.w * box.h, identityElig: !/^(video|canvas)$/.test(tag), used: false });
+    }
+    // dedupe nested/duplicate boxes (keep larger; drop ≥85%-contained)
+    const kept = [];
+    for (const e of out.sort((a, b) => b.area - a.area)) {
+      let dup = false;
+      for (const k of kept) {
+        const ix = Math.max(0, Math.min(e.m.x + e.m.w, k.m.x + k.m.w) - Math.max(e.m.x, k.m.x));
+        const iy = Math.max(0, Math.min(e.m.y + e.m.h, k.m.y + k.m.h) - Math.max(e.m.y, k.m.y));
+        const minA = Math.min(e.m.w * e.m.h, k.m.w * k.m.h);
+        if (minA > 0 && (ix * iy) / minA >= 0.85) { dup = true; break; }
+      }
+      if (!dup) kept.push(e);
+    }
+    return kept;
+  };
+  const srcElig = eligible(srcMedia, srcShot);
+  const clnElig = eligible(cloneMedia, cloneShot);
+  const srcMediaArea = srcElig.reduce((a, e) => a + e.area, 0);
+  const cloneMediaArea = clnElig.reduce((a, e) => a + e.area, 0);
+  if (!srcElig.length) {
+    return { score: null, raw: null, identity: null, presence: null, srcMediaArea: 0, cloneMediaArea, cloneOnlyMediaArea: cloneMediaArea, leaves: { eligible: 0, identityEligible: 0, matched: 0, wrong: 0, missing: 0 } };
+  }
+  let idNum = 0, idDen = 0, matched = 0, wrong = 0, missing = 0;
+  for (const e of srcElig.slice().sort((a, b) => b.area - a.area)) {           // greedy by descending source area
+    if (!e.identityElig) continue;                                              // video/canvas → presence-only
+    idDen += e.area;
+    let best = null, bestIou = 0;
+    for (const c of clnElig) { if (c.used) continue; const i = _iou(e.m, c.m); if (i > bestIou) { bestIou = i; best = c; } }
+    if (!best || bestIou < MI_MATCH_IOU) {
+      best = null; let bestD = Infinity;
+      const cx = e.m.x + e.m.w / 2, cy = e.m.y + e.m.h / 2, maxD = 0.5 * Math.max(e.m.w, e.m.h, 120);
+      for (const c of clnElig) {
+        if (c.used) continue;
+        const ratio = (c.m.w * c.m.h) / Math.max(1, e.m.w * e.m.h);
+        if (ratio < 0.25 || ratio > 4) continue;
+        const d = Math.hypot(c.m.x + c.m.w / 2 - cx, c.m.y + c.m.h / 2 - cy);
+        if (d <= maxD && d < bestD) { bestD = d; best = c; }
+      }
+    }
+    if (!best) { missing++; continue; }                                         // unmatched → id 0 contributes 0
+    best.used = true;
+    const id = mediaCropId(srcShot, e.box, cloneShot, best.box);
+    idNum += e.area * id; matched++;
+    if (id < 0.5) wrong++;
+  }
+  const identity = idDen > 0 ? idNum / idDen : null;                            // null = no identity-eligible leaves
+  const presence = Math.min(1, cloneMediaArea / Math.max(1, srcMediaArea));
+  const cloneOnlyMediaArea = clnElig.filter((c) => !c.used).reduce((a, c) => a + c.area, 0);
+  const raw = identity == null ? presence : MI_W_ID * identity + MI_W_PRESENCE * presence;
+  return {
+    // SELFTEST short-circuits the published score to the definitional 1 (raw kept for telemetry — the
+    // responsive-selftest pattern); clone==source makes raw 1.0 anyway (hamming 0, ΔE 0, equal areas).
+    score: selftest ? 1 : +raw.toFixed(3),
+    raw: +raw.toFixed(3),
+    identity: identity == null ? null : +identity.toFixed(3),
+    presence: +presence.toFixed(3),
+    srcMediaArea, cloneMediaArea, cloneOnlyMediaArea,
+    leaves: { eligible: srcElig.length, identityEligible: srcElig.filter((e) => e.identityElig).length, matched, wrong, missing },
+  };
+}
 const norm = (s) => (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
 
+// PAGE-CLOSE RETRY — the main info-evaluate crashed once on a transient mid-capture page death (supabase
+// 2026-06-10 'Target page, context or browser has been closed'; same wedge class settleLazy was hardened for,
+// 5da79a6). One retry on a FRESH page (capture() creates its own from ctx); a second failure or any other
+// error class still throws — real infra failures must stay loud. Off-error-path behavior unchanged.
+async function captureRetry(ctx, target, withSections) {
+  try { return await capture(ctx, target, withSections); }
+  catch (e) {
+    if (!/Target (page|context|browser)|page.*has been closed/i.test(String(e))) throw e;
+    console.error(`capture: transient page-close on ${target} — one retry on a fresh page`);
+    return await capture(ctx, target, withSections);
+  }
+}
 async function capture(ctx, target, withSections) {
   const p = await ctx.newPage(); await p.setViewportSize({ width: W, height: 900 });
   try { await p.goto(target, { waitUntil: 'networkidle', timeout: 60000 }); } catch { try { await p.goto(target, { waitUntil: 'load', timeout: 30000 }); } catch {} }
@@ -463,7 +673,7 @@ async function capture(ctx, target, withSections) {
     }).catch(() => {});
     await p.waitForTimeout(300).catch(() => {});
   }
-  const info = await p.evaluate(({ vw, withSections, useVisibleBlocks, formCluster }) => {
+  const info = await p.evaluate(({ vw, withSections, useVisibleBlocks, formCluster, useMediaId }) => {
     const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
     const vis = (el) => { const r = el.getBoundingClientRect(); if (!r.width || !r.height) return false; const cs = getComputedStyle(el); return !(cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity < 0.05); };
     // visStrict — the HARDENED GENUINE-VISIBILITY gate for block-type counting (anti-gaming). An element counts
@@ -543,7 +753,10 @@ async function capture(ctx, target, withSections) {
     // DETECTOR(3) CHUNKED-MEDIA raw feed: ALL visible media leaves (img/svg/picture/canvas/video) with FULL boxes
     // + area. Used to detect a CLONE single-large-raster where the SOURCE had many small distinct media (logos/
     // icons chunk-screenshotted). Pure geometry. Each entry: {x, y, w, h, area}.
-    const mediaLeaves = [...document.querySelectorAll('img,svg,picture,canvas,video')].filter(vis).map((e) => { const r = e.getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top + scrollY), w: Math.round(r.width), h: Math.round(r.height), area: Math.round(r.width * r.height) }; }).filter((b) => b.w >= 8 && b.h >= 8);
+    // MEDIA-IDENTITY additive field: `tag` (element tagName) splits identity-eligible (img/picture/svg) from
+    // presence-only (video/canvas) leaves. Gated on useMediaId so GRADER_NO_MEDIAID=1 keeps the capture (and the
+    // source cache, via the '-mi' srcTag suffix) byte-identical legacy.
+    const mediaLeaves = [...document.querySelectorAll('img,svg,picture,canvas,video')].filter(vis).map((e) => { const r = e.getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top + scrollY), w: Math.round(r.width), h: Math.round(r.height), area: Math.round(r.width * r.height), ...(useMediaId ? { tag: e.tagName.toLowerCase() } : {}) }; }).filter((b) => b.w >= 8 && b.h >= 8);
     // DETECTOR(4) REAL-NAV raw feed: is there a REAL nav? Two acceptance shapes: (a) an Elementor nav-menu widget
     // (.elementor-widget-nav-menu / .e-n-menu / [class*=nav-menu] / [aria-label*=menu] nav), OR (b) a TOP header
     // container (nav/header/[role=banner]/[role=navigation] whose top < 200px) holding >= 3 link children. Flat
@@ -632,7 +845,7 @@ async function capture(ctx, target, withSections) {
       nav: visN('nav,[role=navigation]').length ? 1 : 0,
     };
     return { texts, sections, imgs, blocks, pageH: document.documentElement.scrollHeight, textLeaves, bands, mediaLeaves, navStruct, docScrollW, docClientW, leafBoxes };
-  }, { vw: W, withSections, useVisibleBlocks: USE_VISIBLE_BLOCKS, formCluster: FORM_CLUSTER });
+  }, { vw: W, withSections, useVisibleBlocks: USE_VISIBLE_BLOCKS, formCluster: FORM_CLUSTER, useMediaId: USE_MEDIAID });
   const shot = PNG.sync.read(await p.screenshot({ fullPage: true }));
   await p.close(); return { shot, texts: info.texts, sections: info.sections, imgs: info.imgs, blocks: info.blocks, pageH: info.pageH, textLeaves: info.textLeaves, bands: info.bands, mediaLeaves: info.mediaLeaves, navStruct: info.navStruct, docScrollW: info.docScrollW, docClientW: info.docClientW, leafBoxes: info.leafBoxes };
 }
@@ -651,12 +864,12 @@ if (IS_MAIN) (async () => {
     src = { shot: PNG.sync.read(fs.readFileSync(srcCachePng)) };
     for (const k of SRC_CACHE_FIELDS) src[k] = meta[k];
   } else {
-    src = await capture(ctx, source, true);
+    src = await captureRetry(ctx, source, true);
     if (canCache) { // persist the fresh source capture for deterministic future grades
       try { fs.mkdirSync(SRC_CACHE_DIR, { recursive: true }); fs.writeFileSync(srcCachePng, PNG.sync.write(src.shot)); const meta = {}; for (const k of SRC_CACHE_FIELDS) meta[k] = src[k]; fs.writeFileSync(srcCacheJson, JSON.stringify(meta)); } catch {}
     }
   }
-  const cln = SELFTEST ? src : await capture(ctx, clone, false);
+  const cln = SELFTEST ? src : await captureRetry(ctx, clone, false);
   await browser.close();
 
   const hRatio = cln.shot.height / src.shot.height;
@@ -668,6 +881,7 @@ if (IS_MAIN) (async () => {
 
   const H = Math.min(src.shot.height, cln.shot.height);
   const sections = [];
+  const miBands = []; // MEDIA-IDENTITY per-band records (1:1 with sections.push when USE_MEDIAID)
   for (let i = 0; i < bounds.length - 1; i++) {
     const y0 = bounds[i], y1 = bounds[i + 1]; if (y1 - y0 < 20) continue;
     const gy1 = Math.min(H, y1); const gradable = gy1 - y0 > 8;
@@ -705,6 +919,20 @@ if (IS_MAIN) (async () => {
     const imgCover = (y1 > y0) ? imgArea / (W * (y1 - y0)) : 0;
     const rasteredText = uniq.length >= 4 && cloneTextHere < uniq.length * 0.3 && imgCover > 0.5;
     const visual = rasteredText ? Math.min(visualRaw, 0.35) : visualRaw;
+    // ---- MEDIA-IDENTITY DIM (REPORT-ONLY this round; reversible GRADER_NO_MEDIAID=1; see flag block). Pure
+    // pixels over the two shots + mediaLeaves geometry already in hand — no extra render/navigation/network.
+    // Does NOT touch visual/composite; the would-be round-3 fold is computed here per band (visualRaw ×
+    // (0.45+0.55·M_b) when the band's source media covers ≥10%, rastered-text cap re-applied after — the real
+    // fold's exact insertion point) and published under detectors.mediaIdentity.projected only.
+    let mi = null;
+    if (USE_MEDIAID) {
+      mi = gradable ? mediaIdentityBand({ srcShot: src.shot, cloneShot: cln.shot, srcMedia: src.mediaLeaves, cloneMedia: cln.mediaLeaves, y0, y1: gy1, selftest: SELFTEST }) : null;
+      const bandArea = Math.max(1, W * Math.max(1, gy1 - y0));
+      const srcMediaFrac = (mi && mi.srcMediaArea) ? mi.srcMediaArea / bandArea : 0;
+      const foldMult = (mi && mi.score != null && srcMediaFrac >= 0.10) ? (MI_FOLD_FLOOR + (1 - MI_FOLD_FLOOR) * mi.score) : 1;
+      const visualFolded = rasteredText ? +Math.min(visualRaw * foldMult, 0.35).toFixed(3) : +(visualRaw * foldMult).toFixed(3);
+      miBands.push({ idx: i, y0, y1: gy1, mi, srcMediaFrac: +srcMediaFrac.toFixed(3), visualFolded });
+    }
     // attribution
     const fails = []; const why = [];
     if (rasteredText) { fails.push('visual'); why.push('rastered-text-cheat'); }
@@ -714,7 +942,7 @@ if (IS_MAIN) (async () => {
     const verdict = fails.length === 0 ? 'pass' : 'fail';
     const areaFrac = (y1 - y0) / src.pageH;
     const severity = +(((1 - Math.min(visual, editability))) * (0.5 + areaFrac)).toFixed(3);
-    sections.push({ idx: i, y0, y1, visual, editability, srcTextCount: uniq.length, rasteredText, contentVoid: isVoid, srcEnergy: srcTex.energy, cloneEnergy: cloneTex.energy, visualPreVoid, meanDE: +px.meanDE.toFixed(1), verdict, fails: [...new Set(fails)], why: [...new Set(why)], severity, example: uniq.filter((t) => !inClone(t))[0]?.slice(0, 50) });
+    sections.push({ idx: i, y0, y1, visual, editability, srcTextCount: uniq.length, rasteredText, contentVoid: isVoid, srcEnergy: srcTex.energy, cloneEnergy: cloneTex.energy, visualPreVoid, meanDE: +px.meanDE.toFixed(1), verdict, fails: [...new Set(fails)], why: [...new Set(why)], severity, example: uniq.filter((t) => !inClone(t))[0]?.slice(0, 50), ...(USE_MEDIAID ? { mediaIdentity: mi ? mi.score : null, mediaPresence: mi ? mi.presence : null, srcMediaArea: mi ? mi.srcMediaArea : 0, mediaMissing: mi ? mi.leaves.missing : 0, mediaWrong: mi ? mi.leaves.wrong : 0 } : {}) });
   }
   const mean = (f) => sections.length ? +(sections.reduce((a, s) => a + f(s), 0) / sections.length).toFixed(3) : 0;
   const failing = sections.filter((s) => s.verdict === 'fail').sort((a, b) => b.severity - a.severity);
@@ -833,6 +1061,30 @@ if (IS_MAIN) (async () => {
   const composite = usingResponsive
     ? +(0.35 * visualMean + 0.20 * editabilityMean + 0.20 * structuralFidelityAdj + 0.25 * responsiveScore).toFixed(3)
     : +(0.4 * visualMean + 0.3 * editabilityMean + 0.3 * structuralFidelityAdj).toFixed(3);
+  // ---- MEDIA-IDENTITY aggregation + PROJECTED fold (REPORT-ONLY: the composite above is UNTOUCHED either way;
+  // projected.* computes what the round-3 fold WOULD do so the folding decision is made on published numbers).
+  let mediaIdentityMean = null, mediaIdentityReport = null;
+  if (USE_MEDIAID) {
+    const withMedia = miBands.filter((b) => b.mi && b.mi.score != null && b.mi.srcMediaArea > 0);
+    const miDen = withMedia.reduce((a, b) => a + b.mi.srcMediaArea, 0);
+    // area-weighted page mean (hero imagery outweighs footer favicons); null when no band has media → dim n/a.
+    mediaIdentityMean = miDen > 0 ? +(withMedia.reduce((a, b) => a + b.mi.srcMediaArea * b.mi.score, 0) / miDen).toFixed(3) : null;
+    const mediaIdentityMeanRaw = miDen > 0 ? +(withMedia.reduce((a, b) => a + b.mi.srcMediaArea * b.mi.raw, 0) / miDen).toFixed(3) : null;
+    // projected fold: re-run the visual chain with the folded per-band visuals (same detector multipliers).
+    const ssimRawFolded = miBands.length ? +(miBands.reduce((a, b) => a + b.visualFolded, 0) / miBands.length).toFixed(3) : 0;
+    const visualMeanPreFolded = (perElementScalar != null) ? +(0.5 * ssimRawFolded + 0.5 * perElementScalar).toFixed(3) : ssimRawFolded;
+    const visualMeanFolded = +(visualMeanPreFolded * textCollideMult * fullBleedMult * hOverflowMult * overlap2Mult).toFixed(3);
+    const compositeFolded = usingResponsive
+      ? +(0.35 * visualMeanFolded + 0.20 * editabilityMean + 0.20 * structuralFidelityAdj + 0.25 * responsiveScore).toFixed(3)
+      : +(0.4 * visualMeanFolded + 0.3 * editabilityMean + 0.3 * structuralFidelityAdj).toFixed(3);
+    mediaIdentityReport = {
+      enabled: true, folded: false,           // report-only this round — folding is the round-3 decision
+      mean: mediaIdentityMean, meanRaw: mediaIdentityMeanRaw, bandsWithMedia: withMedia.length,
+      thresholds: { minLeaf: MI_MIN_LEAF, srcPaint: MI_SRC_PAINT, deMax: MI_DE_MAX, matchIoU: MI_MATCH_IOU, wId: MI_W_ID, wPresence: MI_W_PRESENCE, floorMult: MI_FOLD_FLOOR },
+      projected: { visualMeanFolded, compositeFolded },
+      bands: withMedia.map((b) => ({ idx: b.idx, yRange: [b.y0, b.y1], identity: b.mi.identity, presence: b.mi.presence, score: b.mi.score, srcMediaFrac: b.srcMediaFrac, srcMediaArea: b.mi.srcMediaArea, cloneMediaArea: b.mi.cloneMediaArea, cloneOnlyMediaArea: b.mi.cloneOnlyMediaArea, leaves: b.mi.leaves })),
+    };
+  }
   // structural misses are real defects → fail target if any block type unreproduced (use the adjusted value).
   const atTarget = failing.length === 0 && structuralFidelityAdj >= 0.95 && hRatio >= TGT.hLo && hRatio <= TGT.hHi;
   // WALL detector: source rendered almost no text for a large page → headless didn't render it
@@ -849,6 +1101,8 @@ if (IS_MAIN) (async () => {
     // report fields + telemetry. Penalties already folded into visualMean (text-collision, full-bleed) and the
     // adjusted structuralFidelity (chunked-media, real-nav). visualMeanPre/structuralFidelityPre = pre-penalty.
     collisionRate, fullBleedOk, chunkedMediaCount, realNavOk, overflowRatio, excessOverlap, contentVoidCount: voidCount,
+    // MEDIA-IDENTITY (REPORT-ONLY; absent entirely when GRADER_NO_MEDIAID=1 → byte-identical legacy report).
+    ...(USE_MEDIAID ? { mediaIdentityMean } : {}),
     detectors: {
       enabled: { master: DET_MASTER, textCollide: DET_TEXTCOLLIDE, fullBleed: DET_FULLBLEED, chunkedMedia: DET_CHUNKEDMEDIA, realNav: DET_REALNAV, hOverflow: DET_HOVERFLOW, overlap2: DET_OVERLAP2, voidPenalty: DET_VOIDPENALTY },
       contentVoid: { enabled: DET_VOIDPENALTY, count: voidCount, ceil: VOID_CEIL, srcContentThresh: VOID_SRC_CONTENT, cloneFloorFrac: VOID_CLONE_FLOOR, bgAbs: VOID_BG_ABS, bands: voidBands.map((b) => ({ idx: b.idx, yRange: [b.y0, b.y1], srcEnergy: b.srcEnergy, cloneEnergy: b.cloneEnergy, visualPreVoid: b.visualPreVoid, visual: b.visual })) },
@@ -858,6 +1112,7 @@ if (IS_MAIN) (async () => {
       realNav: { ok: realNavOk, srcReal: rnRaw.srcReal, cloneReal: rnRaw.cloneReal, mult: realNavMult, srcNav: src.navStruct, cloneNav: SELFTEST ? src.navStruct : cln.navStruct },
       hOverflow: { overflowRatio, rawRatio: hoRaw.overflowRatio, cloneScrollW: hoRaw.cloneScrollW, srcScrollW: hoRaw.srcScrollW, denom: hoRaw.denom, mult: hOverflowMult },
       overlap2: { excessOverlap, cloneOverlapFrac: woClone.overlapFrac, srcOverlapFrac: woSrc.overlapFrac, clonePairs: woClone.pairs, srcPairs: woSrc.pairs, mult: overlap2Mult },
+      ...(USE_MEDIAID ? { mediaIdentity: mediaIdentityReport } : {}),
       visualMeanPre, structuralFidelityPre,
     },
     perElement,                       // {color,typography,position,text,effects,coverage} or null (SSIM-only / unavailable)
@@ -895,5 +1150,9 @@ if (IS_MAIN) (async () => {
   if (DET_MASTER) console.log(`detectors: collisionRate ${report.collisionRate} (×${textCollideMult}) · fullBleedOk ${report.fullBleedOk} (src ${fbRaw.srcFrac}/clone ${fbRaw.cloneFrac}, ×${fullBleedMult}) · chunkedMediaCount ${report.chunkedMediaCount} (×${chunkedMediaMult}) · realNavOk ${report.realNavOk} (src ${rnRaw.srcReal}/clone ${rnRaw.cloneReal}, ×${realNavMult})`);
   if (DET_MASTER) console.log(`reality: hOverflow ratio ${report.overflowRatio} (cloneScrollW ${hoRaw.cloneScrollW}/srcScrollW ${hoRaw.srcScrollW}/denom ${hoRaw.denom}, ×${hOverflowMult}) · widgetOverlap excess ${report.excessOverlap} (clone ${woClone.overlapFrac}@${woClone.pairs}pairs / src ${woSrc.overlapFrac}@${woSrc.pairs}pairs, ×${overlap2Mult})`);
   if (DET_VOIDPENALTY) { console.log(`content-void: ${voidCount} band(s) penalized (cap ${VOID_CEIL})`); for (const b of voidBands) console.log(`  §${b.idx} y${b.y0}-${b.y1} srcEnergy ${b.srcEnergy} cloneEnergy ${b.cloneEnergy} → visual ${b.visualPreVoid}→${b.visual}`); }
+  if (USE_MEDIAID && mediaIdentityReport) {
+    console.log(`media-identity (report-only, NOT in composite): mean ${mediaIdentityMean} over ${mediaIdentityReport.bandsWithMedia} media band(s) · projected fold: visual ${visualMean}→${mediaIdentityReport.projected.visualMeanFolded} composite ${composite}→${mediaIdentityReport.projected.compositeFolded}`);
+    for (const b of mediaIdentityReport.bands.filter((x) => x.score != null && x.score < 0.7).sort((a, c) => a.score - c.score).slice(0, 6)) console.log(`  §${b.idx} y${b.yRange[0]}-${b.yRange[1]} M ${b.score} (id ${b.identity} pres ${b.presence}) leaves ${b.leaves.eligible} matched ${b.leaves.matched} wrong ${b.leaves.wrong} missing ${b.leaves.missing}`);
+  }
   console.log('top defects:'); for (const d of report.rankedDefects.slice(0, 6)) console.log(`  §${d.section} y${d.yRange[0]}-${d.yRange[1]} sev ${d.severity} [${d.fails.join('+')}: ${d.why.join(',')}] vis ${d.visual} edit ${d.editability}${d.example ? ' e.g. "' + d.example + '"' : ''}`);
 })();
