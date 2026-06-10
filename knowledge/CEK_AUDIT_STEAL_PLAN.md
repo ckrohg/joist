@@ -53,9 +53,13 @@ Wave 3 (v1 — need live-WP/host validation):
   disambiguation (header-stripping vs disabled vs anti-bot vs DISALLOW_FILE_MODS), host playbook
   (WPE/SiteGround/Kinsta/Cloudways), app-password user-list fallback, MCP-route verify+recovery,
   `.mcp.json` merge-not-clobber. `bash -n` clean.
-- **W3.2 HFE header/footer** ✅ v1 — `plugin/src/Plan/HeaderFooterFactory.php`: verified recipe
-  (`elementor-hf` + `ehf_template_type` scalar + `basic-global` via `update_post_meta`). `php -l` clean.
-  Follow-ups: route `_elementor_data` through DocumentWriter; expose via an MCP tool; live-validate.
+- **W3.2 HFE header/footer** ❌ NOT-DONE (corrected 2026-06-09) — the HFE-based
+  `plugin/src/Plan/HeaderFooterFactory.php` was REMOVED in commit `e0d7228` (2026-06-06): user direction is
+  native Elementor Pro Theme Builder (no HFE dependency). The native path is UNBUILT — key gotcha from the
+  removal commit: meta-only creation of an `elementor_library` header/footer template does NOT render on the
+  Pro+JupiterX stack (dead template 6727); a native factory must rebuild Pro's Theme Builder conditions cache
+  server-side and resolve JupiterX header-location support. Deferred pending that focused build + live
+  render-validation.
 
 Wave 2 (both wired):
 - **W2.1 free-tier nav** ✅ — registered the `[joist_nav_menu menu="<slug>"]` shortcode (`Bootstrap::registerShortcodes`,
@@ -177,7 +181,7 @@ error: core has no such shortcode).
 - **Acceptance:** a non-technical user runs one command and lands a working Joist+MCP wiring on Local or
   a live host, with self-serve recovery for the top failure modes.
 
-### W3.2 Site-wide header/footer as `elementor-hf` template posts — size L — ✅ v1 factory SHIPPED (`HeaderFooterFactory.php`); wire to builders + live-validate for whole-site/multi-page
+### W3.2 Site-wide header/footer — size L — ❌ NOT-DONE / path-unbuilt (corrected 2026-06-09: the HFE `elementor-hf` factory shipped then was REMOVED in `e0d7228` — direction is native Pro Theme Builder, which is unbuilt; meta-only template creation does not render, conditions cache must be rebuilt server-side)
 - **Why:** we bake chrome INTO each page; a multi-page clone duplicates chrome and edits don't
   propagate. Confirmed whole-site gap.
 - **Evidence:** 0 hits for `elementor-hf`/`ehf_template_type` in builders; `elementor_header_footer` at

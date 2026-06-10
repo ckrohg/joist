@@ -7,8 +7,13 @@
  *   • editability — fraction of the SOURCE's text reproduced as REAL selectable widgets in the clone,
  *                   NOT baked into a raster image. Photos/genuine media carry no text so they don't
  *                   count against it — rasterizing a photo is fine; rasterizing a TEXT section is not.
- * composite = 0.5·visual + 0.5·editability, with a visual<0.5 FLOOR so a broken-looking page can't
- * score high on editability alone. Net: native+faithful > native-rough > hybrid > pure-raster > broken.
+ * composite = 0.35·visual + 0.35·editability + 0.10·designSystem + 0.20·responsive (when responsive is
+ * measurable; else the 3-term fallback 0.45·visual + 0.45·editability + 0.10·designSystem), with a
+ * visual<0.5 FLOOR so a broken-looking page can't score high on the other dimensions alone, plus a
+ * bounded human-salient invisible-text defect penalty (cap 0.20; GRADER_NODEFECT=1 disables).
+ * (Header corrected 2026-06-09 — the old "0.5·visual + 0.5·editability" claim predated the
+ * designSystem/responsive terms; the authoritative formula is the computation below + report.note.)
+ * Net: native+faithful > native-rough > hybrid > pure-raster > broken.
  * Usage: node grade-structure.mjs --source <url|file.png> --clone <url> [--out dir]
  */
 import fs from 'fs';
