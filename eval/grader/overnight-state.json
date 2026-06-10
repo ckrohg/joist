@@ -49,7 +49,11 @@
   "corpusNote7": "BROADENED to 7 sites after probe wave 2 (round 36). Added react.dev (0.765 in-band, docs vertical: code/nav/tables — isolates the dark-code-block-bg defect cleanly). HELD OUT stripe (0.657, dynamic-capture tail) from the gated corpus to avoid dynamic noise + round-slowdown; its gaps logged in stripeSentinel. Generalization CONFIRMED on a 3rd/4th fresh site + a novel vertical.",
   "stripeSentinel": "stripe.com probe (page 4770) composite 0.657 — pipeline ran clean (287 leaves, hRatio 1.029, no crash) so recipes generalize STRUCTURALLY, but: visual 0.695 (animated gradient hero / scroll carousels / live $1.9T counter = JS-animation content the static V3 builder can't author), struct 0.5 (lost 1/2 lists, 0/1 accordion, + emitted a PHANTOM form). New gaps for targeted/supervised work: (a) accordion authoring recipe; (b) block-emission PRECISION (suppress phantom blocks not in source); (c) dynamic/animated-content tail (headed-capture / motion). NOT added to gated corpus (dynamic noise).",
   "corpusNote": "BROADENED to 6 sites after round-28 generalization probe (linear 0.851, vercel 0.791 — both in-band, recipes generalize). linear=dark-theme + high-water anchor; vercel=tabs/structural stressor. NOTE: cross-round mean shifts ~0.751->~0.77 purely from adding 2 high-scoring sites (composition, NOT a fix gain). Gate compares baseline-vs-after on the SAME 6 sites each round, so within-round verdicts stay honest. directed-fix.workflow.js + discovery.workflow.js SITES updated to 6.",
-  "currentRound": null,
+  "currentRound": {
+    "name": "b1-round-1-roundtrip-probe",
+    "status": "running",
+    "detail": "scratch-page/CAS-revert harness + control-edit render probe + differentiated baseline on 3 corpus clones; falsifier (tri-viewport correspondence, read-only) runs alongside"
+  },
   "flowAbsSurvivalUnknown": "PREREQ for the linear overlay fix (next round): the diagnostic found 0/528 live elements are position:absolute on the FLOW clone (pages 5404/5405 on sg-host) -> build-flow's EXISTING leaf-overlay abs path (build-flow.mjs ~line 771) is NOT rendering as absolute on the frontend. YET build-absolute achieves hRatio ~1.0 via abs on the SAME sg-host stack -> abs CAN work. So before/with the linear buildOverlay() fix (abs-layer the z-overlapped chart+card container children, currently flowed into a column stack = 51% of linear's page excess), RESOLVE why build-flow's abs is stripped/not-applying (diff build-flow's abs-emission vs build-absolute's working mechanism — likely different setting keys or a missing position:relative parent). Fallback if abs truly can't survive in flow: clip the over-tall chart subtree as a sized/clipped html widget to box.h (the kind:code line-282 overflow-cap recipe). Do NOT widen the z-overlay IoU gate (only 16% on tailwind; prior widening regressed coverage).",
   "barClassTokenPoison": "FUTURE LEVER (capture, from capture-markup-flow-gate screenshots): tailwindcss.com's hero code-as-art poison is NOT <div> markup — it's BARE UTILITY-CLASS TOKENS ('text-8xl text-gray-950 tracking-tighter text-balance ...') rendered inline with prose, no angle brackets so markupFrac=0. To strip: detect runs of >=2 consecutive hyphenated CSS-class identifiers (/^[a-z]+(-[a-z0-9]+)+$/) in a non-structural mono/decorative leaf + strip/raster them. Deferred behind the height-pin lever (the dominant one); revisit if tailwind perElement stays starved after height drift is fixed.",
   "effectsFoldResult": "ADOPTED (recovered): EFFECTS sub-score (box-shadow/border-radius/backdrop-filter, rubric cat-1.3) folded into perElement at 0.12 weight -> perElement = 0.30*color + 0.22*typo + 0.18*pos + 0.18*text + 0.12*effects (reversible GRADER_NO_EFFECTS=1 -> prior 0.35/0.25/0.20/0.20). self-test=1.0 both modes (effects=1.0, 15 samples non-vacuous), independent-verified, A/B reconciles. The 1st run was wrongly reverted by the ^OK: guard bug; fixed guard -> 2nd run adopted. Both builders now have a shadow/radius/blur fidelity target. plateauStreak stays (grader change, not a cloner gain).",
@@ -3612,6 +3616,106 @@
       "framer": "SKIPPED (sentinel, per round spec)",
       "infraFails": "none — all 6 sites captured+built+graded first try (vercel did NOT close the page this run; react.dev source rendered STYLED today, srcH 9097, so its source-side numbers are valid THIS run — re-verify per run, see reactdev_source_render_blocked)",
       "demoNote": "overreacted blog demo (page 11067): >600-char fix does NOT engage on this article (demo textCoverage 0.413 vs CAPTURE_NO_LONGTEXT=1 control 0.415; captures byte-identical). Real blog-body gap discovered = capture-layout.mjs:1536 inlineSimple drops bare text nodes of paragraphs with <a>/<code> inline children. See eval/grader/demo-overreacted/summary.json."
+    },
+    {
+      "name": "workstream-A-prove-verdict",
+      "date": "2026-06-10",
+      "verdict": "KEPT (demo built, rebaseline clean) + NEW LEVER FOUND",
+      "detail": "Blog demo page 11067 (overreacted useEffect): composite 0.695, hRatio 1.0 @53761px. HONEST: 600-char fix INERT on this article (textCoverage 0.413 fix-on vs 0.415 control — all >=600 runs are <pre> code; prose <600). REAL blog lever = capture-layout.mjs:1536 inlineSimple: paragraphs with inline <a>/<code> children fail leaf gate, bare text nodes dropped (capturedTexts 343/3371). Rebaseline mean 0.774 new era (tw .691/sb .841/re .650/li .828/vc .807/rd .825), zero infra-fails, resend = corpus floor (edit .370). Commit c7faaf4."
+    },
+    {
+      "name": "b1-roundtrip-baseline",
+      "date": "2026-06-10",
+      "epoch": 1781081547,
+      "what": "B1 round 1 INDICTMENT — control-edit render round-trip (probe-roundtrip.mjs --n 16) on 3 corpus clones via crash-safe scratch duplicates; metric = mapped_panel_rate × probe_pass_rate vs the ≥0.90 PATH_TO_TRUE_1TO1 gate. Graded pages got only GETs; every scratch dup 404-verified deleted (incl. wedge-kill orphans 21700/21705 — trap + sweep both proven live). FIRST 3-site pass DISCARDED: paletteAt(i>=8) emitted malformed hex (missing 0.5 HSL factors → 7-digit = invalid CSS dropped, 8-digit #RRGGBBAA alpha-00 = invisible) → false h4/h6 FAIL_INERT at ALL sites (position-correlated tell). Also fixed: supabase 2986 wedged 2/2 at 0 CPU on unbounded playwright awaits → bounded()+watchdog+REST timeouts. Numbers below = fixed-probe re-runs, all VALID, 0 probe errors.",
+      "perSite": {
+        "tailwind": {
+          "page": 3146,
+          "mapped_panel_rate": 0.904,
+          "probe_pass": {
+            "overall": 0.375,
+            "heading": 1,
+            "text": 0,
+            "button": 0
+          },
+          "control_edit_roundtrip": 0.339,
+          "sampled": 16,
+          "taxonomy": {
+            "PASS": 6,
+            "FAIL_INERT": 10
+          },
+          "denominator": {
+            "runs": 197,
+            "panel": 178,
+            "html": 2,
+            "unmatched": 17
+          }
+        },
+        "supabase": {
+          "page": 2986,
+          "mapped_panel_rate": 0.791,
+          "probe_pass": {
+            "overall": 0.375,
+            "heading": 1,
+            "text": 0,
+            "button": 0
+          },
+          "control_edit_roundtrip": 0.297,
+          "sampled": 16,
+          "taxonomy": {
+            "PASS": 6,
+            "FAIL_INERT": 10
+          },
+          "denominator": {
+            "runs": 115,
+            "panel": 91,
+            "html": 2,
+            "unmatched": 22
+          }
+        },
+        "resend": {
+          "page": 2988,
+          "mapped_panel_rate": 0.706,
+          "probe_pass": {
+            "overall": 0.313,
+            "heading": 0.833,
+            "text": 0,
+            "button": 0
+          },
+          "control_edit_roundtrip": 0.221,
+          "sampled": 16,
+          "taxonomy": {
+            "FAIL_MOBILE_MASKED": 1,
+            "FAIL_INERT": 10,
+            "PASS": 5
+          },
+          "denominator": {
+            "runs": 136,
+            "panel": 96,
+            "html": 2,
+            "unmatched": 38
+          }
+        }
+      },
+      "pooled": {
+        "probes": 48,
+        "pass_rate_overall": 0.354,
+        "pass_rate_by_stratum": {
+          "heading": 0.944,
+          "text": 0,
+          "button": 0
+        },
+        "taxonomy": {
+          "PASS": 17,
+          "FAIL_INERT": 30,
+          "FAIL_MOBILE_MASKED": 1
+        },
+        "mapped_panel_rate": 0.815,
+        "control_edit_roundtrip_pooled": 0.289,
+        "control_edit_roundtrip_mean_of_sites": 0.286
+      },
+      "shape": "matches prediction: headings 17/18 PASS (sole non-PASS = resend hero \"Email for developers\" FAIL_MOBILE_MASKED — desktop PASS 13757px, hidden/masked on the 390 leg); text-editor 0/15 + button 0/15 ALL FAIL_INERT with data_verified=true (panel data writes + reads back, render does not change — build-absolute inline style in editor HTML wins over text_color). The indictment stands: editable-in-data ≠ editable-in-render; vs the ≥0.90 gate the corpus sits at ~0.29.",
+      "reports": "eval/grader/roundtrip-baseline/ (roundtrip-3146/2986/2988.json + pooled.json); /tmp originals"
     }
   ],
   "phase5backlog_wave3": [
@@ -3788,7 +3892,7 @@
     "fullDetail": "see sessionSummary_spotcheck_arc + metricsHistory + memory grader_honesty_both_directions.md"
   },
   "graderUpgradeQueue": "Sequential SUPERVISED grader upgrades (each self-test=1.0 + reversible + re-baselines; run one at a time, NOT directed-fix rounds). DONE: responsive promotion ADOPTED (composite now 0.35*visual+0.2*edit+0.2*struct+0.25*responsive; corpus re-baselined ~0.77->~0.62 honestly). RUNNING: clone-econ-grader-fix (wxcek7tmo, free-descend .e-con wrappers so clone capture stops under-counting widgets). NEXT (queued, fires on .e-con completion): build-completeness-grader.workflow.js -> grade-completeness.mjs SHADOW (top-down ARIA-landmark + position + content component checklist: header/nav/logo/hero/CTA/main/FOOTER+subparts/cookie; detect clone by POSITION+CONTENT since Elementor demotes header/footer roles; self-test=1.0; smoke = does it flag our clones' missing footer/nav). THEN (supervised): promote completeness into composite (like responsive) -> re-baseline. CLONER follow-on: emit explicit landmark role= on header/nav/main/footer containers (kses-safe per tabs recipe) + a real footer/nav component emitter. THEN resume directed-fix (now pulling toward the FLOW builder, since responsive+completeness reward it over the desktop-frozen absolute builder).",
-  "lastUpdatedEpoch": 1781071166,
+  "lastUpdatedEpoch": 1781081547,
   "flowV5": "T2 flow v5 DONE (wsgwqu7u0) — KEPT a real flow gain (grid side-by-side guard: tailwind hRatio 2.908->1.458, the 3x grid-collapse blowup fixed; + responsive inline clamp() font on linear narrow-bp) but flow STILL < absolute on composite. CRITICAL: exposed that prior flow baselines (0.712/0.692) were CHERRY-PICKED — true flow baseline ~0.59-0.60. Root-caused the residual to CAPTURE (tailwind code-as-art hero emitted as literal <div class=> markup -> perElement 0.066 + hRatio) + build-flow vertical-stacking of IoU<0.5 overlaps (linear desktop hRatio 1.909). Both now actionable: capture fix RUNNING (wjs7n7q9u), flow overlay-gate QUEUED.",
   "flowV4": "T2 flow v4 launched (wrjanwuvq) — LayoutCoder redirect: STOP pinning min_height on nesting wrappers, zero synthesized padding/gap, flex:[portion] proportional sizing + fractional grid tracks, mobile font-scaling, fluid cells + tablet breakpoint. Tests whether FLOWING (not pinning) drives hRatio->1 after v2/v3 capping failed twice.",
   "flowTrackStatus": "T2 flow builder: v1/v2/v3 all ~0.711/0.694 (FLAT, below abs 0.85/0.776). Editability 0.93 + struct 0.90-0.944 STRONG; responsive collapse WORKS (linear 0 h-overflow at 768+390). Gated by hRatio (2.3x/1.5x) + visual. ROOT CAUSE (v3 diagnosis): capture nests near-full-pageH wrappers so isSectionBand matched EVERY container + pinned all to ~pageH -> stacking inflation; AND the height-bound is computed on PREDICTED assembled height but the live RENDER inflates (min_height pins + per-char text wrap at narrow widths + flex gaps). FLOW v4 REDIRECT (per LayoutCoder research): STOP pinning min_height entirely, zero synthesized padding/gap, drive columns by flex:[portion] from captured width ratios, add mobile font-scaling + fluid cells (% / 1fr) — measure RENDERED not predicted height. Pages 5404 (linear) / 5405 (tailwind).",
@@ -5231,7 +5335,8 @@
       "fix": "sample container bg from top strip / require full-fill before applying, OR split block at vertical bg discontinuity",
       "risk": "GLOBAL (core bg sampling) — corpus-regression A/B required; reversible flag",
       "status": "RESOLVED + KEPT (default-on) 2026-06-09: modalBg vertical-split guard. tailwind §9 visual 0.16→0.899; corpus-regression clean (6 sites, 0 regressions, resend dark parent-covered); reversible CAPTURE_NO_SPLITBG=1."
-    }
+    },
+    "inlineSimple bare-text-node drop (capture-layout.mjs:1536) — mixed-inline paragraphs lose prose; bench = overreacted page 11067 textCoverage 0.413; DIRECTED-FIX READY, queue after B1-round-1"
   ],
   "deadlineNote": "User directive 2026-06-09: ignore deadlineEpoch — loop is quality-gated, driven by /loop dynamic mode."
 }

@@ -1,0 +1,361 @@
+{
+ "perSite": {
+  "tailwind": {
+   "page": 3146,
+   "source": "https://tailwindcss.com",
+   "scratch_page": 21734,
+   "denominator": {
+    "text_runs_total": 197,
+    "mapped_panel": 178,
+    "mapped_html": 2,
+    "unmatched": 17,
+    "by_stratum": {
+     "heading": 11,
+     "text": 160,
+     "button": 7
+    }
+   },
+   "sampled": 16,
+   "sampled_by_stratum": {
+    "heading": 6,
+    "text": 5,
+    "button": 5
+   },
+   "metrics": {
+    "mapped_panel_rate": 0.904,
+    "probe_pass_rate": {
+     "overall": 0.375,
+     "heading": 1,
+     "text": 0,
+     "button": 0
+    },
+    "control_edit_roundtrip": 0.339,
+    "errors": 0
+   },
+   "taxonomy": {
+    "PASS": 6,
+    "FAIL_INERT": 10
+   },
+   "pass_by_stratum": {
+    "heading": 1,
+    "text": 0,
+    "button": 0
+   },
+   "fails": [
+    {
+     "stratum": "text",
+     "text": "⌘K",
+     "status": "FAIL_INERT",
+     "data_verified": true
+    },
+    {
+     "stratum": "button",
+     "text": "Plus",
+     "status": "FAIL_INERT",
+     "data_verified": true
+    },
+    {
+     "stratum": "text",
+     "text": "A utility-first CSS framework packed wit",
+     "status": "FAIL_INERT",
+     "data_verified": true
+    },
+    {
+     "stratum": "button",
+     "text": "Get started",
+     "status": "FAIL_INERT",
+     "data_verified": true
+    },
+    {
+     "stratum": "text",
+     "text": "⌘",
+     "status": "FAIL_INERT",
+     "data_verified": true
+    },
+    {
+     "stratum": "button",
+     "text": "Become a sponsor",
+     "status": "FAIL_INERT",
+     "data_verified": true
+    },
+    {
+     "stratum": "text",
+     "text": "SPONSORS",
+     "status": "FAIL_INERT",
+     "data_verified": true
+    },
+    {
+     "stratum": "button",
+     "text": "Check availability",
+     "status": "FAIL_INERT",
+     "data_verified": true
+    },
+    {
+     "stratum": "text",
+     "text": "Partners",
+     "status": "FAIL_INERT",
+     "data_verified": true
+    },
+    {
+     "stratum": "button",
+     "text": "Explore Tailwind Plus",
+     "status": "FAIL_INERT",
+     "data_verified": true
+    }
+   ]
+  },
+  "supabase": {
+   "page": 2986,
+   "source": "https://supabase.com",
+   "scratch_page": 21739,
+   "denominator": {
+    "text_runs_total": 115,
+    "mapped_panel": 91,
+    "mapped_html": 2,
+    "unmatched": 22,
+    "by_stratum": {
+     "heading": 21,
+     "text": 56,
+     "button": 14
+    }
+   },
+   "sampled": 16,
+   "sampled_by_stratum": {
+    "heading": 6,
+    "text": 5,
+    "button": 5
+   },
+   "metrics": {
+    "mapped_panel_rate": 0.791,
+    "probe_pass_rate": {
+     "overall": 0.375,
+     "heading": 1,
+     "text": 0,
+     "button": 0
+    },
+    "control_edit_roundtrip": 0.297,
+    "errors": 0
+   },
+   "taxonomy": {
+    "PASS": 6,
+    "FAIL_INERT": 10
+   },
+   "pass_by_stratum": {
+    "heading": 1,
+    "text": 0,
+    "button": 0
+   },
+   "fails": [
+    {
+     "stratum": "text",
+     "text": "Build in a weekend",
+     "status": "FAIL_INERT",
+     "data_verified": true
+    },
+    {
+     "stratum": "button",
+     "text": "Start your project",
+     "status": "FAIL_INERT",
+     "data_verified": true
+    },
+    {
+     "stratum": "text",
+     "text": "103.9K",
+     "status": "FAIL_INERT",
+     "data_verified": true
+    },
+    {
+     "stratum": "button",
+     "text": "Request a demo",
+     "status": "FAIL_INERT",
+     "data_verified": true
+    },
+    {
+     "stratum": "text",
+     "text": "Scale to millions",
+     "status": "FAIL_INERT",
+     "data_verified": true
+    },
+    {
+     "stratum": "button",
+     "text": "View all stories",
+     "status": "FAIL_INERT",
+     "data_verified": true
+    },
+    {
+     "stratum": "text",
+     "text": "Supabase is the Postgres development pla",
+     "status": "FAIL_INERT",
+     "data_verified": true
+    },
+    {
+     "stratum": "button",
+     "text": "View events",
+     "status": "FAIL_INERT",
+     "data_verified": true
+    },
+    {
+     "stratum": "text",
+     "text": "Trusted by fast-growing companies worldw",
+     "status": "FAIL_INERT",
+     "data_verified": true
+    },
+    {
+     "stratum": "button",
+     "text": "View all examples",
+     "status": "FAIL_INERT",
+     "data_verified": true
+    }
+   ]
+  },
+  "resend": {
+   "page": 2988,
+   "source": "https://resend.com",
+   "scratch_page": 21744,
+   "denominator": {
+    "text_runs_total": 136,
+    "mapped_panel": 96,
+    "mapped_html": 2,
+    "unmatched": 38,
+    "by_stratum": {
+     "heading": 24,
+     "text": 58,
+     "button": 14
+    }
+   },
+   "sampled": 16,
+   "sampled_by_stratum": {
+    "heading": 6,
+    "text": 5,
+    "button": 5
+   },
+   "metrics": {
+    "mapped_panel_rate": 0.706,
+    "probe_pass_rate": {
+     "overall": 0.313,
+     "heading": 0.833,
+     "text": 0,
+     "button": 0
+    },
+    "control_edit_roundtrip": 0.221,
+    "errors": 0
+   },
+   "taxonomy": {
+    "FAIL_MOBILE_MASKED": 1,
+    "FAIL_INERT": 10,
+    "PASS": 5
+   },
+   "pass_by_stratum": {
+    "heading": 0.833,
+    "text": 0,
+    "button": 0
+   },
+   "fails": [
+    {
+     "stratum": "heading",
+     "text": "Email for developers",
+     "status": "FAIL_MOBILE_MASKED",
+     "data_verified": true
+    },
+    {
+     "stratum": "text",
+     "text": "Announcing Resend Forward",
+     "status": "FAIL_INERT",
+     "data_verified": true
+    },
+    {
+     "stratum": "button",
+     "text": "Get Started",
+     "status": "FAIL_INERT",
+     "data_verified": true
+    },
+    {
+     "stratum": "text",
+     "text": "The best way to reach humans instead of ",
+     "status": "FAIL_INERT",
+     "data_verified": true
+    },
+    {
+     "stratum": "button",
+     "text": "Documentation",
+     "status": "FAIL_INERT",
+     "data_verified": true
+    },
+    {
+     "stratum": "text",
+     "text": "Companies of all sizes trust Resend to d",
+     "status": "FAIL_INERT",
+     "data_verified": true
+    },
+    {
+     "stratum": "button",
+     "text": "Learn more",
+     "status": "FAIL_INERT",
+     "data_verified": true
+    },
+    {
+     "stratum": "text",
+     "text": "A simple, elegant interface so you can s",
+     "status": "FAIL_INERT",
+     "data_verified": true
+    },
+    {
+     "stratum": "button",
+     "text": "DNSBLs",
+     "status": "FAIL_INERT",
+     "data_verified": true
+    },
+    {
+     "stratum": "text",
+     "text": "We are a team of engineers who love buil",
+     "status": "FAIL_INERT",
+     "data_verified": true
+    },
+    {
+     "stratum": "button",
+     "text": "Spam",
+     "status": "FAIL_INERT",
+     "data_verified": true
+    }
+   ]
+  }
+ },
+ "pooled": {
+  "probes": 48,
+  "pass": 17,
+  "byStratum": {
+   "heading": {
+    "n": 18,
+    "pass": 17
+   },
+   "text": {
+    "n": 15,
+    "pass": 0
+   },
+   "button": {
+    "n": 15,
+    "pass": 0
+   }
+  },
+  "taxonomy": {
+   "PASS": 17,
+   "FAIL_INERT": 30,
+   "FAIL_MOBILE_MASKED": 1
+  },
+  "denominator": {
+   "text_runs_total": 448,
+   "mapped_panel": 365,
+   "mapped_html": 6,
+   "unmatched": 77
+  },
+  "pass_rate_overall": 0.354,
+  "pass_rate_by_stratum": {
+   "heading": 0.944,
+   "text": 0,
+   "button": 0
+  },
+  "mapped_panel_rate": 0.815,
+  "control_edit_roundtrip_pooled": 0.289,
+  "control_edit_roundtrip_mean_of_sites": 0.286
+ }
+}
