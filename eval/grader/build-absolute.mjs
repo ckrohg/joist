@@ -460,6 +460,38 @@ const textColor = (n) => {
 const colorCss = (n) => { const c = textColor(n); return c ? `color:${c}` : ''; };
 const styleAttr = (css) => css ? ` style="${css}"` : '';
 
+// ── DE-INLINE (PATH_TO_TRUE_1TO1 §3-C — default ON; ABS_NO_DEINLINE=1 → legacy inline stamping, byte-identical) ──
+// FALSIFIER-PROVEN (2026-06-09, tailwind-clone duplicate, /tmp/deinline): round-trip 0.288→0.792 with visuals
+// byte-held (181/181 computed styles; pixel diff 0.0068% « the 0.15% render-noise floor). Findings this encodes:
+//   (1) the inline color stamp inside settings.editor HTML is REDUNDANT — the native text_color/typography_*
+//       settings are ALREADY emitted with the same values — and it makes panel edits RENDER-INERT (inline beats
+//       the panel control → the FAIL_INERT trust-killer probe-roundtrip measures). So: stop stamping inline
+//       color on text-editor HTML; keep href/classes/structure (white-space:nowrap, button chrome) untouched.
+//   (2) kit __globals__ color bindings are DEAD on previously-built pages (each clone run wholesale-replaces kit
+//       custom_colors → stale var() → BLACK text; corpus 3146 headings render black). Emit EXPLICIT colors, no
+//       __globals__ color binding, until the kit lifecycle is fixed (see globalRefSettings).
+//   (3) the ONLY measured bleed once the inline stamp is gone: bare theme `a{color}` on anchors. Neutralized
+//       PER-LEAF via `#<eid> a{color:inherit}` (the anchor then inherits the wrapper's native text_color).
+//       NEVER a global reset — a global `.elementor-widget-text-editor a` rule repaints pre-existing
+//       footer-link renders (measured). Registered ONLY where the legacy path would have stamped a color, so
+//       the de-inlined render is color-equivalent to legacy by construction.
+//   (4) typography bleeds NOTHING → no typography reset; nativeTypo() stays the single typography channel.
+// The reset rides the SAME page-level custom_css channel as the fluid-font #ff-N rules (customCss assembly).
+// SCOPE: body-leaf text-editor emissions (list/button/text) + the __globals__ color refs (headings too). The
+// Path C nav builders keep their inline stamps (separate channel, no __globals__, untouched this round).
+const DEINLINE = process.env.ABS_NO_DEINLINE !== '1';
+const deinlineResetCss = [];      // per-leaf `#<eid> a{color:inherit}` rules (joined into page custom_css)
+let DEINLINE_SEQ = 0;             // monotonic id seed for de-inlined anchor leaves with no prior _element_id
+// Per-leaf anchor reset: registers the scoped reset rule and returns extra settings ({ _element_id } only when
+// freshly minted — an existing #ff-N/#pb…/#img-N id is reused so its other scoped rules keep applying). Caller
+// must spread the return AND pass the merged settings to mobileAbsenceHide (single-id-source rule).
+function deinlineAnchorReset(existing) {
+  const had = existing && existing._element_id;
+  const eid = had || `dei-${DEINLINE_SEQ++}`;
+  deinlineResetCss.push(`#${eid} a{color:inherit}`);
+  return had ? {} : { _element_id: eid };
+}
+
 // ── BODY-CTA STYLING (body-cta-paint fix; default ON, BUILD_NO_CTA_PAINT=1 → legacy bare-anchor) ──────────────
 // The body-leaf button branch emitted a BARE colored <a> (no fill/border/radius/padding), so a source CTA that
 // the page paints as a FILLED or OUTLINED button rendered as near-invisible plain text: a white-text filled CTA
@@ -529,7 +561,10 @@ function buttonPaint(n) {
   const pad = _padCss(n.btnPad) || '8px 18px'; parts.push(`padding:${pad}`);
   if (n.boxShadow) parts.push(`box-shadow:${n.boxShadow}`);
   parts.push('text-align:center', 'white-space:nowrap');
-  const c = textColor(n); if (c) parts.push(`color:${c}`);
+  // DE-INLINE: the anchor's COLOR comes from the native text_color (inherited via the per-leaf a{color:inherit}
+  // reset) so the panel color control actually renders; the chrome (bg/border/radius/padding/shadow) is NOT
+  // typography/color-control territory and stays inline. ABS_NO_DEINLINE=1 → legacy inline color kept.
+  if (!DEINLINE) { const c = textColor(n); if (c) parts.push(`color:${c}`); }
   return parts.join(';');
 }
 
@@ -692,17 +727,26 @@ function leafWidget(n, target, origin) {
     const ccLegacy = colorCss(n);
     const lvl = (!legacy && n.linkColor && /^(#|rgb)/.test(n.linkColor)) ? n.linkColor : null;
     const itemCss = (it) => { if (legacy) return ccLegacy; const c = (it && it.color && /^(#|rgb)/.test(it.color)) ? it.color : lvl; return c ? `color:${c}` : ''; };
-    const items = (n.items || []).map((it) => { const t = stripEmoji(it.text); if (!t) return ''; const ic = itemCss(it); return `<li${it.href ? '' : styleAttr(ic)}>${it.href ? `<a href="${esc(it.href)}"${styleAttr(ic)}>${esc(t)}</a>` : esc(t)}</li>`; }).filter(Boolean).join('');
+    // DE-INLINE: strip the per-item inline color stamps (the list-level native text_color carries the color —
+    // tc below == lvl, the same representative the items fell back to). Track WHERE a legacy stamp existed on a
+    // LINK item: those anchors need the per-leaf a{color:inherit} reset or the theme `a{color}` repaints them
+    // blue (the original FOOTER-LINK-COLOR defect). Items without a legacy stamp get NO reset → legacy-equivalent.
+    let droppedAnchorColor = false, firstDropped = null;
+    const items = (n.items || []).map((it) => { const t = stripEmoji(it.text); if (!t) return ''; const ic0 = itemCss(it); const ic = DEINLINE ? '' : ic0; if (DEINLINE && ic0) { if (!firstDropped) firstDropped = ic0.replace(/^color:/, ''); if (it.href) droppedAnchorColor = true; } return `<li${it.href ? '' : styleAttr(ic)}>${it.href ? `<a href="${esc(it.href)}"${styleAttr(ic)}>${esc(t)}</a>` : esc(t)}</li>`; }).filter(Boolean).join('');
     if (items) {
       const tagName = n.ordered ? 'ol' : 'ul';
       // bullet reset: source had none (listStyleType 'none', or unrecorded on a legacy capture for a non-ordered list)
       const noBullets = !legacy && !n.ordered && (n.listStyleType === 'none' || n.listStyleType == null);
       const ulReset = noBullets ? 'list-style:none;padding-left:0;margin:0' : '';
-      const ulColor = (!legacy && lvl) ? `color:${lvl}` : ccLegacy;
+      const ulColor0 = (!legacy && lvl) ? `color:${lvl}` : ccLegacy;
+      const ulColor = DEINLINE ? '' : ulColor0;            // de-inline: native text_color carries it (tc below)
       const ulCss = [ulColor, ulReset].filter(Boolean).join(';');
-      const tc = lvl || textColor(n);
+      // de-inline fallback: items carried per-item colors but no list-level lvl/paint → the first dropped item
+      // color becomes the native text_color so the stripped stamp's color is never lost (legacy path unaffected).
+      const tc = lvl || textColor(n) || (DEINLINE ? firstDropped : null);
       const FF = fluidFontSettings(n);
-      sink.push({ elType: 'widget', widgetType: 'text-editor', settings: { editor: `<${tagName}${styleAttr(ulCss)}>${items}</${tagName}>`, ...nativeTypo(n), ...FF, ...(tc ? { text_color: tc } : {}), ...globalRefSettings(n, 'text_color'), ...P, ...mobileAbsenceHide(n, FF) } });
+      const DR = (DEINLINE && droppedAnchorColor) ? deinlineAnchorReset(FF) : {};
+      sink.push({ elType: 'widget', widgetType: 'text-editor', settings: { editor: `<${tagName}${styleAttr(ulCss)}>${items}</${tagName}>`, ...nativeTypo(n), ...FF, ...DR, ...(tc ? { text_color: tc } : {}), ...globalRefSettings(n, 'text_color'), ...P, ...mobileAbsenceHide(n, { ...FF, ...DR }) } });
     }
     return;
   }
@@ -832,15 +876,22 @@ function leafWidget(n, target, origin) {
     // _noWrap (link-wrap guard): a tightly-stacked footer link whose source rendered on ONE line within its pinned
     // width — keep it one line (white-space:nowrap) so the wider fallback font can't wrap it to 2 lines and overflow
     // into the next link slot below (see the wrap-guard pre-pass in main()). Only set for true single-line links.
-    const baseAnchorStyle = btnCss || cc;
+    // DE-INLINE: no bare inline color stamp (cc) — the native text_color (tc, same value) is authoritative and the
+    // per-leaf a{color:inherit} reset routes it onto the <a> glyphs past the theme `a{color}`. Chrome (btnCss,
+    // already color-free under DEINLINE) + white-space:nowrap are structure and stay inline.
+    const baseAnchorStyle = btnCss || (DEINLINE ? '' : cc);
     const anchorStyle = n._noWrap ? (baseAnchorStyle ? baseAnchorStyle + ';white-space:nowrap' : 'white-space:nowrap') : baseAnchorStyle;
-    sink.push({ elType: 'widget', widgetType: 'text-editor', settings: { editor: `<a${n.href ? ` href="${esc(n.href)}"` : ''}${styleAttr(anchorStyle)}>${esc(text)}</a>`, ...nativeTypo(n), ...FF, ...(tc ? { text_color: tc } : {}), ...globalRefSettings(n, 'text_color'), ...P, ...mobileAbsenceHide(n, FF) } }); return;
+    const DR = (DEINLINE && tc) ? deinlineAnchorReset(FF) : {};   // reset iff legacy would have stamped a color
+    sink.push({ elType: 'widget', widgetType: 'text-editor', settings: { editor: `<a${n.href ? ` href="${esc(n.href)}"` : ''}${styleAttr(anchorStyle)}>${esc(text)}</a>`, ...nativeTypo(n), ...FF, ...DR, ...(tc ? { text_color: tc } : {}), ...globalRefSettings(n, 'text_color'), ...P, ...mobileAbsenceHide(n, { ...FF, ...DR }) } }); return;
   }
-  // generic text: stamp inline on the <div> too (belt-and-suspenders vs theme/.elementor descendant rules).
+  // generic text: native text_color is the single color channel under DEINLINE (falsifier finding: a plain <div>
+  // leaf bleeds NOTHING once the dead __globals__ binding is gone — no reset, no inline stamp needed). Legacy
+  // (ABS_NO_DEINLINE=1) keeps the inline belt-and-suspenders stamp vs theme/.elementor descendant rules.
   // _noWrap (stacked-headline wrap guard): the source rendered this single-line headline on ONE line within its
   // captured width — keep it one line in the clone (white-space:nowrap) so the wider fallback font can't wrap it
   // to 2 lines and overlap the stacked headline below (see the wrap-guard pre-pass in main()).
-  const textCss = n._noWrap ? (cc ? cc + ';white-space:nowrap' : 'white-space:nowrap') : cc;
+  const inlineCc = DEINLINE ? '' : cc;
+  const textCss = n._noWrap ? (inlineCc ? inlineCc + ';white-space:nowrap' : 'white-space:nowrap') : inlineCc;
   const FF = fluidFontSettings(n);
   sink.push({ elType: 'widget', widgetType: 'text-editor', settings: { editor: `<div${styleAttr(textCss)}>${esc(text)}</div>`, ...nativeTypo(n), ...FF, ...(tc ? { text_color: tc } : {}), ...globalRefSettings(n, 'text_color'), ...P, ...mobileAbsenceHide(n, FF) } });
 }
@@ -1258,7 +1309,14 @@ function assignGlobals(n) {
 function globalRefSettings(n, colorKey) {
   if (NO_GLOBALS) return {};
   const g = {};
-  if (n._gColorTok && colorKey) g[colorKey] = `globals/colors?id=${n._gColorTok}`;
+  // DE-INLINE finding 2 (falsifier-measured, /tmp/deinline): the clone kit-write WHOLESALE-REPLACES custom_colors
+  // on every run → the __globals__ color binding on every PREVIOUSLY-built page resolves to a dead/stale
+  // var(--e-global-color-*) which OVERRIDES the local explicit color → BLACK text (corpus 3146 headings render
+  // black today). Until the kit lifecycle is additive/stable, emit EXPLICIT colors only — the caller always
+  // emits title_color/text_color verbatim; NO color binding. Applies to headings (title_color) and text/button/
+  // list (text_color) alike. The kit still RECEIVES the clustered tokens (theme palette stays written).
+  // ABS_NO_DEINLINE=1 → legacy binding restored.
+  if (!DEINLINE && n._gColorTok && colorKey) g[colorKey] = `globals/colors?id=${n._gColorTok}`;
   // TYPOGRAPHY global ref: binding `typography_typography` to a global makes Elementor compile the widget's
   // font-* CSS from `var(--e-global-typography-<tok>-*)` INSTEAD of the inline typography_* fields. When the
   // captured font (e.g. "Circular") is NOT web-loaded on the target, the inline fallback and the global path can
@@ -2613,7 +2671,12 @@ async function registerSourceFonts(b64v) {
     if (mh390 > 200) inner.push(`body .elementor>.e-con.e-parent{min-height:0!important}`);
     mobilePerbpCss = `@media(max-width:767px){${inner.join('')}}`;
   }
-  const customCss = [fontCss, responsiveCss, chromeFixCss, cardRowScopedCss, fluidFontScopedCss, imgCapScopedCss, imgHlockScopedCss, bgrScopedCss, navFallbackCss, perBpCss, fullBleedCss, hClampCss, mobilePerbpCss].filter(Boolean).join('\n');
+  // DE-INLINE per-leaf anchor resets (#dei-N / reused #ff-N|#pb… ids): `#<eid> a{color:inherit}` so the native
+  // text_color (wrapper) reaches the <a> glyphs past bare theme `a{color}`. Width-independent (no media query) —
+  // it replaces an inline stamp that was equally width-independent. Empty under ABS_NO_DEINLINE=1.
+  const deinlineScopedCss = deinlineResetCss.join('\n');
+  const customCss = [fontCss, responsiveCss, chromeFixCss, cardRowScopedCss, fluidFontScopedCss, deinlineScopedCss, imgCapScopedCss, imgHlockScopedCss, bgrScopedCss, navFallbackCss, perBpCss, fullBleedCss, hClampCss, mobilePerbpCss].filter(Boolean).join('\n');
+  console.log(`de-inline: ${DEINLINE ? `ON — inline color stamps stripped from text-editor leaves (native text_color/title_color authoritative), __globals__ color bindings replaced by explicit colors, ${deinlineResetCss.length} per-leaf anchor reset rule(s)` : 'OFF (ABS_NO_DEINLINE=1 → legacy inline stamping + __globals__ color bindings)'}`);
   console.log(`mobile per-breakpoint compaction: ${NO_MOBILE_PERBP ? 'OFF (BUILD_NO_MOBILE_PERBP=1)' : `ON — @<=767 only | imgCaps ${MPB_imgCap} (390-refined ${MPB_imgRefine}) fontBandCaps ${MPB_font} cardRowCaps ${MPB_cardRow} hidden ${MPB_hide} gap→${MPB_GAP}px${mpb390 ? ` | 390-model: ${mpb390.leafCount} leaves, srcMobile pageH ${mpb390.pageH}` : ' | PART A only (no 390 model)'}`}`);
   console.log(`global h-overflow clamp: ${NO_HCLAMP ? 'OFF (BUILD_NO_HCLAMP=1 → may h-scroll if a leaf under-measured its box)' : 'ON (root .e-con + html/body overflow-x:clip + max-width:100% at ALL widths → docScrollW<=clientW, void fix preserved)'}`);
   if (cardRowScopedCss) console.log(`injecting ${cardRowCss.length} card-row scoped <=1024 un-pin rule(s) via custom_css`);
