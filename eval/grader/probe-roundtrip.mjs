@@ -35,6 +35,14 @@
  *    glyphs overflow the pinned widget width on BOTH sides on abs builds).
  *  - a warm-up frontend GET runs after acquire: the duplicate's first-ever render generates its
  *    Elementor post CSS mid-load and is not comparable to the post-PUT regen+flush state.
+ *  - STICKY/FIXED HARDENING (measurement honesty, C round 1): a target inside position:fixed/sticky
+ *    chrome paints VIEWPORT-anchored in the stitched fullPage shot (Chromium captureBeyondViewport
+ *    treats the full page height as the viewport — bottom/percent-anchored chrome lands far from its
+ *    scroll-0 document rect) → the document-coord pixel assert FALSE-FAIL_INERTs it. Fix: detect
+ *    fixed/sticky on the element or any ancestor at measure time; those probes assert against a
+ *    VIEWPORT-SIZED companion screenshot using getBoundingClientRect viewport coords (assertSurface).
+ *    Normal elements keep the document-coord fullPage path byte-unchanged. The side-effect mask also
+ *    covers the fixed element's two candidate stitched-paint locations (scroll-0 + bottom-anchored).
  */
 import fs from 'fs';
 import { PNG } from 'pngjs';
@@ -221,7 +229,7 @@ async function renderPass(browser, url, viewport, specs, shotPath) {
   await bounded(p.evaluate(() => { const st = document.createElement('style'); st.textContent = '*{animation:none!important;transition:none!important;caret-color:transparent!important}'; document.head.appendChild(st); }), 10000, 'style-inject evaluate').catch(() => {});
   await p.waitForTimeout(400);
   const info = await bounded(p.evaluate((specList) => {
-    const out = { pageH: document.documentElement.scrollHeight, boxes: {} };
+    const out = { pageH: document.documentElement.scrollHeight, viewportH: window.innerHeight, boxes: {} };
     for (const s of specList) {
       const wrap = document.querySelector(`[data-id="${s.eid}"]`) || document.querySelector(`.elementor-element-${s.eid}`);
       if (!wrap) { out.boxes[s.eid] = null; continue; }
@@ -239,16 +247,38 @@ async function renderPass(browser, url, viewport, specs, shotPath) {
       const mx0 = Math.min(r.left - ox, wr.left), my0 = Math.min(r.top - oy, wr.top);
       const mx1 = Math.max(r.right + ox, wr.right);
       const my1 = Math.max(r.bottom + oy, wr.bottom);
+      // STICKY/FIXED detection (header bullet): position:fixed/sticky on the glyph element OR any ancestor
+      // → the stitched fullPage shot paints it viewport-anchored, not at its scroll-0 document rect. Record
+      // the flag + the raw viewport rect (vbox; scroll is 0 here, but gBCR is the viewport truth regardless)
+      // so the assert side can switch those probes to the viewport-sized companion shot.
+      let fixed = false;
+      for (let el = inner; el && el !== document.documentElement; el = el.parentElement) {
+        const pp = getComputedStyle(el).position;
+        if (pp === 'fixed' || pp === 'sticky') { fixed = true; break; }
+      }
       out.boxes[s.eid] = { x: r.left + window.scrollX, y: r.top + window.scrollY, w: r.width, h: r.height, color: cs.color, hidden: (cs.display === 'none' || cs.visibility === 'hidden' || r.width <= 0 || r.height <= 0),
+        fixed, vbox: { x: r.left, y: r.top, w: r.width, h: r.height },
         mask: { x: mx0 + window.scrollX, y: my0 + window.scrollY, w: mx1 - mx0, h: my1 - my0 } };
     }
     return out;
   }, specs), 45000, 'box-info evaluate');                                    // propagate: no boxes = no usable pass
   const buf = await p.screenshot({ fullPage: true, timeout: 60000 });
   fs.writeFileSync(shotPath, buf);
+  // viewport-sized companion shot — taken ONLY when a probed element sits in fixed/sticky chrome (its pixel
+  // asserts run against THIS surface at vbox viewport coords; document-coord path unchanged otherwise).
+  let pngVp = null;
+  if (Object.values(info.boxes).some((b) => b && b.fixed && !b.hidden)) {
+    const vbuf = await p.screenshot({ fullPage: false, timeout: 60000 });
+    fs.writeFileSync(shotPath.replace(/\.png$/, '-vp.png'), vbuf);
+    pngVp = PNG.sync.read(vbuf);
+  }
   await ctx.close();
-  return { png: PNG.sync.read(buf), info };
+  return { png: PNG.sync.read(buf), pngVp, info };
 }
+/** pixel-assert surface for a probe box: fixed/sticky targets → viewport companion shot + viewport coords
+ *  (their stitched-shot paint position is not their document rect); normal elements → fullPage + document
+ *  coords, byte-unchanged. Falls back to the document path if the companion shot is missing. */
+const assertSurface = (pass, box) => (box && box.fixed && pass.pngVp) ? { png: pass.pngVp, box: box.vbox, surface: 'viewport' } : { png: pass.png, box, surface: 'document' };
 
 // =================================================================== main
 (async () => {
@@ -392,8 +422,9 @@ async function renderPass(browser, url, viewport, specs, shotPath) {
     for (const p of probes) {
       const box = before.info.boxes[p.engine_id];
       if (!box || box.hidden) continue;                                       // ERROR_RENDER decided on AFTER pass
+      const surf = assertSurface(before, box);                                // fixed/sticky → viewport shot + vbox
       let guard = 0;
-      while (countSentinelPx(before.png, box, hexToRgb(p.sentinel)) >= 5) {
+      while (countSentinelPx(surf.png, surf.box, hexToRgb(p.sentinel)) >= 5) {
         if (++guard > 64 || rotCursor > 200) { p.status = 'ERROR_SENTINEL'; break; }
         inUse.delete(p.sentinel);
         let next = paletteAt(rotCursor++);
@@ -456,19 +487,35 @@ async function renderPass(browser, url, viewport, specs, shotPath) {
       report.errors.push(`ERROR_RENDER: pageH moved ${before.info.pageH}→${after.info.pageH} (|Δ|=${dH}px > 2) — pixel asserts void`);
       for (const p of probes) if (!p.status) p.status = 'ERROR_RENDER';
     } else {
-      // target-changed assert per probe
+      // target-changed assert per probe (fixed/sticky → viewport surface; document path unchanged otherwise)
       for (const p of probes) {
         if (p.status) continue;
         const box = after.info.boxes[p.engine_id];
         p.computed_color = box && box.color;
         if (!box || box.hidden) { p.status = 'ERROR_RENDER'; continue; }
+        const surf = assertSurface(after, box);
+        p.surface = surf.surface;
         p.target_px_required = Math.max(20, Math.round(0.004 * box.w * box.h));
-        p.target_px = countSentinelPx(after.png, box, hexToRgb(p.sentinel));
+        p.target_px = countSentinelPx(surf.png, surf.box, hexToRgb(p.sentinel));
         p.status = p.target_px >= p.target_px_required ? 'PASS' : 'FAIL_INERT';
       }
-      // unrelated-unchanged assert (outside padded union of before+after boxes)
+      // unrelated-unchanged assert (outside padded union of before+after boxes). Fixed/sticky probes: the
+      // stitched shot paints them viewport-anchored — mask BOTH candidate paint locations (scroll-0 rect ≈
+      // vbox, and the bottom-anchored captureBeyondViewport remap near pageH) so an edited fixed element's
+      // own repaint can't FALSE-FAIL_SIDE_EFFECT; the masks stay scoped to the edited element's geometry.
       const maskBoxes = [];
-      for (const p of probes) { const b1 = before.info.boxes[p.engine_id], b2 = after.info.boxes[p.engine_id]; if (b1 && !b1.hidden) maskBoxes.push(b1.mask || b1); if (b2 && !b2.hidden) maskBoxes.push(b2.mask || b2); }
+      for (const p of probes) {
+        for (const pass of [before, after]) {
+          const b = pass.info.boxes[p.engine_id];
+          if (!b || b.hidden) continue;
+          maskBoxes.push(b.mask || b);
+          if (b.fixed && b.vbox) {
+            maskBoxes.push(b.vbox);
+            const vh = pass.info.viewportH || 900;
+            maskBoxes.push({ x: b.vbox.x, y: Math.max(0, (pass.info.pageH || 0) - (vh - b.vbox.y)), w: b.vbox.w, h: b.vbox.h });
+          }
+        }
+      }
       const d = diffOutsideMask(before.png, after.png, maskBoxes, { noisyCells: noisy });
       const frac = d.total ? d.outside / d.total : 0;
       report.run.side_effect_outside_px = d.outside;
@@ -492,7 +539,8 @@ async function renderPass(browser, url, viewport, specs, shotPath) {
         if (!b390 || b390.hidden) desig.status_390 = 'SKIP_390_HIDDEN';      // hidden by design (mobileAbsenceHide/mpbHide)
         else {
           const need = Math.max(10, Math.round(0.004 * b390.w * b390.h));
-          const got = countSentinelPx(m.png, b390, hexToRgb(desig.sentinel));
+          const surf390 = assertSurface(m, b390);                            // fixed/sticky → viewport surface
+          const got = countSentinelPx(surf390.png, surf390.box, hexToRgb(desig.sentinel));
           desig.status_390 = got >= need ? 'PASS' : 'FAIL_MOBILE_MASKED';
           if (desig.status_390 === 'FAIL_MOBILE_MASKED' && desig.status === 'PASS') desig.status = 'FAIL_MOBILE_MASKED';
         }
