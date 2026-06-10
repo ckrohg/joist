@@ -435,6 +435,12 @@ function cropPng(png, box, dpr) {
   // SINGLE-IMG MOCKUP RECOVERY (void-imagery fix): CAPTURE_NO_IMGRECOVER=1 → __NO_IMGRECOVER true → revert to the
   // legacy whole-region raster for single-image bands (and disable the node-side black-void SKIP guard below).
   try { await page.evaluate((off) => { window.__NO_IMGRECOVER = off; }, process.env.CAPTURE_NO_IMGRECOVER === '1'); } catch {}
+  // LONG-TEXT KEEP reversibility (blog-body fix, default ON): leaf() used to silently DROP any text leaf whose
+  // cleaned text exceeded 600 chars — long-form body copy (blog articles) vanished from capture entirely. New
+  // behavior keeps long text: split at the element's own text-bearing BLOCK children when present (recurse, no
+  // duplicate emission — children register in the seenText dedup), else keep the full text as ONE leaf capped at
+  // 8000 chars. CAPTURE_NO_LONGTEXT=1 → __NO_LONGTEXT true → byte-identical legacy >600 silent drop.
+  try { await page.evaluate((off) => { window.__NO_LONGTEXT = off; }, process.env.CAPTURE_NO_LONGTEXT === '1'); } catch {}
 
   const data = await page.evaluate(() => {
     const MAXD = 8; const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
@@ -722,11 +728,51 @@ function cropPng(png, box, dpr) {
     const stripMarkupTokens = (t) => (t || '').replace(tagTokenRegex, ' ').replace(/\s+/g, ' ').trim();
 
     let leafId = 0; const id0 = () => leafId++; const seenText = new Set();
+    // ─── LONG-TEXT KEEP (blog-body fix; default ON, CAPTURE_NO_LONGTEXT=1 → legacy silent drop) ──────
+    // WHY: leaf() dropped ANY text leaf whose cleaned text exceeded 600 chars (`t.length > 600 → null`,
+    // present unchanged since the file's first commit ecdea2c as MEGA-BLOB protection: a wrapper's
+    // innerText concatenates its WHOLE subtree, so leafing a big container would emit one duplicated
+    // mega-blob over the children's own leaves). But the same guard silently VANISHED real long-form
+    // content: a blog article's 600+ char <p> (overreacted.io) returned null → body text captured as
+    // NOTHING. FIX, duplication-safe in BOTH directions:
+    //   • element HAS text-bearing BLOCK children (the mega-blob wrapper case) → do NOT leaf the blob;
+    //     return a container and recurse into those children via leaf(), so each paragraph is emitted
+    //     EXACTLY ONCE (each child registers its seenText dk, so any later re-visit of the same child —
+    //     e.g. the MAXD flatten loop visiting both an <a> card and its <p> descendants — dedupes to null).
+    //     If every child dedupes/returns null, the parent is DROPPED (legacy behavior), never kept whole
+    //     over already-emitted children (that would double-capture).
+    //   • element has NO text-bearing block children (a genuine long paragraph) → keep the FULL text as
+    //     ONE leaf, capped at 8000 chars (sanity bound, not a drop).
+    const isLongTextBlockKid = (c) => {
+      if (/^(script|style|template|noscript|svg|img|video|iframe|canvas)$/i.test(c.tagName)) return false;
+      if (!visible(c)) return false;
+      let d; try { d = getComputedStyle(c).display; } catch { return false; }
+      if (/^inline/.test(d)) return false; // inline/inline-block spans stay part of the parent leaf
+      return !!clean(c.innerText || c.textContent); // textless block (hr/spacer/decoration) is not a split point
+    };
+    function longTextSplit(el, kids) {
+      const children = [];
+      for (const c of kids) {
+        let n = null; try { n = leaf(c, getComputedStyle(c)); } catch {} // a >600 child re-enters the long-text branch (DOM-depth bounded)
+        if (n) children.push(n);
+        if (children.length >= 80) break; // sanity cap
+      }
+      if (!children.length) return null; // all children deduped/empty → drop parent (legacy outcome)
+      if (children.length === 1) return children[0];
+      const pcs = getComputedStyle(el);
+      return { kind: 'container', tag: el.tagName.toLowerCase(), box: rectOf(el), layout: layoutOf(pcs), ...boxModel(pcs), background: bgOf(pcs), border: nz(pcs.borderTopWidth) ? `${pcs.borderTopWidth} ${pcs.borderTopStyle} ${pcs.borderTopColor}` : null, radius: nz(pcs.borderTopLeftRadius) ? pcs.borderTopLeftRadius : null, boxShadow: nz(pcs.boxShadow) ? pcs.boxShadow : null, backdropFilter: bdfOf(pcs), position: pcs.position, children };
+    }
     function leaf(el, cs) {
       const tag = el.tagName.toLowerCase(); const box = rectOf(el);
       if (tag === 'img') { const src = el.currentSrc || el.src; if (!src || src.startsWith('data:') || box.w < 8) return null; return { kind: 'image', tag, src, alt: el.alt || '', objectFit: cs.objectFit, box, radius: cs.borderTopLeftRadius, boxShadow: nz(cs.boxShadow) ? cs.boxShadow : null, backdropFilter: bdfOf(cs) }; }
       if (tag === 'svg') { if (box.w < 6) return null; return { kind: 'svg', tag, svg: el.outerHTML.slice(0, 4000), box }; }
-      let t = clean(el.innerText || el.textContent); if (!t || t.length > 600) return null;
+      let t = clean(el.innerText || el.textContent); if (!t) return null;
+      if (t.length > 600) { // LONG-TEXT KEEP (see block comment above) — legacy: silent drop
+        if (window.__NO_LONGTEXT === true) return null; // CAPTURE_NO_LONGTEXT=1 → byte-identical legacy path
+        const blockKids = [...el.children].filter(isLongTextBlockKid);
+        if (blockKids.length) return longTextSplit(el, blockKids); // mega-blob wrapper → split, never leaf the blob
+        if (t.length > 8000) t = t.slice(0, 8000); // genuine long paragraph → keep, sanity-capped
+      }
       // GUARD#2 (capture-markup-flow-gate): on a NON-structural text/heading/button leaf, strip literal HTML
       // tag tokens ONLY in the MIXED band (0.3<mf<0.6) so code-as-art prose ("<div class=...> Build for the web")
       // becomes clean rendered prose instead of <div class=> garbage when FLOW rebuilds it natively. A code panel
