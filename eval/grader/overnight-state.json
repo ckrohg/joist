@@ -49,7 +49,11 @@
   "corpusNote7": "BROADENED to 7 sites after probe wave 2 (round 36). Added react.dev (0.765 in-band, docs vertical: code/nav/tables — isolates the dark-code-block-bg defect cleanly). HELD OUT stripe (0.657, dynamic-capture tail) from the gated corpus to avoid dynamic noise + round-slowdown; its gaps logged in stripeSentinel. Generalization CONFIRMED on a 3rd/4th fresh site + a novel vertical.",
   "stripeSentinel": "stripe.com probe (page 4770) composite 0.657 — pipeline ran clean (287 leaves, hRatio 1.029, no crash) so recipes generalize STRUCTURALLY, but: visual 0.695 (animated gradient hero / scroll carousels / live $1.9T counter = JS-animation content the static V3 builder can't author), struct 0.5 (lost 1/2 lists, 0/1 accordion, + emitted a PHANTOM form). New gaps for targeted/supervised work: (a) accordion authoring recipe; (b) block-emission PRECISION (suppress phantom blocks not in source); (c) dynamic/animated-content tail (headed-capture / motion). NOT added to gated corpus (dynamic noise).",
   "corpusNote": "BROADENED to 6 sites after round-28 generalization probe (linear 0.851, vercel 0.791 — both in-band, recipes generalize). linear=dark-theme + high-water anchor; vercel=tabs/structural stressor. NOTE: cross-round mean shifts ~0.751->~0.77 purely from adding 2 high-scoring sites (composition, NOT a fix gain). Gate compares baseline-vs-after on the SAME 6 sites each round, so within-round verdicts stay honest. directed-fix.workflow.js + discovery.workflow.js SITES updated to 6.",
-  "currentRound": null,
+  "currentRound": {
+    "name": "c-kickoff-deinline-falsifier",
+    "status": "launching",
+    "detail": "strip inline styles on a tailwind-clone SCRATCH DUPLICATE + canvas-reset custom_css + native controls; verdict = does LOOK hold AND do text/button probes flip 0%->high. Decides Workstream C commit. Priced by b1 baseline: 0.289->~0.77."
+  },
   "flowAbsSurvivalUnknown": "PREREQ for the linear overlay fix (next round): the diagnostic found 0/528 live elements are position:absolute on the FLOW clone (pages 5404/5405 on sg-host) -> build-flow's EXISTING leaf-overlay abs path (build-flow.mjs ~line 771) is NOT rendering as absolute on the frontend. YET build-absolute achieves hRatio ~1.0 via abs on the SAME sg-host stack -> abs CAN work. So before/with the linear buildOverlay() fix (abs-layer the z-overlapped chart+card container children, currently flowed into a column stack = 51% of linear's page excess), RESOLVE why build-flow's abs is stripped/not-applying (diff build-flow's abs-emission vs build-absolute's working mechanism — likely different setting keys or a missing position:relative parent). Fallback if abs truly can't survive in flow: clip the over-tall chart subtree as a sized/clipped html widget to box.h (the kind:code line-282 overflow-cap recipe). Do NOT widen the z-overlay IoU gate (only 16% on tailwind; prior widening regressed coverage).",
   "barClassTokenPoison": "FUTURE LEVER (capture, from capture-markup-flow-gate screenshots): tailwindcss.com's hero code-as-art poison is NOT <div> markup — it's BARE UTILITY-CLASS TOKENS ('text-8xl text-gray-950 tracking-tighter text-balance ...') rendered inline with prose, no angle brackets so markupFrac=0. To strip: detect runs of >=2 consecutive hyphenated CSS-class identifiers (/^[a-z]+(-[a-z0-9]+)+$/) in a non-structural mono/decorative leaf + strip/raster them. Deferred behind the height-pin lever (the dominant one); revisit if tailwind perElement stays starved after height drift is fixed.",
   "effectsFoldResult": "ADOPTED (recovered): EFFECTS sub-score (box-shadow/border-radius/backdrop-filter, rubric cat-1.3) folded into perElement at 0.12 weight -> perElement = 0.30*color + 0.22*typo + 0.18*pos + 0.18*text + 0.12*effects (reversible GRADER_NO_EFFECTS=1 -> prior 0.35/0.25/0.20/0.20). self-test=1.0 both modes (effects=1.0, 15 samples non-vacuous), independent-verified, A/B reconciles. The 1st run was wrongly reverted by the ^OK: guard bug; fixed guard -> 2nd run adopted. Both builders now have a shadow/radius/blur fidelity target. plateauStreak stays (grader change, not a cloner gain).",
@@ -3812,6 +3816,101 @@
       "framer": "SKIPPED (sentinel, per round spec)",
       "infraFails": "none — all 7 builds captured+built+graded first try (cwd gotcha: clone.mjs must run from eval/grader/)",
       "note": "captures refreshed post e622423+af85a07+3a80a78; supersedes workstream-A-rebaseline as the live baseline"
+    },
+    {
+      "name": "c-round-1-deinline",
+      "date": "2026-06-10",
+      "verdict": "KEPT — de-inline corpus rollout (3ca4eca builder + 7bd7659 probe); ALL GATES PASS",
+      "build": "rebuilt 3146/2986/2988 via clone.mjs --mode absolute --cache (cached captures, builder-only change); ABS_NO_DEINLINE=1 reverts byte-identical",
+      "perSite": {
+        "tailwind": {
+          "page": 3146,
+          "composite": 0.695,
+          "visual": 0.804,
+          "editability": 0.462,
+          "hRatio": 1,
+          "deltaVsBaseline": "+0.001"
+        },
+        "supabase": {
+          "page": 2986,
+          "composite": 0.84,
+          "visual": 0.949,
+          "editability": 0.721,
+          "hRatio": 1.015,
+          "deltaVsBaseline": "0.000"
+        },
+        "resend": {
+          "page": 2988,
+          "composite": 0.651,
+          "visual": 0.715,
+          "editability": 0.377,
+          "hRatio": 1.001,
+          "deltaVsBaseline": "0.000"
+        }
+      },
+      "gradeGate": "PASS — all deltas vs corpus-refresh-newcaptures within noise (max +0.001, bar 0.03); visual flat, editability flat as predicted (selectable-text term blind to inertness)",
+      "roundtrip": {
+        "perSite": {
+          "tailwind": {
+            "scratch": 21922,
+            "mapped_panel_rate": 0.864,
+            "pass_overall": 0.917,
+            "by_stratum": {
+              "heading": 1,
+              "text": 1,
+              "button": 0.75
+            },
+            "control_edit_roundtrip": 0.792
+          },
+          "supabase": {
+            "scratch": 21927,
+            "mapped_panel_rate": 0.843,
+            "pass_overall": 1,
+            "by_stratum": {
+              "heading": 1,
+              "text": 1,
+              "button": 1
+            },
+            "control_edit_roundtrip": 0.843
+          },
+          "resend": {
+            "scratch": 21932,
+            "mapped_panel_rate": 0.795,
+            "pass_overall": 0.917,
+            "by_stratum": {
+              "heading": 1,
+              "text": 1,
+              "button": 0.667
+            },
+            "control_edit_roundtrip": 0.729
+          }
+        },
+        "pooled": {
+          "probes": 36,
+          "pass_rate_overall": 0.944,
+          "pass_rate_by_stratum": {
+            "heading": 1,
+            "text": 1,
+            "button": 0.818
+          },
+          "taxonomy": {
+            "PASS": 34,
+            "FAIL_INERT": 2
+          },
+          "mapped_panel_rate": 0.84,
+          "control_edit_roundtrip_pooled": 0.794,
+          "control_edit_roundtrip_mean_of_sites": 0.788
+        },
+        "vsBaseline": "pooled 0.289 -> 0.794 (falsifier predicted ~0.79 — dead on); text stratum 0 -> 1.0, button 0 -> 0.818; resend hero heading FAIL_MOBILE_MASKED now PASS at 390 (probe commit 7bd7659 surface fix)",
+        "residualFailInerts": [
+          "tailwind button 'Plus' (engine 446d5506, surface viewport=sticky nav, sentinel #FF6600 vs computed rgb(0,99,150) theme-anchor blue, data_verified)",
+          "resend button 'Get Started' (engine db4ae3e6, surface viewport=fixed nav, sentinel #FF6600 vs computed rgb(255,255,255), data_verified)"
+        ],
+        "residualNote": "both residuals are NAV-channel leaves — Path C nav builders were left legacy by design (3ca4eca scope note); next de-inline target = nav channel"
+      },
+      "look": "PASS — tailwind hero black headline+dark pill CTA correct (matches gray-950 source), supabase two-tone hero + green/white CTAs + dark footer links correct, resend white-serif-on-black hero + white/outline CTAs + gray footer links correct; NO black-text and NO new theme-blue anchors. Tailwind footer links ARE theme-blue but PROVEN pre-existing: legacy-era full-page shot (/tmp/mi-tailwind-clone.png, mtime 03:20 < commit 05:25) shows identical blue footer — known pre-existing defect per falsifier finding 3, untouched by per-leaf reset scoping",
+      "cleanup": "scratch 21922/21927/21932 auto-deleted 404-verified; zz-look-shots.tmp.mjs removed post-run",
+      "next": "nav-channel de-inline (kills both residual FAIL_INERTs); then mapped_panel_rate (0.84 pooled) becomes the binding term on round-trip"
     }
   ],
   "phase5backlog_wave3": [
