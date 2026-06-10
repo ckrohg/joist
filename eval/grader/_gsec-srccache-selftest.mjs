@@ -45,9 +45,9 @@ await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const base = `http://127.0.0.1:${server.address().port}`;
 // cache tag must mirror grade-sections.mjs srcTag (URL-keyed + '-gsec' + mode suffixes). The selftest runs
 // grade-sections with DEFAULT env (all USE_* on), so default-ON suffix-adding modes apply: '-mi' (USE_MEDIAID,
-// added 28c6d3b — this broke the previously-hardcoded suffixless tag). Opt-out suffixes (-novb/-nofc/-nols)
-// stay absent because the selftest never sets those flags.
-const tagOf = (u) => String(u).replace(/^https?:\/\//, '').replace(/[^a-z0-9]/gi, '').slice(0, 40) + '-gsec' + (process.env.GRADER_NO_MEDIAID ? '' : '-mi');
+// added 28c6d3b — this broke the previously-hardcoded suffixless tag) and '-gr' (GLYPH_RECTS, C round 5c).
+// Opt-out suffixes (-novb/-nofc/-nols) stay absent because the selftest never sets those flags.
+const tagOf = (u) => String(u).replace(/^https?:\/\//, '').replace(/[^a-z0-9]/gi, '').slice(0, 40) + '-gsec' + (process.env.GRADER_NO_MEDIAID ? '' : '-mi') + (process.env.GRADER_NO_GLYPHRECTS ? '' : '-gr');
 const cacheFiles = (u) => [`${CACHE_DIR}/${tagOf(u)}.json`, `${CACHE_DIR}/${tagOf(u)}.png`];
 const clearCache = (u) => { for (const f of cacheFiles(u)) try { fs.unlinkSync(f); } catch {} };
 const ENV = { GRADER_SSIM_ONLY: '1', GRADER_NO_RESPONSIVE: '1' }; // subprocess terms off (orthogonal to the cache)

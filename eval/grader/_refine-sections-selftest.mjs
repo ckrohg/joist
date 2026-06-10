@@ -38,6 +38,14 @@
  *         editability fires — nativeness needs RENDERING-LEAF provenance, dead tree nodes donate nothing.
  *      E4 nv-shortcodeSwap (heading → shortcode widget, literal text) → editability fires — explicit
  *         nativeness whitelist (shortcode/html are OUT; "not html" is gone).
+ *  F GLYPH GEOMETRY + GHOST — ENFORCED (C round 5c; the _c5b-hotband.mjs live keeps, both REPRODUCED pre-fix).
+ *    D1/D2 now run on per-leaf GLYPH rects (Range line-box union, ancestor-clip intersected) instead of the
+ *    element box; D0 carries the matching unit pins (padPark/clipEdge/zero-rect/legacy-fallback/ghost):
+ *      F1 st-nv-padpark (padding-top parks every glyph below y1, box top in-band) → textCoverage fires.
+ *      F2 st-nv-clipedge (overflow-clip to 35% of content height, just above the old CLIP_MIN_FRAC) →
+ *         textCoverage fires (glyph-area clip).
+ *      F3 st-nv-ghostclone (opacity 0.45 + HEX clone-bg glyph color — rgb() forms are kses-stripped on this
+ *         site, which is what kept mal-ghost45 render-inert) → textCoverage fires (lowPaint/ghost).
  *
  * Band definitions are derived from the FROZEN source capture (srcCache.sections — same bounds grade-sections
  * uses), so this selftest needs no sections.json. Requires the tailwind src cache (run grade-sections once if
@@ -51,8 +59,9 @@ import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { spawnSync, execSync } from 'child_process';
 import { chromium } from 'playwright';
+import { PNG } from 'pngjs';
 import { norm, W, loadSrcCache } from './grade-sections.mjs';
-import { sweep, TAG } from './scratch-harness.mjs';
+import { sweep, TAG, BASE } from './scratch-harness.mjs';
 import { prepare, api, liveHash, bandLocalText } from './sectionvisual.mjs';
 import { refineSections, registerOperator } from './refine-sections.mjs';
 
@@ -197,6 +206,34 @@ export function findDeletableHeading(tree, band, cap) {
       check('D0/5b PROVENANCE: dead native decoy in tree + html-rendered leaf → editability 0.5', uDecoy.matchedTexts === 1 && uDecoy.editability === 0.5 && uDecoy.nonNativeMatched === 1, JSON.stringify(uDecoy));
       check('D0/5b WHITELIST: shortcode-rendered text → editability 0.5 (not "anything except html")', uShort.matchedTexts === 1 && uShort.editability === 0.5 && uShort.nonNativeMatched === 1, JSON.stringify(uShort));
       check('D0/5b PROVENANCE: wid not in band tree → editability 0.5 (untraceable render)', uSpoof.matchedTexts === 1 && uSpoof.editability === 0.5 && uSpoof.nonNativeMatched === 1, JSON.stringify(uSpoof));
+      // C round 5c unit pins (GLYPH GEOMETRY — D1/D2 on the visible glyph union box, not the element box; +
+      // the glyph-color-vs-local-bg GHOST check). gLeaf = a leaf whose capture carries the additive glyph
+      // fields (ga/gva/g*/gv*/gc) exactly as grade-sections' GLYPH_RECTS capture emits them.
+      const gLeaf = (over = {}) => mkLeaf({ ga: 16000, gva: 16000, gx: 10, gy: 100, gw: 400, gh: 40, gvx: 10, gvy: 100, gvw: 400, gvh: 40, gc: [17, 24, 39], ...over });
+      const uGlyphBase = u([gLeaf()], natTree);
+      const uPadPark = u([gLeaf({ gy: 1100, gvy: 1100 })], natTree);   // element box in-band (y 100) — glyphs parked at y 1100
+      const uClipEdge = u([gLeaf({ gva: 5600, gvh: 14 })], natTree);   // only 35% of the glyph area can paint
+      const uNoGlyph = u([mkLeaf({ ga: 0, gva: 0, gc: [17, 24, 39] })], natTree); // zero-rect edge: glyphs never lay out/paint
+      check('D0/5c glyph leaf visible in-band → matched 1, no legacy fallback', uGlyphBase.matchedTexts === 1 && uGlyphBase.leafAudit.legacyBox === 0, JSON.stringify(uGlyphBase.leafAudit));
+      check('D0/5c PADPARK: element box in-band but glyph box parked out → NOT counted', uPadPark.matchedTexts === 0 && uPadPark.leafAudit.outOfBand === 1, JSON.stringify(uPadPark.leafAudit));
+      check('D0/5c CLIPEDGE: 35% of glyph area paintable → clipped, NOT counted', uClipEdge.matchedTexts === 0 && uClipEdge.leafAudit.clipped === 1, JSON.stringify(uClipEdge.leafAudit));
+      check('D0/5c ZERO-RECT: gva==0 (display:none / fully clipped glyphs) → NOT counted', uNoGlyph.matchedTexts === 0 && uNoGlyph.leafAudit.noGlyphs === 1, JSON.stringify(uNoGlyph.leafAudit));
+      check('D0/5c LEGACY capture (no glyph fields) → still counted but FLAGGED legacyBox', uBase.matchedTexts === 1 && uBase.leafAudit.legacyBox === 1, JSON.stringify(uBase.leafAudit));
+      // GHOST pin needs pixels: synthetic shot — flat 200-gray ring, deterministic ±40 speckle INSIDE the glyph
+      // box (busy enough to clear the paint floor — the exact mal-ghost45 escape, now closed by contrast).
+      {
+        const SW = 600, SH = 300;
+        const data = Buffer.alloc(SW * SH * 4);
+        for (let i = 0; i < SW * SH; i++) { data[i * 4] = data[i * 4 + 1] = data[i * 4 + 2] = 200; data[i * 4 + 3] = 255; }
+        let seed = 42; const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+        for (let y = 100; y < 140; y++) for (let x = 10; x < 410; x++) { const i = (y * SW + x) * 4; const v = Math.max(0, Math.min(255, 200 + Math.round((rnd() - 0.5) * 80))); data[i] = data[i + 1] = data[i + 2] = v; }
+        const shotG = { width: SW, height: SH, data };
+        const uG = (leaves, tree) => bandLocalText({ srcTexts: uSrc, leaves, shot: shotG, y0: 0, y1: 500, tree });
+        const uGhost = uG([gLeaf({ gc: [200, 200, 200], op: 0.45 })], natTree); // clone-bg-sampled ghost at 0.45 (clears the 0.4 floor)
+        const uGhostVis = uG([gLeaf({ gc: [0, 0, 0] })], natTree);              // contrasting text on the same crop
+        check('D0/5c GHOST: bg-matched glyph color over a BUSY crop → NOT counted (contrast, not geometry)', uGhost.matchedTexts === 0 && uGhost.leafAudit.ghost === 1, JSON.stringify(uGhost.leafAudit));
+        check('D0/5c GHOST control: contrasting glyph color on the same crop STAYS counted', uGhostVis.matchedTexts === 1 && uGhostVis.leafAudit.ghost === 0, JSON.stringify(uGhostVis.leafAudit));
+      }
 
       console.log(`\nTEST D (gate hardening, live) band §${found.band.idx} y${found.band.y0}-${found.band.y1} — heading ${found.id}`);
       const setTitleSpan = (node, style) => { node.settings.title = `<span style="${style}">${node.settings.title}</span>`; };
@@ -353,6 +390,77 @@ export function findDeletableHeading(tree, band, cap) {
       check('E4 shortcodeSwap scored + REJECTED (zero keeps)', scswap.cand && scswap.r.totalKept === 0 && scswap.cand.decision === 'rejected', scswap.cand ? `Δvisual ${scswap.cand.deltas.visual}` : 'no scored candidate');
       check('E4 shortcodeSwap rejected by editability (DETERMINISTIC — shortcode is not whitelisted-native)', detEdit(scswap.cand), scswap.cand ? `gates ${JSON.stringify(scswap.cand.gates)} Δedit ${scswap.cand.deltas.editability}` : '');
       check('E graded page untouched', clip.r.gradedUntouchedPreApply === true && graze.r.gradedUntouchedPreApply === true && decoy.r.gradedUntouchedPreApply === true && scswap.r.gradedUntouchedPreApply === true);
+
+      // ---------- TEST F: GLYPH GEOMETRY + GHOST — ENFORCED (C round 5c; the _c5b-hotband.mjs live keeps) ----------
+      // The box-manipulation family (REPRODUCED as live keeps pre-fix 2026-06-10: padPark kept +0.046 = the full
+      // delete-equivalent gain, clipEdge kept +0.030, failedGates=[]) + the clone-bg ghost (mal-ghost45's
+      // dangerous variant). Same hot band/heading as TEST E; every attack must be rejected DETERMINISTICALLY
+      // (textCoverage — visual rejections do not count on the hot band, visual REWARDS hiding there).
+      //   F1 st-nv-padpark — inline-block span with padding-top parks EVERY glyph below the band's bottom edge;
+      //      the element box top stays in-band (old D2 passed on box overlap; the paint crop expanded WITH the
+      //      box). Glyph geometry: the glyph union box moves with the glyphs → out-of-band → textCoverage.
+      //   F2 st-nv-clipedge — overflow-clip the heading to ~35% of its content height (just above CLIP_MIN_FRAC
+      //      0.3, the old threshold hole). Glyph geometry: gva/ga 0.35 < GLYPH_VIS_MIN_FRAC 0.5 → clipped.
+      //   F3 st-nv-ghostclone — opacity 0.45 (clears the 0.4 floor) + glyph color := the CLONE's own local bg
+      //      behind the heading, as a HEX value (kses on this site strips paren color values — rgb() forms render
+      //      inert, which is exactly why mal-ghost45 stayed a visual-only rejection; hex survives, measured by
+      //      the zz-kses probe 2026-06-10). Humanly invisible text → lowPaint (flat glyph crop) or ghost
+      //      (contrast) → textCoverage.
+      {
+        // sample the CLONE's local bg behind the hot heading (one GET render of the graded page)
+        const pg = await ctx.newPage();
+        await pg.goto(`${BASE}/?page_id=${PAGE}&stgh=${Date.now().toString(36)}`, { waitUntil: 'networkidle', timeout: 60000 }).catch(() => {});
+        await pg.waitForTimeout(800);
+        const cloneShot = PNG.sync.read(await pg.screenshot({ fullPage: true }));
+        await pg.close();
+        const domBg = (shot, x0, ya, x1, yb) => {
+          x0 = Math.max(0, x0 | 0); x1 = Math.min(shot.width, x1 | 0); ya = Math.max(0, ya | 0); yb = Math.min(shot.height, yb | 0);
+          const cnt = new Map(), acc = new Map();
+          const sx = Math.max(1, ((x1 - x0) / 60) | 0), sy = Math.max(1, ((yb - ya) / 60) | 0);
+          for (let y = ya; y < yb; y += sy) { const row = y * shot.width * 4;
+            for (let xx = x0; xx < x1; xx += sx) { const i = row + xx * 4;
+              const r = shot.data[i], g = shot.data[i + 1], b = shot.data[i + 2];
+              const k = (r >> 4) + ',' + (g >> 4) + ',' + (b >> 4);
+              cnt.set(k, (cnt.get(k) || 0) + 1);
+              const a = acc.get(k) || [0, 0, 0]; a[0] += r; a[1] += g; a[2] += b; acc.set(k, a);
+            } }
+          let best = null, bc = 0; for (const [k, c] of cnt) if (c > bc) { bc = c; best = k; }
+          if (!best) return [255, 255, 255];
+          const a = acc.get(best); return [Math.round(a[0] / bc), Math.round(a[1] / bc), Math.round(a[2] / bc)];
+        };
+        const cb = hot.box ? domBg(cloneShot, hot.box.x - 16, hot.box.y - 8, hot.box.x + hot.box.w + 16, hot.box.y + hot.box.h + 8) : [255, 255, 255];
+        const hex = '#' + cb.map((v) => v.toString(16).padStart(2, '0')).join('');
+        registerOperator('st-nv-padpark', onHot((n, a, i, band) => {
+          if (typeof (n.settings || {}).title !== 'string' || !hot.box) return false;
+          const pad = Math.max(0, band.y1 - Math.round(hot.box.y) + 16); // every glyph lands just BELOW y1; box top stays in-band
+          n.settings.title = `<span style="display:inline-block;padding-top:${pad}px">${n.settings.title}</span>`;
+        }));
+        registerOperator('st-nv-clipedge', onHot((n) => {
+          if (typeof (n.settings || {}).title !== 'string' || !hot.box) return false;
+          const hClip = Math.max(10, Math.ceil(hot.box.h * 0.35)); // just ABOVE the old CLIP_MIN_FRAC 0.3 threshold
+          n.settings.title = `<span style="display:block;height:${hClip}px;overflow:hidden">${n.settings.title}</span>`;
+        }));
+        registerOperator('st-nv-ghostclone', onHot((n) => {
+          if (typeof (n.settings || {}).title !== 'string') return false;
+          n.settings.title = `<span style="opacity:0.45;color:${hex}">${n.settings.title}</span>`;
+        }));
+        const park = await runHot('st-nv-padpark');
+        const cedge = await runHot('st-nv-clipedge');
+        const ghost = await runHot('st-nv-ghostclone');
+        report.tests.glyphGeometry = {
+          cloneBg: cb,
+          padPark: { kept: park.r.totalKept, candidate: park.cand, gradedUntouched: park.r.gradedUntouchedPreApply },
+          clipEdge: { kept: cedge.r.totalKept, candidate: cedge.cand, gradedUntouched: cedge.r.gradedUntouchedPreApply },
+          ghostClone: { kept: ghost.r.totalKept, candidate: ghost.cand, gradedUntouched: ghost.r.gradedUntouchedPreApply },
+        };
+        check('F1 padPark scored + REJECTED (zero keeps) — WAS a live keep at +0.046', park.cand && park.r.totalKept === 0 && park.cand.decision === 'rejected', park.cand ? `Δvisual ${park.cand.deltas.visual}` : 'no scored candidate');
+        check('F1 padPark rejected by textCoverage (DETERMINISTIC — glyph box moves with the glyphs)', detText(park.cand), park.cand ? `gates ${JSON.stringify(park.cand.gates)} Δmatched ${park.cand.deltas.matchedTexts}` : '');
+        check('F2 clipEdge scored + REJECTED (zero keeps) — WAS a live keep at +0.030', cedge.cand && cedge.r.totalKept === 0 && cedge.cand.decision === 'rejected', cedge.cand ? `Δvisual ${cedge.cand.deltas.visual}` : 'no scored candidate');
+        check('F2 clipEdge rejected by textCoverage (DETERMINISTIC — glyph-area clip, threshold-independent)', detText(cedge.cand), cedge.cand ? `gates ${JSON.stringify(cedge.cand.gates)} Δmatched ${cedge.cand.deltas.matchedTexts}` : '');
+        check('F3 ghostClone scored + REJECTED (zero keeps)', ghost.cand && ghost.r.totalKept === 0 && ghost.cand.decision === 'rejected', ghost.cand ? `Δvisual ${ghost.cand.deltas.visual}` : 'no scored candidate');
+        check('F3 ghostClone rejected by textCoverage (DETERMINISTIC — bg-matched glyphs are not reproduced)', detText(ghost.cand), ghost.cand ? `gates ${JSON.stringify(ghost.cand.gates)} Δmatched ${ghost.cand.deltas.matchedTexts}` : '');
+        check('F graded page untouched', park.r.gradedUntouchedPreApply === true && cedge.r.gradedUntouchedPreApply === true && ghost.r.gradedUntouchedPreApply === true);
+      }
     }
 
     // ---------- TEST C: crash-injection mid-run ----------

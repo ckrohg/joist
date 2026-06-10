@@ -66,7 +66,7 @@ import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
 import { chromium } from 'playwright';
 import { PNG } from 'pngjs';
-import { perBandVisual, loadSrcCache, captureRetry, W, norm, cropEnergy } from './grade-sections.mjs';
+import { perBandVisual, loadSrcCache, captureRetry, W, norm, cropEnergy, srgbLab, dE } from './grade-sections.mjs';
 import { createScratch, deletePage, sweep, assertScratchWritable, BASE, TAG, CORPUS } from './scratch-harness.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -331,12 +331,31 @@ export async function prepare({ source, pageId, treePath = null, boxIndexFile = 
 //     leaf's wid (outermost-wrapper data-id from capture — spoof-proof), (b) has widgetType in
 //     NATIVE_TEXT_WIDGETS (explicit whitelist — html/shortcode/raster are OUT), and (c) carries the text in its
 //     OWN settings blob (the text is editable AT that widget). Missing provenance → non-native (strict).
+// C ROUND 5c GLYPH GEOMETRY (closes the BOX-MANIPULATION family — the _c5b-hotband.mjs live keeps nv-padPark
+// +0.046 / nv-clipEdge +0.030, both REPRODUCED 2026-06-10 pre-fix): capture() now records per-leaf GLYPH rects
+// (Range over each text node → line-box union; see grade-sections' GLYPH_RECTS block). When the fields are
+// present, D2 band-overlap and the D1 paint-energy crop run on the VISIBLE GLYPH union box (gv*) instead of the
+// element box: padding/line-height/transform tricks move the GLYPH box with the glyphs (padPark → out-of-band),
+// and ancestor overflow clips shrink gva so a mostly-clipped text is `clipped` no matter where the thresholds
+// sit (clipEdge → gva/ga 0.35 < 0.5). A glyph-bearing leaf whose glyphs never paint (gva==0, zero-rect edge)
+// is NOT reproduced. Leaves from LEGACY captures (no glyph fields) fall back to the element box and are COUNTED
+// in leafAudit.legacyBox + flagged via the report's divergenceFlags — never silent. GHOST CHECK (distinct
+// mechanism — contrast, not geometry; the mal-ghost45 residual): a leaf whose EFFECTIVE rendered glyph color
+// (gc composited at op·ca over the local bg) sits within GHOST_DE_MIN Lab ΔE of the local bg (dominant-bucket
+// ring sample around the glyph box) is humanly invisible → not reproduced, leafAudit.ghost. Chosen over an
+// opacity-floor raise because the floor cannot price COLOR-matched text at any opacity (nv-colorbg is the
+// opacity-1 variant, today only kses-blocked).
 export const VIS_OPACITY_FLOOR = 0.4;      // effective-opacity AND color-alpha floor for a leaf to count
 export const VIS_PAINT_MIN = 0.045;        // cropEnergy floor — flat (unpainted/faded) leaf boxes sit below it
 export const NONNATIVE_TEXT_WEIGHT = 0.5;  // editability weight for html/raster-carried (non-native) text
 export const BAND_OVERLAP_MIN_FRAC = 0.5;  // D2: leaf (or its first line) must be >=50% inside the band
 export const CLIP_MIN_FRAC = 0.3;          // D1b: rendered box must be >=30% of its scrollWidth/scrollHeight demand
 export const DEGENERATE_PX = 8;            // a box under this in either dim cannot render a matchable text
+export const GLYPH_VIS_MIN_FRAC = 0.5;     // 5c: >=50% of a leaf's GLYPH area must be paintable (ancestor-clip
+                                           // intersected) — the majority of the text must be able to render
+export const GHOST_DE_MIN = 8;             // 5c ghost floor: effective glyph color must differ from the local bg
+                                           // by >= Lab ΔE 8 — the grader's own exact-pixel window (ΔE<8 = same
+                                           // color): text the pixel metric cannot tell from its bg is invisible
 // Explicit nativeness whitelist (D3): genuinely panel-editable Elementor text widgets. NOT "anything except
 // html" — shortcode (render indirection), html (raw blob), nav-menu (labels live in WP menus, not settings),
 // image/raster (no text) are all non-native by omission.
@@ -407,36 +426,85 @@ function matchedTextIsNative(t, elig, widx) {
   return false;
 }
 
+// _ringBg — dominant-4-bit-bucket mean RGB over a thin RING around a box (the local bg the glyphs sit on; the
+// dominant bucket keeps neighbouring glyph/AA pixels from skewing the sample — same sampler family as
+// refine-sections' meanDominantRgb). null when the ring is degenerate (<16 samples) — the ghost check then
+// asserts nothing (defense-in-depth only, never a fabricated rejection).
+function _ringBg(shot, x0, y0, x1, y1, pad = 12) {
+  const rx0 = Math.max(0, x0 - pad), ry0 = Math.max(0, y0 - pad), rx1 = Math.min(shot.width, x1 + pad), ry1 = Math.min(shot.height, y1 + pad);
+  const cnt = new Map(), acc = new Map();
+  for (let y = ry0; y < ry1; y += 2) {
+    for (let x = rx0; x < rx1; x += 2) {
+      if (x >= x0 && x < x1 && y >= y0 && y < y1) continue; // ring only — never the glyph pixels themselves
+      const i = (y * shot.width + x) * 4;
+      const r = shot.data[i], g = shot.data[i + 1], b = shot.data[i + 2];
+      const k = (r >> 4) + ',' + (g >> 4) + ',' + (b >> 4);
+      cnt.set(k, (cnt.get(k) || 0) + 1);
+      const a = acc.get(k) || [0, 0, 0]; a[0] += r; a[1] += g; a[2] += b; acc.set(k, a);
+    }
+  }
+  let best = null, bc = 0; for (const [k, c] of cnt) if (c > bc) { bc = c; best = k; }
+  if (!best || bc < 16) return null;
+  const a = acc.get(best); return [Math.round(a[0] / bc), Math.round(a[1] / bc), Math.round(a[2] / bc)];
+}
+
 // bandLocalText — PURE. srcTexts = frozen source capture texts; leaves = clone capture textLeaves (op/ca/fs/
-// sw/sh/wid per capture()); shot = clone full-page PNG (null → pixel floor skipped — UNIT-TEST-ONLY path, every
-// live caller passes the scratch render); tree = the band tree whose render produced `leaves` (null → unit
-// harness, nativeness falls back to the leaf's DOM-declared type, still whitelist-only). Unit-pinned by
-// _refine-sections-selftest.mjs TEST D0.
+// sw/sh/wid + the C-5c glyph fields gx/gy/gw/gh/ga/gv*/gc per capture()); shot = clone full-page PNG (null →
+// pixel floor skipped — UNIT-TEST-ONLY path, every live caller passes the scratch render); tree = the band tree
+// whose render produced `leaves` (null → unit harness, nativeness falls back to the leaf's DOM-declared type,
+// still whitelist-only). Unit-pinned by _refine-sections-selftest.mjs TEST D0.
 export function bandLocalText({ srcTexts, leaves, shot, y0, y1, tree }) {
   const srcUniq = [...new Set((srcTexts || []).filter((t) => t.y >= y0 && t.y < y1 && norm(t.t).length >= 4).map((t) => norm(t.t)))];
-  const leafAudit = { eligible: 0, outOfBand: 0, lowOpacity: 0, clipped: 0, lowPaint: 0 };
+  const leafAudit = { eligible: 0, outOfBand: 0, lowOpacity: 0, clipped: 0, lowPaint: 0, noGlyphs: 0, ghost: 0, legacyBox: 0 };
   const elig = [];
   for (const L of leaves || []) {
     if (!L || typeof L.t !== 'string') continue;
-    const h = Math.max(1, Math.round(L.h || 0)), wdt = Math.max(0, Math.round(L.w || 0));
-    // D2 PROPORTIONAL BAND OVERLAP (header §3): >=50% of the leaf height — or of its first line — in-band.
-    const ov = Math.min(L.y + h, y1) - Math.max(L.y, y0);
-    const lineH = Math.min(h, Math.max(12, Math.round((typeof L.fs === 'number' && L.fs > 0 ? L.fs : 16) * 1.4)));
-    const ovLine = Math.min(L.y + lineH, y1) - Math.max(L.y, y0);
-    if (!(ov >= h * BAND_OVERLAP_MIN_FRAC || ovLine >= lineH * BAND_OVERLAP_MIN_FRAC)) { leafAudit.outOfBand++; continue; }
+    // GEOMETRY SOURCE (C round 5c): the VISIBLE GLYPH union box when the capture carries it; element box ONLY
+    // for legacy captures without the fields — counted (legacyBox) and surfaced via divergenceFlags, not silent.
+    const hasGlyph = L.ga != null && L.gva != null;
+    let bx, by, bw, bh;
+    if (hasGlyph) {
+      // zero-rect edge: glyphs that never lay out (display:none) or never paint (fully ancestor-clipped) are
+      // NOT reproduced — every skip-path defaults to not-reproduced.
+      if (!(L.ga > 0) || !(L.gva > 0) || typeof L.gvx !== 'number') { leafAudit.noGlyphs++; continue; }
+      // GLYPH CLIP (closes nv-clipEdge structurally): the majority of the glyph AREA must be paintable.
+      if (L.gva < L.ga * GLYPH_VIS_MIN_FRAC) { leafAudit.clipped++; continue; }
+      bx = L.gvx; by = L.gvy; bw = Math.max(0, Math.round(L.gvw || 0)); bh = Math.max(1, Math.round(L.gvh || 0));
+    } else {
+      leafAudit.legacyBox++;
+      bx = L.x; by = L.y; bw = Math.max(0, Math.round(L.w || 0)); bh = Math.max(1, Math.round(L.h || 0));
+    }
+    // D2 PROPORTIONAL BAND OVERLAP (header §3) on the GLYPH box (closes nv-padPark structurally — the glyph box
+    // moves with the glyphs): >=50% of the glyph-box height — or of its first line — in-band.
+    const ov = Math.min(by + bh, y1) - Math.max(by, y0);
+    const lineH = Math.min(bh, Math.max(12, Math.round((typeof L.fs === 'number' && L.fs > 0 ? L.fs : 16) * 1.4)));
+    const ovLine = Math.min(by + lineH, y1) - Math.max(by, y0);
+    if (!(ov >= bh * BAND_OVERLAP_MIN_FRAC || ovLine >= lineH * BAND_OVERLAP_MIN_FRAC)) { leafAudit.outOfBand++; continue; }
     // D1 (DOM): effective opacity + glyph color alpha.
     if ((L.op != null && L.op < VIS_OPACITY_FLOOR) || (L.ca != null && L.ca < VIS_OPACITY_FLOOR)) { leafAudit.lowOpacity++; continue; }
-    // D1b CLIP DETECTION (header §2): degenerate box, or rendered box grossly below its layout demand.
-    if (wdt < DEGENERATE_PX || h < DEGENERATE_PX) { leafAudit.clipped++; continue; }
-    if ((typeof L.sw === 'number' && L.sw > 0 && wdt < L.sw * CLIP_MIN_FRAC)
-      || (typeof L.sh === 'number' && L.sh > 0 && h < L.sh * CLIP_MIN_FRAC)) { leafAudit.clipped++; continue; }
-    // D1 (pixels) — NO FAIL-OPEN (header §1): paint check on the ACTUAL clamped box regardless of size; a
-    // degenerate clamp (box off the shot) is NOT reproduced.
+    // D1b CLIP DETECTION (header §2): degenerate box, or ELEMENT box grossly below its layout demand (kept as
+    // belt-and-braces alongside the glyph-area clip above — it is what catches legacy-capture clips).
+    if (bw < DEGENERATE_PX || bh < DEGENERATE_PX) { leafAudit.clipped++; continue; }
+    if ((typeof L.sw === 'number' && L.sw > 0 && Math.max(0, Math.round(L.w || 0)) < L.sw * CLIP_MIN_FRAC)
+      || (typeof L.sh === 'number' && L.sh > 0 && Math.max(1, Math.round(L.h || 0)) < L.sh * CLIP_MIN_FRAC)) { leafAudit.clipped++; continue; }
+    // D1 (pixels) — NO FAIL-OPEN (header §1): paint check on the ACTUAL clamped GLYPH box regardless of size;
+    // a degenerate clamp (box off the shot) is NOT reproduced.
     if (shot) {
-      const cx0 = Math.max(0, Math.round(L.x)), cy0 = Math.max(0, Math.round(L.y));
-      const cx1 = Math.min(shot.width, Math.round(L.x) + wdt), cy1 = Math.min(shot.height, Math.round(L.y) + h);
+      const cx0 = Math.max(0, Math.round(bx)), cy0 = Math.max(0, Math.round(by));
+      const cx1 = Math.min(shot.width, Math.round(bx) + bw), cy1 = Math.min(shot.height, Math.round(by) + bh);
       if (cx1 - cx0 < 2 || cy1 - cy0 < 2) { leafAudit.lowPaint++; continue; }
       if (cropEnergy(shot, { x: cx0, y: cy0, w: cx1 - cx0, h: cy1 - cy0 }).energy < VIS_PAINT_MIN) { leafAudit.lowPaint++; continue; }
+      // GHOST CHECK (C round 5c, distinct mechanism — contrast, not geometry): effective rendered glyph color
+      // (gc composited at op·ca over the local bg) within GHOST_DE_MIN Lab ΔE of the local bg → humanly
+      // invisible text the paint floor can miss on busy crops (the mal-ghost45 residual) → not reproduced.
+      if (hasGlyph && Array.isArray(L.gc) && L.gc.length === 3) {
+        const ring = _ringBg(shot, cx0, cy0, cx1, cy1);
+        if (ring) {
+          const a = Math.max(0, Math.min(1, (L.op != null ? L.op : 1) * (L.ca != null ? L.ca : 1)));
+          const eff = [0, 1, 2].map((i) => Math.round(a * L.gc[i] + (1 - a) * ring[i]));
+          if (dE(srgbLab(eff[0], eff[1], eff[2]), srgbLab(ring[0], ring[1], ring[2])) < GHOST_DE_MIN) { leafAudit.ghost++; continue; }
+        }
+      }
     }
     leafAudit.eligible++;
     elig.push(L);
@@ -517,6 +585,10 @@ export async function sectionVisual(opts) {
     // band geometry bound (D2) + widget-type-aware editability (D3). This is what refine-sections' keep gates
     // consume; the page-wide perBandVisual numbers stay below as *PageWide telemetry.
     const blt = pb ? bandLocalText({ srcTexts: prep.srcCache.texts, leaves: cap.textLeaves, shot: cap.shot, y0, y1, tree: bandRoot }) : null;
+    // C round 5c: element-box fallback (capture without glyph fields — GRADER_NO_GLYPHRECTS set, or a stale
+    // channel) must be VISIBLE in the report, never silent (the fallback is the exact geometry the
+    // box-manipulation family games).
+    if (blt && blt.leafAudit && blt.leafAudit.legacyBox > 0) divergenceFlags.push(`glyph-legacy-fallback:${blt.leafAudit.legacyBox}`);
     // LOOK artifacts: the two band crops (src side from the frozen cache, clone side from the scratch render)
     const shotSrc = path.join(outDir, `secvis-${pageId}-${y0}-${y1}-src.png`);
     const shotBand = path.join(outDir, `secvis-${pageId}-${y0}-${y1}-band.png`);
