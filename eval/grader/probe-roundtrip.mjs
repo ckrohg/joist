@@ -254,8 +254,9 @@ async function renderPass(browser, url, viewport, specs, shotPath) {
 (async () => {
   const started = new Date().toISOString(), t0 = Date.now();
   // WATCHDOG — supabase 2986 wedged twice at 0 CPU on an unbounded await; tailwind's full run = 77s.
-  // Self-SIGTERM reuses the PROVEN crash path: harness trap deletes scratch (404-verified) and the
-  // probe trap writes the INVALID report before exit 143. unref'd: idle-await loops still fire timers.
+  // Self-SIGTERM reuses the PROVEN crash path: harness trap deletes scratch (404-verified). The report is
+  // NOT rewritten on signal — instead the INVALID report is written to disk IMMEDIATELY below, so a
+  // watchdog/SIGKILL death can never leave a stale prior VALID report at reportPath (critic mustFix 2026-06-10).
   const WATCHDOG_MS = Number(process.env.PROBE_WATCHDOG_MS || 15 * 60 * 1000);
   setTimeout(() => { console.error(`WATCHDOG: run exceeded ${WATCHDOG_MS}ms — SIGTERM self (trap cleans scratch + writes INVALID report)`); process.kill(process.pid, 'SIGTERM'); }, WATCHDOG_MS).unref();
   const report = {
@@ -267,6 +268,7 @@ async function renderPass(browser, url, viewport, specs, shotPath) {
   };
   const reportPath = `/tmp/roundtrip-${SRC_PAGE}.json`;
   const finish = (code) => { report.run.ms = Date.now() - t0; fs.writeFileSync(reportPath, JSON.stringify(report, null, 2)); console.log(`report → ${reportPath}`); console.log(JSON.stringify({ status: report.run.status, metrics: report.metrics })); process.exit(code); };
+  fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));  // immediate INVALID write — stale-report guard
 
   // -- layout (denominator universe) --
   const slug = SOURCE ? SOURCE.replace(/^https?:\/\//, '').replace(/[^a-z0-9]/gi, '').slice(0, 16).toLowerCase() : null;  // clone.mjs:26 rule
@@ -274,14 +276,16 @@ async function renderPass(browser, url, viewport, specs, shotPath) {
   if (!layoutPath || !fs.existsSync(layoutPath)) { report.errors.push(`ERROR_INFRA: no layout at /tmp/abs-cache/${slug}/layout.json or /tmp/clone-layout-${slug}.json`); finish(3); }
   const L = JSON.parse(fs.readFileSync(layoutPath, 'utf8'));
   const runs = [];
-  (function walk(n) { if (!n || typeof n !== 'object') return; if (['heading', 'button', 'text'].includes(n.kind)) { const t = stripEmoji(n.text); if (t) runs.push({ kind: n.kind, text: t, box: n.box || null, cx: n.box ? n.box.x + n.box.w / 2 : null, cy: n.box ? n.box.y : null }); } (n.children || []).forEach(walk); })(L.root || L);
+  // 'code' included per critic mustFix 2026-06-10: code-kind runs are text-bearing (and the most likely to be
+  // raster/non-panel) — excluding them inflated mapped_panel_rate (pooled 0.815→0.795 corrected).
+  (function walk(n) { if (!n || typeof n !== 'object') return; if (['heading', 'button', 'text', 'code'].includes(n.kind)) { const t = stripEmoji(n.text); if (t) runs.push({ kind: n.kind, text: t, box: n.box || null, cx: n.box ? n.box.x + n.box.w / 2 : null, cy: n.box ? n.box.y : null }); } (n.children || []).forEach(walk); })(L.root || L);
   report.denominator.text_runs_total = runs.length;
   console.log(`layout ${layoutPath}: ${runs.length} text run(s) in denominator`);
 
   // -- sweep stale scratch, acquire duplicate --
   let dup = null;
   try {
-    const sw = await sweep({ maxAgeMin: 60, all: has('sweep-all') });
+    const sw = await sweep({ maxAgeMin: 20, all: has('sweep-all') });  // 20min > 15min watchdog; 60 left mid-night orphans alive (critic note)
     if (sw.deleted.length) console.log(`sweep: deleted stale scratch ${sw.deleted.join(',')}`);
     dup = await acquire(SRC_PAGE, { note: 'probe' });
     report.scratch_page = dup.pageId;
@@ -505,10 +509,16 @@ async function renderPass(browser, url, viewport, specs, shotPath) {
     const overall = rate(null);
     const errCount = probes.filter((p) => String(p.status || '').startsWith('ERROR')).length;
     const invalid = probes.length === 0 || errCount / probes.length > 0.2;
+    // map_via surfaced per critic mustFix 2026-06-10: the pbid id-map is DEAD unless the clone was built with
+    // ABS_PERBP=1 (build-absolute.mjs:142-143 only stamps pb-ids then) — baseline ran 100% loose text-fallback
+    // (0/48 idmap) and the report hid it. Round-2 deltas leaning on mapped_panel_rate must check this split.
+    const viaCounts = { idmap: 0, text: 0, html: 0, 'html-text': 0, none: 0 };
+    for (const c of classified) viaCounts[c.via] = (viaCounts[c.via] || 0) + 1;
     report.metrics = {
       mapped_panel_rate: mappedPanelRate,
       probe_pass_rate: { overall, heading: rate('heading'), text: rate('text'), button: rate('button') },
       control_edit_roundtrip: overall == null ? null : Math.round(mappedPanelRate * overall * 1000) / 1000,
+      map_via: viaCounts,
       errors: errCount,
     };
     report.run.status = invalid ? 'INVALID' : 'VALID';
