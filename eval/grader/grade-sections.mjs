@@ -290,6 +290,31 @@ const USE_SRCCACHE = !process.env.GRADER_NO_SRCCACHE;
 // (symmetric → selftest unaffected; the cached source benefits when refreshed). Additive + bounded; never throws.
 // Reversible: GRADER_NO_LAZYSETTLE=1 → byte-identical legacy capture (settle skipped entirely).
 const LAZY_SETTLE = !process.env.GRADER_NO_LAZYSETTLE;
+// ---- GLYPH-RECT CAPTURE (C round 5c — structural close of the BOX-MANIPULATION attack family) ----
+// Critic-diagnosed root cause (_c5b-hotband.mjs, both REPRODUCED as live keeps 2026-06-10): textLeaves carried
+// ELEMENT-BOX geometry only (getBoundingClientRect + scrollWidth/scrollHeight, the loop below) — never GLYPH
+// geometry. Two hot-band keeps exploited that: nv-padPark (inline-block span with padding-top parks every glyph
+// below the band's bottom edge; the box top stays in-band so D2 passes, scrollHeight==box so the clip check is
+// silent, and the paint crop EXPANDS WITH THE BOX so it sees the parked glyphs — kept, Δvisual +0.046 = the
+// full delete-equivalent gain) and nv-clipEdge (overflow-clip to ~35% of content height, just above
+// CLIP_MIN_FRAC 0.3 — ~2/3 of glyphs never paint; kept, +0.030). ADDITIVE per-leaf fields, captured via
+// per-TEXT-NODE Ranges (TreeWalker SHOW_TEXT → Range.selectNodeContents(textNode) → getClientRects = the LINE
+// BOXES of the actual glyphs; element border boxes never enter the union, so a padded inline-block child cannot
+// inflate it; multi-line text = union of its line rects; display:none text yields zero rects):
+//   gx,gy,gw,gh — union box of ALL glyph line rects (document coords, gy includes scrollY); absent if no rects
+//   ga          — Σ line-rect area (total glyph area, whether it paints or not)
+//   gvx,gvy,gvw,gvh,gva — same after intersecting every line rect with the cumulative ancestor OVERFLOW CLIP
+//                 (overflow-x/y hidden|clip|auto|scroll ancestors): the glyph geometry that can actually PAINT.
+//                 gva==0 → no glyph ever paints (fully clipped / zero-rect edge) → bandLocalText treats the
+//                 leaf as NOT reproduced.
+//   gc          — computed glyph color [r,g,b] (feeds the C-5c ghost check: glyph-color-vs-local-bg contrast).
+// NO scoring path in THIS file reads them (same contract as op/ca/fs/sw/sh/wid/wt): consumed only by
+// sectionvisual.mjs bandLocalText, where D2 band-overlap + the D1 paint-energy crop now run on the VISIBLE
+// GLYPH union box instead of the element box (legacy captures without the fields fall back to the element box
+// and are FLAGGED, never silent). Capture-affecting + cache-schema-affecting → '-gr' srcTag suffix (the '-mi'
+// precedent: a flagged-on run never reads a glyph-less cache; flag-off keeps the exact legacy key AND
+// byte-identical legacy capture — innocent control _glyphrects-control.mjs). Reversible: GRADER_NO_GLYPHRECTS=1.
+const GLYPH_RECTS = !process.env.GRADER_NO_GLYPHRECTS;
 const SRC_CACHE_DIR = '/tmp/grade-src-cache';
 // every JSON-serializable field capture() returns (everything except the PNG `shot`, persisted alongside).
 const SRC_CACHE_FIELDS = ['texts', 'sections', 'imgs', 'blocks', 'pageH', 'textLeaves', 'bands', 'mediaLeaves', 'navStruct', 'docScrollW', 'docClientW', 'leafBoxes'];
@@ -300,7 +325,10 @@ export function srcTagFor(src) {
     + '-gsec' + (USE_VISIBLE_BLOCKS ? '' : '-novb') + (FORM_CLUSTER ? '' : '-nofc') + (LAZY_SETTLE ? '' : '-nols')
     // media-identity needs `tag` on mediaLeaves entries (capture-affecting, additive) — distinct cache key so a
     // stale tag-less cache is never served to a flagged-on run; flag-off keeps the exact legacy key + capture.
-    + (USE_MEDIAID ? '-mi' : '');
+    + (USE_MEDIAID ? '-mi' : '')
+    // glyph-rects add gx/gy/gw/gh/ga/gv*/gc to textLeaves entries (capture-affecting, additive) — same '-mi'
+    // discipline: distinct key so a glyph-less cache is never served to a flagged-on run.
+    + (GLYPH_RECTS ? '-gr' : '');
 }
 const srcTag = srcTagFor(source);
 const refreshSource = process.argv.includes('--refresh-source');
@@ -522,8 +550,9 @@ function perElementScores(srcUrl, cloneUrl, selftest) {
 
 // ---- pixel math (from grade-structure) ----
 const gray = (d, i) => 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-const srgbLab = (r, g, b) => { const f = (c) => { c /= 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }; const R = f(r), G = f(g), B = f(b); const X = (R * .4124 + G * .3576 + B * .1805) / .95047, Y = R * .2126 + G * .7152 + B * .0722, Z = (R * .0193 + G * .1192 + B * .9505) / 1.08883; const g2 = (t) => t > .008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116; return [116 * g2(Y) - 16, 500 * (g2(X) - g2(Y)), 200 * (g2(Y) - g2(Z))]; };
-const dE = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+// srgbLab/dE — EXPORTED (C round 5c): sectionvisual.mjs reuses them for the glyph-color-vs-local-bg ghost check.
+export const srgbLab = (r, g, b) => { const f = (c) => { c /= 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }; const R = f(r), G = f(g), B = f(b); const X = (R * .4124 + G * .3576 + B * .1805) / .95047, Y = R * .2126 + G * .7152 + B * .0722, Z = (R * .0193 + G * .1192 + B * .9505) / 1.08883; const g2 = (t) => t > .008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116; return [116 * g2(Y) - 16, 500 * (g2(X) - g2(Y)), 200 * (g2(Y) - g2(Z))]; };
+export const dE = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 export function ssim(a, b, y0, y1) { const Wd = Math.min(a.width, b.width), win = 8, C1 = 6.5, C2 = 58.5; let tot = 0, n = 0; for (let by = y0; by + win <= y1; by += win) for (let bx = 0; bx + win <= Wd; bx += win) { let ma = 0, mb = 0; for (let y = 0; y < win; y++) for (let x = 0; x < win; x++) { const ia = ((by + y) * a.width + bx + x) * 4, ib = ((by + y) * b.width + bx + x) * 4; ma += gray(a.data, ia); mb += gray(b.data, ib); } const N = win * win; ma /= N; mb /= N; let va = 0, vb = 0, cov = 0; for (let y = 0; y < win; y++) for (let x = 0; x < win; x++) { const ia = ((by + y) * a.width + bx + x) * 4, ib = ((by + y) * b.width + bx + x) * 4; const da = gray(a.data, ia) - ma, db = gray(b.data, ib) - mb; va += da * da; vb += db * db; cov += da * db; } va /= N - 1; vb /= N - 1; cov /= N - 1; tot += ((2 * ma * mb + C1) * (2 * cov + C2)) / ((ma * ma + mb * mb + C1) * (va + vb + C2)); n++; } return n ? tot / n : 1; }
 export function bandStats(a, b, y0, y1) { let ex = 0, n = 0, sde = 0; const Wd = Math.min(a.width, b.width); for (let y = y0; y < y1; y += 2) for (let x = 0; x < Wd; x += 2) { const ia = (y * a.width + x) * 4, ib = (y * b.width + x) * 4; const d = dE(srgbLab(a.data[ia], a.data[ia + 1], a.data[ia + 2]), srgbLab(b.data[ib], b.data[ib + 1], b.data[ib + 2])); if (d < 8) ex++; sde += d; n++; } return { exact: n ? ex / n : 0, meanDE: n ? sde / n : 0 }; }
 // bandTexture — CONTENT-ENERGY of a SINGLE image's band, INDEPENDENT of the cross-SSIM. Combines normalized luma
@@ -851,7 +880,7 @@ export async function capture(ctx, target, withSections) {
     }).catch(() => {});
     await p.waitForTimeout(300).catch(() => {});
   }
-  const info = await p.evaluate(({ vw, withSections, useVisibleBlocks, formCluster, useMediaId }) => {
+  const info = await p.evaluate(({ vw, withSections, useVisibleBlocks, formCluster, useMediaId, useGlyphRects }) => {
     const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
     const vis = (el) => { const r = el.getBoundingClientRect(); if (!r.width || !r.height) return false; const cs = getComputedStyle(el); return !(cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity < 0.05); };
     // visStrict — the HARDENED GENUINE-VISIBILITY gate for block-type counting (anti-gaming). An element counts
@@ -938,7 +967,46 @@ export async function capture(ctx, target, withSections) {
     // include pre/code (rebuilt code blocks render as <pre>); allow longer text for them so the code blob is
     // counted (else captured code is invisible to the grader → recovery looks like no gain).
     const widgetOf = (el) => { let w = null; for (let a = el; a && a.nodeType === 1; a = a.parentElement) { if (a.hasAttribute && a.hasAttribute('data-id') && a.classList && a.classList.contains('elementor-widget')) w = a; } return w; }; // OUTERMOST widget wrapper wins (anti-spoof)
-    for (const e of document.querySelectorAll('h1,h2,h3,h4,h5,h6,p,a,button,span,li,div,pre,code')) { const own = [...e.childNodes].some((n) => n.nodeType === 3 && clean(n.textContent)); if (!own) continue; const s = clean(e.innerText); const cap = /^(pre|code)$/i.test(e.tagName) ? 3000 : 200; if (!s || s.length > cap) continue; if (!vis(e)) continue; const cs0 = getComputedStyle(e); const fsz = parseFloat(cs0.fontSize); if (fsz < 10) continue; const wEl = widgetOf(e); const r0 = e.getBoundingClientRect(); textLeaves.push({ t: s, x: Math.round(r0.left), y: Math.round(r0.top + scrollY), w: Math.round(r0.width), h: Math.round(r0.height), op: effOp(e), ca: colorAlpha(cs0.color), fs: Math.round(fsz * 10) / 10, sw: Math.round(e.scrollWidth || 0), sh: Math.round(e.scrollHeight || 0), wid: wEl ? wEl.getAttribute('data-id') : null, wt: wEl ? (String(wEl.getAttribute('data-widget_type') || '').split('.')[0] || null) : null }); const k = s.toLowerCase(); if (seen.has(k)) continue; seen.add(k); texts.push({ t: s, y: Math.round(r0.top + scrollY) }); }
+    // GLYPH-RECT collection (C round 5c, gated on useGlyphRects — see the GLYPH_RECTS flag block): per-TEXT-NODE
+    // Ranges give the LINE BOXES of the actual glyphs (never element border boxes — a padded inline-block child
+    // cannot inflate the union; multi-line text unions its line rects; display:none text yields zero rects).
+    // The VISIBLE variant intersects every line rect with the cumulative ancestor overflow clip — the geometry
+    // that can actually PAINT (closes nv-clipEdge); the union box itself moves with the glyphs, not the box
+    // (closes nv-padPark). gc = computed glyph color (the ghost-contrast feed).
+    const colorRgb = (c) => { const m = String(c || '').match(/rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/); return m ? [Math.round(+m[1]), Math.round(+m[2]), Math.round(+m[3])] : null; };
+    const glyphInfo = (el) => {
+      const rects = [];
+      const tw2 = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
+      let tn; while ((tn = tw2.nextNode())) {
+        if (!clean(tn.textContent)) continue;
+        const rg = document.createRange(); rg.selectNodeContents(tn);
+        for (const r of rg.getClientRects()) if (r.width > 0 && r.height > 0) rects.push(r);
+      }
+      // cumulative ancestor overflow clip (viewport-relative, same space as the rects)
+      let cx0 = -Infinity, cy0 = -Infinity, cx1 = Infinity, cy1 = Infinity;
+      const clips = (v) => v === 'hidden' || v === 'clip' || v === 'auto' || v === 'scroll';
+      for (let a = el; a && a.nodeType === 1 && a !== document.documentElement; a = a.parentElement) {
+        const cs = getComputedStyle(a);
+        if (clips(cs.overflowX) || clips(cs.overflowY)) {
+          const cr = a.getBoundingClientRect();
+          if (clips(cs.overflowX)) { cx0 = Math.max(cx0, cr.left); cx1 = Math.min(cx1, cr.right); }
+          if (clips(cs.overflowY)) { cy0 = Math.max(cy0, cr.top); cy1 = Math.min(cy1, cr.bottom); }
+        }
+      }
+      let ux0 = Infinity, uy0 = Infinity, ux1 = -Infinity, uy1 = -Infinity, ga = 0;
+      let vx0 = Infinity, vy0 = Infinity, vx1 = -Infinity, vy1 = -Infinity, gva = 0;
+      for (const r of rects) {
+        ux0 = Math.min(ux0, r.left); uy0 = Math.min(uy0, r.top); ux1 = Math.max(ux1, r.right); uy1 = Math.max(uy1, r.bottom);
+        ga += r.width * r.height;
+        const ix0 = Math.max(r.left, cx0), iy0 = Math.max(r.top, cy0), ix1 = Math.min(r.right, cx1), iy1 = Math.min(r.bottom, cy1);
+        if (ix1 - ix0 > 0 && iy1 - iy0 > 0) { vx0 = Math.min(vx0, ix0); vy0 = Math.min(vy0, iy0); vx1 = Math.max(vx1, ix1); vy1 = Math.max(vy1, iy1); gva += (ix1 - ix0) * (iy1 - iy0); }
+      }
+      const out = { ga: Math.round(ga), gva: Math.round(gva), gc: colorRgb(getComputedStyle(el).color) };
+      if (rects.length) { out.gx = Math.round(ux0); out.gy = Math.round(uy0 + scrollY); out.gw = Math.round(ux1 - ux0); out.gh = Math.round(uy1 - uy0); }
+      if (gva > 0) { out.gvx = Math.round(vx0); out.gvy = Math.round(vy0 + scrollY); out.gvw = Math.round(vx1 - vx0); out.gvh = Math.round(vy1 - vy0); }
+      return out;
+    };
+    for (const e of document.querySelectorAll('h1,h2,h3,h4,h5,h6,p,a,button,span,li,div,pre,code')) { const own = [...e.childNodes].some((n) => n.nodeType === 3 && clean(n.textContent)); if (!own) continue; const s = clean(e.innerText); const cap = /^(pre|code)$/i.test(e.tagName) ? 3000 : 200; if (!s || s.length > cap) continue; if (!vis(e)) continue; const cs0 = getComputedStyle(e); const fsz = parseFloat(cs0.fontSize); if (fsz < 10) continue; const wEl = widgetOf(e); const r0 = e.getBoundingClientRect(); textLeaves.push({ t: s, x: Math.round(r0.left), y: Math.round(r0.top + scrollY), w: Math.round(r0.width), h: Math.round(r0.height), op: effOp(e), ca: colorAlpha(cs0.color), fs: Math.round(fsz * 10) / 10, sw: Math.round(e.scrollWidth || 0), sh: Math.round(e.scrollHeight || 0), wid: wEl ? wEl.getAttribute('data-id') : null, wt: wEl ? (String(wEl.getAttribute('data-widget_type') || '').split('.')[0] || null) : null, ...(useGlyphRects ? glyphInfo(e) : {}) }); const k = s.toLowerCase(); if (seen.has(k)) continue; seen.add(k); texts.push({ t: s, y: Math.round(r0.top + scrollY) }); }
     let sections = null;
     if (withSections) { const ys = new Set([0]); for (const e of document.querySelectorAll('body *')) { const r = e.getBoundingClientRect(); if (r.width >= vw * 0.82 && r.height >= 120 && r.top + scrollY >= 0) ys.add(Math.round(r.top + scrollY)); } const arr = [...ys].sort((a, b) => a - b); const m = []; for (const y of arr) { if (!m.length || y - m[m.length - 1] > 60) m.push(y); } sections = m; }
     // DETECTOR(2) FULL-BLEED raw feed: top-level section BAND boxes (x + width at viewport vw). A band is a wide,
@@ -1042,7 +1110,7 @@ export async function capture(ctx, target, withSections) {
       nav: visN('nav,[role=navigation]').length ? 1 : 0,
     };
     return { texts, sections, imgs, blocks, pageH: document.documentElement.scrollHeight, textLeaves, bands, mediaLeaves, navStruct, docScrollW, docClientW, leafBoxes };
-  }, { vw: W, withSections, useVisibleBlocks: USE_VISIBLE_BLOCKS, formCluster: FORM_CLUSTER, useMediaId: USE_MEDIAID });
+  }, { vw: W, withSections, useVisibleBlocks: USE_VISIBLE_BLOCKS, formCluster: FORM_CLUSTER, useMediaId: USE_MEDIAID, useGlyphRects: GLYPH_RECTS });
   const shot = PNG.sync.read(await p.screenshot({ fullPage: true }));
   await p.close(); return { shot, texts: info.texts, sections: info.sections, imgs: info.imgs, blocks: info.blocks, pageH: info.pageH, textLeaves: info.textLeaves, bands: info.bands, mediaLeaves: info.mediaLeaves, navStruct: info.navStruct, docScrollW: info.docScrollW, docClientW: info.docClientW, leafBoxes: info.leafBoxes };
 }
