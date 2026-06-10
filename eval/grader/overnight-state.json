@@ -7,8 +7,8 @@
   "deadlineHuman": "2026-06-10T02:52:36.000Z (=+6h, user approved 2026-06-09 to run tiler lazy-void de-deflation properly)",
   "budgetHours": 80,
   "deadlineHistory": "Started 30h (deadline Thu Jun 4 07:02). EXTENDED +20h -> 50h total, new deadline Fri Jun 5 03:02:29 PDT (epoch 1780653749). Heartbeat reads deadlineEpoch from this manifest, so the extension takes effect immediately; no cron change needed. | +30h post-wifi-outage 2026-06-04 -> deadlineEpoch 1780761749 (Sat Jun 6 09:02 PDT), 80h total. Heartbeat reads deadlineEpoch from this manifest so it takes effect immediately; no cron change needed.",
-  "phase": 5,
-  "phaseName": "Phase 5 — discovery + all-metrics (entered after structural plateau; visual 0.4-weight has the most headroom)",
+  "phase": "roadmap-execution",
+  "phaseName": "Executing knowledge/PATH_TO_TRUE_1TO1.md (deadline dropped by user 2026-06-09; quality-gated). Workstream A in progress.",
   "corpus": [
     {
       "name": "tailwind",
@@ -3532,6 +3532,86 @@
       "rootCause": "modalBg sampled the dominant pixel color over the WHOLE box; a wrapper spanning a light headline (§9) + a dark code editor (§10) had the dark editor own >=45% area → whole wrapper painted dark → white headline buried dark-on-dark. (Underlying STRUCTURAL flatness — clone collapses headline+editor into one wrapper — remains; the guard correctly defers the wrapper to its true (light) parent bg, which resolves §9. §10 editor de-themes to white but is grader-neutral + legible; a fuller structural fix = raster the editor, tracked in memory.)",
       "blastRadius": "capture-layout.mjs modalBg (all clone backgrounds) — but guard ONLY abstains on vertically-discontinuous boxes, deferring to parent bg; uniform sections never abstain (self-test). Corpus-regression verified clean on 6 sites.",
       "note": "14th KEPT build/capture fix. Real fidelity WIN on a visible defect (tailwind §9 dark-on-dark headline → correct white). Validated end-to-end with restored WP auth (rebuild+grade+LOOK on scratch page 21325). Default capture for new builds now gets the fix; corpus pages reflect it on next rebuild."
+    },
+    {
+      "epoch": 1781071166,
+      "round": "fix-tiler-settlelazy-uncaught-crash",
+      "taskId": "main-1781071166",
+      "kind": "ROBUSTNESS-FIX (tooling) — hardens the de-deflation #4 settleLazy; not a fidelity/grader change",
+      "kept": true,
+      "change": "grade-vision-tiles.mjs: settleLazy (added in de-deflation #4) could throw an UNCAUGHT rejection (page.waitForTimeout on a closed page) and crash the whole tiler on a slow/closing site (found via vercel). Hardened: every page.* in settleLazy is .catch()-guarded AND the body is try-wrapped; the main IIFE is wrapped in try/catch/finally → a failed/closed capture now prints a clean \"VTILES FAILED: <reason>\" + exit 1 + always closes the browser, instead of an uncaught-rejection crash.",
+      "verify": "syntax OK; pure-fn _vtiles-selftest.mjs ALL PASS; happy path tailwind→3146 = 40 tiles (settleLazy/#4 intact); vercel now fails CLEANLY (0 uncaught-rejection lines, clean VTILES FAILED message) where it previously crashed at settleLazy:120.",
+      "envNote": "vercel.com closes the headless page during capture in this network (both source+clone attempts) — likely anti-automation or just too heavy for the window; it cannot be vision-tiled here (separate from this crash fix). Recon should skip vercel-source tiling.",
+      "blastRadius": "grade-vision-tiles.mjs only (settleLazy guards + main-IIFE try/catch); no behaviour change on the happy path (byte-identical tiles on a normal capture).",
+      "note": "Found while cheap-reconning vercel for a new lever. Pure robustness — makes the recon loop resilient to a capture that closes/hangs. plateau unchanged."
+    },
+    {
+      "name": "workstream-A-gated-fixes",
+      "date": "2026-06-09",
+      "verdict": "KEPT (3/3 gated + 2 follow-ups)",
+      "detail": "e622423 capture >600-char text split (CAPTURE_NO_LONGTEXT=1 reverts); 5225d0c grader chunks >200-char runs into textCoverage, de-inflation (GRADER_NO_LONGTEXT=1); 9ffcf4a grade-sections source-cache, tailwind visual byte-stable x4 (GRADER_NO_SRCCACHE=1) + bonus lazy-settle (GRADER_NO_LAZYSETTLE=1); f1eda44 critic mustFix cache-key -nols; 5da79a6 settleLazy never-throw. Mechanical: e1a0f66 debris sweep, 0d769fc corpus-run->clone.mjs+cache, 2bd34ae doc-rot x7. Critics: 2x pass-with-notes, mustFix resolved + selftests 9/9 re-PASS. Branch: docs-rot-fixes-20260609 (session branch killed mid-run by session-end hook c57a194). Prove phase (blog demo + rebaseline) deferred to next round. HONEST SCOPE: perElement + responsive subprocesses still capture live source (no cache yet).",
+      "plateauEffect": "reset"
+    },
+    {
+      "name": "workstream-A-rebaseline",
+      "date": "2026-06-10",
+      "epoch": 1781076029,
+      "era": "2026-06-09 era: post 600-char capture + 200-char grader chunking + sections source-cache + lazy-settle; corpus built via clone.mjs --mode absolute; numbers NOT comparable to prior era",
+      "build": "clone.mjs --mode absolute --cache --refresh (FRESH capture per site, re-frozen to /tmp/abs-cache), one site at a time, 2026-06-09/10",
+      "perSite": {
+        "tailwind": {
+          "page": 3146,
+          "composite": 0.691,
+          "visual": 0.791,
+          "editability": 0.462,
+          "responsive": 0.856,
+          "hRatio": 1
+        },
+        "supabase": {
+          "page": 2986,
+          "composite": 0.841,
+          "visual": 0.948,
+          "editability": 0.721,
+          "responsive": 0.819,
+          "hRatio": 1
+        },
+        "resend": {
+          "page": 2988,
+          "composite": 0.65,
+          "visual": 0.715,
+          "editability": 0.37,
+          "responsive": 0.886,
+          "hRatio": 1.001
+        },
+        "linear": {
+          "page": 4297,
+          "composite": 0.828,
+          "visual": 0.893,
+          "editability": 0.714,
+          "responsive": 0.864,
+          "hRatio": 1
+        },
+        "vercel": {
+          "page": 4296,
+          "composite": 0.807,
+          "visual": 0.907,
+          "editability": 0.646,
+          "responsive": 0.842,
+          "hRatio": 1
+        },
+        "reactdev": {
+          "page": 4771,
+          "composite": 0.825,
+          "visual": 0.887,
+          "editability": 0.675,
+          "responsive": 0.906,
+          "hRatio": 1
+        }
+      },
+      "mean": 0.774,
+      "framer": "SKIPPED (sentinel, per round spec)",
+      "infraFails": "none — all 6 sites captured+built+graded first try (vercel did NOT close the page this run; react.dev source rendered STYLED today, srcH 9097, so its source-side numbers are valid THIS run — re-verify per run, see reactdev_source_render_blocked)",
+      "demoNote": "overreacted blog demo (page 11067): >600-char fix does NOT engage on this article (demo textCoverage 0.413 vs CAPTURE_NO_LONGTEXT=1 control 0.415; captures byte-identical). Real blog-body gap discovered = capture-layout.mjs:1536 inlineSimple drops bare text nodes of paragraphs with <a>/<code> inline children. See eval/grader/demo-overreacted/summary.json."
     }
   ],
   "phase5backlog_wave3": [
@@ -3708,7 +3788,7 @@
     "fullDetail": "see sessionSummary_spotcheck_arc + metricsHistory + memory grader_honesty_both_directions.md"
   },
   "graderUpgradeQueue": "Sequential SUPERVISED grader upgrades (each self-test=1.0 + reversible + re-baselines; run one at a time, NOT directed-fix rounds). DONE: responsive promotion ADOPTED (composite now 0.35*visual+0.2*edit+0.2*struct+0.25*responsive; corpus re-baselined ~0.77->~0.62 honestly). RUNNING: clone-econ-grader-fix (wxcek7tmo, free-descend .e-con wrappers so clone capture stops under-counting widgets). NEXT (queued, fires on .e-con completion): build-completeness-grader.workflow.js -> grade-completeness.mjs SHADOW (top-down ARIA-landmark + position + content component checklist: header/nav/logo/hero/CTA/main/FOOTER+subparts/cookie; detect clone by POSITION+CONTENT since Elementor demotes header/footer roles; self-test=1.0; smoke = does it flag our clones' missing footer/nav). THEN (supervised): promote completeness into composite (like responsive) -> re-baseline. CLONER follow-on: emit explicit landmark role= on header/nav/main/footer containers (kses-safe per tabs recipe) + a real footer/nav component emitter. THEN resume directed-fix (now pulling toward the FLOW builder, since responsive+completeness reward it over the desktop-frozen absolute builder).",
-  "lastUpdatedEpoch": 1781053919,
+  "lastUpdatedEpoch": 1781071166,
   "flowV5": "T2 flow v5 DONE (wsgwqu7u0) — KEPT a real flow gain (grid side-by-side guard: tailwind hRatio 2.908->1.458, the 3x grid-collapse blowup fixed; + responsive inline clamp() font on linear narrow-bp) but flow STILL < absolute on composite. CRITICAL: exposed that prior flow baselines (0.712/0.692) were CHERRY-PICKED — true flow baseline ~0.59-0.60. Root-caused the residual to CAPTURE (tailwind code-as-art hero emitted as literal <div class=> markup -> perElement 0.066 + hRatio) + build-flow vertical-stacking of IoU<0.5 overlaps (linear desktop hRatio 1.909). Both now actionable: capture fix RUNNING (wjs7n7q9u), flow overlay-gate QUEUED.",
   "flowV4": "T2 flow v4 launched (wrjanwuvq) — LayoutCoder redirect: STOP pinning min_height on nesting wrappers, zero synthesized padding/gap, flex:[portion] proportional sizing + fractional grid tracks, mobile font-scaling, fluid cells + tablet breakpoint. Tests whether FLOWING (not pinning) drives hRatio->1 after v2/v3 capping failed twice.",
   "flowTrackStatus": "T2 flow builder: v1/v2/v3 all ~0.711/0.694 (FLAT, below abs 0.85/0.776). Editability 0.93 + struct 0.90-0.944 STRONG; responsive collapse WORKS (linear 0 h-overflow at 768+390). Gated by hRatio (2.3x/1.5x) + visual. ROOT CAUSE (v3 diagnosis): capture nests near-full-pageH wrappers so isSectionBand matched EVERY container + pinned all to ~pageH -> stacking inflation; AND the height-bound is computed on PREDICTED assembled height but the live RENDER inflates (min_height pins + per-char text wrap at narrow widths + flex gaps). FLOW v4 REDIRECT (per LayoutCoder research): STOP pinning min_height entirely, zero synthesized padding/gap, drive columns by flex:[portion] from captured width ratios, add mobile font-scaling + fluid cells (% / 1fr) — measure RENDERED not predicted height. Pages 5404 (linear) / 5405 (tailwind).",
@@ -5152,5 +5232,6 @@
       "risk": "GLOBAL (core bg sampling) — corpus-regression A/B required; reversible flag",
       "status": "RESOLVED + KEPT (default-on) 2026-06-09: modalBg vertical-split guard. tailwind §9 visual 0.16→0.899; corpus-regression clean (6 sites, 0 regressions, resend dark parent-covered); reversible CAPTURE_NO_SPLITBG=1."
     }
-  ]
+  ],
+  "deadlineNote": "User directive 2026-06-09: ignore deadlineEpoch — loop is quality-gated, driven by /loop dynamic mode."
 }
