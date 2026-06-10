@@ -28,6 +28,10 @@
  *     each matched text by its tree carrier (native widget 1.0, html/raster 0.5 — D3), so fade-to-invisible,
  *     move-out-of-band and native→html swaps all trip a deterministic gate. Enforced (not xfail) by
  *     _refine-sections-selftest.mjs TEST D.
+ *     C ROUND 5b HARDENING 2 (closes the _c5val-novel.mjs HOT-BAND live keeps): no fail-open paint clamp +
+ *     clip detection (nv-clip18), proportional >=50% band overlap (nv-graze), explicit nativeness whitelist +
+ *     rendering-leaf provenance (nv-decoyNative / nv-shortcodeSwap) — all in sectionvisual's bandLocalText
+ *     (see its header §§1-4). Enforced on the HOT band by _refine-sections-selftest.mjs TEST E.
  *  3. IDENTITY REJECTION — a candidate whose JSON equals the working tree is rejected as 'identity-no-op'
  *     WITHOUT a render (deterministic; also sidesteps joist's 422 unchanged-tree guard). The shipped 'noop'
  *     operator exercises exactly this path → zero keeps, zero renders beyond baselines.
