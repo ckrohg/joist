@@ -227,6 +227,17 @@ async function renderPass(browser, url, viewport, specs, shotPath) {
   // different line metrics → vertical shifts everywhere → FALSE FAIL_SIDE_EFFECT (seen on 3146 smoke).
   await bounded(p.evaluate(() => (document.fonts && document.fonts.ready) || true), 15000, 'fonts.ready evaluate').catch(() => {});
   await bounded(p.evaluate(() => { const st = document.createElement('style'); st.textContent = '*{animation:none!important;transition:none!important;caret-color:transparent!important}'; document.head.appendChild(st); }), 10000, 'style-inject evaluate').catch(() => {});
+  // DETERMINISTIC CHROME STATE (C r4): settle()'s long scroll history leaves JS-stickied chrome (Elementor
+  // sticky) in an arbitrary show/position state — observed on 3146: the header painted at DIFFERENT document
+  // slots in the before/after stitched shots (~19px drift → 21k px FALSE FAIL_SIDE_EFFECT on unedited header
+  // links) and was absent from one companion shot entirely (→ FALSE FAIL_INERT on a sentinel that rendered
+  // correctly). Scroll-jiggle re-fires the sticky handlers and settles at scroll-0 BEFORE the box-measure and
+  // both captures, so flags, rects and screenshots all share one deterministic state.
+  await bounded(p.evaluate(async () => {
+    const zz = (ms) => new Promise((r) => setTimeout(r, ms));
+    window.scrollTo(0, 4); window.dispatchEvent(new Event('scroll')); await zz(150);
+    window.scrollTo(0, 0); window.dispatchEvent(new Event('scroll')); await zz(400);
+  }), 15000, 'chrome scroll-reset evaluate').catch(() => {});
   await p.waitForTimeout(400);
   const info = await bounded(p.evaluate((specList) => {
     const out = { pageH: document.documentElement.scrollHeight, viewportH: window.innerHeight, boxes: {} };
@@ -262,12 +273,28 @@ async function renderPass(browser, url, viewport, specs, shotPath) {
     }
     return out;
   }, specs), 45000, 'box-info evaluate');                                    // propagate: no boxes = no usable pass
+  const hasFixed = Object.values(info.boxes).some((b) => b && b.fixed && !b.hidden);
   const buf = await p.screenshot({ fullPage: true, timeout: 60000 });
   fs.writeFileSync(shotPath, buf);
   // viewport-sized companion shot — taken ONLY when a probed element sits in fixed/sticky chrome (its pixel
   // asserts run against THIS surface at vbox viewport coords; document-coord path unchanged otherwise).
+  // vbox is RE-MEASURED here (post-reset, post-stitched-shot) so assert coords match THIS capture state.
   let pngVp = null;
-  if (Object.values(info.boxes).some((b) => b && b.fixed && !b.hidden)) {
+  if (hasFixed) {
+    const vb = await bounded(p.evaluate((specList) => {
+      const out = {};
+      for (const s of specList) {
+        const wrap = document.querySelector(`[data-id="${s.eid}"]`) || document.querySelector(`.elementor-element-${s.eid}`);
+        if (!wrap) continue;
+        let inner;
+        if (s.widgetType === 'heading') inner = wrap.querySelector('.elementor-heading-title') || wrap;
+        else { const c = wrap.querySelector('.elementor-widget-container') || wrap; inner = c.firstElementChild || c; }
+        const r = inner.getBoundingClientRect();
+        out[s.eid] = { x: r.left, y: r.top, w: r.width, h: r.height };
+      }
+      return out;
+    }, specs), 15000, 'vp re-measure evaluate').catch(() => null);
+    if (vb) for (const [eid, r] of Object.entries(vb)) { if (info.boxes[eid] && info.boxes[eid].fixed && r.w > 0 && r.h > 0) info.boxes[eid].vbox = r; }
     const vbuf = await p.screenshot({ fullPage: false, timeout: 60000 });
     fs.writeFileSync(shotPath.replace(/\.png$/, '-vp.png'), vbuf);
     pngVp = PNG.sync.read(vbuf);
