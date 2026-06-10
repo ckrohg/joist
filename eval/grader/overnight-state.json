@@ -50,9 +50,9 @@
   "stripeSentinel": "stripe.com probe (page 4770) composite 0.657 — pipeline ran clean (287 leaves, hRatio 1.029, no crash) so recipes generalize STRUCTURALLY, but: visual 0.695 (animated gradient hero / scroll carousels / live $1.9T counter = JS-animation content the static V3 builder can't author), struct 0.5 (lost 1/2 lists, 0/1 accordion, + emitted a PHANTOM form). New gaps for targeted/supervised work: (a) accordion authoring recipe; (b) block-emission PRECISION (suppress phantom blocks not in source); (c) dynamic/animated-content tail (headed-capture / motion). NOT added to gated corpus (dynamic noise).",
   "corpusNote": "BROADENED to 6 sites after round-28 generalization probe (linear 0.851, vercel 0.791 — both in-band, recipes generalize). linear=dark-theme + high-water anchor; vercel=tabs/structural stressor. NOTE: cross-round mean shifts ~0.751->~0.77 purely from adding 2 high-scoring sites (composition, NOT a fix gain). Gate compares baseline-vs-after on the SAME 6 sites each round, so within-round verdicts stay honest. directed-fix.workflow.js + discovery.workflow.js SITES updated to 6.",
   "currentRound": {
-    "name": "c-kickoff-deinline-falsifier",
+    "name": "b1-round-3-mediaid-foldblockers",
     "status": "launching",
-    "detail": "strip inline styles on a tailwind-clone SCRATCH DUPLICATE + canvas-reset custom_css + native controls; verdict = does LOOK hold AND do text/button probes flip 0%->high. Decides Workstream C commit. Priced by b1 baseline: 0.289->~0.77."
+    "detail": "kill the 4 measured fold-blockers (presence gaming, bg-div false-low, LQIP false-high, wrong-photo under-pricing) using committed attack harnesses zz-mi-attack(2).tmp.mjs; then the fold decision"
   },
   "flowAbsSurvivalUnknown": "PREREQ for the linear overlay fix (next round): the diagnostic found 0/528 live elements are position:absolute on the FLOW clone (pages 5404/5405 on sg-host) -> build-flow's EXISTING leaf-overlay abs path (build-flow.mjs ~line 771) is NOT rendering as absolute on the frontend. YET build-absolute achieves hRatio ~1.0 via abs on the SAME sg-host stack -> abs CAN work. So before/with the linear buildOverlay() fix (abs-layer the z-overlapped chart+card container children, currently flowed into a column stack = 51% of linear's page excess), RESOLVE why build-flow's abs is stripped/not-applying (diff build-flow's abs-emission vs build-absolute's working mechanism — likely different setting keys or a missing position:relative parent). Fallback if abs truly can't survive in flow: clip the over-tall chart subtree as a sized/clipped html widget to box.h (the kind:code line-282 overflow-cap recipe). Do NOT widen the z-overlay IoU gate (only 16% on tailwind; prior widening regressed coverage).",
   "barClassTokenPoison": "FUTURE LEVER (capture, from capture-markup-flow-gate screenshots): tailwindcss.com's hero code-as-art poison is NOT <div> markup — it's BARE UTILITY-CLASS TOKENS ('text-8xl text-gray-950 tracking-tighter text-balance ...') rendered inline with prose, no angle brackets so markupFrac=0. To strip: detect runs of >=2 consecutive hyphenated CSS-class identifiers (/^[a-z]+(-[a-z0-9]+)+$/) in a non-structural mono/decorative leaf + strip/raster them. Deferred behind the height-pin lever (the dominant one); revisit if tailwind perElement stays starved after height drift is fixed.",
@@ -3901,7 +3901,7 @@
           "control_edit_roundtrip_pooled": 0.794,
           "control_edit_roundtrip_mean_of_sites": 0.788
         },
-        "vsBaseline": "pooled 0.289 -> 0.794 (falsifier predicted ~0.79 — dead on); text stratum 0 -> 1.0, button 0 -> 0.818; resend hero heading FAIL_MOBILE_MASKED now PASS at 390 (probe commit 7bd7659 surface fix)",
+        "vsBaseline": "pooled 0.289 -> 0.794 (falsifier predicted ~0.79 — dead on); text stratum 0 -> 1.0, button 0 -> 0.818; resend hero heading FAIL_MOBILE_MASKED now PASS at 390 (probe commit de-inline rebuild (3ca4eca; critic-corrected attribution — no viewport companion ran on 390 legs; 7bd7659 evidence remains synthetic-only)",
         "residualFailInerts": [
           "tailwind button 'Plus' (engine 446d5506, surface viewport=sticky nav, sentinel #FF6600 vs computed rgb(0,99,150) theme-anchor blue, data_verified)",
           "resend button 'Get Started' (engine db4ae3e6, surface viewport=fixed nav, sentinel #FF6600 vs computed rgb(255,255,255), data_verified)"
@@ -3911,6 +3911,13 @@
       "look": "PASS — tailwind hero black headline+dark pill CTA correct (matches gray-950 source), supabase two-tone hero + green/white CTAs + dark footer links correct, resend white-serif-on-black hero + white/outline CTAs + gray footer links correct; NO black-text and NO new theme-blue anchors. Tailwind footer links ARE theme-blue but PROVEN pre-existing: legacy-era full-page shot (/tmp/mi-tailwind-clone.png, mtime 03:20 < commit 05:25) shows identical blue footer — known pre-existing defect per falsifier finding 3, untouched by per-leaf reset scoping",
       "cleanup": "scratch 21922/21927/21932 auto-deleted 404-verified; zz-look-shots.tmp.mjs removed post-run",
       "next": "nav-channel de-inline (kills both residual FAIL_INERTs); then mapped_panel_rate (0.84 pooled) becomes the binding term on round-trip"
+    },
+    {
+      "name": "c-round-1-verdict",
+      "date": "2026-06-10",
+      "verdict": "KEPT — de-inline corpus rollout (3ca4eca + 7bd7659 + gate d6a9c31)",
+      "detail": "control_edit_roundtrip 0.289 -> 0.794 pooled (tw .792 / sb .843 / re .729); text 12/12, button 9/11, headings 13/13; composites within noise (tw .695/sb .840/re .651); LOOK clean — no black-text/theme-blue bleed; tailwind blue footer PROVEN pre-existing. 2 residual FAIL_INERTs = nav-channel (out of scope, queued). CRITIC CORRECTION applied: resend 390 flip attributable to de-inline rebuild NOT the probe-surface fix (which remains synthetic-proven only). Process note adopted: snapshot corpus clone renders BEFORE rebuild rounds.",
+      "plateauEffect": "reset"
     }
   ],
   "phase5backlog_wave3": [
