@@ -293,12 +293,29 @@ const LAZY_SETTLE = !process.env.GRADER_NO_LAZYSETTLE;
 const SRC_CACHE_DIR = '/tmp/grade-src-cache';
 // every JSON-serializable field capture() returns (everything except the PNG `shot`, persisted alongside).
 const SRC_CACHE_FIELDS = ['texts', 'sections', 'imgs', 'blocks', 'pageH', 'textLeaves', 'bands', 'mediaLeaves', 'navStruct', 'docScrollW', 'docClientW', 'leafBoxes'];
-const srcTag = String(source).replace(/^https?:\/\//, '').replace(/[^a-z0-9]/gi, '').slice(0, 40)
-  + '-gsec' + (USE_VISIBLE_BLOCKS ? '' : '-novb') + (FORM_CLUSTER ? '' : '-nofc') + (LAZY_SETTLE ? '' : '-nols')
-  // media-identity needs `tag` on mediaLeaves entries (capture-affecting, additive) — distinct cache key so a
-  // stale tag-less cache is never served to a flagged-on run; flag-off keeps the exact legacy key + capture.
-  + (USE_MEDIAID ? '-mi' : '');
+// srcTagFor — EXPORTED (sectionvisual.mjs): the exact cache-key computation, so the band-scratch primitive reads
+// the SAME frozen source capture this grader wrote (byte-identical src crop → zero src-side divergence).
+export function srcTagFor(src) {
+  return String(src).replace(/^https?:\/\//, '').replace(/[^a-z0-9]/gi, '').slice(0, 40)
+    + '-gsec' + (USE_VISIBLE_BLOCKS ? '' : '-novb') + (FORM_CLUSTER ? '' : '-nofc') + (LAZY_SETTLE ? '' : '-nols')
+    // media-identity needs `tag` on mediaLeaves entries (capture-affecting, additive) — distinct cache key so a
+    // stale tag-less cache is never served to a flagged-on run; flag-off keeps the exact legacy key + capture.
+    + (USE_MEDIAID ? '-mi' : '');
+}
+const srcTag = srcTagFor(source);
 const refreshSource = process.argv.includes('--refresh-source');
+// loadSrcCache — EXPORTED (sectionvisual.mjs): read the frozen source capture this grader persisted (shot PNG +
+// every SRC_CACHE_FIELDS payload). Returns null when absent (caller errors with a "run grade-sections first" hint).
+export function loadSrcCache(src) {
+  const tag = srcTagFor(src);
+  const j = `${SRC_CACHE_DIR}/${tag}.json`, p = `${SRC_CACHE_DIR}/${tag}.png`;
+  if (!fs.existsSync(j) || !fs.existsSync(p)) return null;
+  const out = { shot: PNG.sync.read(fs.readFileSync(p)), srcTag: tag, files: { json: j, png: p } };
+  const meta = JSON.parse(fs.readFileSync(j, 'utf8'));
+  for (const k of SRC_CACHE_FIELDS) out[k] = meta[k];
+  return out;
+}
+export { W };
 
 // ---- pure detector helpers (geometry already in hand; NO network) ----
 const _iou = (a, b) => {
@@ -507,14 +524,14 @@ function perElementScores(srcUrl, cloneUrl, selftest) {
 const gray = (d, i) => 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
 const srgbLab = (r, g, b) => { const f = (c) => { c /= 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }; const R = f(r), G = f(g), B = f(b); const X = (R * .4124 + G * .3576 + B * .1805) / .95047, Y = R * .2126 + G * .7152 + B * .0722, Z = (R * .0193 + G * .1192 + B * .9505) / 1.08883; const g2 = (t) => t > .008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116; return [116 * g2(Y) - 16, 500 * (g2(X) - g2(Y)), 200 * (g2(Y) - g2(Z))]; };
 const dE = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
-function ssim(a, b, y0, y1) { const Wd = Math.min(a.width, b.width), win = 8, C1 = 6.5, C2 = 58.5; let tot = 0, n = 0; for (let by = y0; by + win <= y1; by += win) for (let bx = 0; bx + win <= Wd; bx += win) { let ma = 0, mb = 0; for (let y = 0; y < win; y++) for (let x = 0; x < win; x++) { const ia = ((by + y) * a.width + bx + x) * 4, ib = ((by + y) * b.width + bx + x) * 4; ma += gray(a.data, ia); mb += gray(b.data, ib); } const N = win * win; ma /= N; mb /= N; let va = 0, vb = 0, cov = 0; for (let y = 0; y < win; y++) for (let x = 0; x < win; x++) { const ia = ((by + y) * a.width + bx + x) * 4, ib = ((by + y) * b.width + bx + x) * 4; const da = gray(a.data, ia) - ma, db = gray(b.data, ib) - mb; va += da * da; vb += db * db; cov += da * db; } va /= N - 1; vb /= N - 1; cov /= N - 1; tot += ((2 * ma * mb + C1) * (2 * cov + C2)) / ((ma * ma + mb * mb + C1) * (va + vb + C2)); n++; } return n ? tot / n : 1; }
-function bandStats(a, b, y0, y1) { let ex = 0, n = 0, sde = 0; const Wd = Math.min(a.width, b.width); for (let y = y0; y < y1; y += 2) for (let x = 0; x < Wd; x += 2) { const ia = (y * a.width + x) * 4, ib = (y * b.width + x) * 4; const d = dE(srgbLab(a.data[ia], a.data[ia + 1], a.data[ia + 2]), srgbLab(b.data[ib], b.data[ib + 1], b.data[ib + 2])); if (d < 8) ex++; sde += d; n++; } return { exact: n ? ex / n : 0, meanDE: n ? sde / n : 0 }; }
+export function ssim(a, b, y0, y1) { const Wd = Math.min(a.width, b.width), win = 8, C1 = 6.5, C2 = 58.5; let tot = 0, n = 0; for (let by = y0; by + win <= y1; by += win) for (let bx = 0; bx + win <= Wd; bx += win) { let ma = 0, mb = 0; for (let y = 0; y < win; y++) for (let x = 0; x < win; x++) { const ia = ((by + y) * a.width + bx + x) * 4, ib = ((by + y) * b.width + bx + x) * 4; ma += gray(a.data, ia); mb += gray(b.data, ib); } const N = win * win; ma /= N; mb /= N; let va = 0, vb = 0, cov = 0; for (let y = 0; y < win; y++) for (let x = 0; x < win; x++) { const ia = ((by + y) * a.width + bx + x) * 4, ib = ((by + y) * b.width + bx + x) * 4; const da = gray(a.data, ia) - ma, db = gray(b.data, ib) - mb; va += da * da; vb += db * db; cov += da * db; } va /= N - 1; vb /= N - 1; cov /= N - 1; tot += ((2 * ma * mb + C1) * (2 * cov + C2)) / ((ma * ma + mb * mb + C1) * (va + vb + C2)); n++; } return n ? tot / n : 1; }
+export function bandStats(a, b, y0, y1) { let ex = 0, n = 0, sde = 0; const Wd = Math.min(a.width, b.width); for (let y = y0; y < y1; y += 2) for (let x = 0; x < Wd; x += 2) { const ia = (y * a.width + x) * 4, ib = (y * b.width + x) * 4; const d = dE(srgbLab(a.data[ia], a.data[ia + 1], a.data[ia + 2]), srgbLab(b.data[ib], b.data[ib + 1], b.data[ib + 2])); if (d < 8) ex++; sde += d; n++; } return { exact: n ? ex / n : 0, meanDE: n ? sde / n : 0 }; }
 // bandTexture — CONTENT-ENERGY of a SINGLE image's band, INDEPENDENT of the cross-SSIM. Combines normalized luma
 // variance (does the band hold a range of tones, or is it one flat color?) and edge density (mean abs horizontal+
 // vertical luma gradient → real glyphs/cards/logos produce many edges; a flat ~bg band produces ~none). Both terms
 // are normalized to ~[0,1] and averaged. A near-uniform band (flat dark/light fill ≈ page background) → energy ≈ 0;
 // a band full of text/cards/logos → energy well above the VOID_SRC_CONTENT threshold. Pure read of one shot.
-function bandTexture(img, y0, y1) {
+export function bandTexture(img, y0, y1) {
   const Wd = img.width; const step = 2;
   let sum = 0, sumSq = 0, n = 0, edge = 0, en = 0;
   for (let y = y0; y < y1; y += step) {
@@ -798,13 +815,13 @@ export function mediaIdentityBand({ srcShot, cloneShot, srcMedia, cloneMedia, y0
     leaves: { eligible: srcElig.length, identityEligible: srcElig.filter((e) => e.identityElig).length, matched, fb, wrong, missing },
   };
 }
-const norm = (s) => (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+export const norm = (s) => (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
 
 // PAGE-CLOSE RETRY — the main info-evaluate crashed once on a transient mid-capture page death (supabase
 // 2026-06-10 'Target page, context or browser has been closed'; same wedge class settleLazy was hardened for,
 // 5da79a6). One retry on a FRESH page (capture() creates its own from ctx); a second failure or any other
 // error class still throws — real infra failures must stay loud. Off-error-path behavior unchanged.
-async function captureRetry(ctx, target, withSections) {
+export async function captureRetry(ctx, target, withSections) {
   try { return await capture(ctx, target, withSections); }
   catch (e) {
     if (!/Target (page|context|browser)|page.*has been closed/i.test(String(e))) throw e;
@@ -812,7 +829,7 @@ async function captureRetry(ctx, target, withSections) {
     return await capture(ctx, target, withSections);
   }
 }
-async function capture(ctx, target, withSections) {
+export async function capture(ctx, target, withSections) {
   const p = await ctx.newPage(); await p.setViewportSize({ width: W, height: 900 });
   try { await p.goto(target, { waitUntil: 'networkidle', timeout: 60000 }); } catch { try { await p.goto(target, { waitUntil: 'load', timeout: 30000 }); } catch {} }
   await p.emulateMedia({ reducedMotion: 'reduce' }); await p.waitForTimeout(1200);
@@ -1011,6 +1028,61 @@ async function capture(ctx, target, withSections) {
   await p.close(); return { shot, texts: info.texts, sections: info.sections, imgs: info.imgs, blocks: info.blocks, pageH: info.pageH, textLeaves: info.textLeaves, bands: info.bands, mediaLeaves: info.mediaLeaves, navStruct: info.navStruct, docScrollW: info.docScrollW, docClientW: info.docClientW, leafBoxes: info.leafBoxes };
 }
 
+// perBandVisual — EXPORTED, PURE per-band visual block (extracted verbatim from the main section loop so
+// sectionvisual.mjs scores a band-scratch render through the IDENTICAL implementation — one formula, zero drift:
+// the sectionVisual tolerance selftest then measures RENDER divergence only, never formula divergence).
+// Covers: SSIM + bandStats (exact/ΔE) → visualPreVoid; band content-energies + text-guard → classifyVoid →
+// VOID_CEIL cap; band editability (unique source texts matched in the clone's joined text); rastered-text
+// detection (img-covered band where source text vanished) → 0.35 cap. Inputs are the two full-page shots +
+// the capture() text/img payloads; `H` is the caller's crop clamp (min of the two FULL-page shot heights —
+// sectionVisual must pass the FULL clone page height, not the scratch render height, for clamp parity).
+// Returns every value the main loop pushes per band (incl. visualRaw for the media-identity projected fold and
+// lostTexts for attribution). NO network, NO globals beyond module constants/flags.
+export function perBandVisual({ srcShot, cloneShot, srcTexts, cloneTexts, cloneImgs, y0, y1, H, selftest = false }) {
+  const gy1 = Math.min(H, y1); const gradable = gy1 - y0 > 8;
+  const cloneJoined = ' ' + (cloneTexts || []).map((x) => norm(x.t)).join(' | ') + ' ';
+  const inClone = (t) => cloneJoined.includes(t);
+  const s = gradable ? ssim(srcShot, cloneShot, y0, gy1) : 0;
+  const px = gradable ? bandStats(srcShot, cloneShot, y0, gy1) : { exact: 0, meanDE: 99 };
+  const visualPreVoid = +(0.5 * s + 0.5 * px.exact).toFixed(3);
+  // CONTENT-VOID detection (inside the visual term; reversible GRADER_NO_VOID_PENALTY=1). Measure each side's
+  // band CONTENT ENERGY independently. SELFTEST (clone==source) → identical energies → void impossible → no-op.
+  const srcTex = (DET_VOIDPENALTY && gradable) ? bandTexture(srcShot, y0, gy1) : { energy: 0, varNorm: 0, edgeNorm: 0 };
+  const cloneTex = (DET_VOIDPENALTY && gradable) ? (selftest ? srcTex : bandTexture(cloneShot, y0, gy1)) : { energy: 0, varNorm: 0, edgeNorm: 0 };
+  // A band is a CONTENT-VOID iff the SOURCE has substantial content AND the CLONE collapsed to near-background
+  // (clone energy a small FRACTION of the source's AND below an absolute near-uniform floor) — UNLESS the
+  // TEXT-GUARD finds the clone actually reproduced this band's source text (a dark + sparse-bright headline the
+  // clone DID render → not a void; see classifyVoid + the VOID_TEXTGUARD note). We compute "reproduced" from the
+  // band's own source texts: it requires the source band to HAVE text and the clone to carry a meaningful share of
+  // it both in the matched-text set (inClone) AND as text leaves physically inside the clone band (not page-wide).
+  const bandSrcTexts = (DET_VOIDPENALTY && gradable && !selftest) ? [...new Set(srcTexts.filter((t) => t.y >= y0 && t.y < gy1 && norm(t.t).length >= 4).map((t) => norm(t.t)))] : [];
+  const bandMatched = bandSrcTexts.filter(inClone).length;
+  const cloneLeavesInBand = (DET_VOIDPENALTY && gradable && !selftest) ? cloneTexts.filter((t) => t.y >= y0 && t.y < gy1 && norm(t.t).length >= 4).length : 0;
+  const cloneReproducedBandText = bandSrcTexts.length >= 1 && bandMatched >= Math.max(1, Math.ceil(bandSrcTexts.length * 0.5)) && cloneLeavesInBand >= 1;
+  const isVoid = DET_VOIDPENALTY && gradable && classifyVoid({ srcEnergy: srcTex.energy, cloneEnergy: cloneTex.energy, cloneReproducedBandText, selftest, textGuard: VOID_TEXTGUARD });
+  // A confirmed void is forced to a LOW ceiling so it scores clearly below a content-bearing band. Because the
+  // condition keys on the CLONE's own texture being near-bg, a clone that DID render content (high clone texture)
+  // is never a void → never capped → presence always scores ≥ a void.
+  const visualRaw = isVoid ? +Math.min(visualPreVoid, VOID_CEIL).toFixed(3) : visualPreVoid;
+  const secTexts = srcTexts.filter((t) => t.y >= y0 && t.y < y1 && norm(t.t).length >= 4).map((t) => norm(t.t));
+  const uniq = [...new Set(secTexts)];
+  const matched = uniq.filter(inClone).length;
+  const editability = uniq.length ? +(matched / uniq.length).toFixed(3) : 1; // image-only section → editability n/a (1)
+  // REBUILD-HONESTY: a clone section that's IMAGE-covered while the SOURCE there is TEXT = text baked into a
+  // screenshot (gaming visual). Strip its visual credit so rastering text is a LOSING move. (Images/logos
+  // where the source is genuinely an image → no penalty; that's allowed.)
+  const cloneTextHere = (cloneTexts || []).filter((t) => t.y >= y0 && t.y < y1).length;
+  let imgArea = 0; for (const im of (cloneImgs || [])) { const ov = Math.min(y1, im.y1) - Math.max(y0, im.y0); if (ov > 0) imgArea += ov * im.w; }
+  const imgCover = (y1 > y0) ? imgArea / (W * (y1 - y0)) : 0;
+  const rasteredText = uniq.length >= 4 && cloneTextHere < uniq.length * 0.3 && imgCover > 0.5;
+  const visual = rasteredText ? Math.min(visualRaw, 0.35) : visualRaw;
+  return {
+    gradable, gy1, visual, visualRaw, visualPreVoid, ssim: s, exact: px.exact, meanDE: px.meanDE,
+    contentVoid: isVoid, rasteredText, srcEnergy: srcTex.energy, cloneEnergy: cloneTex.energy,
+    editability, srcTextCount: uniq.length, lostTexts: uniq.filter((t) => !inClone(t)),
+  };
+}
+
 if (IS_MAIN) (async () => {
   const browser = await chromium.launch({ args: ['--disable-blink-features=AutomationControlled'] });
   const ctx = await browser.newContext({ viewport: { width: W, height: 900 }, deviceScaleFactor: 1 });
@@ -1036,8 +1108,6 @@ if (IS_MAIN) (async () => {
   const hRatio = cln.shot.height / src.shot.height;
   const bounds = [...src.sections.filter((y) => y < src.pageH), src.pageH];
   const layoutTexts = (() => { if (!layoutPath) return null; try { const L = JSON.parse(fs.readFileSync(layoutPath, 'utf8')); const out = []; const w = (n) => { if (!n) return; if (n.kind === 'container') (n.children || []).forEach(w); else if (n.text) out.push(norm(n.text)); }; w(L.root); return ' ' + out.join(' | ') + ' '; } catch { return null; } })();
-  const cloneJoined = ' ' + cln.texts.map((x) => norm(x.t)).join(' | ') + ' ';
-  const inClone = (t) => cloneJoined.includes(t);
   const inLayout = (t) => layoutTexts && layoutTexts.includes(t);
 
   const H = Math.min(src.shot.height, cln.shot.height);
@@ -1045,41 +1115,11 @@ if (IS_MAIN) (async () => {
   const miBands = []; // MEDIA-IDENTITY per-band records (1:1 with sections.push when USE_MEDIAID)
   for (let i = 0; i < bounds.length - 1; i++) {
     const y0 = bounds[i], y1 = bounds[i + 1]; if (y1 - y0 < 20) continue;
-    const gy1 = Math.min(H, y1); const gradable = gy1 - y0 > 8;
-    const s = gradable ? ssim(src.shot, cln.shot, y0, gy1) : 0;
-    const px = gradable ? bandStats(src.shot, cln.shot, y0, gy1) : { exact: 0, meanDE: 99 };
-    const visualPreVoid = +(0.5 * s + 0.5 * px.exact).toFixed(3);
-    // CONTENT-VOID detection (inside the visual term; reversible GRADER_NO_VOID_PENALTY=1). Measure each side's
-    // band CONTENT ENERGY independently. SELFTEST (clone==source) → identical energies → void impossible → no-op.
-    const srcTex = (DET_VOIDPENALTY && gradable) ? bandTexture(src.shot, y0, gy1) : { energy: 0, varNorm: 0, edgeNorm: 0 };
-    const cloneTex = (DET_VOIDPENALTY && gradable) ? (SELFTEST ? srcTex : bandTexture(cln.shot, y0, gy1)) : { energy: 0, varNorm: 0, edgeNorm: 0 };
-    // A band is a CONTENT-VOID iff the SOURCE has substantial content AND the CLONE collapsed to near-background
-    // (clone energy a small FRACTION of the source's AND below an absolute near-uniform floor) — UNLESS the
-    // TEXT-GUARD finds the clone actually reproduced this band's source text (a dark + sparse-bright headline the
-    // clone DID render → not a void; see classifyVoid + the VOID_TEXTGUARD note). We compute "reproduced" from the
-    // band's own source texts: it requires the source band to HAVE text and the clone to carry a meaningful share of
-    // it both in the matched-text set (inClone) AND as text leaves physically inside the clone band (not page-wide).
-    const bandSrcTexts = (DET_VOIDPENALTY && gradable && !SELFTEST) ? [...new Set(src.texts.filter((t) => t.y >= y0 && t.y < gy1 && norm(t.t).length >= 4).map((t) => norm(t.t)))] : [];
-    const bandMatched = bandSrcTexts.filter(inClone).length;
-    const cloneLeavesInBand = (DET_VOIDPENALTY && gradable && !SELFTEST) ? cln.texts.filter((t) => t.y >= y0 && t.y < gy1 && norm(t.t).length >= 4).length : 0;
-    const cloneReproducedBandText = bandSrcTexts.length >= 1 && bandMatched >= Math.max(1, Math.ceil(bandSrcTexts.length * 0.5)) && cloneLeavesInBand >= 1;
-    const isVoid = DET_VOIDPENALTY && gradable && classifyVoid({ srcEnergy: srcTex.energy, cloneEnergy: cloneTex.energy, cloneReproducedBandText, selftest: SELFTEST, textGuard: VOID_TEXTGUARD });
-    // A confirmed void is forced to a LOW ceiling so it scores clearly below a content-bearing band. Because the
-    // condition keys on the CLONE's own texture being near-bg, a clone that DID render content (high clone texture)
-    // is never a void → never capped → presence always scores ≥ a void.
-    const visualRaw = isVoid ? +Math.min(visualPreVoid, VOID_CEIL).toFixed(3) : visualPreVoid;
-    const secTexts = src.texts.filter((t) => t.y >= y0 && t.y < y1 && norm(t.t).length >= 4).map((t) => norm(t.t));
-    const uniq = [...new Set(secTexts)];
-    const matched = uniq.filter(inClone).length;
-    const editability = uniq.length ? +(matched / uniq.length).toFixed(3) : 1; // image-only section → editability n/a (1)
-    // REBUILD-HONESTY: a clone section that's IMAGE-covered while the SOURCE there is TEXT = text baked into a
-    // screenshot (gaming visual). Strip its visual credit so rastering text is a LOSING move. (Images/logos
-    // where the source is genuinely an image → no penalty; that's allowed.)
-    const cloneTextHere = cln.texts.filter((t) => t.y >= y0 && t.y < y1).length;
-    let imgArea = 0; for (const im of (cln.imgs || [])) { const ov = Math.min(y1, im.y1) - Math.max(y0, im.y0); if (ov > 0) imgArea += ov * im.w; }
-    const imgCover = (y1 > y0) ? imgArea / (W * (y1 - y0)) : 0;
-    const rasteredText = uniq.length >= 4 && cloneTextHere < uniq.length * 0.3 && imgCover > 0.5;
-    const visual = rasteredText ? Math.min(visualRaw, 0.35) : visualRaw;
+    // Per-band visual/void/rastered/editability live in the EXPORTED pure perBandVisual (shared verbatim with
+    // sectionvisual.mjs — one implementation, zero formula drift; see the function's header above).
+    const pb = perBandVisual({ srcShot: src.shot, cloneShot: cln.shot, srcTexts: src.texts, cloneTexts: cln.texts, cloneImgs: cln.imgs, y0, y1, H, selftest: SELFTEST });
+    const { gradable, visual, visualRaw, visualPreVoid, contentVoid: isVoid, rasteredText, editability, srcTextCount, lostTexts } = pb;
+    const gy1 = pb.gy1, px = { exact: pb.exact, meanDE: pb.meanDE }, srcTex = { energy: pb.srcEnergy }, cloneTex = { energy: pb.cloneEnergy };
     // ---- MEDIA-IDENTITY DIM (REPORT-ONLY this round; reversible GRADER_NO_MEDIAID=1; see flag block). Pure
     // pixels over the two shots + mediaLeaves geometry already in hand — no extra render/navigation/network.
     // Does NOT touch visual/composite; the would-be round-3 fold is computed here per band (visualRaw ×
@@ -1098,12 +1138,12 @@ if (IS_MAIN) (async () => {
     const fails = []; const why = [];
     if (rasteredText) { fails.push('visual'); why.push('rastered-text-cheat'); }
     if (isVoid) { fails.push('visual'); why.push('content-void'); }
-    if (editability < TGT.editability && uniq.length) { fails.push('editability'); const lost = uniq.filter((t) => !inClone(t)); const capLost = layoutTexts ? lost.filter((t) => !inLayout(t)).length : null; why.push(layoutTexts ? (capLost > lost.length / 2 ? 'capture-lost-text' : 'build-lost-text') : 'missing-text'); }
+    if (editability < TGT.editability && srcTextCount) { fails.push('editability'); const lost = lostTexts; const capLost = layoutTexts ? lost.filter((t) => !inLayout(t)).length : null; why.push(layoutTexts ? (capLost > lost.length / 2 ? 'capture-lost-text' : 'build-lost-text') : 'missing-text'); }
     if (visual < TGT.visual && !rasteredText && !isVoid) { fails.push('visual'); if (px.meanDE > 12) why.push('color/background'); else if (editability >= TGT.editability) why.push('font/geometry'); else why.push('visual-degraded'); }
     const verdict = fails.length === 0 ? 'pass' : 'fail';
     const areaFrac = (y1 - y0) / src.pageH;
     const severity = +(((1 - Math.min(visual, editability))) * (0.5 + areaFrac)).toFixed(3);
-    sections.push({ idx: i, y0, y1, visual, editability, srcTextCount: uniq.length, rasteredText, contentVoid: isVoid, srcEnergy: srcTex.energy, cloneEnergy: cloneTex.energy, visualPreVoid, meanDE: +px.meanDE.toFixed(1), verdict, fails: [...new Set(fails)], why: [...new Set(why)], severity, example: uniq.filter((t) => !inClone(t))[0]?.slice(0, 50), ...(USE_MEDIAID ? { mediaIdentity: mi ? mi.score : null, mediaPresence: mi ? mi.presence : null, srcMediaArea: mi ? mi.srcMediaArea : 0, mediaMissing: mi ? mi.leaves.missing : 0, mediaWrong: mi ? mi.leaves.wrong : 0 } : {}) });
+    sections.push({ idx: i, y0, y1, visual, editability, srcTextCount, rasteredText, contentVoid: isVoid, srcEnergy: srcTex.energy, cloneEnergy: cloneTex.energy, visualPreVoid, meanDE: +px.meanDE.toFixed(1), verdict, fails: [...new Set(fails)], why: [...new Set(why)], severity, example: lostTexts[0]?.slice(0, 50), ...(USE_MEDIAID ? { mediaIdentity: mi ? mi.score : null, mediaPresence: mi ? mi.presence : null, srcMediaArea: mi ? mi.srcMediaArea : 0, mediaMissing: mi ? mi.leaves.missing : 0, mediaWrong: mi ? mi.leaves.wrong : 0 } : {}) });
   }
   const mean = (f) => sections.length ? +(sections.reduce((a, s) => a + f(s), 0) / sections.length).toFixed(3) : 0;
   const failing = sections.filter((s) => s.verdict === 'fail').sort((a, b) => b.severity - a.severity);
