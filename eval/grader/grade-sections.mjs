@@ -174,6 +174,39 @@ const USE_VISIBLE_BLOCKS = !process.env.GRADER_NO_VISIBLE_BLOCKS;
 // a clone that drops a real form still scores the miss). Reversible: GRADER_NO_FORM_CLUSTER=1 → old page-wide >=2.
 const FORM_CLUSTER = !process.env.GRADER_NO_FORM_CLUSTER;
 
+// ---- SOURCE-CAPTURE CACHE (ported from grade-structure.mjs:247-274, same key/location discipline) ----
+// The clone (our static WP page) is deterministic, but the SOURCE (a live, often dynamic site) re-renders
+// run-to-run, injecting ±0.08 noise into the SSIM/visual term — the refine objective re-screenshotted the live
+// source EVERY run. Freezing the source reference makes the section-level objective reproducible AND faster.
+// Same dir + URL-keyed tag as grade-structure (/tmp/grade-src-cache) but a DISTINCT '-gsec' suffix: the two
+// scripts extract DIFFERENT capture payloads and must never share a cached source (a grade-structure cache
+// would silently miss sections/blocks/leafBoxes). Capture-affecting mode flags (visible-blocks / form-cluster
+// hardening) fold into the tag so a flagged run never reads a cache written under a different capture mode
+// (mirrors grade-structure's '-lt' per-mode discipline). SOURCE side only — the clone capture stays FRESH.
+// SELFTEST always captures live (its job is to exercise the real capture path, not a frozen file).
+// Default ON. Reversible: GRADER_NO_SRCCACHE=1 → byte-identical legacy path (fresh live capture, no cache
+// read OR write). --refresh-source forces a live re-capture (and rewrites the cache).
+// HONEST SCOPE: this freezes ONLY grade-sections' own capture() — the perElement and responsive sub-scores
+// are subprocesses (perelement-score.mjs / grade-responsive.mjs) that still capture the live source themselves
+// each run; determinism is scoped to the SSIM half of the visual term + editability/structural/hRatio/detectors.
+const USE_SRCCACHE = !process.env.GRADER_NO_SRCCACHE;
+// ---- LAZY-IMAGE SETTLE (the OTHER half of the refine-noise) ----
+// With the source frozen by the cache, two consecutive tailwind runs STILL swung the per-band visual by up to
+// 0.46/band (measured 2026-06-09: §18 cloneEnergy 0 → false content-void in one run, 0.218 → real content in the
+// next): the CLONE screenshot races below-fold lazy-image paint. Same failure grade-vision-tiles fixed with
+// settleLazy (vision_tiler_lazyload_falsevoid, KEPT). Port the bounded settle here (inlined — grade-vision-tiles'
+// export is uncommitted in this worktree): after the scroll pass, wait (≤8s) for in-DOM images to complete and
+// force-decode them so the shot is taken in the PAINTED state. Applied to BOTH sides via the shared capture()
+// (symmetric → selftest unaffected; the cached source benefits when refreshed). Additive + bounded; never throws.
+// Reversible: GRADER_NO_LAZYSETTLE=1 → byte-identical legacy capture (settle skipped entirely).
+const LAZY_SETTLE = !process.env.GRADER_NO_LAZYSETTLE;
+const SRC_CACHE_DIR = '/tmp/grade-src-cache';
+// every JSON-serializable field capture() returns (everything except the PNG `shot`, persisted alongside).
+const SRC_CACHE_FIELDS = ['texts', 'sections', 'imgs', 'blocks', 'pageH', 'textLeaves', 'bands', 'mediaLeaves', 'navStruct', 'docScrollW', 'docClientW', 'leafBoxes'];
+const srcTag = String(source).replace(/^https?:\/\//, '').replace(/[^a-z0-9]/gi, '').slice(0, 40)
+  + '-gsec' + (USE_VISIBLE_BLOCKS ? '' : '-novb') + (FORM_CLUSTER ? '' : '-nofc');
+const refreshSource = process.argv.includes('--refresh-source');
+
 // ---- pure detector helpers (geometry already in hand; NO network) ----
 const _iou = (a, b) => {
   const ix = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
@@ -418,6 +451,18 @@ async function capture(ctx, target, withSections) {
   await p.evaluate(async () => { const h = document.documentElement.scrollHeight; for (let y = 0; y <= h; y += 600) { window.scrollTo(0, y); await new Promise(r => setTimeout(r, 180)); } window.scrollTo(0, 0); });
   try { await p.waitForLoadState('networkidle', { timeout: 8000 }); } catch {}
   await p.waitForTimeout(700);
+  if (LAZY_SETTLE) {
+    // LAZY-IMAGE SETTLE (reversible GRADER_NO_LAZYSETTLE=1; see flag block above): bounded wait for in-DOM
+    // images to complete + force-decode, so the full-page shot can't race below-fold lazy paint. Never throws.
+    await p.evaluate(async () => {
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      const pending = () => [...document.images].filter((im) => !(im.complete && im.naturalWidth > 0));
+      const deadline = Date.now() + 8000;
+      while (pending().length && Date.now() < deadline) await sleep(150);
+      await Promise.all([...document.images].slice(0, 500).map((im) => im.decode && im.decode().catch(() => {})));
+    }).catch(() => {});
+    await p.waitForTimeout(300).catch(() => {});
+  }
   const info = await p.evaluate(({ vw, withSections, useVisibleBlocks, formCluster }) => {
     const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
     const vis = (el) => { const r = el.getBoundingClientRect(); if (!r.width || !r.height) return false; const cs = getComputedStyle(el); return !(cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity < 0.05); };
@@ -596,7 +641,21 @@ if (IS_MAIN) (async () => {
   const browser = await chromium.launch({ args: ['--disable-blink-features=AutomationControlled'] });
   const ctx = await browser.newContext({ viewport: { width: W, height: 900 }, deviceScaleFactor: 1 });
   await ctx.addInitScript(() => { Object.defineProperty(navigator, 'webdriver', { get: () => undefined }); });
-  const src = await capture(ctx, source, true);
+  // SOURCE side: cached when possible (see SOURCE-CAPTURE CACHE block above). GRADER_NO_SRCCACHE=1 → the
+  // exact legacy path (live capture, no cache read OR write). SELFTEST always live. Clone side ALWAYS fresh.
+  let src;
+  const srcCacheJson = `${SRC_CACHE_DIR}/${srcTag}.json`, srcCachePng = `${SRC_CACHE_DIR}/${srcTag}.png`;
+  const canCache = USE_SRCCACHE && !SELFTEST && /^https?:/.test(source);
+  if (canCache && fs.existsSync(srcCacheJson) && fs.existsSync(srcCachePng) && !refreshSource) {
+    const meta = JSON.parse(fs.readFileSync(srcCacheJson, 'utf8'));
+    src = { shot: PNG.sync.read(fs.readFileSync(srcCachePng)) };
+    for (const k of SRC_CACHE_FIELDS) src[k] = meta[k];
+  } else {
+    src = await capture(ctx, source, true);
+    if (canCache) { // persist the fresh source capture for deterministic future grades
+      try { fs.mkdirSync(SRC_CACHE_DIR, { recursive: true }); fs.writeFileSync(srcCachePng, PNG.sync.write(src.shot)); const meta = {}; for (const k of SRC_CACHE_FIELDS) meta[k] = src[k]; fs.writeFileSync(srcCacheJson, JSON.stringify(meta)); } catch {}
+    }
+  }
   const cln = SELFTEST ? src : await capture(ctx, clone, false);
   await browser.close();
 
