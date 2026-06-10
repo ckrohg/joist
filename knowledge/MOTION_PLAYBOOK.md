@@ -140,7 +140,7 @@ For each effect, the implementation path:
 
 - **Free V3 CSS:** use widget-level custom_css field. See `CUSTOM_CSS_INJECTION_FOR_ELEMENTOR.md` for the exact snippet per effect.
 - **Pro Motion Effects:** set the motion_fx_* keys in widget settings JSON. See `ELEMENTOR_PRO_MOTION_EFFECTS.md` for exact key names.
-- **JS library:** add an html widget with the library's CDN load + init template. See `THIRD_PARTY_MOTION_LIBRARIES.md` for the elementor/frontend/init-aware template per library.
+- **JS library (corrected 2026-06-09):** GSAP/ScrollTrigger/SplitText/Lenis are VENDORED in the Joist plugin (`plugin/assets/widget-pack/motion/vendor/`) and `wp_enqueue_script`'d in dependency order by `plugin/src/WidgetPack/Motion/Emitter.php` (handles `joist-gsap` → `joist-scrolltrigger` → harness, footer-loaded, WP Rocket delay-JS excluded) — NOT loaded via a CDN `<script>` tag in an html widget (that path is refuted; see "Delivery method" above). Only the scoped init JS is emitted into the page. For OTHER libraries not yet vendored, see `THIRD_PARTY_MOTION_LIBRARIES.md` for the elementor/frontend/init-aware template per library — but prefer the vendored-enqueue pattern.
 
 Always add `@media (prefers-reduced-motion: reduce) { ... }` overrides — accessibility table-stakes.
 

@@ -48,13 +48,13 @@ import { emitDesignMd } from './designmd.mjs';
 const USE_SPEC = process.env.JOIST_SECTIONSPEC === '1';
 let SPEC = null;
 
-// STRUCT_SEMANTIC (default OFF ⇒ byte-identical build). When STRUCT_SEMANTIC=1, each TOP-LEVEL structural container
+// STRUCT_SEMANTIC (default ON since promotion — corrected 2026-06-09; opt out STRUCT_NO_SEMANTIC=1 or STRUCT_LEGACY=1 ⇒ byte-identical legacy build). When on, each TOP-LEVEL structural container
 // carries an Elementor HTML-Tag (`html_tag`) set from its STRUCTURAL ROLE so the page renders real HTML5 landmarks:
 // the nav band → <nav>, each per-section full-width container (#sec-N) → <section>, the footer container → <footer>,
 // and the page ROOT container → <main>. CONFIRMED on this 4.0.9 stack (page 12446 live probe): `html_tag` survives
 // the Joist save + kses intact and Elementor renders the real semantic tag on the container element (e.g.
 // <nav class="e-con … " id="clone-header">). Inner/boxed wrappers + widgets are UNTOUCHED (stay div/default). The
-// key is additive: with STRUCT_SEMANTIC unset (or STRUCT_LEGACY=1) no html_tag is ever emitted ⇒ byte-identical OFF.
+// key is additive: with STRUCT_NO_SEMANTIC=1 (or STRUCT_LEGACY=1) no html_tag is ever emitted ⇒ byte-identical OFF.
 const SEMANTIC = process.env.STRUCT_LEGACY !== '1' && process.env.STRUCT_NO_SEMANTIC !== '1'; // default ON. STRUCT_LEGACY=1 or STRUCT_NO_SEMANTIC=1 ⇒ byte-identical legacy path. Semantic HTML5 landmarks (nav/section/footer/main) for SEO/a11y/round-trip editability.
 // semTag(role) → { html_tag } when SEMANTIC is on, else {} (so a `...semTag(...)` spread is a no-op when OFF).
 const semTag = (role) => SEMANTIC ? { html_tag: role } : {};
@@ -577,14 +577,14 @@ const NATIVE = { headings: 0, buttons: 0, images: 0 };
 // captured-box size cap on the native image widget so it never paints intrinsic/full (the 6.057x-height bug).
 const NATIVEIMG_CSS = [];
 let _nimgSeq = 0;
-// STRUCT_IMGFIT (default OFF ⇒ byte-identical) — SOURCE-CLIP image clamp. The native-image cap above pins max-height
+// STRUCT_IMGFIT (default ON since promotion — corrected 2026-06-09; opt out STRUCT_NO_IMGFIT=1 or STRUCT_LEGACY=1 ⇒ byte-identical) — SOURCE-CLIP image clamp. The native-image cap above pins max-height
 // to the CAPTURED box height (recipe #33 size). But some sections show a DOMINANT image whose captured box is far
 // TALLER than the section band the source paints it into — the source CLIPS/scales it to the visible band crop (e.g.
 // supabase #8: a 620px-tall mockup inside a 261px band; the source shows only ~150px of it). The contain-to-620 cap
 // then renders it full-height and the section balloons (hRatio 3.3). IMGFIT lets buildSection register an OVERRIDE
 // max-height (the available band height) for that one leaf, keyed by the resolved leaf object; nativeImageWidget then
 // emits max-height:<availH> + object-fit:COVER (fill+crop, matching the source clip) instead of contain-to-capturedH.
-// REVERSIBILITY: with IMGFIT unset the map is never populated, so every nativeImageWidget takes the unchanged path.
+// REVERSIBILITY: with IMGFIT disabled (STRUCT_NO_IMGFIT=1) the map is never populated, so every nativeImageWidget takes the unchanged path.
 const IMGFIT = process.env.STRUCT_LEGACY !== '1' && process.env.STRUCT_NO_IMGFIT !== '1';
 const IMGFIT_CLAMP = new Map();   // resolved-leaf object → clamped available band height (px)
 const IMGFITSTATS = { clamped: 0 };
@@ -673,7 +673,7 @@ function leafWidget(n) {
     const cc = colorCss(n);
     const items = (n.items || []).map((it) => { const t = stripEmoji(it.text); if (!t) return ''; return `<li>${it.href ? `<a href="${esc(it.href)}"${styleAttr(cc)}>${esc(t)}</a>` : esc(t)}</li>`; }).filter(Boolean).join('');
     if (!items) return null; const tagName = n.ordered ? 'ol' : 'ul';
-    // STRUCT_LINKCOLS (default OFF) — a LONG BARE-ANCHOR index list (≥8 short anchors, ≥80% with href) renders as a
+    // STRUCT_LINKCOLS (default ON since promotion — corrected 2026-06-09; opt out STRUCT_NO_LINKCOLS=1) — a LONG BARE-ANCHOR index list (≥8 short anchors, ≥80% with href) renders as a
     // CSS MULTI-COLUMN block so it occupies the SAME compact band the source <ul> did (basecamp footer: 27 anchors in
     // ~6 columns @143px) instead of stacking 1-per-row into a tall single column (the +743px footer inflator). The
     // scoped #linkcols-N{columns:<colW>px;column-gap:32px} rule auto-flows the <li> anchors into as many columns as
@@ -858,7 +858,7 @@ function clusterRows(members) {
 const GRIDFIX = process.env.STRUCT_LEGACY !== '1' && process.env.STRUCT_NO_GRIDFIX !== '1'; // default ON. STRUCT_LEGACY=1 or STRUCT_NO_GRIDFIX=1 ⇒ byte-identical legacy path. Recovers dense mixed-size card grids.
 function rowColumns(rowMembers, sectionW) {
   const sw = Math.max(1, sectionW || VW);
-  // GRIDFIX (default OFF) — dense MIXED-SIZE card grids (a feature grid of icon+heading+body cells beside WIDE
+  // GRIDFIX (default ON since promotion — corrected 2026-06-09; opt out STRUCT_NO_GRIDFIX=1) — dense MIXED-SIZE card grids (a feature grid of icon+heading+body cells beside WIDE
   // mockups/screenshots) collapse to ONE column under the naive x-overlap merge below: the wide media overlaps the
   // narrow text columns AND each other, chaining everything into a single column → RAM-grid can't qualify (<2 cells)
   // → the section becomes a tall full-width vertical stack (the measured supabase root cause: heightRatio 2.05).
@@ -1045,7 +1045,7 @@ let _ramId = 0; const idCounter = () => (++_ramId);
 const NO_RAMGRID = process.env.STRUCT_NO_RAMGRID === '1' || process.env.FLOW_NO_RAMGRID === '1';
 
 // ===========================================================================
-// STRUCT_BENTOGRID (default OFF ⇒ byte-identical) — TILE-BENTO recipe. THE DOMINANT CLONE RESIDUAL: a dense
+// STRUCT_BENTOGRID (default ON since promotion — corrected 2026-06-09; opt out STRUCT_NO_BENTOGRID=1 or STRUCT_LEGACY=1 ⇒ byte-identical) — TILE-BENTO recipe. THE DOMINANT CLONE RESIDUAL: a dense
 // feature-BENTO section (an N-col × M-row tile grid of icon/heading/body/mockup cells) stacks TALL under the
 // clusterRows→rowColumns→flex path: the wide media in one tile overlaps the narrow text columns, chaining the row
 // X-cluster into a single column, so each TILE stacks vertically and the M source rows render as one tall column
@@ -1059,7 +1059,7 @@ const NO_RAMGRID = process.env.STRUCT_NO_RAMGRID === '1' || process.env.FLOW_NO_
 // pitch, e.g. supabase's Postgres tile) gets grid-column:span 2. Track = auto-fit minmax(min(<colpitch>px,100%),1fr)
 // so it reflows N→1 on narrow (no media query, no h-scroll — the min(...,100%) guard caps every track to the
 // container). A hero/cta (no tile grid) or a single-ROW feature row (M=1, the RAM-grid case) NEVER qualifies.
-// REVERSIBILITY: STRUCT_BENTOGRID unset ⇒ buildSection takes the unchanged clusterRows path → byte-identical.
+// REVERSIBILITY: STRUCT_NO_BENTOGRID=1 ⇒ buildSection takes the unchanged clusterRows path → byte-identical.
 const BENTOGRID = process.env.STRUCT_LEGACY !== '1' && process.env.STRUCT_NO_BENTOGRID !== '1';
 const BENTOSTATS = { sections: 0, tiles: 0 };
 const BENTO_HEAD_TOL = 28;     // x/y snap tolerance for clustering heading anchors into column/row anchors
@@ -1250,7 +1250,7 @@ function buildBentoGrid(det, members, sectionW, ctaCtx) {
 }
 
 // ===========================================================================
-// STRUCT_CARDWALL (default OFF ⇒ byte-identical) — HEADING-LESS MASONRY CARD-WALL recipe. A dense, heading-light
+// STRUCT_CARDWALL (default ON since promotion — corrected 2026-06-09; opt out STRUCT_NO_CARDWALL=1 or STRUCT_LEGACY=1 ⇒ byte-identical) — HEADING-LESS MASONRY CARD-WALL recipe. A dense, heading-light
 // wall of many comparable-WIDTH cards laid out at regularly-pitched x-anchors (supabase #9: 14 cards across the
 // "Build in a weekend / Scale to billions" feature wall; #10: 6 cards). Under the clusterRows→rowColumns→flex path
 // these stack TALL (#9 hRatio 1.60, #10 1.46) because a wide member chains the x-cluster into one column. THE FIX:
@@ -1261,7 +1261,7 @@ function buildBentoGrid(det, members, sectionW, ctaCtx) {
 // A full-bleed member (≥85% section width, e.g. #9's mockup backdrop) is EXCLUDED from the card set and instead
 // rendered BEHIND the cards via the scoped custom_css background-image channel (#<secId>{background-image:url(...)}),
 // the SAME kses-safe channel as RAMCSS/COLWCSS/LINKCOLS — the element-tree background_image setting is kses-STRIPPED
-// on this 4.0.9 stack, but custom_css is not. REVERSIBILITY: STRUCT_CARDWALL unset ⇒ buildSection takes the unchanged
+// on this 4.0.9 stack, but custom_css is not. REVERSIBILITY: STRUCT_NO_CARDWALL=1 ⇒ buildSection takes the unchanged
 // path → byte-identical.
 const CARDWALL = process.env.STRUCT_LEGACY !== '1' && process.env.STRUCT_NO_CARDWALL !== '1';
 const CARDWALLCSS = []; // scoped #cardwall-N{columns:<pitch>px;column-gap} + #cardwall-N>*{break-inside:avoid} + #<secId>{background-image:…} rules, injected page-wide via custom_css.
@@ -1382,7 +1382,7 @@ function buildCardwall(det, sectionW, ctaCtx) {
 }
 
 // ===========================================================================
-// STRUCT_IRREGBENTO (default OFF ⇒ byte-identical) — IRREGULAR IMAGE-MOSAIC recipe. The genuinely-irregular cousin
+// STRUCT_IRREGBENTO (default ON since promotion — corrected 2026-06-09; opt out STRUCT_NO_IRREGBENTO=1 or STRUCT_LEGACY=1 ⇒ byte-identical) — IRREGULAR IMAGE-MOSAIC recipe. The genuinely-irregular cousin
 // of BENTOGRID/CARDWALL that NEITHER claims: a designed customer-stories / logo-mosaic / case-study collage of media
 // cards laid out across columns with VARYING cell sizes + spans on a COARSE grid (supabase #4: gcv≈0.47, +292px,
 // hRatio 1.31 — the largest remaining residual). BENTOGRID requires ≥4 tile HEADINGS (this mosaic has 1); CARDWALL
@@ -1397,7 +1397,7 @@ function buildCardwall(det, sectionW, ctaCtx) {
 // repeat(auto-fit, minmax(min(<pitch>px,100%),1fr)) — the SAME kses-safe channel as BENTOGRID/RAM-grid. The
 // min(...,100%) inner guard caps every track to the container so a source-clipped carousel item that overflows past
 // the viewport (supabase #4 has caption right-edges at x1≈1681) is CONTAINED, never a fixed-px width → no h-scroll.
-// REVERSIBILITY: STRUCT_IRREGBENTO unset (and under STRUCT_LEGACY=1) ⇒ buildSection never calls this → byte-identical.
+// REVERSIBILITY: STRUCT_NO_IRREGBENTO=1 (or STRUCT_LEGACY=1) ⇒ buildSection never calls this → byte-identical.
 const IRREGBENTO = process.env.STRUCT_LEGACY !== '1' && process.env.STRUCT_NO_IRREGBENTO !== '1'; // default ON. STRUCT_LEGACY=1 or STRUCT_NO_IRREGBENTO=1 ⇒ byte-identical legacy path. Packs irregular image-mosaics via CSS grid (no absolute, no h-scroll).
 const IRREGBENTOSTATS = { sections: 0, cols: 0 };
 const IRREG_COL_TOL = 40;          // x-start snap tolerance for clustering members into column anchors
@@ -1517,7 +1517,7 @@ function buildIrregBento(det, sectionW, ctaCtx) {
 }
 
 // ===========================================================================
-// STRUCT_LINKCOLS (default OFF ⇒ byte-identical) — CSS MULTI-COLUMN recipe for LONG BARE-ANCHOR LINK LISTS
+// STRUCT_LINKCOLS (default ON since promotion — corrected 2026-06-09; opt out STRUCT_NO_LINKCOLS=1 or STRUCT_LEGACY=1 ⇒ byte-identical) — CSS MULTI-COLUMN recipe for LONG BARE-ANCHOR LINK LISTS
 // (footer sitemaps, index lists, "And there's more" link grids). THE BUG (measured on basecamp, the dominant
 // height inflator): the source footer index is one COMPACT CSS-columns <ul> (box 1257×143: 27 short anchors auto-
 // flowed into ~6 short columns). The builder renders that <ul> as a PLAIN block list — every <li> stacks 1-per-row
@@ -1644,7 +1644,7 @@ function buildAnchorColsContainer(members, containerW) {
 }
 
 // ===========================================================================
-// STRUCT_COLWIDTH (default OFF ⇒ byte-identical) — HEIGHT-SAFE per-section CONTENT-COLUMN narrowing. By default the
+// STRUCT_COLWIDTH (default ON since promotion — corrected 2026-06-09; opt out STRUCT_NO_COLWIDTH=1 or STRUCT_LEGACY=1 ⇒ byte-identical) — HEIGHT-SAFE per-section CONTENT-COLUMN narrowing. By default the
 // inner content wrapper is content_width:'boxed' (the theme's wide boxed cap, ~1280). The source frequently lays its
 // content into a NARROWER column (a hero copy block at 672, a centered body band at ~700). Narrowing the inner box to
 // the source content-column width recovers the horizontal-fidelity / area-coverage that a too-wide boxed inner loses.
@@ -2153,14 +2153,14 @@ function buildSection(sec, idx) {
   // role (so a mis-placed first band, or a tall hero past 700px, is classified correctly); else the y<700 heuristic.
   const isHero = specSec ? specSec.role === 'hero' : ((sb.y || 0) < 700);
   const ctaCtx = isHero;
-  // STRUCT_IMGFIT (default OFF) — SOURCE-CLIP image clamp pre-pass. Find the DOMINANT image (largest captured area)
+  // STRUCT_IMGFIT (default ON — corrected 2026-06-09; opt out STRUCT_NO_IMGFIT=1) — SOURCE-CLIP image clamp pre-pass. Find the DOMINANT image (largest captured area)
   // in this band. If its captured height is far taller (>~1.8x) than the band's AVAILABLE height (the section band
   // height minus the stacked NON-image heading/text member heights), the source clips/scales it into the band crop
   // and the contain-cap would otherwise render it full-height → the section balloons. Register an override clamp
   // (the available band height) for that leaf so nativeImageWidget emits max-height:<availH> + object-fit:cover.
   // CONSERVATIVE: only one dominant image per band, only when it CLEARLY overflows; normally-sized images untouched.
   if (IMGFIT) imgfitTagDominant(ded.members || [], sb, minH);
-  // STRUCT_LINKCOLS (default OFF) — ANCHOR-CLUSTER pre-pass: pull a tall narrow run of ≥8 short bare-anchor members
+  // STRUCT_LINKCOLS (default ON — corrected 2026-06-09; opt out STRUCT_NO_LINKCOLS=1) — ANCHOR-CLUSTER pre-pass: pull a tall narrow run of ≥8 short bare-anchor members
   // out of the band, emit it as ONE CSS multi-column container (instead of 8+ stacked rows), and run the REST through
   // the unchanged row machinery. The cluster container is re-inserted by its y-position so the stack order holds.
   let secMembers = ded.members, linkClusterEl = null, linkClusterY = Infinity;
@@ -2172,7 +2172,7 @@ function buildSection(sec, idx) {
       if (linkClusterEl) { linkClusterY = acq.box.y; const keep = new Set(acq.rest); secMembers = ded.members.filter((m) => { const f = resolveMember(m); return keep.has(f); }); }
     }
   }
-  // STRUCT_BENTOGRID (default OFF) — TILE-BENTO pre-pass, BEFORE the clusterRows/rowColumns path. Detect a true
+  // STRUCT_BENTOGRID (default ON — corrected 2026-06-09; opt out STRUCT_NO_BENTOGRID=1) — TILE-BENTO pre-pass, BEFORE the clusterRows/rowColumns path. Detect a true
   // N≥2-col × M≥2-row tile grid (≥4 headings) from the section's resolved members; if it qualifies, group the
   // members into per-heading TILES and emit ALL tiles into ONE CSS GRID (M rows × N cols) instead of the flex path
   // that stacks them tall. A col-span-2 tile (content ≈2× the column pitch) gets grid-column:span 2. A hero/cta or a
@@ -2194,7 +2194,7 @@ function buildSection(sec, idx) {
       }
     }
   }
-  // STRUCT_CARDWALL (default OFF) — HEADING-LESS MASONRY pre-pass, AFTER the bento check. Detect a dense, heading-
+  // STRUCT_CARDWALL (default ON — corrected 2026-06-09; opt out STRUCT_NO_CARDWALL=1) — HEADING-LESS MASONRY pre-pass, AFTER the bento check. Detect a dense, heading-
   // light wall of ≥6 comparable-width cards at ≥3 regularly-pitched x-anchors (the pitch-CV guard); if it qualifies,
   // emit ALL cards as ONE CSS multi-column block instead of the flex path that stacks them tall. Any full-bleed
   // backdrop is EXCLUDED from the cards and rendered behind them via the scoped custom_css background-image channel
@@ -2222,7 +2222,7 @@ function buildSection(sec, idx) {
       }
     }
   }
-  // STRUCT_IRREGBENTO (default OFF) — IRREGULAR IMAGE-MOSAIC pre-pass, AFTER bento + cardwall (the "neither claims"
+  // STRUCT_IRREGBENTO (default ON — corrected 2026-06-09; opt out STRUCT_NO_IRREGBENTO=1) — IRREGULAR IMAGE-MOSAIC pre-pass, AFTER bento + cardwall (the "neither claims"
   // fallback). Detect a designed image-mosaic (≥4 media cells, ≥3 IRREGULARLY-pitched media columns, multi-row, no
   // free-form overlap) that BENTOGRID (needs ≥4 headings) and CARDWALL (needs a regular pitch) both declined; emit
   // its HEADER as a row stack + the mosaic columns as ONE CSS GRID (auto-fit minmax min(...,100%) — reflows, no
@@ -2260,7 +2260,7 @@ function buildSection(sec, idx) {
   // the inner content wrapper: a BOXED flex COLUMN (rows stack vertically) capped to the content width + centered.
   // Each row child is itself a flex-row that wraps at narrow widths, so the page reflows with no horizontal scroll.
   const innerSettings = { content_width: 'boxed', flex_direction: 'column', flex_gap: { unit: 'px', size: 24, column: '24', row: '24' }, width: { unit: '%', size: 100 }, padding: { unit: 'px', top: '0', right: '0', bottom: '0', left: '0', isLinked: true } };
-  // STRUCT_COLWIDTH (default OFF) — HEIGHT-SAFE per-section content-column narrowing. When a section's source content
+  // STRUCT_COLWIDTH (default ON — corrected 2026-06-09; opt out STRUCT_NO_COLWIDTH=1) — HEIGHT-SAFE per-section content-column narrowing. When a section's source content
   // column is meaningfully narrower than the boxed cap AND its widest heading does NOT nearly fill that column (the
   // hero/wrap guard), pin the inner box to the source width via a scoped #colw-N{max-width:Wpx;width:100%;margin:auto}
   // rule (NEVER a bare fixed px). Skipped sections stay byte-identical to the legacy boxed inner.
@@ -2429,7 +2429,7 @@ async function detectPro(basicAuthHeaders) {
 function buildFooter(footSeg) {
   if (!footSeg || !footSeg.members || !footSeg.members.length) return null;
   const fb = footSeg.bbox || { x: 0, y: pageH - 200, w: VW, h: 200 };
-  // STRUCT_LINKCOLS (default OFF) — ANCHOR-CLUSTER pre-pass (footer sitemap of stacked bare anchors). Pull the
+  // STRUCT_LINKCOLS (default ON — corrected 2026-06-09; opt out STRUCT_NO_LINKCOLS=1) — ANCHOR-CLUSTER pre-pass (footer sitemap of stacked bare anchors). Pull the
   // tall narrow anchor run into ONE CSS multi-column container; run the rest through the unchanged row machinery.
   let footMembers = footSeg.members, linkClusterEl = null, linkClusterY = Infinity;
   if (LINKCOLS) {
