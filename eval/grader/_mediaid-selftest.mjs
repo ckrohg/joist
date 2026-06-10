@@ -12,6 +12,9 @@
  *       unpainted full-size stamps gain nothing (paint guard reads RENDERED pixels, never src attributes).
  * Plus: REPORT-ONLY byte-proof — non-selftest CLI A/B on the fixture: flag-ON report minus the media fields
  * deep-equals the flag-OFF report; composite byte-identical either way.
+ * Plus: FOLD-BLOCKER regressions T9-T12 (B1 round 3, one per blocker — see grade-sections.mjs header):
+ * presence-gaming ≤0.15, bg-div byte-identical ≥0.9, LQIP 9×8 ≤0.6 (4×4 monotone-below), unrelated-busy ≤0.45
+ * + stretch priced-not-zeroed. These pin the zz-mi-attack harness flips.
  * Pure tests run with no browser/network/WP. CLI proofs launch headless chromium on file:// fixtures only
  * (skip with --pure). Never touches graded pages. Run: node _mediaid-selftest.mjs
  */
@@ -143,6 +146,67 @@ const leaf = (x, y, w, h, tag = 'img') => ({ x, y, w, h, area: w * h, tag });
   const srcMedia = [leaf(100, 50, 300, 200, 'picture'), leaf(100, 50, 300, 200, 'img')]; // picture wraps its img → both captured
   const rD = mediaIdentityBand({ srcShot: src, cloneShot: src, srcMedia, cloneMedia: [leaf(100, 50, 300, 200, 'img')], y0: 0, y1: 300 });
   log(rD.score === 1 && rD.presence === 1, `T8 picture+img dedupe: faithful single-img clone not false-halved (M ${rD.score} pres ${rD.presence})`);
+}
+
+// ════ FOLD-BLOCKER regressions (B1 round 3 — one per blocker; the zz-mi-attack numbers must STAY flipped) ════
+// shared builders (zz-mi-attack's exact constructions): a "photo" with real high+low-frequency structure,
+// nearest-neighbor blit (anisotropic stretch), grid-blur LQIP, decorative vertical gradient.
+const get = (img, x, y) => { const i = (y * img.width + x) * 4; return [img.data[i], img.data[i + 1], img.data[i + 2]]; };
+const photo = (img, x, y, w, h) => { for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) { const base = (Math.floor(xx / 24) + Math.floor(yy / 24)) % 2 === 0 ? [225, 140, 40] : [30, 70, 180]; const ramp = Math.round(60 * (xx / w)); px(img, x + xx, y + yy, [Math.min(255, base[0] + ramp), base[1], Math.min(255, base[2] + Math.round(40 * yy / h))]); } };
+const blit = (srcImg, sx, sy, sw, sh, dstImg, dx, dy, dw, dh) => { for (let yy = 0; yy < dh; yy++) for (let xx = 0; xx < dw; xx++) { const ox = sx + Math.min(sw - 1, Math.floor(xx * sw / dw)); const oy = sy + Math.min(sh - 1, Math.floor(yy * sh / dh)); px(dstImg, dx + xx, dy + yy, get(srcImg, ox, oy)); } };
+const lqip = (srcImg, sx, sy, sw, sh, gw, gh, dstImg, dx, dy) => {
+  const cells = Array.from({ length: gw * gh }, () => [0, 0, 0, 0]);
+  for (let yy = 0; yy < sh; yy++) for (let xx = 0; xx < sw; xx++) { const gx = Math.min(gw - 1, Math.floor(xx * gw / sw)), gy = Math.min(gh - 1, Math.floor(yy * gh / sh)); const c = get(srcImg, sx + xx, sy + yy); const cc = cells[gy * gw + gx]; cc[0] += c[0]; cc[1] += c[1]; cc[2] += c[2]; cc[3]++; }
+  for (let yy = 0; yy < sh; yy++) for (let xx = 0; xx < sw; xx++) { const gx = Math.min(gw - 1, Math.floor(xx * gw / sw)), gy = Math.min(gh - 1, Math.floor(yy * gh / sh)); const cc = cells[gy * gw + gx]; px(dstImg, dx + xx, dy + yy, [cc[0] / cc[3], cc[1] / cc[3], cc[2] / cc[3]]); }
+};
+const vgrad = (img, x, y, w, h) => { for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) px(img, x + xx, y + yy, [Math.round(255 * yy / h), Math.round(40 + 180 * yy / h), 200]); };
+
+// ── T9 / FOLD-BLOCKER #1: PRESENCE GAMING — identity-weighted presence kills decorative-area stuffing ──
+{
+  const src = mk(1440, 400, [248, 248, 250]); photo(src, 480, 60, 480, 280);
+  const srcMedia = [leaf(480, 60, 480, 280)];
+  const gameO = mk(1440, 400, [248, 248, 250]); vgrad(gameO, 480, 60, 480, 280);        // svg gradient AT the photo box
+  const rO = mediaIdentityBand({ srcShot: src, cloneShot: gameO, srcMedia, cloneMedia: [leaf(480, 60, 480, 280, 'svg')], y0: 0, y1: 400 });
+  const gameE = mk(1440, 400, [248, 248, 250]); vgrad(gameE, 0, 100, 480, 280);          // same-area gradient ELSEWHERE
+  const rE = mediaIdentityBand({ srcShot: src, cloneShot: gameE, srcMedia, cloneMedia: [leaf(0, 100, 480, 280, 'svg')], y0: 0, y1: 400 });
+  log(rO.score <= 0.15 && rO.presence <= 0.15, `T9 FB1 presence-gaming overlap: decorative gradient at the photo box → M ≤ 0.15, presence ≤ 0.15 (was M 0.409/pres 1.0; got M ${rO.score} pres ${rO.presence})`);
+  log(rE.score <= 0.15 && rE.presence <= 0.15, `T9 FB1 presence-gaming elsewhere: same-area shape divider far from the photo → M ≤ 0.15 (was 0.400; got ${rE.score})`);
+}
+// ── T10 / FOLD-BLOCKER #2: BG-DIV FALSE-LOW — same-box pixel fallback credits background-image clones ──
+{
+  const src = mk(1440, 400, [248, 248, 250]); photo(src, 480, 60, 480, 280);
+  const cln = dup(src);                                                                  // byte-identical pixels
+  const r = mediaIdentityBand({ srcShot: src, cloneShot: cln, srcMedia: [leaf(480, 60, 480, 280)], cloneMedia: [], y0: 0, y1: 400 }); // CSS bg-image → NO clone media leaf
+  log(r.score >= 0.9 && r.leaves.missing === 0 && r.leaves.fb === 1,
+    `T10 FB2 bg-div: byte-identical pixels via background-image (no clone <img>) → M ≥ 0.9, fb-credited, not missing (was M 0; got M ${r.score} fb ${r.leaves.fb} miss ${r.leaves.missing})`);
+}
+// ── T11 / FOLD-BLOCKER #3: LQIP FALSE-HIGH — hf (within-cell variance) term prices blurred placeholders ──
+{
+  const src = mk(1440, 400, [248, 248, 250]); photo(src, 480, 60, 480, 280);
+  const media = [leaf(480, 60, 480, 280)];
+  const c98 = mk(1440, 400, [248, 248, 250]); lqip(src, 480, 60, 480, 280, 9, 8, c98, 480, 60);
+  const c44 = mk(1440, 400, [248, 248, 250]); lqip(src, 480, 60, 480, 280, 4, 4, c44, 480, 60);
+  const r98 = mediaIdentityBand({ srcShot: src, cloneShot: c98, srcMedia: media, cloneMedia: media, y0: 0, y1: 400 });
+  const r44 = mediaIdentityBand({ srcShot: src, cloneShot: c44, srcMedia: media, cloneMedia: media, y0: 0, y1: 400 });
+  log(r98.identity <= 0.6, `T11 FB3 LQIP 9×8: blurred lazy-load placeholder id ≤ 0.6 (was 0.938; got ${r98.identity})`);
+  log(r44.identity <= r98.identity, `T11 FB3 monotone: cruder 4×4 blur scores ≤ the 9×8 blur (${r44.identity} ≤ ${r98.identity})`);
+}
+// ── T12 / FOLD-BLOCKER #4: WRONG-PHOTO UNDER-PRICING — corr + box-aspect terms ──
+{
+  let seed = 42; const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+  let sum = 0; const N = 20;
+  for (let t = 0; t < N; t++) {                                                          // unrelated busy imagery (attack2 W3)
+    const a = mk(400, 300, [0, 0, 0]), b = mk(400, 300, [0, 0, 0]);
+    for (let y = 0; y < 300; y += 4) for (let x = 0; x < 400; x += 4) { const ca = [rnd() * 255, rnd() * 255, rnd() * 255], cb = [rnd() * 255, rnd() * 255, rnd() * 255]; for (let dy = 0; dy < 4; dy++) for (let dx = 0; dx < 4; dx++) { px(a, x + dx, y + dy, ca); px(b, x + dx, y + dy, cb); } }
+    sum += mediaCropId(a, { x: 0, y: 0, w: 400, h: 300 }, b, { x: 0, y: 0, w: 400, h: 300 });
+  }
+  const meanId = sum / N;
+  log(meanId <= 0.45, `T12 FB4 unrelated-busy baseline: mean id over 20 random pairs ≤ 0.45 (was 0.696; got ${meanId.toFixed(3)})`);
+  const src = mk(1440, 400, [248, 248, 250]); photo(src, 480, 60, 480, 280);             // anisotropic stretch (attack A1)
+  const cln = mk(1440, 400, [248, 248, 250]); blit(src, 480, 60, 480, 280, cln, 0, 20, 1440, 360);
+  const rS = mediaIdentityBand({ srcShot: src, cloneShot: cln, srcMedia: [leaf(480, 60, 480, 280)], cloneMedia: [leaf(0, 20, 1440, 360)], y0: 0, y1: 400 });
+  log(rS.identity <= 0.7, `T12 FB4 anisotropic stretch: 480×280 → 1440×360 priced, id ≤ 0.7 (was 0.978; got ${rS.identity})`);
+  log(rS.identity >= 0.4, `T12 FB4 stretch is priced, not zeroed: same imagery keeps id ≥ 0.4 (got ${rS.identity})`);
 }
 
 // ════ CLI proofs (file:// fixture; headless chromium; no network/WP/graded pages) ════

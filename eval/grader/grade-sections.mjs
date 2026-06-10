@@ -162,24 +162,27 @@ export function classifyVoid({ srcEnergy, cloneEnergy, cloneReproducedBandText, 
 // raw kept for telemetry — the responsive-selftest pattern). HONEST blind spot (recorded, not papered over):
 // clone-side HALLUCINATED imagery in a band whose source has none is invisible here (n/a band; presence capped
 // at 1) — spurious imagery stays priced by SSIM/perElement; cloneOnlyMediaArea is reported as telemetry. A full-
-// band raster scores M~0.48 measured (giant leaf matches once but whole-band crop != leaf crop — zz-mi-attack
-// A4), i.e. identity partially DOUBLE-prices rasters on top of rastered-text/chunkedMedia/editability;
-// acceptable report-only, revisit at fold. Reversible: GRADER_NO_MEDIAID=1 → byte-identical
+// band raster with the RIGHT pixels scores M~1.0 (A4 — by design since the #2 fallback: this dim measures
+// imagery presence+identity ONLY; rasterization itself is priced by rastered-text/chunkedMedia/editability,
+// no double-pricing either way). Reversible: GRADER_NO_MEDIAID=1 → byte-identical
 // legacy report (no media fields anywhere) AND legacy capture/cache behavior (no tag field, legacy srcTag).
-// ---- FOLD-BLOCKERS (critic-measured 2026-06-10; ALL must be fixed before this dim folds into the composite —
-// round-3 work items, not report-only blockers; harnesses zz-mi-attack.tmp.mjs / zz-mi-attack2.tmp.mjs):
-//  1. PRESENCE GAMING: presence=min(1,cloneArea/srcArea) counts ANY painted media — decorative SVG gradients
-//     score 0.688 vs honest-omit 0 (A3); live tailwind §4: matched 0/36 yet presence 1.0 → M 0.4.
-//     Fix: identity-weight presence (matched-area based) or cap presence contribution when band identity ~0.
-//  2. BG-DIV FALSE-LOW: imagery painted via CSS background-image (Elementor section-bg / build-absolute bgRect —
-//     the CANONICAL clone shape) has no img element → empty clone mediaLeaves → M=0 on byte-identical pixels
-//     (F1). Fix: same-box pixel fallback mediaCropId(srcShot,box,cloneShot,box) gated on clone-side cropEnergy.
-//     Also repairs the tailwind §4 granularity mismatch (N source leaves vs 1-2 clone rasters → IoU<0.05).
-//  3. LQIP FALSE-HIGH: a blurred lazy-load placeholder scores id 0.938 (9x8 blur; 4x4 → 0.730, A2) — the
-//     broken-hero class this dim exists to catch. Fix: high-frequency term (per-cell variance ratio).
-//  4. WRONG-PHOTO UNDER-PRICING: unrelated busy imagery baselines at id~0.70 (attack2 W3); logos/graphics
-//     discriminate well (wrong-logo 0.27, rotated 0.145). Anisotropic stretch is invariant (0.978 — _poolGrid
-//     normalization) — add a natW/natH aspect-ratio term (fields already captured, commit 3a80a78).
+// ---- FOLD-BLOCKERS (critic-measured 2026-06-10; ALL FIXED B1-round-3 same day — measured by the committed
+// harnesses zz-mi-attack.tmp.mjs / zz-mi-attack2.tmp.mjs, pinned by _mediaid-selftest.mjs T9-T12):
+//  1. PRESENCE GAMING — FIXED: presence is now IDENTITY-WEIGHTED (credited = Σ srcLeafArea·id, see
+//     mediaIdentityBand) — decorative-gradient stuffing A3: M 0.409→0.021 overlap / 0.400→0.000 elsewhere
+//     (honest-omit 0; the old min(1,cloneArea/srcArea) gave the game 1.0 presence on 0/36 matched).
+//  2. BG-DIV FALSE-LOW — FIXED: same-box pixel fallback mediaCropId(srcShot,box,cloneShot,box), gated on the
+//     clone crop being PAINTED (cropEnergy ≥ MI_SRC_PAINT) — byte-identical CSS-background-image clone F1:
+//     M 0→1.0; granularity-mismatched rasters (tailwind §4 logo wall, N leaves vs 1 raster) credit by pixels;
+//     drift F2: 0→0.439. Honest omission still 0 (gate), unpainted URL-spoof stamps still 0 (T4b).
+//  3. LQIP FALSE-HIGH — FIXED: hf term (within-cell luma-std ratio from _poolGrid index 3) — 9×8 blurred
+//     placeholder id 0.938→0.336, 4×4 0.730→0.265 (monotone: cruder blur scores lower).
+//  4. WRONG-PHOTO UNDER-PRICING — FIXED: corr term (sqrt-free Pearson r² over pooled lumas) + BOX-aspect term —
+//     unrelated-busy baseline W3 id 0.696→0.443, same-palette wrong-logo W1 0.27→0.065, rotated W2 0.145→0.035,
+//     anisotropic stretch A1 0.978→0.641. Box aspect (not natW/natH) on purpose: natW/natH live on the BUILDER
+//     capture tree (3a80a78), not grader mediaLeaves — box form needs NO capture/cache change.
+//  Legit builds: identical crops still EXACTLY 1 (deficit-form weights), clean-clone band M 1.0 (T2 control),
+//  bg-div legit clones RAISED 0→1; every game above scores LOWER — monotone honesty both directions.
 const USE_MEDIAID = !process.env.GRADER_NO_MEDIAID;
 const MI_MIN_LEAF = 24;        // leaf size floor (w AND h) — kills the 8px-probe-img trick by construction
 const MI_SRC_PAINT = 0.02;     // paint guard: a leaf whose own crop-energy < this was never painted → excluded
@@ -190,6 +193,13 @@ const MI_DE_MAX = 40;          // patch-ΔE → similarity ramp: deSim = max(0, 
 const MI_MATCH_IOU = 0.05;     // min IoU to accept a clone candidate as the leaf's reproduction (else center-
                                // distance fallback ≤ 0.5·max(w,h,120px) with area ratio ∈ [0.25,4])
 const MI_W_ID = 0.6, MI_W_PRESENCE = 0.4; // M_b = 0.6·identity + 0.4·presence
+const MI_FLAT_VAR = 72 * 4;    // corr-term flat guard: Σ(luma-dev²) over the 72 pooled cells < n·(std 2)² → the
+                               // crop has no correlatable structure (flat/flat → 1, flat/textured → 0)
+const MI_HF_FLOOR = 3;         // hf-term floor (mean within-cell luma std): both crops below → smooth-vs-smooth
+                               // imagery (flat hero washes), ratio is noise → hfSim 1 (nothing to assert)
+const MI_HF_W = 0.65;          // hf deficit weight: a 0-detail LQIP keeps ≤35% of its base id (0.96 → ~0.35)
+const MI_AR_TOL = 0.65;        // aspect tolerance: box-aspect ratio ≥0.65 (≈±35% reflow/crop slack) is free;
+                               // below, linear — the A1 480×280→1440×360 stretch (asim 0.43) → aTerm 0.66
 const MI_FOLD_FLOOR = 0.45;    // ROUND-3 fold proposal (NOT applied): visual_b ×= (0.45 + 0.55·M_b) when the
                                // band's source media covers ≥10% of the band — published as projected.* only.
 
@@ -515,42 +525,71 @@ export function cropEnergy(img, box) {
   const edgeNorm = Math.min(1, (en ? edge / en : 0) / 48);
   return { energy: +(0.5 * varNorm + 0.5 * edgeNorm).toFixed(4), varNorm: +varNorm.toFixed(4), edgeNorm: +edgeNorm.toFixed(4) };
 }
-// mean-pool a clipped box of a PNG into a gw×gh grid of [r,g,b] means (stride-2 sampling, same as bandStats).
+// mean-pool a clipped box of a PNG into a gw×gh grid of [r,g,b,withinCellLumaStd] (stride-2 sampling, same as
+// bandStats). Index 3 (per-cell luma std — the high-frequency detail pooling erases) feeds mediaCropId's hf term
+// (FOLD-BLOCKER #3): a blur/LQIP reproduces the cell MEANS perfectly but has ~zero WITHIN-cell variance.
 function _poolGrid(img, box, gw, gh) {
   const x0 = Math.max(0, Math.round(box.x)), y0 = Math.max(0, Math.round(box.y));
   const x1 = Math.min(img.width, Math.round(box.x + box.w)), y1 = Math.min(img.height, Math.round(box.y + box.h));
   if (x1 <= x0 || y1 <= y0) return null;
-  const cells = Array.from({ length: gw * gh }, () => [0, 0, 0, 0]); // r,g,b,count
+  const cells = Array.from({ length: gw * gh }, () => [0, 0, 0, 0, 0, 0]); // r,g,b,count,lumaSum,lumaSumSq
   for (let y = y0; y < y1; y += 2) {
     const gy = Math.min(gh - 1, Math.floor(((y - y0) / (y1 - y0)) * gh));
     for (let x = x0; x < x1; x += 2) {
       const gx = Math.min(gw - 1, Math.floor(((x - x0) / (x1 - x0)) * gw));
       const i = (y * img.width + x) * 4; const c = cells[gy * gw + gx];
       c[0] += img.data[i]; c[1] += img.data[i + 1]; c[2] += img.data[i + 2]; c[3]++;
+      const l = 0.299 * img.data[i] + 0.587 * img.data[i + 1] + 0.114 * img.data[i + 2];
+      c[4] += l; c[5] += l * l;
     }
   }
-  return cells.map((c) => c[3] ? [c[0] / c[3], c[1] / c[3], c[2] / c[3]] : [0, 0, 0]);
+  return cells.map((c) => {
+    if (!c[3]) return [0, 0, 0, 0];
+    const ml = c[4] / c[3];
+    return [c[0] / c[3], c[1] / c[3], c[2] / c[3], Math.sqrt(Math.max(0, c[5] / c[3] - ml * ml))];
+  });
 }
-// mediaCropId — perceptual SAME-IMAGERY score for one matched (source crop, clone crop) pair. Pure pixels:
+// mediaCropId — perceptual SAME-IMAGERY score for one matched (source crop, clone crop) pair. Pure pixels,
+// FIVE terms (FOLD-BLOCKER fixes #3 LQIP + #4 wrong-photo/stretch — see header):
 //   dHash: 9×8 luma grid → 64-bit difference hash → hashSim = 1 − hamming/64 (structure: edges/gradients)
 //   patch ΔE: 4×4 grid of RGB means → Lab → mean ΔE over 16 cells → deSim = max(0, 1 − meanΔE/MI_DE_MAX) (palette)
-//   id = clamp(0.5·hashSim + 0.5·deSim, 0, 1). Identical crops → exactly 1. Reads RENDERED pixels only.
+//   corr (#4): sqrt-free signed Pearson r² over the 72 pooled lumas — UNRELATED busy imagery decorrelates
+//     (E[r]≈0 → term ~0) where dHash floors at ~0.5 and pooled-ΔE stays high (both crops pool to mid-gray).
+//     Guards: flat-vs-flat → 1 (nothing to correlate; ΔE decides), flat-vs-textured → 0 (genuinely different).
+//   hf (#3): mean WITHIN-cell luma std ratio (the high-frequency detail pooling erases) — a blurred LQIP
+//     placeholder reproduces the 9×8 cell means (hash/ΔE/corr all high) but has ~zero within-cell detail.
+//     hfTerm = 1 − MI_HF_W·(1 − min/max std ratio); both-sides-flat guard → 1.
+//   aspect (#4): rendered-BOX aspect ratio — gross anisotropic stretch (480×280 → 1440×360) was INVISIBLE under
+//     per-box pooling (id 0.978). ≤(1−MI_AR_TOL) mismatch is free, linear price beyond. BOX-based on purpose:
+//     needs NO capture change (natW/natH live on the BUILDER capture tree, not grader mediaLeaves) and the
+//     same-box bg-fallback pair (#2) gets exactly 1 by construction.
+//   id = clamp(1 − Σw·deficit, 0, 1) · hfTerm · aTerm. DEFICIT form: identical crops score EXACTLY 1 (every
+//   deficit/ratio is bit-exact 0-or-1 on identical inputs — no fp weight-sum drift). Reads RENDERED pixels only.
 export function mediaCropId(srcShot, srcBox, cloneShot, cloneBox) {
   const luma = (c) => 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
-  const bits = (img, box) => {
-    const g = _poolGrid(img, box, 9, 8); if (!g) return null;
-    const out = [];
-    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) out.push(luma(g[r * 9 + c]) < luma(g[r * 9 + c + 1]) ? 1 : 0);
-    return out;
-  };
-  const ha = bits(srcShot, srcBox), hb = bits(cloneShot, cloneBox);
+  const ga = _poolGrid(srcShot, srcBox, 9, 8), gb = _poolGrid(cloneShot, cloneBox, 9, 8);
   const pa = _poolGrid(srcShot, srcBox, 4, 4), pb = _poolGrid(cloneShot, cloneBox, 4, 4);
-  if (!ha || !hb || !pa || !pb) return 0;
-  let ham = 0; for (let i = 0; i < 64; i++) if (ha[i] !== hb[i]) ham++;
+  if (!ga || !gb || !pa || !pb) return 0;
+  const la = ga.map(luma), lb = gb.map(luma);
+  let ham = 0;
+  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) if ((la[r * 9 + c] < la[r * 9 + c + 1]) !== (lb[r * 9 + c] < lb[r * 9 + c + 1])) ham++;
   const hashSim = 1 - ham / 64;
   let sde = 0; for (let i = 0; i < 16; i++) sde += dE(srgbLab(pa[i][0], pa[i][1], pa[i][2]), srgbLab(pb[i][0], pb[i][1], pb[i][2]));
   const deSim = Math.max(0, 1 - (sde / 16) / MI_DE_MAX);
-  return Math.max(0, Math.min(1, 0.5 * hashSim + 0.5 * deSim));
+  let ma = 0, mb = 0; for (let i = 0; i < 72; i++) { ma += la[i]; mb += lb[i]; }
+  ma /= 72; mb /= 72;
+  let cov = 0, va = 0, vb = 0;
+  for (let i = 0; i < 72; i++) { const da = la[i] - ma, db = lb[i] - mb; cov += da * db; va += da * da; vb += db * db; }
+  const corrSim = (va < MI_FLAT_VAR && vb < MI_FLAT_VAR) ? 1
+    : (va < MI_FLAT_VAR || vb < MI_FLAT_VAR) ? 0
+      : (cov <= 0 ? 0 : Math.min(1, (cov * cov) / (va * vb)));
+  const hfa = ga.reduce((s, c) => s + c[3], 0) / 72, hfb = gb.reduce((s, c) => s + c[3], 0) / 72;
+  const hfSim = Math.max(hfa, hfb) < MI_HF_FLOOR ? 1 : Math.min(hfa, hfb) / Math.max(hfa, hfb);
+  const hfTerm = 1 - MI_HF_W * (1 - hfSim);
+  const ara = srcBox.w / Math.max(1, srcBox.h), arb = cloneBox.w / Math.max(1, cloneBox.h);
+  const aTerm = Math.min(1, (Math.min(ara, arb) / Math.max(ara, arb)) / MI_AR_TOL);
+  const base = Math.max(0, 1 - (0.35 * (1 - hashSim) + 0.30 * (1 - deSim) + 0.35 * (1 - corrSim)));
+  return Math.max(0, Math.min(1, base * hfTerm * aTerm));
 }
 // mediaIdentityBand — the per-band dim (pure; exported for the unit harness). Inputs: the two full-page shots,
 // the two mediaLeaves lists ({x,y,w,h,area,tag?}), the band [y0,y1) (y1 pre-clamped to the gradable extent).
@@ -561,10 +600,17 @@ export function mediaCropId(srcShot, srcBox, cloneShot, cloneBox) {
 // contained (inter/minArea) in an already-kept larger leaf. Identity-eligible: tag ∈ {img,picture,svg} (missing
 // tag → treated as img); video/canvas are PRESENCE-ONLY (animated/nondeterministic pixels). Matching: greedy by
 // descending source area, best clone candidate by IoU (accept ≥ MI_MATCH_IOU), else nearest center within
-// 0.5·max(w,h,120px) at area ratio ∈ [0.25,4]; each clone leaf matches at most one source leaf; no candidate →
-// MISSING (id 0). identity_b = Σ(area·id)/Σ(area) over identity-eligible; presence_b = min(1, cloneArea/srcArea)
-// over ALL eligible; M_b = 0.6·identity + 0.4·presence (presence-only when the band has no identity-eligible
-// leaves, e.g. video-only). Returns null score when the band has zero eligible source media (n/a band).
+// 0.5·max(w,h,120px) at area ratio ∈ [0.25,4]; each clone leaf matches at most one source leaf. Per leaf,
+// id = max(matched-pair id, SAME-BOX PIXEL FALLBACK id) — the fallback (FOLD-BLOCKER #2) compares src crop vs the
+// SAME box on the clone shot, gated on the clone crop being PAINTED (cropEnergy ≥ MI_SRC_PAINT): CSS background-
+// image clones (the canonical Elementor shape: section-bg/bgRect — no <img> element) and granularity-mismatched
+// rasters (N source logos reproduced as 1 big leaf → IoU<0.05) now score on their PIXELS instead of a false 0;
+// honest omission still scores 0 (unpainted box fails the gate). No match AND no painted fallback → MISSING
+// (id 0). identity_b = Σ(area·id)/Σ(area) over identity-eligible. presence_b is IDENTITY-WEIGHTED (FOLD-BLOCKER
+// #1): credited = Σ(srcLeafArea·id) over identity-eligible + geometric-match credit for presence-only leaves;
+// presence_b = min(1, credited/srcArea) — decorative-gradient/area stuffing earns ~id≈0 credit instead of the
+// old min(1, cloneArea/srcArea)=1. M_b = 0.6·identity + 0.4·presence (presence-only when the band has no
+// identity-eligible leaves, e.g. video-only). Returns null score when zero eligible source media (n/a band).
 export function mediaIdentityBand({ srcShot, cloneShot, srcMedia, cloneMedia, y0, y1, selftest = false }) {
   const inBand = (m) => m.y + m.h / 2 >= y0 && m.y + m.h / 2 < y1;
   const clip = (m, img) => {
@@ -602,31 +648,46 @@ export function mediaIdentityBand({ srcShot, cloneShot, srcMedia, cloneMedia, y0
   if (!srcElig.length) {
     return { score: null, raw: null, identity: null, presence: null, srcMediaArea: 0, cloneMediaArea, cloneOnlyMediaArea: cloneMediaArea, leaves: { eligible: 0, identityEligible: 0, matched: 0, wrong: 0, missing: 0 } };
   }
-  let idNum = 0, idDen = 0, matched = 0, wrong = 0, missing = 0;
-  for (const e of srcElig.slice().sort((a, b) => b.area - a.area)) {           // greedy by descending source area
-    if (!e.identityElig) continue;                                              // video/canvas → presence-only
-    idDen += e.area;
+  let idNum = 0, idDen = 0, matched = 0, fb = 0, wrong = 0, missing = 0, credited = 0;
+  const findBest = (e) => {                                                     // best clone candidate: IoU, else center
     let best = null, bestIou = 0;
     for (const c of clnElig) { if (c.used) continue; const i = _iou(e.m, c.m); if (i > bestIou) { bestIou = i; best = c; } }
-    if (!best || bestIou < MI_MATCH_IOU) {
-      best = null; let bestD = Infinity;
-      const cx = e.m.x + e.m.w / 2, cy = e.m.y + e.m.h / 2, maxD = 0.5 * Math.max(e.m.w, e.m.h, 120);
-      for (const c of clnElig) {
-        if (c.used) continue;
-        const ratio = (c.m.w * c.m.h) / Math.max(1, e.m.w * e.m.h);
-        if (ratio < 0.25 || ratio > 4) continue;
-        const d = Math.hypot(c.m.x + c.m.w / 2 - cx, c.m.y + c.m.h / 2 - cy);
-        if (d <= maxD && d < bestD) { bestD = d; best = c; }
-      }
+    if (best && bestIou >= MI_MATCH_IOU) return best;
+    best = null; let bestD = Infinity;
+    const cx = e.m.x + e.m.w / 2, cy = e.m.y + e.m.h / 2, maxD = 0.5 * Math.max(e.m.w, e.m.h, 120);
+    for (const c of clnElig) {
+      if (c.used) continue;
+      const ratio = (c.m.w * c.m.h) / Math.max(1, e.m.w * e.m.h);
+      if (ratio < 0.25 || ratio > 4) continue;
+      const d = Math.hypot(c.m.x + c.m.w / 2 - cx, c.m.y + c.m.h / 2 - cy);
+      if (d <= maxD && d < bestD) { bestD = d; best = c; }
     }
-    if (!best) { missing++; continue; }                                         // unmatched → id 0 contributes 0
-    best.used = true;
-    const id = mediaCropId(srcShot, e.box, cloneShot, best.box);
-    idNum += e.area * id; matched++;
+    return best;
+  };
+  const order = srcElig.slice().sort((a, b) => b.area - a.area);                // greedy by descending source area
+  for (const e of order) {                                                      // pass 1: identity-eligible leaves
+    if (!e.identityElig) continue;                                              // video/canvas → pass 2
+    idDen += e.area;
+    const best = findBest(e);
+    let idMatch = -1;
+    if (best) { best.used = true; matched++; idMatch = mediaCropId(srcShot, e.box, cloneShot, best.box); }
+    // FOLD-BLOCKER #2: same-box PIXEL fallback — bg-image clones / granularity-mismatched rasters score on
+    // their rendered pixels; gate = the clone crop is PAINTED (honest omission scores nothing here).
+    let idFb = -1;
+    if (cropEnergy(cloneShot, e.box).energy >= MI_SRC_PAINT) idFb = mediaCropId(srcShot, e.box, cloneShot, e.box);
+    if (idMatch < 0 && idFb < 0) { missing++; continue; }                       // no match AND unpainted box → id 0
+    if (idFb > Math.max(0, idMatch)) fb++;                                      // fallback decided this leaf
+    const id = Math.max(idMatch, idFb);
+    idNum += e.area * id; credited += e.area * id;                              // FOLD-BLOCKER #1: presence credit ∝ id
     if (id < 0.5) wrong++;
   }
+  for (const e of order) {                                                      // pass 2: presence-only (video/canvas)
+    if (e.identityElig) continue;                                               // geometric match only (animated pixels)
+    const best = findBest(e);
+    if (best) { best.used = true; credited += Math.min(e.area, best.area); }
+  }
   const identity = idDen > 0 ? idNum / idDen : null;                            // null = no identity-eligible leaves
-  const presence = Math.min(1, cloneMediaArea / Math.max(1, srcMediaArea));
+  const presence = Math.min(1, credited / Math.max(1, srcMediaArea));           // identity-WEIGHTED (FOLD-BLOCKER #1)
   const cloneOnlyMediaArea = clnElig.filter((c) => !c.used).reduce((a, c) => a + c.area, 0);
   const raw = identity == null ? presence : MI_W_ID * identity + MI_W_PRESENCE * presence;
   return {
@@ -637,7 +698,7 @@ export function mediaIdentityBand({ srcShot, cloneShot, srcMedia, cloneMedia, y0
     identity: identity == null ? null : +identity.toFixed(3),
     presence: +presence.toFixed(3),
     srcMediaArea, cloneMediaArea, cloneOnlyMediaArea,
-    leaves: { eligible: srcElig.length, identityEligible: srcElig.filter((e) => e.identityElig).length, matched, wrong, missing },
+    leaves: { eligible: srcElig.length, identityEligible: srcElig.filter((e) => e.identityElig).length, matched, fb, wrong, missing },
   };
 }
 const norm = (s) => (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
