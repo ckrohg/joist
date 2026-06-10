@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
  * @purpose Flywheel engine (#2): the reusable corpus eval + defect-attribution harness AND regression
- * suite. Runs a list of clone targets through build-hybrid + grade-structure (the editability-aware
- * objective) in parallel, then aggregates a corpus-wide report and attributes failures into a RANKED
+ * suite. Runs a list of clone targets through clone.mjs --mode absolute (the real entry point; grading
+ * stays HERE via grade-structure, the editability-aware objective) in parallel, then aggregates a
+ * corpus-wide report and attributes failures into a RANKED
  * defect taxonomy so the highest-frequency lever is obvious. Re-run after every builder change → gains
  * become monotonic (catches regressions across the whole corpus, not one site at a time).
  * Usage: node corpus-run.mjs [--build] [--grade] [--conc 3]   (default: build+grade)
@@ -15,9 +16,10 @@ const arg = (n, d) => { const i = process.argv.indexOf('--' + n); return i > -1 
 const doBuild = has('build') || (!has('build') && !has('grade'));
 const doGrade = has('grade') || (!has('build') && !has('grade'));
 const CONC = parseInt(arg('conc', '3'), 10);
-// DETERMINISTIC builds: by default rebuild from the cached raw capture (--cache in build-hybrid) so the
-// corpus measures BUILDER/gate changes WITHOUT capture noise (dynamic sites vary run-to-run). --refresh
-// forces a fresh capture (run once after a capture-affecting change), --nocache disables caching entirely.
+// DETERMINISTIC builds: by default rebuild from the cached raw capture (--cache forwarded through
+// clone.mjs → /tmp/abs-cache for absolute mode) so the corpus measures BUILDER/gate changes WITHOUT
+// capture noise (dynamic sites vary run-to-run). --refresh forces a fresh capture (run once after a
+// capture-affecting change), --nocache disables caching entirely.
 const REFRESH = has('refresh'); const NOCACHE = has('nocache');
 const OUT = '/tmp/corpus'; fs.mkdirSync(OUT, { recursive: true });
 
@@ -49,7 +51,7 @@ async function pool(items, n, fn) { const res = []; let i = 0; const workers = A
 (async () => {
   if (doBuild) {
     console.log(`building ${CORPUS.length} clones (conc ${CONC})…`);
-    await pool(CORPUS, CONC, async (s) => { const t0 = Date.now(); const ba = ['build-hybrid.mjs', '--source', s.url, '--page', String(s.page)]; if (!NOCACHE) ba.push('--cache'); if (REFRESH) ba.push('--refresh'); const code = await run('node', ba, `${OUT}/build-${s.name}.log`); console.log(`  build ${s.name} → exit ${code} (${Math.round((Date.now() - t0) / 1000)}s)${NOCACHE ? '' : REFRESH ? ' [recaptured]' : ' [cached]'}`); return code; });
+    await pool(CORPUS, CONC, async (s) => { const t0 = Date.now(); const ba = ['clone.mjs', '--source', s.url, '--page', String(s.page), '--mode', 'absolute', '--no-grade']; if (!NOCACHE) ba.push('--cache'); if (REFRESH) ba.push('--refresh'); const code = await run('node', ba, `${OUT}/build-${s.name}.log`); console.log(`  build ${s.name} → exit ${code} (${Math.round((Date.now() - t0) / 1000)}s)${NOCACHE ? '' : REFRESH ? ' [recaptured]' : ' [cached]'}`); return code; });
   }
   if (doGrade) {
     console.log(`grading ${CORPUS.length} clones (conc ${CONC})…`);
