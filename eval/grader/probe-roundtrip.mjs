@@ -97,8 +97,14 @@ const PALETTE = ['#FF00AA', '#00FF11', '#FF6600', '#0033FF', '#AA00FF', '#00FFEE
 function paletteAt(i) {
   if (i < PALETTE.length) return PALETTE[i];
   const hue = ((i - PALETTE.length) * 47 + 15) % 360;                       // deterministic, seed-free
-  const f = (n) => { const k = (n + hue / 30) % 12; const c = Math.round(255 * (1 - Math.max(-1, Math.min(k - 3, 9 - k, 1)))); return c.toString(16).padStart(2, '0').toUpperCase(); };
-  return `#${f(0)}${f(8)}${f(4)}`;
+  // HSL→RGB at s=1, l=0.5: f(n) = l − a·max(−1, min(k−3, 9−k, 1)), a = s·min(l,1−l) = 0.5.
+  // BUG FIXED 2026-06-10: the 0.5 factors were missing → channels up to 510 → 7/8-hex-digit strings.
+  // 7-digit = invalid CSS (dropped → FALSE FAIL_INERT); 8-digit = #RRGGBBAA (alpha 00 = invisible →
+  // FALSE FAIL). Cost a clean h4/h6-fail-on-every-site artifact across the first 3-site baseline.
+  const f = (n) => { const k = (n + hue / 30) % 12; const c = Math.round(255 * (0.5 - 0.5 * Math.max(-1, Math.min(k - 3, 9 - k, 1)))); return c.toString(16).padStart(2, '0').toUpperCase(); };
+  const hex = `#${f(0)}${f(8)}${f(4)}`;
+  if (!/^#[0-9A-F]{6}$/.test(hex)) throw new Error(`paletteAt(${i}) produced malformed sentinel ${hex}`);
+  return hex;
 }
 /** count pixels inside box (inset, clamped) within ΔE2000<maxDE of sentinel rgb */
 function countSentinelPx(png, box, rgb, { maxDE = 12, inset = 1 } = {}) {
@@ -178,12 +184,16 @@ function htmlWidgetText(w) {
 let _b64 = null;
 function b64() { if (_b64) return _b64; _b64 = process.env.JOIST_AUTH_B64 || (fs.readFileSync('/tmp/joist-auth.env', 'utf8').match(/JOIST_AUTH_B64=([^\s'"]+)/) || [])[1]; if (!_b64) throw new Error('JOIST_AUTH_B64 missing'); return _b64; }
 const hdr = () => ({ Authorization: 'Basic ' + b64(), 'Content-Type': 'application/json', 'X-Joist-Session-Id': `probe-${process.pid}-${Date.now()}` });
-async function jget(path) { const r = await fetch(`${BASE}${path}`, { headers: hdr() }); const t = await r.text(); let j = null; try { j = JSON.parse(t); } catch {} return { status: r.status, ok: r.ok, json: j, text: t }; }
+async function jget(path) { const r = await fetch(`${BASE}${path}`, { headers: hdr(), signal: AbortSignal.timeout(120000) }); const t = await r.text(); let j = null; try { j = JSON.parse(t); } catch {} return { status: r.status, ok: r.ok, json: j, text: t }; }
+// hang-guard: Promise.race timeout for awaits with NO intrinsic deadline (playwright evaluate has
+// none; a wedged renderer → infinite await). Loser keeps running; the WATCHDOG backstops the process.
+// Added after supabase 2986 wedged 2/2 runs post-PUT at 0 CPU (tailwind 3146 ran 77s clean).
+const bounded = (p, ms, label) => Promise.race([p, sleep(ms).then(() => { throw new Error(`ERROR_INFRA timeout: ${label} exceeded ${ms}ms`); })]);
 
 // ---------- render pass (screenshots via THIS node process — never mcp__playwright) ----------
 async function settle(p) {                                                   // settleLazy semantics (grade-vision-tiles.mjs:102) — never throws
   try {
-    await p.evaluate(async () => {
+    await bounded(p.evaluate(async () => {
       const zz = (ms) => new Promise((r) => setTimeout(r, ms));
       const docH = () => document.body.scrollHeight;
       let y = 0, guard = 0;
@@ -194,7 +204,7 @@ async function settle(p) {                                                   // 
       while (pending().length && Date.now() < deadline) await zz(150);
       await Promise.all([...document.images].slice(0, 500).map((im) => im.decode && im.decode().catch(() => {})));
       window.scrollTo(0, 0); await zz(150);
-    }).catch(() => {});
+    }), 90000, 'settle scroll/decode evaluate').catch(() => {});
     await p.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
     await p.waitForTimeout(400).catch(() => {});
   } catch {}
@@ -207,10 +217,10 @@ async function renderPass(browser, url, viewport, specs, shotPath) {
   await settle(p);
   // font-readiness: without this, one pass can paint webfont glyphs and the other fallback glyphs →
   // different line metrics → vertical shifts everywhere → FALSE FAIL_SIDE_EFFECT (seen on 3146 smoke).
-  await p.evaluate(() => (document.fonts && document.fonts.ready) || true).catch(() => {});
-  await p.evaluate(() => { const st = document.createElement('style'); st.textContent = '*{animation:none!important;transition:none!important;caret-color:transparent!important}'; document.head.appendChild(st); }).catch(() => {});
+  await bounded(p.evaluate(() => (document.fonts && document.fonts.ready) || true), 15000, 'fonts.ready evaluate').catch(() => {});
+  await bounded(p.evaluate(() => { const st = document.createElement('style'); st.textContent = '*{animation:none!important;transition:none!important;caret-color:transparent!important}'; document.head.appendChild(st); }), 10000, 'style-inject evaluate').catch(() => {});
   await p.waitForTimeout(400);
-  const info = await p.evaluate((specList) => {
+  const info = await bounded(p.evaluate((specList) => {
     const out = { pageH: document.documentElement.scrollHeight, boxes: {} };
     for (const s of specList) {
       const wrap = document.querySelector(`[data-id="${s.eid}"]`) || document.querySelector(`.elementor-element-${s.eid}`);
@@ -233,8 +243,8 @@ async function renderPass(browser, url, viewport, specs, shotPath) {
         mask: { x: mx0 + window.scrollX, y: my0 + window.scrollY, w: mx1 - mx0, h: my1 - my0 } };
     }
     return out;
-  }, specs);
-  const buf = await p.screenshot({ fullPage: true });
+  }, specs), 45000, 'box-info evaluate');                                    // propagate: no boxes = no usable pass
+  const buf = await p.screenshot({ fullPage: true, timeout: 60000 });
   fs.writeFileSync(shotPath, buf);
   await ctx.close();
   return { png: PNG.sync.read(buf), info };
@@ -243,6 +253,11 @@ async function renderPass(browser, url, viewport, specs, shotPath) {
 // =================================================================== main
 (async () => {
   const started = new Date().toISOString(), t0 = Date.now();
+  // WATCHDOG — supabase 2986 wedged twice at 0 CPU on an unbounded await; tailwind's full run = 77s.
+  // Self-SIGTERM reuses the PROVEN crash path: harness trap deletes scratch (404-verified) and the
+  // probe trap writes the INVALID report before exit 143. unref'd: idle-await loops still fire timers.
+  const WATCHDOG_MS = Number(process.env.PROBE_WATCHDOG_MS || 15 * 60 * 1000);
+  setTimeout(() => { console.error(`WATCHDOG: run exceeded ${WATCHDOG_MS}ms — SIGTERM self (trap cleans scratch + writes INVALID report)`); process.kill(process.pid, 'SIGTERM'); }, WATCHDOG_MS).unref();
   const report = {
     version: 1, src_page: SRC_PAGE, scratch_page: 0,
     run: { status: 'INVALID', started, ms: 0, screenshots: {} },
@@ -332,12 +347,15 @@ async function renderPass(browser, url, viewport, specs, shotPath) {
     console.log(`sampled ${sampled.length} probe(s): h ${report.sampling.by_stratum.heading} / t ${report.sampling.by_stratum.text} / b ${report.sampling.by_stratum.button}`);
     if (!sampled.length) throw new Error('ERROR_INFRA: nothing to probe (0 mapped-panel runs sampled)');
 
-    // probe records
-    const probes = sampled.map((c, i) => ({
+    // probe records — sentinels deduped at assignment (the HSL extension wraps onto base-palette
+    // values at some indices, e.g. paletteAt(15) === PALETTE[7]; two probes must never share a color)
+    const sentinelsUsed = new Set(); let palCursor = 0;
+    const nextSentinel = () => { let h = paletteAt(palCursor++); while (sentinelsUsed.has(h) && palCursor <= 200) h = paletteAt(palCursor++); sentinelsUsed.add(h); return h; };
+    const probes = sampled.map((c) => ({
       run_text: c.run.text.slice(0, 80), stratum: c.stratum, engine_id: c.widget.node.id,
       element_id: (c.widget.node.settings && c.widget.node.settings._element_id) || null, map_via: c.via,
       setting: c.stratum === 'heading' ? 'title_color' : 'text_color',
-      sentinel: paletteAt(i), had_global: false, data_verified: false,
+      sentinel: nextSentinel(), had_global: false, data_verified: false,
       target_px: 0, target_px_required: 0, computed_color: null, side_effect_px: 0,
       designated_390: false, status_390: null, status: null,
       _wt: c.widget.node.widgetType,
@@ -401,7 +419,7 @@ async function renderPass(browser, url, viewport, specs, shotPath) {
     let put = null, putTxt = '';
     for (let a = 0; a < 5; a++) {
       const body = { expected_hash: expected, elements: editTree, page_settings: pagePs, intent: 'control-edit probe sentinel batch (B1)' };
-      put = await fetch(`${BASE}/wp-json/joist/v1/pages/${dup.pageId}`, { method: 'PUT', headers: hdr(), body: JSON.stringify(body) });
+      put = await fetch(`${BASE}/wp-json/joist/v1/pages/${dup.pageId}`, { method: 'PUT', headers: hdr(), body: JSON.stringify(body), signal: AbortSignal.timeout(180000) });
       putTxt = await put.text();
       if (put.status !== 409) break;
       try { expected = JSON.parse(putTxt).details.current_hash; } catch {}
@@ -420,11 +438,13 @@ async function renderPass(browser, url, viewport, specs, shotPath) {
       if (String(got || '').toLowerCase() === p.sentinel.toLowerCase()) p.data_verified = true;
       else p.status = 'ERROR_WRITE';
     }
+    console.log(`data-verify ok (${probes.filter((p) => p.data_verified).length}/${probes.length} sentinels in data)`);
 
     // -- AFTER pass (1440) --
     const shotA = `/tmp/roundtrip-${SRC_PAGE}-after1440.png`;
     const after = await renderPass(browser, dup.url, { width: 1440, height: 900 }, specs, shotA);
     report.run.screenshots.after1440 = shotA;
+    console.log('after-pass 1440 ok');
 
     // layout stability: a color batch must not reflow (spec §3)
     const dH = Math.abs((after.info.pageH || 0) - (before.info.pageH || 0));
