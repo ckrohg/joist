@@ -441,6 +441,15 @@ function cropPng(png, box, dpr) {
   // duplicate emission — children register in the seenText dedup), else keep the full text as ONE leaf capped at
   // 8000 chars. CAPTURE_NO_LONGTEXT=1 → __NO_LONGTEXT true → byte-identical legacy >600 silent drop.
   try { await page.evaluate((off) => { window.__NO_LONGTEXT = off; }, process.env.CAPTURE_NO_LONGTEXT === '1'); } catch {}
+  // MIXED-INLINE MERGE reversibility (bare-text fix, default ON): walk()'s leaf gate required every element kid
+  // to be svg OR a CHILDLESS span/b/i/em/strong/br — a prose paragraph with <a>/<code>/<strong>-with-children kids
+  // failed it, walk() recursed over ELEMENT children only, and the paragraph's bare nodeType-3 text was NEVER
+  // visited → silently dropped (overreacted.io: 139 els, 39.8% of visible chars lost). New second gate merges a
+  // bare-text parent whose visible kids are ALL inline-display into ONE text leaf (innerText keeps prose+inline
+  // kids in order); the MAXD flatten loop marks such a whole-leafed parent's descendants as consumed so the <a>/
+  // <span> fragments aren't re-emitted (also closes the pre-existing >600-keep parent+child flatten dup).
+  // CAPTURE_NO_INLINEMERGE=1 → __NO_INLINEMERGE true → byte-identical legacy silent drop.
+  try { await page.evaluate((off) => { window.__NO_INLINEMERGE = off; }, process.env.CAPTURE_NO_INLINEMERGE === '1'); } catch {}
 
   const data = await page.evaluate(() => {
     const MAXD = 8; const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
@@ -658,6 +667,15 @@ function cropPng(png, box, dpr) {
     // ownText=FALSE → the span-borne intro line was DROPPED (the logo-wall section then baked it into a mockup).
     // Filter out non-rendering elements before the single-span test so the real text span is recognised.
     const ownText = (el) => { if (hasOwnText(el)) return true; let spans = [...el.childNodes].filter((x) => x.nodeType === 1); if (!window.__NO_DYNEMIT) spans = spans.filter((x) => !/^(script|style|template|noscript)$/i.test(x.tagName)); if (spans.length === 1 && spans[0].tagName === 'SPAN' && hasOwnText(spans[0])) return true; return false; };
+    // MIXED-INLINE MERGE predicate (bare-text fix; see __NO_INLINEMERGE plumbing): TRUE when every VISIBLE element
+    // kid flows inline (computed display ^inline; svg/br pass unconditionally, childlessness NOT required) — i.e.
+    // the parent is a prose paragraph whose innerText safely concatenates bare text + inline kids in order.
+    // MEDIA anywhere in the SUBTREE (img/video/iframe/canvas/picture) is a BLOCKER even when display:inline:
+    // merging would swallow the media leaf (walk would never recurse to emit it) — proven on overreacted's header
+    // `<span>by <a><img avi.jpg></a></span>` where a DIRECT-kid-only check lost the avatar image. svg is NOT a
+    // blocker (matches the legacy whitelist gate: icon svgs fold into their label's leaf). Non-rendering kids
+    // (script/style/…) are ignored.
+    const inlineKidsOnly = (el) => { if (el.querySelector('img,video,iframe,canvas,picture')) return false; for (const c of el.children) { if (/^(script|style|noscript|template)$/i.test(c.tagName)) continue; if (!visible(c)) continue; const ct = c.tagName.toLowerCase(); if (ct === 'svg' || ct === 'br') continue; let d; try { d = getComputedStyle(c).display; } catch { return false; } if (!/^inline/.test(d)) return false; } return true; };
     // VISIBLE-CLIP (hard-coded-width / horizontal-scroll fix): a node's FULL getBoundingClientRect can extend
     // far past the region that actually PAINTS, because an ancestor with overflow:hidden|clip|scroll|auto windows
     // it (the canonical case is a Framer/carousel MARQUEE track that is much wider than the 1200px box it scrolls
@@ -1539,6 +1557,19 @@ function cropPng(png, box, dpr) {
       if ((tag === 'a' || tag === 'button' || /^h[1-6]$/.test(tag) || hasOwnText(el)) && inlineSimple && sameSize) {
         return leaf(el, cs);
       }
+      // MIXED-INLINE MERGE (bare-text fix, default ON; CAPTURE_NO_INLINEMERGE=1 → legacy): the gate above rejects
+      // a prose paragraph whose kids include <a>/<code>/<strong>-with-children (not in the childless whitelist),
+      // and the recursion below visits ELEMENT children only — the parent's bare nodeType-3 text was silently
+      // LOST (overreacted.io: 125/206 <p>, 39.8% of visible chars). When the parent OWNS bare text and ALL its
+      // visible kids flow inline (computed display, not tag whitelist), leaf the parent WHOLE: innerText already
+      // concatenates prose + inline kids in order, and the >600 path keeps it natively (inline kids → blockKids
+      // empty → capped keep). sameSize stays required (S7 headline/subhead split); structural code is excluded
+      // (syntax-highlight line spans must keep recursing into the code-panel detectors). Children are NOT walked
+      // → no parent+child double-capture by construction. Trade-off (accepted): inline links/code/kbd fold into
+      // the text leaf as plain prose — their text was 100% lost before.
+      if (window.__NO_INLINEMERGE !== true && hasOwnText(el) && sameSize && !isStructuralCode(el) && inlineKidsOnly(el)) {
+        return leaf(el, cs);
+      }
       if (depth >= MAXD) { // flatten: collect descendant leaves (cap raised 12→40 — was dropping product-card content)
         // EMBEDDABLE-VIDEO FLATTEN-RESCUE (structural-detection gap-map #4): the kind:'video' detectors (L195/L203)
         // only fire when walk() RECURSES to the <video>/<iframe> element. On deeply-nested sites (framer wraps every
@@ -1625,7 +1656,15 @@ function cropPng(png, box, dpr) {
         const flat = [];
         for (const { node } of tabEls) { flat.push(node); if (flat.length >= 120) break; }
         for (const { node } of listEls) { if (flat.length >= 120) break; flat.push(node); }
-        if (flat.length < 120) for (const d of el.querySelectorAll('h1,h2,h3,h4,h5,h6,p,a,button,img,svg,li,span,video,iframe')) { if (inList.has(d)) continue; const dt = d.tagName.toLowerCase(); if (visible(d) && (dt === 'video' || dt === 'iframe')) { const v = videoLeaf(d, getComputedStyle(d)); if (v) flat.push(v); } else if (visible(d) && (d.tagName === 'IMG' || d.tagName === 'svg' || hasOwnText(d) || d.tagName === 'A' || d.tagName === 'BUTTON')) { const l = leaf(d, getComputedStyle(d)); if (l) flat.push(l); } if (flat.length >= 120) break; }
+        if (flat.length < 120) for (const d of el.querySelectorAll('h1,h2,h3,h4,h5,h6,p,a,button,img,svg,li,span,video,iframe')) { if (inList.has(d)) continue; const dt = d.tagName.toLowerCase(); if (visible(d) && (dt === 'video' || dt === 'iframe')) { const v = videoLeaf(d, getComputedStyle(d)); if (v) flat.push(v); } else if (visible(d) && (d.tagName === 'IMG' || d.tagName === 'svg' || hasOwnText(d) || d.tagName === 'A' || d.tagName === 'BUTTON')) { const l = leaf(d, getComputedStyle(d)); if (l) flat.push(l);
+          // MIXED-INLINE MERGE flatten-dedupe (see the walk() gate above): qsa is DOCUMENT ORDER, so a bare-text
+          // parent precedes its <a>/<span>/<code> descendants. When the parent was just whole-leafed (its text-kind
+          // leaf already CONTAINS the descendants' text via innerText — incl. the >600 inline-only keep at leaf()),
+          // mark every descendant consumed so the loop doesn't re-emit them as duplicate fragments (seenText alone
+          // can't catch this: parent blob and child fragment hash to DIFFERENT dk keys). Scoped to the SAME
+          // mixed-inline predicate so card-wrapper <a> flatten behavior is untouched. Child-first cannot occur.
+          if (l && l.text && window.__NO_INLINEMERGE !== true && d.children.length && hasOwnText(d) && inlineKidsOnly(d)) { for (const dd of d.querySelectorAll('*')) inList.add(dd); }
+        } if (flat.length >= 120) break; }
         if (!flat.length) return null; return { kind: 'container', tag: 'div', box: rectOf(el), layout: layoutOf(cs), ...boxModel(cs), background: bgOf(cs), border: nz(cs.borderTopWidth) ? `${cs.borderTopWidth} ${cs.borderTopStyle} ${cs.borderTopColor}` : null, radius: nz(cs.borderTopLeftRadius) ? cs.borderTopLeftRadius : null, boxShadow: nz(cs.boxShadow) ? cs.boxShadow : null, backdropFilter: bdfOf(cs), position: cs.position, children: mergeDecorativeFragments(flat) };
       }
       const children = mergeDecorativeFragments(kidEls.map((c) => walk(c, depth + 1)).filter(Boolean));
