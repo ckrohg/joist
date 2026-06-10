@@ -1,0 +1,61 @@
+{
+  "source": "https://stripe.com",
+  "clone": "https://georges232.sg-host.com/stripe-clone-v2-fidelity-attempt/",
+  "rules": [
+    {
+      "kind": "layout_preference",
+      "pattern": "missing_assets",
+      "directive": "Capture+host real images/video/gradient from source; no flat fills or placeholder boxes where source has imagery.",
+      "rationale": "Auto-derived from grader defect (asset_capture, 4×): no canvas/video vs source has 1 canvas / 0 video",
+      "provenance": [
+        "grader",
+        "stripe-v2"
+      ],
+      "confidence": 0.9
+    },
+    {
+      "kind": "structural",
+      "pattern": "page_truncation",
+      "directive": "Author every top-level source section; verify clone page-height is within ~15% of source before grading.",
+      "rationale": "Auto-derived from grader defect (section_completeness, 2×): clone 1109px tall vs source 20441px",
+      "provenance": [
+        "grader",
+        "stripe-v2"
+      ],
+      "confidence": 0.9
+    },
+    {
+      "kind": "layout_preference",
+      "pattern": "typography_default_bold",
+      "directive": "Match source computed type (size/weight/family/tracking) per element; do not default headings to bold or system fonts.",
+      "rationale": "Auto-derived from grader defect (typography_match, 4×): weight 700 vs 300",
+      "provenance": [
+        "grader",
+        "stripe-v2"
+      ],
+      "confidence": 0.9
+    },
+    {
+      "kind": "structural",
+      "pattern": "static_scrape_miss",
+      "directive": "Extract from rendered DOM (Playwright), not raw HTML; capture JS-loaded sections/logos/tickers.",
+      "rationale": "Auto-derived from grader defect (structure_parser, 2×): 1 headings vs 57",
+      "provenance": [
+        "grader",
+        "stripe-v2"
+      ],
+      "confidence": 0.8
+    },
+    {
+      "kind": "structural",
+      "pattern": "motion_not_reproduced",
+      "directive": "Reproduce detected source hover/scroll motion via joist-* classes; grader must verify it fires.",
+      "rationale": "Auto-derived from grader defect (motion_runtime, 2×): clone hover-change 0.00% vs source 0.45%",
+      "provenance": [
+        "grader",
+        "stripe-v2"
+      ],
+      "confidence": 0.6000000000000001
+    }
+  ]
+}
