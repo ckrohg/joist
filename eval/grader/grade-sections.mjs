@@ -183,6 +183,26 @@ export function classifyVoid({ srcEnergy, cloneEnergy, cloneReproducedBandText, 
 //     capture tree (3a80a78), not grader mediaLeaves — box form needs NO capture/cache change.
 //  Legit builds: identical crops still EXACTLY 1 (deficit-form weights), clean-clone band M 1.0 (T2 control),
 //  bg-div legit clones RAISED 0→1; every game above scores LOWER — monotone honesty both directions.
+// ---- ROUND-4 GAMES (critic-measured by zz-mi-attack3.tmp.mjs; BOTH FIXED 2026-06-10, pinned T13/T14):
+//  T13 VIDEO-BOX PRESENCE STUFFING — FIXED: presence-only credit is tag-gated (clone video/canvas = full;
+//     img/picture = poster fallback, palette-gated by 4×4 pooled deSim ≥ MI_VIDEO_DE_MIN, credit ×deSim;
+//     svg/other = no candidate). Decorative-svg-at-video-box N2: M 1.0→0 (= honest omit); re-tagged img
+//     gradient also 0; legit <video> (different frame) and captured-frame poster <img> keep full credit.
+//  T14 GRAIN-OVER-LQIP — FIXED: hf credit is STRUCTURE-VERIFIED (_detailSign: fine-grid 18×16 minus enclosing
+//     coarse 9×8 luma, sign agreement at source-significant sites, best over ±1-cell offsets; deadband 0.65
+//     ≈3.8σ over chance, penalty floor −0.25 so unverified detail magnitude prices BELOW a no-detail LQIP).
+//     Grain sweep std 8..96: id 0.412..0.788 → 0.173..0.323, ALL ≤ plain LQIP 0.336 (which is unchanged).
+//     Side-effect (honesty gain): unrelated-busy baseline W3 0.443→0.090; same-imagery NN stretch unchanged
+//     (A1 0.641, N6 0.996, raster/bg-div still 1.0). KNOWN COSTS: deep-drift fallback F2 0.439→0.291 (≥~1
+//     fine-cell misalignment reads as unverified detail; small drifts ≤5% of box are rescued by the offset
+//     search); RESIDUALS (documented, un-priced): N5 pooled-flat fine texture vs faint noise (~0.6 — needs
+//     sub-cell structure), gaussian-blur+grain (sign field survives blur; mag term still prices the blur).
+//  ROUND-4 EVALUATED+DEFERRED — small-imagery omission under area weighting (N3: hero exact + 8/9 icons
+//     missing → M 0.929): count-weighting → 0.111 but raises small-leaf stuffing gain 13× (+0.051 vs +0.004
+//     area — 48px boxes are the easiest to semi-fake: < MI_FINE_MIN sites → mag-only hf); per-leaf floor /32
+//     → 0.788, stuffing gain +0.012, but unbounded false-low risk on logo-wall/avatar-dense pages (supabase
+//     logo clouds) is unverifiable without a live re-grade. Defer to round 5: harden small-leaf identity
+//     first, then floor-weight with live A/B.
 const USE_MEDIAID = !process.env.GRADER_NO_MEDIAID;
 const MI_MIN_LEAF = 24;        // leaf size floor (w AND h) — kills the 8px-probe-img trick by construction
 const MI_SRC_PAINT = 0.02;     // paint guard: a leaf whose own crop-energy < this was never painted → excluded
@@ -198,6 +218,20 @@ const MI_FLAT_VAR = 72 * 4;    // corr-term flat guard: Σ(luma-dev²) over the 
 const MI_HF_FLOOR = 3;         // hf-term floor (mean within-cell luma std): both crops below → smooth-vs-smooth
                                // imagery (flat hero washes), ratio is noise → hfSim 1 (nothing to assert)
 const MI_HF_W = 0.65;          // hf deficit weight: a 0-detail LQIP keeps ≤35% of its base id (0.96 → ~0.35)
+const MI_FINE_SIG = 5;         // T14 structure term: |fine-cell − coarse-cell| luma > this = a verifiable fine-
+                               // detail site (below it, AA/jpeg noise would make the sign a coin flip)
+const MI_FINE_MIN = 24;        // T14: min significant fine-detail sites before the structure term asserts
+                               // anything (a source with no fine structure → 1: magnitude ratio decides, as before)
+const MI_FINE_DEAD = 0.65;     // T14: detail-sign agreement deadband — chance is 0.5 (grain/flat both land there)
+                               // and the ±1-offset max harvests up to ~0.61 from pure chance (measured, n≈160);
+                               // 0.65 ≈ 3.8σ above chance. Linear to 1 at perfect agreement; identical crops
+                               // hit exactly 1 ((1−d)/(1−d)).
+const MI_FINE_PEN = 0.25;      // T14: penalty floor — agreement at/below chance maps to fineS −0.25 (not 0), so
+                               // structure-UNVERIFIED detail magnitude prices strictly BELOW a no-detail LQIP
+                               // (kills the grain≈plain base-noise tie deterministically; scaled by mag, so a
+                               // detail-less clone is barely touched while a big fake-grain magnitude pays most)
+const MI_VIDEO_DE_MIN = 0.5;   // T13 poster gate: an img/picture standing in for a video/canvas leaf must have
+                               // 4×4 pooled-palette deSim ≥ this vs the captured source frame (else 0 credit)
 const MI_AR_TOL = 0.65;        // aspect tolerance: box-aspect ratio ≥0.65 (≈±35% reflow/crop slack) is free;
                                // below, linear — the A1 480×280→1440×360 stretch (asim 0.43) → aTerm 0.66
 const MI_FOLD_FLOOR = 0.45;    // ROUND-3 fold proposal (NOT applied): visual_b ×= (0.45 + 0.55·M_b) when the
@@ -549,6 +583,21 @@ function _poolGrid(img, box, gw, gh) {
     return [c[0] / c[3], c[1] / c[3], c[2] / c[3], Math.sqrt(Math.max(0, c[5] / c[3] - ml * ml))];
   });
 }
+// _detailSign — T14 (GRAIN-OVER-LQIP) raw feed: per fine-grid cell (18×16), the luma DELTA between the fine-cell
+// mean and its enclosing coarse-cell (9×8) mean — i.e. the within-coarse-cell DETAIL component, with the coarse
+// structure (which an LQIP reproduces by construction) subtracted out. The SIGN of this delta at source-significant
+// sites is what film grain cannot fake: grain randomizes it (50% agreement = chance), genuine fine detail
+// preserves it. Exact 2×2 nesting: floor(u·18)/2 == floor(u·9) for the shared relative-coordinate pooling.
+function _detailSign(img, box, coarseLuma) {
+  const fg = _poolGrid(img, box, 18, 16);
+  if (!fg) return null;
+  const dd = new Array(288);
+  for (let fy = 0; fy < 16; fy++) for (let fx = 0; fx < 18; fx++) {
+    const c = fg[fy * 18 + fx];
+    dd[fy * 18 + fx] = (0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]) - coarseLuma[(fy >> 1) * 9 + (fx >> 1)];
+  }
+  return dd;
+}
 // mediaCropId — perceptual SAME-IMAGERY score for one matched (source crop, clone crop) pair. Pure pixels,
 // FIVE terms (FOLD-BLOCKER fixes #3 LQIP + #4 wrong-photo/stretch — see header):
 //   dHash: 9×8 luma grid → 64-bit difference hash → hashSim = 1 − hamming/64 (structure: edges/gradients)
@@ -556,9 +605,13 @@ function _poolGrid(img, box, gw, gh) {
 //   corr (#4): sqrt-free signed Pearson r² over the 72 pooled lumas — UNRELATED busy imagery decorrelates
 //     (E[r]≈0 → term ~0) where dHash floors at ~0.5 and pooled-ΔE stays high (both crops pool to mid-gray).
 //     Guards: flat-vs-flat → 1 (nothing to correlate; ΔE decides), flat-vs-textured → 0 (genuinely different).
-//   hf (#3): mean WITHIN-cell luma std ratio (the high-frequency detail pooling erases) — a blurred LQIP
-//     placeholder reproduces the 9×8 cell means (hash/ΔE/corr all high) but has ~zero within-cell detail.
-//     hfTerm = 1 − MI_HF_W·(1 − min/max std ratio); both-sides-flat guard → 1.
+//   hf (#3, structure-verified since T14): mean WITHIN-cell luma std ratio (the high-frequency detail pooling
+//     erases) — a blurred LQIP placeholder reproduces the 9×8 cell means (hash/ΔE/corr all high) but has ~zero
+//     within-cell detail. The MAGNITUDE ratio alone was grain-gameable (T14): hfSim = ratio × fineS, where fineS
+//     is the _detailSign agreement (fine 18×16 minus coarse 9×8 luma signs at source-significant sites, ±1-cell
+//     offset search, MI_FINE_DEAD deadband, MI_FINE_PEN penalty floor for at-chance agreement = fake detail).
+//     hfTerm = 1 − MI_HF_W·(1 − hfSim); both-sides-flat guard → 1; sources with < MI_FINE_MIN verifiable sites
+//     keep fineS 1 (magnitude decides, as before).
 //   aspect (#4): rendered-BOX aspect ratio — gross anisotropic stretch (480×280 → 1440×360) was INVISIBLE under
 //     per-box pooling (id 0.978). ≤(1−MI_AR_TOL) mismatch is free, linear price beyond. BOX-based on purpose:
 //     needs NO capture change (natW/natH live on the BUILDER capture tree, not grader mediaLeaves) and the
@@ -584,7 +637,29 @@ export function mediaCropId(srcShot, srcBox, cloneShot, cloneBox) {
     : (va < MI_FLAT_VAR || vb < MI_FLAT_VAR) ? 0
       : (cov <= 0 ? 0 : Math.min(1, (cov * cov) / (va * vb)));
   const hfa = ga.reduce((s, c) => s + c[3], 0) / 72, hfb = gb.reduce((s, c) => s + c[3], 0) / 72;
-  const hfSim = Math.max(hfa, hfb) < MI_HF_FLOOR ? 1 : Math.min(hfa, hfb) / Math.max(hfa, hfb);
+  // T14 GRAIN-PROOFING (B1 round 4): the hf MAGNITUDE ratio alone was gameable — a generic film-grain overlay on
+  // an LQIP matches the within-cell std without one source pixel (attack3 N1: id 0.336→0.703 at std 48). hf
+  // credit now requires the fine detail to be STRUCTURE-VERIFIED: detail-sign agreement (_detailSign) over
+  // source-significant sites (|Δ| > MI_FINE_SIG), best over a ±1-fine-cell offset search (protects legit clones
+  // with ≤~5% box-relative drift/crop). Chance (grain, flat) ≈ 0.5 → 0 after the MI_FINE_DEAD deadband;
+  // identical crops → exactly 1 (same grids → agree==sig at offset 0). A source with <MI_FINE_MIN verifiable
+  // sites keeps fineS=1 (nothing to verify — the magnitude ratio decides, exactly as before).
+  let fineS = 1;
+  if (Math.max(hfa, hfb) >= MI_HF_FLOOR) {
+    const dda = _detailSign(srcShot, srcBox, la), ddb = _detailSign(cloneShot, cloneBox, lb);
+    let bestAgree = -1;
+    if (dda && ddb) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      let sig = 0, agree = 0;
+      for (let fy = 0; fy < 16; fy++) for (let fx = 0; fx < 18; fx++) {
+        const d = dda[fy * 18 + fx]; if (Math.abs(d) <= MI_FINE_SIG) continue;
+        const cx = fx + dx, cy = fy + dy; if (cx < 0 || cx >= 18 || cy < 0 || cy >= 16) continue;
+        sig++; if ((d > 0) === (ddb[cy * 18 + cx] > 0)) agree++;
+      }
+      if (sig >= MI_FINE_MIN && agree / sig > bestAgree) bestAgree = agree / sig;
+    }
+    if (bestAgree >= 0) fineS = Math.max(-MI_FINE_PEN, Math.min(1, (bestAgree - MI_FINE_DEAD) / (1 - MI_FINE_DEAD)));
+  }
+  const hfSim = Math.max(hfa, hfb) < MI_HF_FLOOR ? 1 : (Math.min(hfa, hfb) / Math.max(hfa, hfb)) * fineS;
   const hfTerm = 1 - MI_HF_W * (1 - hfSim);
   const ara = srcBox.w / Math.max(1, srcBox.h), arb = cloneBox.w / Math.max(1, cloneBox.h);
   const aTerm = Math.min(1, (Math.min(ara, arb) / Math.max(ara, arb)) / MI_AR_TOL);
@@ -607,10 +682,12 @@ export function mediaCropId(srcShot, srcBox, cloneShot, cloneBox) {
 // rasters (N source logos reproduced as 1 big leaf → IoU<0.05) now score on their PIXELS instead of a false 0;
 // honest omission still scores 0 (unpainted box fails the gate). No match AND no painted fallback → MISSING
 // (id 0). identity_b = Σ(area·id)/Σ(area) over identity-eligible. presence_b is IDENTITY-WEIGHTED (FOLD-BLOCKER
-// #1): credited = Σ(srcLeafArea·id) over identity-eligible + geometric-match credit for presence-only leaves;
-// presence_b = min(1, credited/srcArea) — decorative-gradient/area stuffing earns ~id≈0 credit instead of the
-// old min(1, cloneArea/srcArea)=1. M_b = 0.6·identity + 0.4·presence (presence-only when the band has no
-// identity-eligible leaves, e.g. video-only). Returns null score when zero eligible source media (n/a band).
+// #1): credited = Σ(srcLeafArea·id) over identity-eligible + gated credit for presence-only leaves (T13: clone
+// video/canvas = full geometric credit; img/picture poster fallback = ×deSim, palette-gated ≥ MI_VIDEO_DE_MIN;
+// svg/other stamps are not candidates); presence_b = min(1, credited/srcArea) — decorative-gradient/area
+// stuffing earns ~id≈0 credit instead of the old min(1, cloneArea/srcArea)=1. M_b = 0.6·identity + 0.4·presence
+// (presence-only when the band has no identity-eligible leaves, e.g. video-only). Returns null score when zero
+// eligible source media (n/a band).
 export function mediaIdentityBand({ srcShot, cloneShot, srcMedia, cloneMedia, y0, y1, selftest = false }) {
   const inBand = (m) => m.y + m.h / 2 >= y0 && m.y + m.h / 2 < y1;
   const clip = (m, img) => {
@@ -649,14 +726,14 @@ export function mediaIdentityBand({ srcShot, cloneShot, srcMedia, cloneMedia, y0
     return { score: null, raw: null, identity: null, presence: null, srcMediaArea: 0, cloneMediaArea, cloneOnlyMediaArea: cloneMediaArea, leaves: { eligible: 0, identityEligible: 0, matched: 0, wrong: 0, missing: 0 } };
   }
   let idNum = 0, idDen = 0, matched = 0, fb = 0, wrong = 0, missing = 0, credited = 0;
-  const findBest = (e) => {                                                     // best clone candidate: IoU, else center
+  const findBest = (e, accept = null) => {                                      // best clone candidate: IoU, else center
     let best = null, bestIou = 0;
-    for (const c of clnElig) { if (c.used) continue; const i = _iou(e.m, c.m); if (i > bestIou) { bestIou = i; best = c; } }
+    for (const c of clnElig) { if (c.used || (accept && !accept(c))) continue; const i = _iou(e.m, c.m); if (i > bestIou) { bestIou = i; best = c; } }
     if (best && bestIou >= MI_MATCH_IOU) return best;
     best = null; let bestD = Infinity;
     const cx = e.m.x + e.m.w / 2, cy = e.m.y + e.m.h / 2, maxD = 0.5 * Math.max(e.m.w, e.m.h, 120);
     for (const c of clnElig) {
-      if (c.used) continue;
+      if (c.used || (accept && !accept(c))) continue;
       const ratio = (c.m.w * c.m.h) / Math.max(1, e.m.w * e.m.h);
       if (ratio < 0.25 || ratio > 4) continue;
       const d = Math.hypot(c.m.x + c.m.w / 2 - cx, c.m.y + c.m.h / 2 - cy);
@@ -682,9 +759,29 @@ export function mediaIdentityBand({ srcShot, cloneShot, srcMedia, cloneMedia, y0
     if (id < 0.5) wrong++;
   }
   for (const e of order) {                                                      // pass 2: presence-only (video/canvas)
-    if (e.identityElig) continue;                                               // geometric match only (animated pixels)
-    const best = findBest(e);
-    if (best) { best.used = true; credited += Math.min(e.area, best.area); }
+    if (e.identityElig) continue;
+    // T13 VIDEO-BOX PRESENCE STUFFING (B1 round 4): geometric credit was unconditional — a decorative svg/
+    // gradient at the source video's box flipped M 0→1.0 (attack3 N2), out-earning honest omission. Now:
+    //   (a) TAG GATE: only clone video/canvas (a real playback surface — the legit reproduction shape, animated
+    //       pixels uncomparable → full geometric credit) or img/picture (a poster/static-frame fallback) can
+    //       stand in for a presence-only leaf; svg/other decorative stamps are not candidates at all.
+    //   (b) POSTER PALETTE GATE: an img/picture stand-in must be pixel-PLAUSIBLE vs the captured source frame —
+    //       4×4 pooled-palette deSim ≥ MI_VIDEO_DE_MIN, credit scaled by deSim (graded: a faithful frame raster
+    //       keeps ~full credit, a re-tagged gradient/wrong image earns 0). Zero-credit candidates are NOT
+    //       consumed (stay visible as cloneOnlyMediaArea telemetry).
+    const accept = (c) => /^(video|canvas|img|picture)$/.test(String(c.m.tag || 'img').toLowerCase());
+    const best = findBest(e, accept);
+    if (!best) continue;
+    let plaus = 1;
+    if (!/^(video|canvas)$/.test(String(best.m.tag || 'img').toLowerCase())) {
+      const pa = _poolGrid(srcShot, e.box, 4, 4), pb = _poolGrid(cloneShot, best.box, 4, 4);
+      if (!pa || !pb) { plaus = 0; } else {
+        let s = 0; for (let i = 0; i < 16; i++) s += dE(srgbLab(pa[i][0], pa[i][1], pa[i][2]), srgbLab(pb[i][0], pb[i][1], pb[i][2]));
+        const deSim = Math.max(0, 1 - (s / 16) / MI_DE_MAX);
+        plaus = deSim >= MI_VIDEO_DE_MIN ? deSim : 0;
+      }
+    }
+    if (plaus > 0) { best.used = true; credited += Math.min(e.area, best.area) * plaus; }
   }
   const identity = idDen > 0 ? idNum / idDen : null;                            // null = no identity-eligible leaves
   const presence = Math.min(1, credited / Math.max(1, srcMediaArea));           // identity-WEIGHTED (FOLD-BLOCKER #1)

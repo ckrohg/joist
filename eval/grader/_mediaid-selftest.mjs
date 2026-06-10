@@ -15,6 +15,9 @@
  * Plus: FOLD-BLOCKER regressions T9-T12 (B1 round 3, one per blocker — see grade-sections.mjs header):
  * presence-gaming ≤0.15, bg-div byte-identical ≥0.9, LQIP 9×8 ≤0.6 (4×4 monotone-below), unrelated-busy ≤0.45
  * + stretch priced-not-zeroed. These pin the zz-mi-attack harness flips.
+ * Plus: ROUND-4 games T13-T14 (zz-mi-attack3 flips): T13 video-box presence stuffing (decorative svg AND
+ * re-tagged img gradient at the video box ≤ honest omission; legit video / captured-frame poster keep credit),
+ * T14 grain-over-LQIP (film-grain overlay ≤ plain LQIP across std 8..96; NN-stretch real detail stays high).
  * Pure tests run with no browser/network/WP. CLI proofs launch headless chromium on file:// fixtures only
  * (skip with --pure). Never touches graded pages. Run: node _mediaid-selftest.mjs
  */
@@ -207,6 +210,45 @@ const vgrad = (img, x, y, w, h) => { for (let yy = 0; yy < h; yy++) for (let xx 
   const rS = mediaIdentityBand({ srcShot: src, cloneShot: cln, srcMedia: [leaf(480, 60, 480, 280)], cloneMedia: [leaf(0, 20, 1440, 360)], y0: 0, y1: 400 });
   log(rS.identity <= 0.7, `T12 FB4 anisotropic stretch: 480×280 → 1440×360 priced, id ≤ 0.7 (was 0.978; got ${rS.identity})`);
   log(rS.identity >= 0.4, `T12 FB4 stretch is priced, not zeroed: same imagery keeps id ≥ 0.4 (got ${rS.identity})`);
+}
+
+// ── T13 / ROUND-4: VIDEO-BOX PRESENCE STUFFING — tag gate + poster palette gate (attack3 N2) ──
+{
+  const src = mk(800, 300, [20, 20, 24]); checker(src, 200, 50, 400, 220, 40, [200, 200, 60], [40, 40, 120]); // captured video frame
+  const v = [leaf(200, 50, 400, 220, 'video')];
+  const rOmit = mediaIdentityBand({ srcShot: src, cloneShot: mk(800, 300, [20, 20, 24]), srcMedia: v, cloneMedia: [], y0: 0, y1: 300 });
+  const gShot = mk(800, 300, [20, 20, 24]); vgrad(gShot, 200, 50, 400, 220);  // decorative gradient at the box
+  const rSvg = mediaIdentityBand({ srcShot: src, cloneShot: gShot, srcMedia: v, cloneMedia: [leaf(200, 50, 400, 220, 'svg')], y0: 0, y1: 300 });
+  const rTag = mediaIdentityBand({ srcShot: src, cloneShot: gShot, srcMedia: v, cloneMedia: [leaf(200, 50, 400, 220, 'img')], y0: 0, y1: 300 });
+  log(rOmit.score === 0, `T13 honest-omit control: video absent → M 0 (got ${rOmit.score})`);
+  log(rSvg.score <= rOmit.score && rSvg.presence === 0, `T13 svg-gradient stuffing: decorative svg at the video box ≤ honest omission (was M 1.0; got M ${rSvg.score} vs omit ${rOmit.score})`);
+  log(rTag.score <= rOmit.score && rTag.presence === 0, `T13 re-tagged img gradient: tag gate alone is NOT enough — poster palette gate kills it (got M ${rTag.score})`);
+  const cV = mk(800, 300, [20, 20, 24]); checker(cV, 200, 50, 400, 220, 64, [180, 60, 60], [240, 240, 240]); // different frame
+  const rV = mediaIdentityBand({ srcShot: src, cloneShot: cV, srcMedia: v, cloneMedia: [leaf(200, 50, 400, 220, 'video')], y0: 0, y1: 300 });
+  log(rV.score === 1, `T13 legit video clone: real <video> at the box, different frame pixels → full credit (got ${rV.score})`);
+  const cP = mk(800, 300, [20, 20, 24]); blit(src, 200, 50, 400, 220, cP, 200, 50, 400, 220);
+  const rP = mediaIdentityBand({ srcShot: src, cloneShot: cP, srcMedia: v, cloneMedia: [leaf(200, 50, 400, 220, 'img')], y0: 0, y1: 300 });
+  log(rP.score >= 0.9, `T13 legit poster img: captured-frame raster as <img> keeps ~full credit (got ${rP.score})`);
+}
+// ── T14 / ROUND-4: GRAIN-OVER-LQIP — structure-verified hf term (attack3 N1) ──
+{
+  let seed = 7; const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+  const grain = (img, x, y, w, h, std) => { for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) { const n = Math.round(((rnd() + rnd() + rnd()) / 3 - 0.5) * 2 * std * 1.73); const i = (yy * img.width + xx) * 4; for (let k = 0; k < 3; k++) img.data[i + k] = Math.max(0, Math.min(255, img.data[i + k] + n)); } };
+  const src = mk(1440, 400, [248, 248, 250]); photo(src, 480, 60, 480, 280);
+  const media = [leaf(480, 60, 480, 280)];
+  const c0 = mk(1440, 400, [248, 248, 250]); lqip(src, 480, 60, 480, 280, 9, 8, c0, 480, 60);
+  const r0 = mediaIdentityBand({ srcShot: src, cloneShot: c0, srcMedia: media, cloneMedia: media, y0: 0, y1: 400 });
+  log(r0.identity <= 0.4, `T14 plain-LQIP control: id ≤ 0.4 (got ${r0.identity})`);
+  for (const std of [8, 32, 64, 96]) {
+    const cg = mk(1440, 400, [248, 248, 250]); lqip(src, 480, 60, 480, 280, 9, 8, cg, 480, 60); grain(cg, 480, 60, 480, 280, std);
+    const rg = mediaIdentityBand({ srcShot: src, cloneShot: cg, srcMedia: media, cloneMedia: media, y0: 0, y1: 400 });
+    log(rg.identity <= r0.identity, `T14 grain std=${std}: film-grain overlay ≤ plain LQIP (was 0.412..0.788 vs 0.336; got ${rg.identity} ≤ ${r0.identity})`);
+  }
+  // real-fine-detail control: the structure term must VERIFY genuine detail, not punish it — NN vertical stretch
+  // (480×280 → 480×408, inside MI_AR_TOL) keeps id high because the detail-sign field survives resampling.
+  const cs = mk(1440, 600, [248, 248, 250]); const src2 = mk(1440, 600, [248, 248, 250]); photo(src2, 480, 60, 480, 280); blit(src2, 480, 60, 480, 280, cs, 480, 60, 480, 408);
+  const rs = mediaIdentityBand({ srcShot: src2, cloneShot: cs, srcMedia: [leaf(480, 60, 480, 280)], cloneMedia: [leaf(480, 60, 480, 408)], y0: 0, y1: 600 });
+  log(rs.identity >= 0.9, `T14 real-detail control: NN 1.46x stretch keeps id ≥ 0.9 (got ${rs.identity}) — genuine fine structure verified, not punished`);
 }
 
 // ════ CLI proofs (file:// fixture; headless chromium; no network/WP/graded pages) ════

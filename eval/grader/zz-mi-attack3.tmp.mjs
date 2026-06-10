@@ -1,4 +1,8 @@
 // @purpose adversarial-critic round 3 (post fold-blocker fixes): NEXT-cheapest games the 4 fixes don't cover.
+// ROUND-4 STATUS: N1 (=T14) and N2 (=T13) FIXED — N1 by the structure-verified hf term (detail-sign agreement,
+// MI_FINE_*: grain ≤ plain LQIP across std 8..96), N2 by the presence tag gate + poster palette gate
+// (MI_VIDEO_DE_MIN: decorative svg / re-tagged img-gradient → 0 = honest omit; legit video/poster keep credit).
+// Both pinned in _mediaid-selftest.mjs T13/T14. N3 (small-imagery area-weighting) evaluated round 4, DEFERRED.
 // N1 grain-over-LQIP (hf-term defeat WITHOUT source pixels — generic film-grain overlay on the shipped placeholder)
 // N2 video-box presence stuffing (presence-only credit fed by a decorative gradient at the video's box)
 // N3 hero-matched + all-small-imagery-omitted (area-weighting under-price of human-salient icon/logo misses)
@@ -35,16 +39,16 @@ const W = 1440, H = 400;
 {
   const src = mk(W, H, [248,248,250]); photo(src, 480, 60, 480, 280);
   const media = [leaf(480, 60, 480, 280)];
-  // measure the source's own hf so we can report attacker-knowledge sensitivity (attacker does NOT know it; sweep stds)
-  for (const std of [8, 16, 24, 32, 48]) {
-    const cln = mk(W, H, [248,248,250]); lqip(src, 480, 60, 480, 280, 9, 8, cln, 480, 60); grain(cln, 480, 60, 480, 280, std);
-    const r = mediaIdentityBand({ srcShot: src, cloneShot: cln, srcMedia: media, cloneMedia: media, y0: 0, y1: H });
-    console.log(`N1 GRAIN-LQIP std=${std}:`, J({ M: r.score, id: r.identity, foldMult: +fold(r.score).toFixed(3) }));
-  }
-  // control: plain LQIP (the fixed number) for delta
+  // control first: plain LQIP — the bound every grain variant must stay at-or-below (round-4 required outcome)
   const c0 = mk(W, H, [248,248,250]); lqip(src, 480, 60, 480, 280, 9, 8, c0, 480, 60);
   const r0 = mediaIdentityBand({ srcShot: src, cloneShot: c0, srcMedia: media, cloneMedia: media, y0: 0, y1: H });
   console.log('N1 control plain LQIP:', J({ M: r0.score, id: r0.identity }));
+  // measure the source's own hf so we can report attacker-knowledge sensitivity (attacker does NOT know it; sweep stds)
+  for (const std of [8, 16, 24, 32, 48, 64, 96]) {
+    const cln = mk(W, H, [248,248,250]); lqip(src, 480, 60, 480, 280, 9, 8, cln, 480, 60); grain(cln, 480, 60, 480, 280, std);
+    const r = mediaIdentityBand({ srcShot: src, cloneShot: cln, srcMedia: media, cloneMedia: media, y0: 0, y1: H });
+    console.log(`N1 GRAIN-LQIP std=${std}:`, J({ M: r.score, id: r.identity, foldMult: +fold(r.score).toFixed(3) }), r.score <= r0.score ? 'OK ≤ plain' : 'GAME WINS');
+  }
 }
 
 // ---------- N2: VIDEO-BOX PRESENCE STUFFING — gradient div/svg at the video's box buys full presence credit ----------
@@ -60,8 +64,20 @@ const W = 1440, H = 400;
   const cln2 = mk(800, 300, [20,20,24]); vgrad(cln2, 250, 80, 200, 140);
   const rG2 = mediaIdentityBand({ srcShot: src, cloneShot: cln2, srcMedia: v, cloneMedia: [leaf(250, 80, 200, 140, 'svg')], y0: 0, y1: 300 });
   console.log('N2 VIDEO honest-omit:', J({ M: r0.score, foldMult: +fold(r0.score).toFixed(3) }));
-  console.log('N2 VIDEO gradient-at-box:', J({ M: rG.score, pres: rG.presence, foldMult: +fold(rG.score).toFixed(3) }));
-  console.log('N2 VIDEO half-size gradient:', J({ M: rG2.score, pres: rG2.presence }));
+  console.log('N2 VIDEO gradient-at-box:', J({ M: rG.score, pres: rG.presence, foldMult: +fold(rG.score).toFixed(3) }), rG.score <= r0.score ? 'OK ≤ honest-omit' : 'GAME WINS');
+  console.log('N2 VIDEO half-size gradient:', J({ M: rG2.score, pres: rG2.presence }), rG2.score <= r0.score ? 'OK ≤ honest-omit' : 'GAME WINS');
+  // round-4 additions: (a) re-tag attack — same gradient pixels but claimed as an <img> (tag gate alone would
+  // pass it; the poster palette gate must kill it); (b) LEGIT video clone (real <video> at the box, different
+  // frame pixels — animated, uncomparable) must keep FULL credit; (c) LEGIT poster img (the captured source
+  // frame rastered as an <img>) must keep ~full credit.
+  const rT = mediaIdentityBand({ srcShot: src, cloneShot: cln, srcMedia: v, cloneMedia: [leaf(200, 50, 400, 220, 'img')], y0: 0, y1: 300 });
+  console.log('N2 VIDEO re-tagged img gradient:', J({ M: rT.score, pres: rT.presence }), rT.score <= r0.score ? 'OK ≤ honest-omit' : 'GAME WINS');
+  const cV = mk(800, 300, [20,20,24]); checker(cV, 200, 50, 400, 220, 64, [180,60,60], [240,240,240]); // different frame
+  const rV = mediaIdentityBand({ srcShot: src, cloneShot: cV, srcMedia: v, cloneMedia: [leaf(200, 50, 400, 220, 'video')], y0: 0, y1: 300 });
+  console.log('N2 VIDEO legit video clone (different frame):', J({ M: rV.score, pres: rV.presence }), rV.score >= 0.9 ? 'OK legit keeps credit' : 'LEGIT PUNISHED');
+  const cP = mk(800, 300, [20,20,24]); blit(src, 200, 50, 400, 220, cP, 200, 50, 400, 220);
+  const rP = mediaIdentityBand({ srcShot: src, cloneShot: cP, srcMedia: v, cloneMedia: [leaf(200, 50, 400, 220, 'img')], y0: 0, y1: 300 });
+  console.log('N2 VIDEO legit poster img (captured frame):', J({ M: rP.score, pres: rP.presence }), rP.score >= 0.9 ? 'OK legit keeps credit' : 'LEGIT PUNISHED');
 }
 
 // ---------- N3: HERO-MATCHED + ALL SMALL IMAGERY OMITTED — area weighting under-prices icon/logo misses ----------
@@ -72,6 +88,25 @@ const W = 1440, H = 400;
   const cln = mk(W, 600, [250,250,252]); blit(src, 80, 100, 600, 400, cln, 80, 100, 600, 400); // hero copied EXACTLY, 8 icons omitted
   const r = mediaIdentityBand({ srcShot: src, cloneShot: cln, srcMedia, cloneMedia: [leaf(80, 100, 600, 400)], y0: 0, y1: 600 });
   console.log('N3 HERO+8-ICONS-OMITTED:', J({ M: r.score, id: r.identity, missing: r.leaves.missing, foldMult: +fold(r.score).toFixed(3) }));
+  // ROUND-4 EVALUATION (weighting variants for the open question — computed OUTSIDE grade-sections, decision data
+  // only): per-leaf ids for this band are hero=1, icons=0 (omitted). Variants:
+  const heroA = 600 * 400, iconA = 48 * 48, totA = heroA + 8 * iconA;
+  const idArea = heroA / totA;                                            // current area weighting
+  const idCount = 1 / 9;                                                  // count weighting
+  const floorW = Math.max(iconA, totA / 32);                              // per-leaf floor at srcMediaArea/32
+  const idFloor = heroA / (heroA + 8 * floorW);
+  console.log('N3 weighting variants (omit case): area', +idArea.toFixed(3), '| count', +idCount.toFixed(3), '| floor/32', +idFloor.toFixed(3));
+  // gaming-surface counterprobe for the variants: STUFF the 8 icon boxes with a generic gradient blob (no source
+  // pixels) — small boxes are the EASIEST to semi-fake (fine grid has <MI_FINE_MIN significant sites → mag-only
+  // hf). If stuffing earns materially more under count/floor weighting, the variants OPEN a new surface.
+  const clnS = mk(W, 600, [250,250,252]); blit(src, 80, 100, 600, 400, clnS, 80, 100, 600, 400);
+  for (let i = 0; i < 8; i++) { const x = 760 + (i % 4) * 140, y = 160 + Math.floor(i / 4) * 200; vgrad(clnS, x, y, 48, 48); }
+  const iconIds = [];
+  for (let i = 0; i < 8; i++) { const x = 760 + (i % 4) * 140, y = 160 + Math.floor(i / 4) * 200; iconIds.push(mediaCropId(src, { x, y, w: 48, h: 48 }, clnS, { x, y, w: 48, h: 48 })); }
+  const stuffMean = iconIds.reduce((a, b) => a + b, 0) / 8;
+  const stArea = (heroA + stuffMean * 8 * iconA) / totA, stCount = (1 + stuffMean * 8) / 9, stFloor = (heroA + stuffMean * 8 * floorW) / (heroA + 8 * floorW);
+  console.log('N3 stuffed-icon ids (gradient blobs):', J(iconIds.map((x) => +x.toFixed(3))), 'mean', +stuffMean.toFixed(3));
+  console.log('N3 stuffing GAIN by weighting: area +' + (stArea - idArea).toFixed(3), '| count +' + (stCount - idCount).toFixed(3), '| floor/32 +' + (stFloor - idFloor).toFixed(3));
 }
 
 // ---------- N4: WRONG-BUSY SUBSTITUTION — a DIFFERENT real-looking photo in the right box (the 0.44 residual) ----------
