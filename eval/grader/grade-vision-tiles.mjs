@@ -117,8 +117,13 @@ export async function settleLazy(page) {
       const pending = () => [...document.images].filter((im) => !(im.complete && im.naturalWidth > 0));
       const deadline = Date.now() + 8000;
       while (pending().length && Date.now() < deadline) await sleep(150);
-      // force-decode (paint readiness) of the images we have, best-effort & bounded
-      await Promise.all([...document.images].slice(0, 500).map((im) => im.decode && im.decode().catch(() => {})));
+      // force-decode (paint readiness), best-effort & bounded. SEQUENTIAL + capped at 64 LOADED images:
+      // the original 500-way concurrent Promise.all decode fan-out OOM-killed the Chromium renderer on
+      // image-heavy pages (supabase, root-caused 2026-06-10 in grade-sections' copy of this block).
+      const decodable = [...document.images].filter((im) => im.complete && im.naturalWidth > 0).slice(0, 64);
+      for (const im of decodable) {
+        try { if (im.decode) await im.decode(); } catch {}
+      }
       window.scrollTo(0, 0); await sleep(150);
     }).catch(() => {});
     await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});

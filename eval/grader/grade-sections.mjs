@@ -669,7 +669,10 @@ async function capture(ctx, target, withSections) {
       const pending = () => [...document.images].filter((im) => !(im.complete && im.naturalWidth > 0));
       const deadline = Date.now() + 8000;
       while (pending().length && Date.now() < deadline) await sleep(150);
-      await Promise.all([...document.images].slice(0, 500).map((im) => im.decode && im.decode().catch(() => {})));
+      const decodable = [...document.images].filter((im) => im.complete && im.naturalWidth > 0).slice(0, 64);
+      for (const im of decodable) {
+        try { if (im.decode) await im.decode(); } catch {}
+      }
     }).catch(() => {});
     await p.waitForTimeout(300).catch(() => {});
   }
