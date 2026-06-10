@@ -598,14 +598,14 @@ identical (`HYBRID_ROUTER` unset → today's classify+abs branch verbatim).
 
 ## 3. QUICK-REFERENCE: gate flags & files
 
-| Effort | File(s) | Gate flag | Default |
+| Effort | File(s) | Gate flag | Default (corrected 2026-06-09) |
 |--------|---------|-----------|---------|
 | #1 grader-visual-fix | grade-structure.mjs | `GRADER_CGM=1` (blend); `cgm_mean` always reported | OFF (report-only) |
-| #2 section-bg | build-hybrid.mjs | `HYBRID_SECTION_BG` | OFF → `!=='0'` post-LOOK |
-| #3 grid-recon | build-hybrid.mjs | `HYBRID_GRID2`, `HYBRID_GRID2_ICONS` | OFF |
-| #4 imagery | build-hybrid.mjs | `HYBRID_ICONS` | OFF |
-| #5 width-flow | build-hybrid.mjs | `HYBRID_WIDTHFLOW` | OFF |
-| #6 router | strategy-router.mjs (new), build-hybrid.mjs | `HYBRID_ROUTER=static|measure` | unset (legacy) |
+| #2 section-bg | build-hybrid.mjs | `HYBRID_SECTION_BG === '1'` (build-hybrid.mjs:43) | OFF — built, never promoted |
+| #3 grid-recon | build-hybrid.mjs | `HYBRID_GRID !== '0'` (NOT `HYBRID_GRID2`; build-hybrid.mjs:144) | **ON** since `ab8f7ab` (2026-06-08) |
+| #4 imagery | build-hybrid.mjs | `HYBRID_ICONS === '1'` (build-hybrid.mjs:350) | OFF — built (`9681e2f`), not promoted |
+| #5 width-flow | build-hybrid.mjs | `HYBRID_WIDTHFLOW` | OFF (not built) |
+| #6 router | strategy-router.mjs (new), build-hybrid.mjs | `HYBRID_ROUTER=static|measure` | unset (not built) |
 
 ## 4. THE ONE-LINE EXECUTION RULE
 
