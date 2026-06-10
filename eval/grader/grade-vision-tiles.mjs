@@ -100,24 +100,30 @@ async function leavesOf(page) {
 // on an already-loaded page. REVERSIBLE: VTILES_NO_LAZY_TRIGGER=1 skips this and uses the legacy fast settle,
 // which is byte-identical to the pre-2026-06-09 capture path.
 export async function settleLazy(page) {
-  await page.evaluate(async () => {
-    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-    const docH = () => document.body.scrollHeight;
-    // incremental scroll; re-read height each step since lazy content can extend the page. Cap iterations so a
-    // genuinely infinite-growth page (rare) can't hang the capture.
-    let y = 0, guard = 0;
-    while (y <= docH() && guard++ < 400) { window.scrollTo(0, y); await sleep(110); y += 600; }
-    window.scrollTo(0, docH()); await sleep(250);
-    // wait for in-DOM images to finish (complete + non-zero natural size), bounded
-    const pending = () => [...document.images].filter((im) => !(im.complete && im.naturalWidth > 0));
-    const deadline = Date.now() + 8000;
-    while (pending().length && Date.now() < deadline) await sleep(150);
-    // force-decode (paint readiness) of the images we have, best-effort & bounded
-    await Promise.all([...document.images].slice(0, 500).map((im) => im.decode && im.decode().catch(() => {})));
-    window.scrollTo(0, 0); await sleep(150);
-  }).catch(() => {});
-  await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
-  await page.waitForTimeout(400);
+  // HARD RULE: settleLazy must NEVER throw — a slow/closing page (e.g. vercel) once closed mid-settle and the
+  // unguarded page.waitForTimeout below threw an UNCAUGHT rejection that crashed the whole tiler (2026-06-09 fix).
+  // Every page.* call is individually .catch()'d AND the whole body is wrapped, so on any page/context-closed
+  // error we degrade gracefully and let capture()'s own screenshot step handle the (possibly-closed) page.
+  try {
+    await page.evaluate(async () => {
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      const docH = () => document.body.scrollHeight;
+      // incremental scroll; re-read height each step since lazy content can extend the page. Cap iterations so a
+      // genuinely infinite-growth page (rare) can't hang the capture.
+      let y = 0, guard = 0;
+      while (y <= docH() && guard++ < 400) { window.scrollTo(0, y); await sleep(110); y += 600; }
+      window.scrollTo(0, docH()); await sleep(250);
+      // wait for in-DOM images to finish (complete + non-zero natural size), bounded
+      const pending = () => [...document.images].filter((im) => !(im.complete && im.naturalWidth > 0));
+      const deadline = Date.now() + 8000;
+      while (pending().length && Date.now() < deadline) await sleep(150);
+      // force-decode (paint readiness) of the images we have, best-effort & bounded
+      await Promise.all([...document.images].slice(0, 500).map((im) => im.decode && im.decode().catch(() => {})));
+      window.scrollTo(0, 0); await sleep(150);
+    }).catch(() => {});
+    await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(400).catch(() => {});
+  } catch { /* page/context closed mid-settle → degrade gracefully (capture() handles the shot) */ }
 }
 
 async function capture(ctx, url) {
@@ -284,12 +290,16 @@ export function buildMap(pairs, srcH, clnH) {
 }
 
 if (IS_MAIN) (async () => {
-  const browser = await chromium.launch({ args: ['--disable-blink-features=AutomationControlled'] });
+  // Wrap the whole run so a slow/closing page (e.g. a capture killed by an outer timeout, or a site that closes
+  // the page mid-shot) fails CLEANLY with a non-zero exit + message instead of an uncaught promise rejection
+  // (the 2026-06-09 robustness fix — pairs with settleLazy's internal guards). browser is always closed.
+  let browser;
+  try {
+  browser = await chromium.launch({ args: ['--disable-blink-features=AutomationControlled'] });
   const ctx = await browser.newContext({ viewport: { width: W, height: 900 }, deviceScaleFactor: 1 });
   await ctx.addInitScript(() => { Object.defineProperty(navigator, 'webdriver', { get: () => undefined }); });
   const { shot: src, leaves: srcLeaves } = await capture(ctx, source);
   const { shot: cln, leaves: clnLeaves } = await capture(ctx, clone);
-  await browser.close();
 
   const H = Math.min(src.height, cln.height);
   const colW = Math.floor(W / COLS);
@@ -334,4 +344,10 @@ if (IS_MAIN) (async () => {
   const manifest = { source, clone, width: W, rowH: ROW_H, cols: COLS, srcHeight: src.height, cloneHeight: cln.height, gradedHeight: H, heightRatio: +(cln.height / src.height).toFixed(3), tileCount: tiles.length, anchored: ANCHOR, anchorMeta, tiles };
   fs.writeFileSync(path.join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
   console.log(`VTILES: ${tiles.length} tiles -> ${outDir} | srcH ${src.height} cloneH ${cln.height} (hRatio ${manifest.heightRatio}) | anchor=${ANCHOR ? 'ON' : 'off'} matched=${anchorMeta.matched} refined=${anchorMeta.refined} | layout = SOURCE | magenta-divider | CLONE`);
+  } catch (e) {
+    console.error(`VTILES FAILED (${source} → ${clone}): ${e && e.message ? e.message : e}`);
+    process.exitCode = 1;
+  } finally {
+    try { await browser?.close(); } catch {}
+  }
 })();
