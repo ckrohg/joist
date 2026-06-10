@@ -29,13 +29,16 @@
  *  5. OPERATORS map is the extension point: operator = pure function
  *     (tree, band, layout, captureData, {iteration, baseline, last}) → mutated tree or null. The loop hands the
  *     operator a DEEP CLONE (in-place mutation safe). 3-candidate cap per band (1D-Bench plateau precedent).
- *     This round ships ONE real operator: 'split-bg' (split-wrapper-at-vertical-bg-discontinuity — the
- *     fix-ready tailwind §9 dark-on-dark lever). It finds a band-overlapping wrapper whose painted solid bg
- *     disagrees with the SOURCE's dominant color over the band rows while AGREEING outside the band (a genuine
- *     vertical discontinuity at the band boundary), and visually splits it by inserting a band-clipped overlay
- *     rect with the source-sampled color immediately after the wrapper (same z0, later DOM order → paints over
- *     the wrong bg, still under all content at z>=1). Originals are never moved/resized → minimal mutation
- *     surface, trivially union-safe.
+ *     This round ships ONE real operator: 'split-bg' (split-rect-at-vertical-bg-discontinuity, operator #1).
+ *     It finds an in-band node painting ONE solid bg whose rows span a vertical bg-discontinuity in the SOURCE
+ *     (row-dominant-luma jump > 60, the _bgsample guard logic localized to a row), and SPLITS that bg paint in
+ *     two at the discontinuity row: the node's own bg is neutralized to transparent and two pure bg rects —
+ *     each carrying the MEAN color of its own region's dominant 4-bit bucket, sampled from the frozen source
+ *     screenshot — are inserted immediately BEFORE the node (same z0; the node + its text paint over them in
+ *     DOM order; everything previously hidden under the node stays hidden under the rects). Texts/medias are
+ *     never moved or removed → the anti-deletion gates judge pure bg-paint changes. Candidates are restricted
+ *     to nodes fully inside the band rows (±16px) so a repaint can never leak outside what the band gates see.
+ *     A kept split composes: each piece is itself a solid-bg rect the next iteration may split again.
  *  6. --apply (graded-page write, the ONLY one, hard-railed): after ALL bands are judged and only when
  *     something was kept — save the full pre-state tree+page_settings+hash to /tmp/refine-prestate-<page>.json
  *     FIRST, then ONE CAS PUT (expected_hash, 409 retry) of the union, then a full-page grade-sections re-grade.
@@ -65,7 +68,9 @@ import { chromium } from 'playwright';
 import { W } from './grade-sections.mjs';
 import { createScratch, deletePage, sweep, BASE, CORPUS } from './scratch-harness.mjs';
 import { sectionVisual, prepare, api, liveHash } from './sectionvisual.mjs';
-import { dominantBoxBg } from './_bgsample.mjs';
+// (discontinuity DETECTION mirrors _bgsample.mjs's vertical-discontinuity guard, localized to a row — see the
+// split-bg operator below; the bucket-mean color sampler is local because bucket-CENTER colors can miss the
+// grader's Lab ΔE<8 exact-pixel window on dark panels.)
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const IS_MAIN = process.argv[1] && process.argv[1].endsWith('refine-sections.mjs');
@@ -141,26 +146,69 @@ const extentOf = (n, boxes) => {
 };
 const newElId = () => Math.random().toString(16).slice(2, 9).padEnd(7, '0');
 
-// split-bg — split-wrapper-at-vertical-bg-discontinuity (operator #1; tailwind §9 dark-on-dark lever).
-// Preconditions per wrapper candidate (all SOURCE-evidenced, no invention):
-//   • wrapper paints a parseable solid bg and overlaps the band rows by >=60px,
-//   • wrapper extends >=120px BEYOND the band (it spans the band boundary — the discontinuity site),
-//   • SOURCE dominant color over the band∩wrapper rows differs strongly from the painted color (>60 RGB),
-//   • SOURCE dominant color over the wrapper's rows OUTSIDE the band AGREES with the painted color (<60 RGB)
-//     — i.e. the single bg is right for the neighbor region and wrong for this band: a true vertical split.
-// Mutation: insert ONE band-clipped overlay rect with the source-sampled color right after the wrapper
-// (same z0; later DOM order paints over the wrong bg; all content sits at z>=1). Iteration i proposes the
-// i-th strongest candidate (ranked by overlap-area × color-mismatch); null when exhausted.
-const SPLITBG = { minOverlap: 60, minExtend: 120, mismatch: 60, agree: 60 };
+// split-bg — split-rect-at-vertical-bg-discontinuity (operator #1; tailwind §10 flat-dark code-panel lever).
+// DETECT (all SOURCE-evidenced from the frozen capture, no invention): for each top-level node painting ONE
+// parseable solid bg whose rows lie fully inside the band (±16px) with >=60px of band overlap, build a per-row
+// dominant-4-bit-bucket LUMA profile of the SOURCE over the node's rows (the _bgsample vertical-discontinuity
+// guard, localized to a row). Adjacent-row jumps > 60 luma (clustered: keep only the strongest within 12px) are
+// vertical bg-discontinuities the node's single paint spans.
+// MUTATE: split the bg paint in two at the discontinuity row — neutralize the node's own bg (html `background:`
+// decl → transparent, or background_color → '') and insert TWO pure bg rects covering [top..ySplit) and
+// [ySplit..bottom) immediately BEFORE the node (same z0; the node and its text paint over them in DOM order).
+// Each rect's color = MEAN of its own region's dominant source bucket (bucket-center would miss the grader's
+// Lab ΔE<8 exact-pixel window on dark panels). Text/medias never move → anti-deletion gates judge bg only.
+// Candidate ranking: jump strength × overlapped rows; pick index = x.rejected (advances past rejected
+// candidates on an unchanged tree, resets to the strongest after a keep — kept pieces are themselves
+// splittable next iteration). Requires the repaint to actually differ (>25 RGB) from the current paint.
+const SPLITBG = { minOverlap: 60, insideEps: 16, jumpLuma: 60, clusterPx: 12, minPiece: 8, repaintDist: 25, rowStep: 2 };
+const rowDomKey = (shot, y, x0, x1, sx) => {
+  const m = new Map(); const row = y * shot.width * 4;
+  for (let xx = x0; xx < x1; xx += sx) { const i = row + xx * 4; const k = (shot.data[i] >> 4) + ',' + (shot.data[i + 1] >> 4) + ',' + (shot.data[i + 2] >> 4); m.set(k, (m.get(k) || 0) + 1); }
+  let best = null, bc = 0; for (const [k, c] of m) if (c > bc) { bc = c; best = k; }
+  return best;
+};
+const lumaOfKey = (k) => { const [r, g, b] = k.split(',').map((v) => +v * 16 + 8); return 0.299 * r + 0.587 * g + 0.114 * b; };
+// mean RGB of the dominant 4-bit bucket over a region of the source shot (null if degenerate)
+const meanDominantRgb = (shot, x0, ya, x1, yb) => {
+  ya = Math.max(0, ya | 0); yb = Math.min(shot.height, yb | 0);
+  if (yb - ya < 2 || x1 - x0 < 8) return null;
+  const sx = Math.max(2, ((x1 - x0) / 50) | 0), sy = Math.max(1, ((yb - ya) / 200) | 0);
+  const cnt = new Map(), acc = new Map();
+  for (let y = ya; y < yb; y += sy) { const row = y * shot.width * 4;
+    for (let xx = x0; xx < x1; xx += sx) { const i = row + xx * 4;
+      const r = shot.data[i], g = shot.data[i + 1], b = shot.data[i + 2];
+      const k = (r >> 4) + ',' + (g >> 4) + ',' + (b >> 4);
+      cnt.set(k, (cnt.get(k) || 0) + 1);
+      const a = acc.get(k) || [0, 0, 0]; a[0] += r; a[1] += g; a[2] += b; acc.set(k, a);
+    } }
+  let best = null, bc = 0; for (const [k, c] of cnt) if (c > bc) { bc = c; best = k; }
+  if (!best) return null;
+  const a = acc.get(best);
+  return [Math.round(a[0] / bc), Math.round(a[1] / bc), Math.round(a[2] / bc)];
+};
+const neutralizeBg = (n) => { // remove the node's own solid bg paint (the inserted rects take over)
+  const s = n.settings || (n.settings = {});
+  if (typeof s.html === 'string' && /background(?:-color)?\s*:\s*(?:rgba?\([^)]+\)|#[0-9a-fA-F]{3,8})/i.test(s.html)) {
+    s.html = s.html.replace(/background(?:-color)?\s*:\s*(?:rgba?\([^)]+\)|#[0-9a-fA-F]{3,8})/i, 'background:transparent');
+  } else if (typeof s.background_color === 'string') s.background_color = '';
+};
+const bgPieceRect = (x0, w, ya, yb, rgb, tag) => ({
+  id: newElId(), elType: 'widget', widgetType: 'html', isInner: false, elements: [],
+  settings: {
+    html: `<div style="width:${w}px;max-width:100%;height:${Math.max(1, Math.round(yb - ya))}px;background-color:rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})"></div>`,
+    _element_id: `bgs-rs-${tag}`,
+    _position: 'absolute',
+    _offset_orientation_h: 'start', _offset_x: { unit: 'px', size: Math.round(x0) }, _offset_x_end: { unit: 'px', size: 0 },
+    _offset_orientation_v: 'start', _offset_y: { unit: 'px', size: Math.round(ya) }, _offset_y_end: { unit: 'px', size: 0 },
+    _element_width: 'initial', _element_custom_width: { unit: 'px', size: w },
+    _z_index: '0',
+  },
+});
 registerOperator('split-bg', (tree, band, layout, cap, x) => {
   const root = Array.isArray(tree) ? tree[0] : tree;
   if (!root || !Array.isArray(root.elements)) return null;
   const { y0, y1 } = band;
   const shot = cap && cap.srcShot; if (!shot) return null;
-  const px = (xx, yy) => {
-    const cx = Math.max(0, Math.min(shot.width - 1, xx | 0)), cy = Math.max(0, Math.min(shot.height - 1, yy | 0));
-    const i = (cy * shot.width + cx) * 4; return [shot.data[i], shot.data[i + 1], shot.data[i + 2]];
-  };
   const boxes = cap.boxIndex && cap.boxIndex.boxes;
   const cands = [];
   for (let ci = 0; ci < root.elements.length; ci++) {
@@ -168,41 +216,43 @@ registerOperator('split-bg', (tree, band, layout, cap, x) => {
     const paintedStr = paintedColorOf(n); const painted = parseColor(paintedStr);
     if (!painted) continue;
     const e = extentOf(n, boxes);
-    const ovTop = Math.max(e.y, y0), ovBot = Math.min(e.y + e.h, y1);
+    const eTop = e.y, eBot = e.y + e.h;
+    if (eTop < y0 - SPLITBG.insideEps || eBot > y1 + SPLITBG.insideEps) continue; // band-local repaint only
+    const ovTop = Math.max(eTop, y0), ovBot = Math.min(eBot, y1, shot.height);
     if (ovBot - ovTop < SPLITBG.minOverlap) continue;
-    const extendBelow = (e.y + e.h) - y1, extendAbove = y0 - e.y;
-    if (Math.max(extendBelow, extendAbove) < SPLITBG.minExtend) continue; // must SPAN the band boundary
-    const x0 = Math.max(0, e.x + 8), x1 = Math.min(W, e.x + e.w - 8);
+    const x0 = Math.max(0, Math.round(e.x) + 8), x1 = Math.min(W, Math.round(e.x + e.w) - 8);
     if (x1 - x0 < 32) continue;
-    const bandDomStr = dominantBoxBg(px, x0, ovTop + 6, x1, ovBot - 6, { splitGuard: false });
-    const bandDom = parseColor(bandDomStr);
-    if (!bandDom || rgbDist(bandDom, painted) <= SPLITBG.mismatch) continue; // band agrees with paint → no defect
-    // remainder = the (larger) wrapper region OUTSIDE the band; its source dominant must MATCH the paint
-    const rem = extendBelow >= extendAbove
-      ? { ya: y1 + 6, yb: Math.min(e.y + e.h, shot.height) - 6 }
-      : { ya: Math.max(e.y, 0) + 6, yb: y0 - 6 };
-    if (rem.yb - rem.ya < 40) continue;
-    const remDom = parseColor(dominantBoxBg(px, x0, rem.ya, x1, rem.yb, { splitGuard: false }));
-    if (!remDom || rgbDist(remDom, painted) >= SPLITBG.agree) continue; // paint isn't right anywhere → different defect
-    cands.push({ ci, id: n.id, score: (ovBot - ovTop) * rgbDist(bandDom, painted), ovTop, ovBot, e, color: bandDomStr, painted: paintedStr });
+    const sx = Math.max(2, ((x1 - x0) / 50) | 0);
+    // row-dominant-luma profile over the node's in-band rows → discontinuity jumps
+    let prevY = null, prevL = null; const jumps = [];
+    for (let y = (ovTop | 0) + 1; y < ovBot - 1; y += SPLITBG.rowStep) {
+      const k = rowDomKey(shot, y, x0, x1, sx); if (!k) continue;
+      const L = lumaOfKey(k);
+      if (prevL != null) { const d = Math.abs(L - prevL); if (d > SPLITBG.jumpLuma) jumps.push({ d, y: Math.round((y + prevY) / 2) }); }
+      prevL = L; prevY = y;
+    }
+    jumps.sort((a, b) => b.d - a.d);
+    const kept = []; // cluster: strongest wins within clusterPx
+    for (const j of jumps) if (!kept.some((kj) => Math.abs(kj.y - j.y) < SPLITBG.clusterPx)) kept.push(j);
+    for (const j of kept) {
+      if (j.y - eTop < SPLITBG.minPiece || eBot - j.y < SPLITBG.minPiece) continue;
+      const topRgb = meanDominantRgb(shot, x0, eTop, x1, j.y);
+      const botRgb = meanDominantRgb(shot, x0, j.y, x1, eBot);
+      if (!topRgb || !botRgb) continue;
+      // the split must actually repaint something — at least one piece differs from the current paint
+      if (Math.max(rgbDist(topRgb, painted), rgbDist(botRgb, painted)) <= SPLITBG.repaintDist) continue;
+      cands.push({ ci, id: n.id, ySplit: j.y, score: j.d * (ovBot - ovTop), e, topRgb, botRgb, painted: paintedStr });
+    }
   }
   cands.sort((a, b) => b.score - a.score);
-  const pick = cands[x && x.iteration ? x.iteration - 1 : 0];
+  const pick = cands[x && typeof x.rejected === 'number' ? x.rejected : 0];
   if (!pick) return null;
-  const h = Math.round(pick.ovBot - pick.ovTop), w = Math.round(pick.e.w);
-  const overlay = {
-    id: newElId(), elType: 'widget', widgetType: 'html', isInner: false, elements: [],
-    settings: {
-      html: `<div style="width:${w}px;max-width:100%;height:${h}px;background-color:${pick.color}"></div>`,
-      _element_id: `bgr-rs-${pick.id || pick.ci}-${Math.round(pick.ovTop)}`,
-      _position: 'absolute',
-      _offset_orientation_h: 'start', _offset_x: { unit: 'px', size: Math.round(pick.e.x) }, _offset_x_end: { unit: 'px', size: 0 },
-      _offset_orientation_v: 'start', _offset_y: { unit: 'px', size: Math.round(pick.ovTop) }, _offset_y_end: { unit: 'px', size: 0 },
-      _element_width: 'initial', _element_custom_width: { unit: 'px', size: w },
-      _z_index: '0',
-    },
-  };
-  root.elements.splice(pick.ci + 1, 0, overlay); // right after the wrapper: paints over its bg, under all content
+  const n = root.elements[pick.ci];
+  neutralizeBg(n);
+  const w = Math.round(pick.e.w), tag = `${pick.id || pick.ci}-${pick.ySplit}`;
+  root.elements.splice(pick.ci, 0,
+    bgPieceRect(pick.e.x, w, pick.e.y, pick.ySplit, pick.topRgb, `${tag}-t`),
+    bgPieceRect(pick.e.x, w, pick.ySplit, pick.e.y + pick.e.h, pick.botRgb, `${tag}-b`));
   return tree;
 });
 
@@ -282,9 +332,10 @@ export async function refineSections(opts) {
         continue;
       }
       console.log(`[refine] ${tag} y${band.y0}-${band.y1}: baseline visual ${baseline.visual} matched ${baseline.matchedTexts}/${baseline.srcTextCount} edit ${baseline.editability}`);
-      let last = null;
+      let last = null, rejected = 0; // rejected = scored-and-rejected count this band (operator pick cursor:
+      // advances past rejected candidates on an unchanged tree; resets to 0 after a keep mutates the tree)
       for (let i = 1; i <= maxIters; i++) {
-        const candTree = op(clone(workingTree), band, layout, captureData, { iteration: i, baseline, last });
+        const candTree = op(clone(workingTree), band, layout, captureData, { iteration: i, baseline, last, rejected });
         if (!candTree) { bandRec.candidates.push({ iteration: i, decision: 'none', reason: 'operator-exhausted' }); break; }
         const candArr = Array.isArray(candTree) ? candTree : [candTree];
         if (JSON.stringify(candArr) === JSON.stringify(workingTree)) { // decision §3
@@ -302,10 +353,10 @@ export async function refineSections(opts) {
         console.log(`[refine] ${tag} iter ${i}: visual ${baseline.visual}→${candReport.visual} (Δ${g.deltas.visual}) matched Δ${g.deltas.matchedTexts} edit Δ${g.deltas.editability} → ${g.keep ? 'KEEP' : 'REJECT [' + g.failed.join(',') + ']'}`);
         last = { report: candReport, decision: rec };
         if (g.keep) {
-          workingTree = candArr; baseline = candReport; bandRec.kept++;
+          workingTree = candArr; baseline = candReport; bandRec.kept++; rejected = 0;
           report.keeps.push({ band, iteration: i, candFile });
           report.totalKept++;
-        }
+        } else rejected++;
       }
       report.perBand.push(bandRec);
     }
