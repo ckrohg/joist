@@ -284,17 +284,18 @@ export async function prepare({ source, pageId, treePath = null, boxIndexFile = 
 //      legit muted/secondary text sits at 0.5-0.7 opacity; below ~0.4 typical text is below WCAG readability —
 //      while the floor still rejects the 0.06 attack with a 6x margin. The pixel floor (0.045) is defense-in-
 //      depth for non-opacity invisibility (color-matched-to-bg text): a 0.06-fade region measures ~0.04, real
-//      low-contrast text >= ~0.1, typical text >= 0.2. Busy backgrounds give HIGH energy → fail-open (never a
-//      false rejection from an undecidable region; the keep gates are DELTA-based on top, so any systematic
-//      strictness hits baseline and candidate identically). Missing op/ca (old captures) → fail-open.
-//   D2 BAND GEOMETRY BOUND — the leaf's box must y-intersect THE BAND by >= min(8px, 25% of leaf height).
-//      Within-band movement keeps the overlap (E's reflow operators stay legal); moving out of the band zeroes
-//      it → matchedTexts drops. Any-positive-overlap is deliberately NOT enough (a 1px graze is not "in band").
-//   D3 WIDGET-TYPE-AWARE EDITABILITY — each matched text is weighted by its TREE carrier: a native Elementor
-//      text-carrying widget (any non-html widget's settings strings — heading.title, text-editor.editor,
-//      button.text, …) earns 1.0; text carried ONLY by an html widget (or untraceable to the tree) earns
-//      NONNATIVE_TEXT_WEIGHT (0.5). Replacing a native heading with an html blob keeps matchedTexts but drops
-//      editability by 0.5/srcTextCount >> EDIT_TOL → the editability keep gate fires.
+//      low-contrast text >= ~0.1, typical text >= 0.2. Busy backgrounds give HIGH energy → never a false
+//      rejection from an undecidable region; the keep gates are DELTA-based on top, so any systematic
+//      strictness hits baseline and candidate identically. Missing op/ca (old captures) → opacity floor skipped
+//      (the paint + clip checks below still apply to the rendered box).
+//   D2 BAND GEOMETRY BOUND — PROPORTIONAL since C round 5b (header §3 below): >=50% of the leaf height (or of
+//      its first line) must y-intersect THE BAND. Within-band movement keeps full containment (E's reflow
+//      operators stay legal); grazing the band edge or leaving it drops the leaf → matchedTexts drops.
+//   D3 WIDGET-TYPE-AWARE EDITABILITY — REWRITTEN C round 5b (header §4 below): each matched text is weighted by
+//      its RENDERING-LEAF widget — whitelisted-native (NATIVE_TEXT_WIDGETS) widgets that carry the text in
+//      their own settings earn 1.0; everything else (html, shortcode, dead-decoy trees, untraceable renders)
+//      earns NONNATIVE_TEXT_WEIGHT (0.5). Replacing a native heading with an html/shortcode carrier keeps
+//      matchedTexts but drops editability by 0.5/srcTextCount >> EDIT_TOL → the editability keep gate fires.
 // CORPUS-WIDE SCOPE DECISION (D1, documented per the C-round-5 design guidance): this is the BAND-GATE-ONLY
 // fix — option (a). grade-sections' capture() vis floor (opacity < 0.05) and perBandVisual's page-wide join are
 // UNCHANGED (byte-identical corpus behavior; _gsec-srccache + _void-textguard selftests prove it). Rationale:
@@ -304,27 +305,62 @@ export async function prepare({ source, pageId, treePath = null, boxIndexFile = 
 // (reversible flag, injected-defect, game-test, corpus A/B + innocent control) — its own round, not a rider;
 // (3) the live exploit path (refine keeps) is fully closed band-side, and no shipped builder emits faded text,
 // so corpus exposure is attack-only until that round lands.
-export const VIS_OPACITY_FLOOR = 0.4;     // effective-opacity AND color-alpha floor for a leaf to count
-export const VIS_PAINT_MIN = 0.045;       // cropEnergy floor — flat (unpainted/faded) leaf boxes sit below it
-export const NONNATIVE_TEXT_WEIGHT = 0.5; // editability weight for html/raster-carried (non-native) text
-export const BAND_OVERLAP_MIN_PX = 8;     // band y-intersection floor: min(this, 25% of leaf height)
+// C ROUND 5b GATE HARDENING 2 (closes the _c5val-novel.mjs live keeps nv-clip18/nv-graze + the D3 logic gaps
+// nv-decoyNative/nv-shortcodeSwap; the methodology: sweep ALL unique-carrier bands, attack the HOT band where
+// hiding text GAINS visual — tailwind §1 hero, delete Δvisual +0.046 — and demand DETERMINISTIC-gate rejection):
+//  1. NO FAIL-OPEN PAINT CLAMP — the D1 pixel paint-energy floor formerly ran only when the leaf box was
+//     >=24x8 INCLUDING after shot-clamping; a width-clipped 18px leaf skipped it entirely (the clip18 keep).
+//     Now the paint check runs on the ACTUAL clamped box regardless of size, and a degenerate/0-area box is
+//     NOT reproduced (skip-conditions default to NOT-reproduced, never to reproduced).
+//  2. CLIP DETECTION — a leaf whose rendered box is grossly below its content's LAYOUT DEMAND (scrollWidth/
+//     scrollHeight, captured per leaf) is overflow-clipped: the glyphs exist in layout but never paint. Rendered
+//     w < CLIP_MIN_FRAC·scrollWidth (or h < CLIP_MIN_FRAC·scrollHeight) → not reproduced. Wrapped text has
+//     scrollWidth==clientWidth (no false positive); display:inline leaves report sw/sh 0 and cannot
+//     overflow-clip by spec, so the absent measurement is not a hole. Boxes under DEGENERATE_PX in either
+//     dimension cannot render a matchable (>=4-char, >=10px-font) string → not reproduced, shot or no shot.
+//  3. PROPORTIONAL BAND OVERLAP — the old D2 floor min(8px, 25%·h) let a 9px graze count a 192px heading whose
+//     glyphs render below the crop (the graze keep). Now a leaf counts only if >=BAND_OVERLAP_MIN_FRAC of its
+//     height — or of its FIRST LINE (min(h, 1.4·font-size), so a tall honest text block still counts in the
+//     band its first line paints in) — y-intersects the band. Within-band movement keeps full containment →
+//     E's reflow operators stay legal.
+//  4. EXPLICIT NATIVENESS WHITELIST + RENDERING-LEAF PROVENANCE — "native" was "any non-html widget whose
+//     settings blob contains the text": a shortcode widget scored native (settings text behind a render
+//     indirection), and a dead display:none decoy heading left in the tree donated nativeness while an html
+//     widget actually rendered the text. Now a matched text is native ONLY if some ELIGIBLE (visible, in-band,
+//     unclipped, painted) leaf carrying it was RENDERED by a widget that (a) resolves into the band tree by the
+//     leaf's wid (outermost-wrapper data-id from capture — spoof-proof), (b) has widgetType in
+//     NATIVE_TEXT_WIDGETS (explicit whitelist — html/shortcode/raster are OUT), and (c) carries the text in its
+//     OWN settings blob (the text is editable AT that widget). Missing provenance → non-native (strict).
+export const VIS_OPACITY_FLOOR = 0.4;      // effective-opacity AND color-alpha floor for a leaf to count
+export const VIS_PAINT_MIN = 0.045;        // cropEnergy floor — flat (unpainted/faded) leaf boxes sit below it
+export const NONNATIVE_TEXT_WEIGHT = 0.5;  // editability weight for html/raster-carried (non-native) text
+export const BAND_OVERLAP_MIN_FRAC = 0.5;  // D2: leaf (or its first line) must be >=50% inside the band
+export const CLIP_MIN_FRAC = 0.3;          // D1b: rendered box must be >=30% of its scrollWidth/scrollHeight demand
+export const DEGENERATE_PX = 8;            // a box under this in either dim cannot render a matchable text
+// Explicit nativeness whitelist (D3): genuinely panel-editable Elementor text widgets. NOT "anything except
+// html" — shortcode (render indirection), html (raw blob), nav-menu (labels live in WP menus, not settings),
+// image/raster (no text) are all non-native by omission.
+export const NATIVE_TEXT_WIDGETS = new Set([
+  'heading', 'text-editor', 'button', 'icon-box', 'icon-list', 'image-box', 'testimonial', 'blockquote',
+  'alert', 'toggle', 'accordion', 'tabs', 'counter', 'star-rating', 'progress', 'price-list', 'price-table',
+  'flip-box', 'call-to-action', 'animated-headline',
+]);
 
 const _stripTags = (s) => String(s).replace(/<[^>]+>/g, ' ');
-// treeTextBlobs — normalized text carried by NATIVE widgets vs html widgets, from the band tree. Native = every
-// non-underscore string setting of any non-html widget (title/editor/text/item labels…), tags stripped. html =
-// the html widget's settings.html, tags stripped. custom_css and _-prefixed (advanced/layout) keys are skipped.
+const _collectStrings = (v, into) => {
+  if (typeof v === 'string') { const t = norm(_stripTags(v)); if (t) into.push(t); }
+  else if (Array.isArray(v)) v.forEach((x) => _collectStrings(x, into));
+  else if (v && typeof v === 'object') { for (const k of Object.keys(v)) { if (k.startsWith('_') || k === 'custom_css') continue; _collectStrings(v[k], into); } }
+};
+// treeTextBlobs — normalized text carried by NATIVE widgets vs html widgets, from the band tree (legacy
+// aggregate; kept for telemetry/back-compat — nativeness is now decided per RENDERING leaf via widgetTextIndex).
 export function treeTextBlobs(tree) {
   const native = [], html = [];
-  const collect = (v, into) => {
-    if (typeof v === 'string') { const t = norm(_stripTags(v)); if (t) into.push(t); }
-    else if (Array.isArray(v)) v.forEach((x) => collect(x, into));
-    else if (v && typeof v === 'object') { for (const k of Object.keys(v)) { if (k.startsWith('_') || k === 'custom_css') continue; collect(v[k], into); } }
-  };
   const w = (nodes) => {
     for (const n of nodes || []) {
       const s = (n && n.settings) || {};
       if (n && n.elType === 'widget' && n.widgetType === 'html') { if (typeof s.html === 'string') { const t = norm(_stripTags(s.html)); if (t) html.push(t); } }
-      else collect(s, native);
+      else _collectStrings(s, native);
       w(n && n.elements);
     }
   };
@@ -332,36 +368,85 @@ export function treeTextBlobs(tree) {
   return { nativeBlob: ' ' + native.join(' | ') + ' ', htmlBlob: ' ' + html.join(' | ') + ' ' };
 }
 
-// bandLocalText — PURE. srcTexts = frozen source capture texts; leaves = clone capture textLeaves (op/ca per
-// capture()); shot = clone full-page PNG (null → pixel floor skipped, e.g. unit tests); tree = the band tree
-// whose render produced `leaves` (null → all matched text weighted native). Unit-pinned by
+// widgetTextIndex — id → { type, blob } for every widget in the band tree: the per-widget settings text blob
+// (non-underscore string settings, tags stripped) + the widget type. The D3 provenance lookup table: a leaf's
+// `wid` resolves here to decide whether the RENDERING widget is whitelisted-native AND itself carries the text.
+export function widgetTextIndex(tree) {
+  const idx = new Map();
+  const w = (nodes) => {
+    for (const n of nodes || []) {
+      if (n && n.elType === 'widget' && n.id) {
+        const into = [];
+        _collectStrings(n.settings || {}, into);
+        idx.set(String(n.id), { type: String(n.widgetType || ''), blob: ' ' + into.join(' | ') + ' ' });
+      }
+      w(n && n.elements);
+    }
+  };
+  w(Array.isArray(tree) ? tree : [tree]);
+  return idx;
+}
+
+// D3 — a matched source text is NATIVE iff some eligible leaf carrying it was rendered by a band-tree widget
+// that is whitelisted AND carries the text in its own settings (see header §4). Strict defaults: no wid / wid
+// not in the band tree / type off-whitelist / text not in that widget's settings → NOT native.
+function matchedTextIsNative(t, elig, widx) {
+  for (const L of elig) {
+    if (!norm(L.t).includes(t)) continue;                 // this leaf does not carry the text
+    const wid = L.wid != null ? String(L.wid) : null;
+    if (!wid) continue;                                   // untraceable render → cannot donate nativeness
+    if (widx) {
+      const w = widx.get(wid);
+      if (!w) continue;                                   // rendering widget not in the band tree (decoy/foreign)
+      if (!NATIVE_TEXT_WIDGETS.has(w.type)) continue;     // explicit whitelist (shortcode/html are OUT)
+      if (!w.blob.includes(t)) continue;                  // text not editable AT that widget's settings
+      return true;
+    }
+    if (L.wt && NATIVE_TEXT_WIDGETS.has(String(L.wt))) return true; // no tree given (unit harness): DOM-declared type, still whitelist-only
+  }
+  return false;
+}
+
+// bandLocalText — PURE. srcTexts = frozen source capture texts; leaves = clone capture textLeaves (op/ca/fs/
+// sw/sh/wid per capture()); shot = clone full-page PNG (null → pixel floor skipped — UNIT-TEST-ONLY path, every
+// live caller passes the scratch render); tree = the band tree whose render produced `leaves` (null → unit
+// harness, nativeness falls back to the leaf's DOM-declared type, still whitelist-only). Unit-pinned by
 // _refine-sections-selftest.mjs TEST D0.
 export function bandLocalText({ srcTexts, leaves, shot, y0, y1, tree }) {
   const srcUniq = [...new Set((srcTexts || []).filter((t) => t.y >= y0 && t.y < y1 && norm(t.t).length >= 4).map((t) => norm(t.t)))];
-  const leafAudit = { eligible: 0, outOfBand: 0, lowOpacity: 0, lowPaint: 0 };
+  const leafAudit = { eligible: 0, outOfBand: 0, lowOpacity: 0, clipped: 0, lowPaint: 0 };
   const elig = [];
   for (const L of leaves || []) {
     if (!L || typeof L.t !== 'string') continue;
     const h = Math.max(1, Math.round(L.h || 0)), wdt = Math.max(0, Math.round(L.w || 0));
+    // D2 PROPORTIONAL BAND OVERLAP (header §3): >=50% of the leaf height — or of its first line — in-band.
     const ov = Math.min(L.y + h, y1) - Math.max(L.y, y0);
-    if (ov < Math.min(BAND_OVERLAP_MIN_PX, Math.max(1, Math.round(h * 0.25)))) { leafAudit.outOfBand++; continue; }     // D2
-    if ((L.op != null && L.op < VIS_OPACITY_FLOOR) || (L.ca != null && L.ca < VIS_OPACITY_FLOOR)) { leafAudit.lowOpacity++; continue; } // D1 (DOM)
-    if (shot && wdt >= 24 && h >= 8) {                                                                                   // D1 (pixels)
+    const lineH = Math.min(h, Math.max(12, Math.round((typeof L.fs === 'number' && L.fs > 0 ? L.fs : 16) * 1.4)));
+    const ovLine = Math.min(L.y + lineH, y1) - Math.max(L.y, y0);
+    if (!(ov >= h * BAND_OVERLAP_MIN_FRAC || ovLine >= lineH * BAND_OVERLAP_MIN_FRAC)) { leafAudit.outOfBand++; continue; }
+    // D1 (DOM): effective opacity + glyph color alpha.
+    if ((L.op != null && L.op < VIS_OPACITY_FLOOR) || (L.ca != null && L.ca < VIS_OPACITY_FLOOR)) { leafAudit.lowOpacity++; continue; }
+    // D1b CLIP DETECTION (header §2): degenerate box, or rendered box grossly below its layout demand.
+    if (wdt < DEGENERATE_PX || h < DEGENERATE_PX) { leafAudit.clipped++; continue; }
+    if ((typeof L.sw === 'number' && L.sw > 0 && wdt < L.sw * CLIP_MIN_FRAC)
+      || (typeof L.sh === 'number' && L.sh > 0 && h < L.sh * CLIP_MIN_FRAC)) { leafAudit.clipped++; continue; }
+    // D1 (pixels) — NO FAIL-OPEN (header §1): paint check on the ACTUAL clamped box regardless of size; a
+    // degenerate clamp (box off the shot) is NOT reproduced.
+    if (shot) {
       const cx0 = Math.max(0, Math.round(L.x)), cy0 = Math.max(0, Math.round(L.y));
       const cx1 = Math.min(shot.width, Math.round(L.x) + wdt), cy1 = Math.min(shot.height, Math.round(L.y) + h);
-      if (cx1 - cx0 >= 24 && cy1 - cy0 >= 8) { // degenerate clamp → fail-open (D2 already owns out-of-crop)
-        if (cropEnergy(shot, { x: cx0, y: cy0, w: cx1 - cx0, h: cy1 - cy0 }).energy < VIS_PAINT_MIN) { leafAudit.lowPaint++; continue; }
-      }
+      if (cx1 - cx0 < 2 || cy1 - cy0 < 2) { leafAudit.lowPaint++; continue; }
+      if (cropEnergy(shot, { x: cx0, y: cy0, w: cx1 - cx0, h: cy1 - cy0 }).energy < VIS_PAINT_MIN) { leafAudit.lowPaint++; continue; }
     }
     leafAudit.eligible++;
     elig.push(L);
   }
   const joined = ' ' + elig.map((L) => norm(L.t)).join(' | ') + ' ';
   const matchedList = srcUniq.filter((t) => joined.includes(t));
-  const blobs = tree ? treeTextBlobs(tree) : null;
+  const widx = tree ? widgetTextIndex(tree) : null;                                                                      // D3
   let wsum = 0, nonNative = 0;
   for (const t of matchedList) {
-    const isNative = !blobs || blobs.nativeBlob.includes(t);                                                             // D3
+    const isNative = matchedTextIsNative(t, elig, widx);
     if (!isNative) nonNative++;
     wsum += isNative ? 1 : NONNATIVE_TEXT_WEIGHT;
   }

@@ -24,6 +24,20 @@
  *      D3 NATIVE→HTML SWAP (heading → html widget, same text, same position) → REJECTED, editability gate
  *         fires (Δeditability < 0) — widget-type-aware weighting (native 1.0, html 0.5) — even when the text
  *         still matches (Δmatched 0 when the swapped text renders visibly; recorded as telemetry).
+ *  E HOT-BAND GATE HARDENING 2 — ENFORCED (C round 5b; the _c5val-novel.mjs LIVE KEEPS). The C-r5b critic
+ *    proved TESTs B/D validate on a band where hiding text does NOT gain visual (the noisy visual gate alone
+ *    rejects there). TEST E re-runs the novel evasions on the HOT band — deterministically the FIRST
+ *    (ascending idx) band with a unique-carrier heading; on tailwind/3146 that is the §1 hero where DELETING
+ *    the heading RAISES band visual +0.046 (/tmp/c5val-novel-report.json) — and requires every one REJECTED by
+ *    a DETERMINISTIC gate (visual-gate rejections do not count: visual REWARDS hiding on this band):
+ *      E1 nv-clip18 (18px overflow-clip wrapper, innerText keeps the full string) → textCoverage fires —
+ *         clip detection (rendered box ≪ scrollWidth demand) + no-fail-open paint clamp.
+ *      E2 nv-graze (_offset_y = y1-9: 9px in-band, glyphs below the crop) → textCoverage fires —
+ *         proportional >=50% band overlap (was min(8px,25%h)).
+ *      E3 nv-decoyNative (display:none native heading kept in tree; html widget renders the text) →
+ *         editability fires — nativeness needs RENDERING-LEAF provenance, dead tree nodes donate nothing.
+ *      E4 nv-shortcodeSwap (heading → shortcode widget, literal text) → editability fires — explicit
+ *         nativeness whitelist (shortcode/html are OUT; "not html" is gone).
  *
  * Band definitions are derived from the FROZEN source capture (srcCache.sections — same bounds grade-sections
  * uses), so this selftest needs no sections.json. Requires the tailwind src cache (run grade-sections once if
@@ -150,10 +164,17 @@ export function findDeletableHeading(tree, band, cap) {
     // noisy visual gate). Same unique-carrier heading TEST B found, PROPOSAL mode (graded page GET-only).
     {
       console.log(`\nTEST D0 (bandLocalText unit pins — pure, no render)`);
-      const mkLeaf = (over = {}) => ({ t: 'unique probe headline text', x: 10, y: 100, w: 400, h: 40, op: 1, ca: 1, ...over });
+      // leaves carry wid (rendering-widget provenance, C round 5b): the fixture leaf renders from widget n1.
+      const mkLeaf = (over = {}) => ({ t: 'unique probe headline text', x: 10, y: 100, w: 400, h: 40, op: 1, ca: 1, wid: 'n1', ...over });
       const uSrc = [{ t: 'Unique Probe Headline Text', y: 110 }];
       const natTree = [{ elType: 'container', settings: {}, elements: [{ id: 'n1', elType: 'widget', widgetType: 'heading', settings: { title: 'Unique Probe Headline Text' }, elements: [] }] }];
       const htmTree = [{ elType: 'container', settings: {}, elements: [{ id: 'n1', elType: 'widget', widgetType: 'html', settings: { html: '<h2>Unique Probe Headline Text</h2>' }, elements: [] }] }];
+      // C round 5b fixtures: dead native decoy + visible html carrier; shortcode carrier
+      const decoyTree = [{ elType: 'container', settings: {}, elements: [
+        { id: 'n1', elType: 'widget', widgetType: 'heading', settings: { title: '<span style="display:none">Unique Probe Headline Text</span>' }, elements: [] },
+        { id: 'x9', elType: 'widget', widgetType: 'html', settings: { html: '<h2>Unique Probe Headline Text</h2>' }, elements: [] },
+      ] }];
+      const scTree = [{ elType: 'container', settings: {}, elements: [{ id: 'n1', elType: 'widget', widgetType: 'shortcode', settings: { shortcode: 'Unique Probe Headline Text' }, elements: [] }] }];
       const u = (leaves, tree) => bandLocalText({ srcTexts: uSrc, leaves, shot: null, y0: 0, y1: 500, tree });
       const uBase = u([mkLeaf()], natTree), uFade = u([mkLeaf({ op: 0.06 })], natTree), uAlpha = u([mkLeaf({ ca: 0.1 })], natTree),
         uMove = u([mkLeaf({ y: 1100 })], natTree), uIn = u([mkLeaf({ y: 470 })], natTree), uSwap = u([mkLeaf()], htmTree);
@@ -163,6 +184,19 @@ export function findDeletableHeading(tree, band, cap) {
       check('D0/D2 out-of-band leaf NOT counted', uMove.matchedTexts === 0 && uMove.leafAudit.outOfBand === 1, JSON.stringify(uMove.leafAudit));
       check('D0/D2 within-band movement STAYS counted (E reflow legal)', uIn.matchedTexts === 1, JSON.stringify(uIn));
       check('D0/D3 html-carried text: matched 1 but editability 0.5 (widget-type-aware)', uSwap.matchedTexts === 1 && uSwap.editability === 0.5 && uSwap.nonNativeMatched === 1, JSON.stringify(uSwap));
+      // C round 5b unit pins (gate hardening 2)
+      const uClip = u([mkLeaf({ w: 18, sw: 420 })], natTree), uTiny = u([mkLeaf({ w: 6 })], natTree),
+        uVClip = u([mkLeaf({ h: 10, sh: 120 })], natTree),
+        uGraze = u([mkLeaf({ y: 491, h: 120, fs: 48 })], natTree), uTall = u([mkLeaf({ y: 480, h: 400, fs: 16 })], natTree),
+        uDecoy = u([mkLeaf({ wid: 'x9' })], decoyTree), uShort = u([mkLeaf()], scTree), uSpoof = u([mkLeaf({ wid: 'zz' })], natTree);
+      check('D0/5b CLIP: 18px render of a 420px-demand leaf NOT counted', uClip.matchedTexts === 0 && uClip.leafAudit.clipped === 1, JSON.stringify(uClip.leafAudit));
+      check('D0/5b CLIP: degenerate (<8px) box NOT counted', uTiny.matchedTexts === 0 && uTiny.leafAudit.clipped === 1, JSON.stringify(uTiny.leafAudit));
+      check('D0/5b CLIP: vertical clip (10px render of 120px demand) NOT counted', uVClip.matchedTexts === 0 && uVClip.leafAudit.clipped === 1, JSON.stringify(uVClip.leafAudit));
+      check('D0/5b OVERLAP: 9px graze of a 120px leaf NOT counted (proportional bound)', uGraze.matchedTexts === 0 && uGraze.leafAudit.outOfBand === 1, JSON.stringify(uGraze.leafAudit));
+      check('D0/5b OVERLAP: tall honest block with first line in-band STAYS counted', uTall.matchedTexts === 1, JSON.stringify(uTall.leafAudit));
+      check('D0/5b PROVENANCE: dead native decoy in tree + html-rendered leaf → editability 0.5', uDecoy.matchedTexts === 1 && uDecoy.editability === 0.5 && uDecoy.nonNativeMatched === 1, JSON.stringify(uDecoy));
+      check('D0/5b WHITELIST: shortcode-rendered text → editability 0.5 (not "anything except html")', uShort.matchedTexts === 1 && uShort.editability === 0.5 && uShort.nonNativeMatched === 1, JSON.stringify(uShort));
+      check('D0/5b PROVENANCE: wid not in band tree → editability 0.5 (untraceable render)', uSpoof.matchedTexts === 1 && uSpoof.editability === 0.5 && uSpoof.nonNativeMatched === 1, JSON.stringify(uSpoof));
 
       console.log(`\nTEST D (gate hardening, live) band §${found.band.idx} y${found.band.y0}-${found.band.y1} — heading ${found.id}`);
       const setTitleSpan = (node, style) => { node.settings.title = `<span style="${style}">${node.settings.title}</span>`; };
@@ -238,6 +272,87 @@ export function findDeletableHeading(tree, band, cap) {
         swap.cand ? `gates ${JSON.stringify(swap.cand.gates)} Δedit ${swap.cand.deltas.editability}` : '');
       if (swap.cand) console.log(`  note: D3 Δmatched ${swap.cand.deltas.matchedTexts} (0 = the swapped text still rendered visibly in-band → the rejection is purely TYPE-aware, the strongest form of the pin)`);
       check('D graded page untouched', fade.r.gradedUntouchedPreApply === true && move.r.gradedUntouchedPreApply === true && swap.r.gradedUntouchedPreApply === true);
+    }
+
+    // ---------- TEST E: HOT-BAND GATE HARDENING 2 — ENFORCED (C round 5b; see header) ----------
+    // Deterministic hot-band selection: ascending section idx, FIRST band with a unique-carrier heading. On
+    // tailwind/3146 this is the §1 hero — the band where DELETING the matched heading RAISES band visual
+    // (+0.046, /tmp/c5val-novel-report.json), i.e. where the visual gate REWARDS hiding text: only the
+    // deterministic gates (textCoverage/editability) can reject here, which is exactly what TEST E enforces.
+    {
+      const hot = (() => {
+        for (const b of bands) { const f = findDeletableHeading(prep.tree, b, cap); if (f) return { band: b, ...f, box: (prep.boxIndex.boxes || {})[f.id] }; }
+        return null;
+      })();
+      if (!hot) throw new Error('no unique-carrier heading band — cannot run TEST E');
+      console.log(`\nTEST E (hot-band gate hardening 2) band §${hot.band.idx} y${hot.band.y0}-${hot.band.y1} — heading ${hot.id} ("${hot.title.slice(0, 50)}")`);
+      const onHot = (mut) => (tree, band, layout, capd, x) => {
+        if (x.iteration > 1) return null;
+        const root = Array.isArray(tree) ? tree[0] : tree; let done = false;
+        walk(root.elements, (n, arr, i) => { if (!done && n.id === hot.id) { done = mut(n, arr, i, band) !== false; } });
+        return done ? tree : null;
+      };
+      const stripTags = (s) => String(s).replace(/<[^>]+>/g, ' ');
+      const newElId = () => Math.random().toString(16).slice(2, 9).padEnd(7, '0');
+      // E1 nv-clip18 — 18px overflow-clip wrapper: innerText keeps the FULL string, the box renders ~18px wide
+      registerOperator('st-nv-clip18', onHot((n) => {
+        if (typeof (n.settings || {}).title !== 'string') return false;
+        n.settings.title = `<span style="display:inline-block;width:18px;max-width:18px;overflow:hidden;white-space:nowrap;vertical-align:top">${n.settings.title}</span>`;
+      }));
+      // E2 nv-graze — park the heading 9px above the band's bottom edge (glyphs render below the crop)
+      registerOperator('st-nv-graze', onHot((n, a, i, band) => {
+        n.settings = { ...(n.settings || {}), _position: 'absolute', _offset_orientation_v: 'start', _offset_y: { unit: 'px', size: band.y1 - 9 } };
+      }));
+      // E3 nv-decoyNative — dead display:none native heading stays in the tree; an html widget renders the text
+      registerOperator('st-nv-decoy-native', onHot((n, arr, i) => {
+        if (typeof (n.settings || {}).title !== 'string' || !hot.box) return false;
+        const color = (typeof n.settings.title_color === 'string' && n.settings.title_color) ? n.settings.title_color : '#111827';
+        const fsz = (n.settings.typography_font_size && typeof n.settings.typography_font_size.size === 'number') ? n.settings.typography_font_size.size : 32;
+        const raw = stripTags(n.settings.title).trim();
+        n.settings.title = `<span style="display:none">${n.settings.title}</span>`;
+        arr.splice(i + 1, 0, {
+          id: newElId(), elType: 'widget', widgetType: 'html', isInner: false, elements: [],
+          settings: {
+            html: `<h2 style="margin:0;font-size:${fsz}px;line-height:1.1;color:${color}">${raw}</h2>`,
+            _position: 'absolute', _offset_orientation_v: 'start', _offset_y: { unit: 'px', size: Math.round(hot.box.y) },
+            _offset_orientation_h: 'start', _offset_x: { unit: 'px', size: Math.round(hot.box.x) }, _z_index: '5',
+          },
+        });
+      }));
+      // E4 nv-shortcodeSwap — heading → shortcode widget whose `shortcode` setting is the literal text
+      registerOperator('st-nv-shortcode-swap', onHot((n) => {
+        if (typeof (n.settings || {}).title !== 'string') return false;
+        const raw = stripTags(n.settings.title).trim();
+        const keepUnderscore = {}; for (const k of Object.keys(n.settings)) if (k.startsWith('_')) keepUnderscore[k] = n.settings[k];
+        n.widgetType = 'shortcode';
+        n.settings = { shortcode: raw, ...keepUnderscore };
+      }));
+      const runHot = async (op) => {
+        const r = await refineSections({ source: SOURCE, pageId: PAGE, bands: [hot.band], operatorName: op, apply: false, outDir: `/tmp/refine-st/${op}`, maxIters: 1, ctx });
+        return { r, cand: r.perBand[0] && r.perBand[0].candidates.find((c) => c.scored) };
+      };
+      const clip = await runHot('st-nv-clip18');
+      const graze = await runHot('st-nv-graze');
+      const decoy = await runHot('st-nv-decoy-native');
+      const scswap = await runHot('st-nv-shortcode-swap');
+      report.tests.hotBand = {
+        band: hot.band, heading: hot.id,
+        clip18: { kept: clip.r.totalKept, candidate: clip.cand, gradedUntouched: clip.r.gradedUntouchedPreApply },
+        graze: { kept: graze.r.totalKept, candidate: graze.cand, gradedUntouched: graze.r.gradedUntouchedPreApply },
+        decoyNative: { kept: decoy.r.totalKept, candidate: decoy.cand, gradedUntouched: decoy.r.gradedUntouchedPreApply },
+        shortcodeSwap: { kept: scswap.r.totalKept, candidate: scswap.cand, gradedUntouched: scswap.r.gradedUntouchedPreApply },
+      };
+      const detText = (c) => !!(c && c.gates && c.gates.textCoverage === false && c.deltas.matchedTexts < 0);
+      const detEdit = (c) => !!(c && c.gates && c.gates.editability === false && c.deltas.editability < 0);
+      check('E1 clip18 scored + REJECTED (zero keeps)', clip.cand && clip.r.totalKept === 0 && clip.cand.decision === 'rejected', clip.cand ? `Δvisual ${clip.cand.deltas.visual}` : 'no scored candidate');
+      check('E1 clip18 rejected by textCoverage (DETERMINISTIC — clipped render is not reproduced)', detText(clip.cand), clip.cand ? `gates ${JSON.stringify(clip.cand.gates)} Δmatched ${clip.cand.deltas.matchedTexts}` : '');
+      check('E2 graze scored + REJECTED (zero keeps)', graze.cand && graze.r.totalKept === 0 && graze.cand.decision === 'rejected', graze.cand ? `Δvisual ${graze.cand.deltas.visual}` : 'no scored candidate');
+      check('E2 graze rejected by textCoverage (DETERMINISTIC — 9px edge-graze is not in-band)', detText(graze.cand), graze.cand ? `gates ${JSON.stringify(graze.cand.gates)} Δmatched ${graze.cand.deltas.matchedTexts}` : '');
+      check('E3 decoyNative scored + REJECTED (zero keeps)', decoy.cand && decoy.r.totalKept === 0 && decoy.cand.decision === 'rejected', decoy.cand ? `Δvisual ${decoy.cand.deltas.visual}` : 'no scored candidate');
+      check('E3 decoyNative rejected by editability (DETERMINISTIC — dead tree heading donates no nativeness)', detEdit(decoy.cand), decoy.cand ? `gates ${JSON.stringify(decoy.cand.gates)} Δedit ${decoy.cand.deltas.editability}` : '');
+      check('E4 shortcodeSwap scored + REJECTED (zero keeps)', scswap.cand && scswap.r.totalKept === 0 && scswap.cand.decision === 'rejected', scswap.cand ? `Δvisual ${scswap.cand.deltas.visual}` : 'no scored candidate');
+      check('E4 shortcodeSwap rejected by editability (DETERMINISTIC — shortcode is not whitelisted-native)', detEdit(scswap.cand), scswap.cand ? `gates ${JSON.stringify(scswap.cand.gates)} Δedit ${scswap.cand.deltas.editability}` : '');
+      check('E graded page untouched', clip.r.gradedUntouchedPreApply === true && graze.r.gradedUntouchedPreApply === true && decoy.r.gradedUntouchedPreApply === true && scswap.r.gradedUntouchedPreApply === true);
     }
 
     // ---------- TEST C: crash-injection mid-run ----------
