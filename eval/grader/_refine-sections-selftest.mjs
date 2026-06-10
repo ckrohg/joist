@@ -84,6 +84,10 @@ export function findDeletableHeading(tree, band, cap) {
   const browser = await chromium.launch({ args: ['--disable-blink-features=AutomationControlled'] });
   let pass = true;
   const check = (name, cond, detail) => { const ok = !!cond; if (!ok) pass = false; console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${name}${detail ? ' — ' + detail : ''}`); return ok; };
+  // xfail — a KNOWN-HOLE expectation. Prints loudly but NEVER flips `pass`: the gates SHOULD reject the input
+  // but currently do not, and we want the suite to stay green while the hole is documented+locked. When a future
+  // gate fix makes the input get rejected, `cond` flips and the line reads "FIXED?" → update/retire the pin.
+  const xfail = (name, shouldRejectButKept, detail) => { console.log(`  ${shouldRejectButKept ? 'HOLE' : 'FIXED?'} ${name}${detail ? ' — ' + detail : ''}`); return shouldRejectButKept; };
   try {
     const ctx = await browser.newContext({ viewport: { width: W, height: 900 }, deviceScaleFactor: 1 });
     await ctx.addInitScript(() => { Object.defineProperty(navigator, 'webdriver', { get: () => undefined }); });
@@ -128,6 +132,66 @@ export function findDeletableHeading(tree, band, cap) {
     check('B textCoverage gate fired (matchedTexts dropped)', bCand && bCand.gates && bCand.gates.textCoverage === false && bCand.deltas.matchedTexts < 0, bCand ? `Δmatched ${bCand.deltas.matchedTexts}` : '');
     check('B graded page untouched', b.gradedUntouchedPreApply === true);
     if (bCand) console.log(`  note: visual Δ ${bCand.deltas.visual} (${bCand.gates.visual ? 'EXPLOIT REPRODUCED — visual rose past keep threshold yet candidate was rejected' : 'visual did not rise past threshold this run; rejection pinned by textCoverage regardless'})`);
+
+    // ---------- TEST D: KNOWN GATE HOLES (adversarial critic, C round 3 re-run) ----------
+    // Two band-local content degradations the anti-deletion keep gates DO NOT catch — pinned so a future gate
+    // fix trips this test and forces the pin to be retired. Both use the SAME unique-carrier heading TEST B
+    // found, in its band, in PROPOSAL mode (graded page GET-only):
+    //  D1 FADE-TO-INVISIBLE — wrap the heading title in opacity:0.06 (just ABOVE capture()'s `+cs.opacity<0.05`
+    //     visibility floor). The headline is humanly UNREADABLE, but capture() still extracts it → matchedTexts
+    //     and editability are UNCHANGED (Δ0); the void text-guard sees the text "reproduced" so no void fires;
+    //     and band visual RISES (the divergent dark glyphs stop painting) → KEEP. Root cause: the 0.05 vis floor
+    //     counts text a human cannot read (a clone-side, grader-wide hole that --apply's full regrade ALSO misses
+    //     because faded text raises visual while editability stays flat).
+    //  D2 MOVE-OUT-OF-BAND — shift the heading _offset_y beyond y1 (still on the page, just below the crop). It
+    //     leaves the band image → band visual RISES — but the matched/editability text join is computed PAGE-WIDE
+    //     on the clone side (inClone over ALL scratch text leaves), so matchedTexts/editability are UNCHANGED
+    //     (Δ0). The band gate is blind to "removed FROM THE BAND but kept ON THE PAGE".
+    // DETERMINISTIC hole signature (independent of the ±0.08 single-band visual noise): on BOTH, textCoverage +
+    // editability + noNewVoid all stay GREEN and Δmatched===0. The visual gate is the ONLY gate in play and it
+    // points the WRONG way (rewards the degradation). The keep/reject OUTCOME is visual-noise-dependent and is
+    // recorded as xfail telemetry, never as a hard pass/fail.
+    {
+      console.log(`\nTEST D (KNOWN GATE HOLES) band §${found.band.idx} y${found.band.y0}-${found.band.y1} — heading ${found.id}`);
+      const setTitleSpan = (node, style) => { node.settings.title = `<span style="${style}">${node.settings.title}</span>`; };
+      registerOperator('st-fade-heading', (tree, band, layout, capd, x) => {
+        if (x.iteration > 1) return null;
+        const root = Array.isArray(tree) ? tree[0] : tree; let done = false;
+        walk(root.elements, (n) => { if (!done && n.id === found.id && typeof (n.settings || {}).title === 'string') { setTitleSpan(n, 'opacity:0.06'); done = true; } });
+        return done ? tree : null;
+      });
+      registerOperator('st-move-heading', (tree, band, layout, capd, x) => {
+        if (x.iteration > 1) return null;
+        const root = Array.isArray(tree) ? tree[0] : tree; let done = false;
+        walk(root.elements, (n) => { if (!done && n.id === found.id) { n.settings = { ...(n.settings || {}), _position: 'absolute', _offset_orientation_v: 'start', _offset_y: { unit: 'px', size: band.y1 + 600 } }; done = true; } });
+        return done ? tree : null;
+      });
+      const runHole = async (op, tag) => {
+        const r = await refineSections({ source: SOURCE, pageId: PAGE, bands: [found.band], operatorName: op, apply: false, outDir: `/tmp/refine-st/${op}`, maxIters: 1, ctx });
+        const cand = r.perBand[0] && r.perBand[0].candidates.find((c) => c.scored);
+        return { r, cand };
+      };
+      const fade = await runHole('st-fade-heading');
+      const move = await runHole('st-move-heading');
+      report.tests.gateHoles = {
+        fade: { kept: fade.r.totalKept, candidate: fade.cand, gradedUntouched: fade.r.gradedUntouchedPreApply },
+        move: { kept: move.r.totalKept, candidate: move.cand, gradedUntouched: move.r.gradedUntouchedPreApply },
+      };
+      // hard DETERMINISTIC pins (lock the gate-blindness; trip when a fix makes any anti-deletion gate fire):
+      check('D1 fade candidate scored', !!fade.cand, fade.cand ? '' : 'no scored candidate');
+      check('D1 anti-deletion gates BLIND to opacity-0.06 hide (textCoverage+editability+noNewVoid green, Δmatched 0)',
+        fade.cand && fade.cand.gates.textCoverage && fade.cand.gates.editability && fade.cand.gates.noNewVoid && fade.cand.deltas.matchedTexts === 0,
+        fade.cand ? `gates ${JSON.stringify(fade.cand.gates)} Δmatched ${fade.cand.deltas.matchedTexts}` : '');
+      xfail('D1 HOLE: humanly-invisible (opacity 0.06) headline was KEPT (should be rejected)', fade.r.totalKept > 0,
+        fade.cand ? `decision ${fade.cand.decision} Δvisual ${fade.cand.deltas.visual} kept ${fade.r.totalKept}` : '');
+      check('D2 move candidate scored', !!move.cand, move.cand ? '' : 'no scored candidate');
+      check('D2 anti-deletion gates BLIND to move-out-of-band (textCoverage+editability+noNewVoid green, Δmatched 0)',
+        move.cand && move.cand.gates.textCoverage && move.cand.gates.editability && move.cand.gates.noNewVoid && move.cand.deltas.matchedTexts === 0,
+        move.cand ? `gates ${JSON.stringify(move.cand.gates)} Δmatched ${move.cand.deltas.matchedTexts}` : '');
+      xfail('D2 HOLE: heading moved OUT of the band (gone from the crop, kept on page) was KEPT (should be rejected)', move.r.totalKept > 0,
+        move.cand ? `decision ${move.cand.decision} Δvisual ${move.cand.deltas.visual} kept ${move.r.totalKept}` : '');
+      check('D graded page untouched', fade.r.gradedUntouchedPreApply === true && move.r.gradedUntouchedPreApply === true);
+    }
 
     // ---------- TEST C: crash-injection mid-run ----------
     if (!has('skip-crash')) {
