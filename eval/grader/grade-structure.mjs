@@ -82,6 +82,16 @@ function cgm(A, B) {
 
 const norm = (s) => (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
 
+// LONG-TEXT CHUNKING (de-inflation fix 2026-06-09). Legacy silently dropped ALL text runs >200 chars from
+// BOTH source and clone denominators → textCoverage/editability were BLIND to missing long-form bodies
+// (blog posts, docs paragraphs): a clone that dropped every blog body still scored 1.0 coverage. Default-ON
+// fix: split long LEAF runs into ≤200-char word-boundary chunks so each chunk is matchable; a wrapper whose
+// innerText concatenates text-bearing BLOCK children is still skipped (children are captured individually by
+// the same loop — no mega-blob double-count, mirrors capture-layout.mjs's guard). GRADER_NO_LONGTEXT=1 →
+// byte-identical legacy path (drop >200). Source cache is keyed per-mode ('-lt' suffix) so modes never share
+// a stale capture. NOTE: this is a DE-INFLATION — scores may DROP where clones miss long text; that's the point.
+const NO_LONGTEXT = process.env.GRADER_NO_LONGTEXT === '1';
+
 async function capture(ctx, target, isSource) {
   if (!/^https?:/.test(target)) return { shot: PNG.sync.read(fs.readFileSync(target)), texts: [], census: {}, ds: null };
   const p = await ctx.newPage(); await p.setViewportSize({ width: W, height: 900 });
@@ -90,7 +100,7 @@ async function capture(ctx, target, isSource) {
   await p.evaluate(async () => { const h = document.documentElement.scrollHeight; for (let y = 0; y <= h; y += 600) { window.scrollTo(0, y); await new Promise(r => setTimeout(r, 200)); } window.scrollTo(0, 0); });
   try { await p.waitForLoadState('networkidle', { timeout: 8000 }); } catch {}
   await p.waitForTimeout(800);
-  const info = await p.evaluate(() => {
+  const info = await p.evaluate((NOLT) => {
     const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
     const vis = (el) => { const r = el.getBoundingClientRect(); if (!r.width || !r.height) return false; const cs = getComputedStyle(el); return !(cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity < 0.05); };
     // SELECTABLE text runs (real editable text — NOT inside an image). Images carry no innerText, so any
@@ -102,7 +112,23 @@ async function capture(ctx, target, isSource) {
     // its band (a text reproduced in a SHREDDED/broken-looking band earns little — kills the editability gaming).
     for (const e of document.querySelectorAll('h1,h2,h3,h4,h5,h6,p,a,button,span,li,div')) {
       const own = [...e.childNodes].some((n) => n.nodeType === 3 && clean(n.textContent)); if (!own) continue;
-      const t = clean(e.innerText); if (!t || t.length > 200) continue; if (!vis(e)) continue; if (parseFloat(getComputedStyle(e).fontSize) < 10) continue;
+      const t = clean(e.innerText); if (!t) continue;
+      if (t.length > 200) {
+        if (NOLT) continue; // legacy: drop long runs entirely (GRADER_NO_LONGTEXT=1)
+        if (!vis(e)) continue; if (parseFloat(getComputedStyle(e).fontSize) < 10) continue;
+        // mega-blob guard: a wrapper with text-bearing BLOCK children concatenates its whole subtree in
+        // innerText — skip it; its children are visited individually by this same loop (no double-count).
+        const blockChild = [...e.children].some((c) => { const ct = clean(c.innerText || ''); if (ct.length < 40) return false; const d = getComputedStyle(c).display; return !(d === 'inline' || d.indexOf('inline') === 0); });
+        if (blockChild) continue;
+        // leaf long run → split into ≤200-char word-boundary chunks (cap 8000 chars, matches capture-layout)
+        const words = t.slice(0, 8000).split(' '); const chunks = []; let cur = '';
+        for (const w of words) { if (cur && cur.length + 1 + w.length > 200) { chunks.push(cur); cur = w; } else cur = cur ? cur + ' ' + w : w; }
+        if (cur) chunks.push(cur);
+        const r = e.getBoundingClientRect(); const cy = Math.round(r.top + window.scrollY);
+        for (const ck of chunks) { const k = ck.toLowerCase(); if (seen.has(k)) continue; seen.add(k); texts.push(ck); textPos.push({ t: ck, y: cy, chunk: 1 }); }
+        continue;
+      }
+      if (!vis(e)) continue; if (parseFloat(getComputedStyle(e).fontSize) < 10) continue;
       const k = t.toLowerCase(); if (seen.has(k)) continue; seen.add(k); texts.push(t);
       const r = e.getBoundingClientRect(); textPos.push({ t, y: Math.round(r.top + window.scrollY) });
     }
@@ -160,7 +186,7 @@ async function capture(ctx, target, isSource) {
       contrastFails: cfails.sort((a, b) => a.ratio - b.ratio).slice(0, 40),
     };
     return { texts, textPos, census, ds, pageH: document.documentElement.scrollHeight };
-  });
+  }, NO_LONGTEXT);
   const shot = PNG.sync.read(await p.screenshot({ fullPage: true }));
   await p.close(); return { shot, texts: info.texts, textPos: info.textPos, census: info.census, ds: info.ds, pageH: info.pageH };
 }
@@ -223,7 +249,9 @@ function orderAgreement(srcOrder, cloneMobileOrder) {
 // visual swung 0.084). Freezing the source reference makes grading reproducible AND faster. Default: use cache if
 // present; --refresh-source (or no http source) forces a live capture. Keyed by source URL.
 const SRC_CACHE_DIR = '/tmp/grade-src-cache';
-const srcTag = String(source).replace(/^https?:\/\//, '').replace(/[^a-z0-9]/gi, '').slice(0, 40);
+// per-mode cache tag: long-text chunking changes what capture() extracts, so the two modes must never
+// share a cached source (a legacy cache would silently hide the chunks → fix would no-op). Legacy tag unchanged.
+const srcTag = String(source).replace(/^https?:\/\//, '').replace(/[^a-z0-9]/gi, '').slice(0, 40) + (NO_LONGTEXT ? '' : '-lt');
 const refreshSource = process.argv.includes('--refresh-source');
 (async () => {
   const browser = await chromium.launch();
@@ -271,12 +299,17 @@ const refreshSource = process.argv.includes('--refresh-source');
   // only FAITHFULLY-reproduced native text earns full credit. bands are the same 200px bands as `visual`.
   const bandVisAt = (y) => { const b = Math.floor(y / BAND); if (b < 0 || b >= sArr.length) return 0.3; return Math.max(0, Math.min(1, 0.5 * sArr[b] + 0.5 * eArr[b])); };
   const seenT = new Set(); const srcPos = [];
-  for (const p of (src.textPos || [])) { const t = norm(p.t); if (t.length < 4 || seenT.has(t)) continue; seenT.add(t); srcPos.push({ t, y: p.y }); }
+  for (const p of (src.textPos || [])) { const t = norm(p.t); if (t.length < 4 || seenT.has(t)) continue; seenT.add(t); srcPos.push({ t, y: p.y, chunk: !!p.chunk }); }
   const cloneJoined = ' ' + cln.texts.map(norm).join(' | ') + ' ';
   const cloneSet = new Set(cln.texts.map(norm));
-  const isCovered = (t) => cloneSet.has(t) || cloneJoined.includes(' ' + t + ' ') || cloneJoined.includes(t);
+  // chunk fallback (long-text fix): the clone may split a long body DIFFERENTLY (per-<p> runs ≤200 chars)
+  // so source chunks won't align with clone runs — but space-joining all clone runs reconstructs the body,
+  // and every source chunk is a word-boundary substring of the original text → substring match. Applied to
+  // CHUNK runs only (never loosens matching for ordinary short runs; vacuous under GRADER_NO_LONGTEXT=1).
+  const cloneAll = ' ' + cln.texts.map(norm).join(' ') + ' ';
+  const isCovered = (t, chunk) => cloneSet.has(t) || cloneJoined.includes(' ' + t + ' ') || cloneJoined.includes(t) || (!!chunk && cloneAll.includes(t));
   let credit = 0, covered = 0;
-  for (const { t, y } of srcPos) { if (isCovered(t)) { covered++; credit += bandVisAt(y); } }
+  for (const { t, y, chunk } of srcPos) { if (isCovered(t, chunk)) { covered++; credit += bandVisAt(y); } }
   const editability = srcPos.length ? credit / srcPos.length : 0;       // visual-coupled (objective)
   const textCoverage = srcPos.length ? covered / srcPos.length : 0;     // raw coverage (diagnostic only)
   // structure diagnostic: of the clone, how much is native widgets vs raster images
