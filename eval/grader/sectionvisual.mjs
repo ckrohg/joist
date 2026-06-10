@@ -337,6 +337,12 @@ export async function sectionVisual(opts) {
       contentVoid: pb ? pb.contentVoid : false, rasteredText: pb ? pb.rasteredText : false,
       srcEnergy: pb ? pb.srcEnergy : 0, cloneEnergy: pb ? pb.cloneEnergy : 0,
       editability: pb ? pb.editability : null, editabilityScope: 'band-local',
+      // band-local TEXT COVERAGE feed for refine-sections' anti-deletion keep gates (C round 3): srcTextCount is
+      // FROZEN (src cache) per band, so matchedTexts (absolute count of source band texts the scratch render
+      // reproduced) is the deletion-sensitive integer — deleting a matched heading drops it by >=1, zero noise.
+      srcTextCount: pb ? pb.srcTextCount : 0,
+      matchedTexts: pb ? pb.srcTextCount - pb.lostTexts.length : 0,
+      lostTexts: pb ? pb.lostTexts.slice(0, 20) : [],
       widgets: { included: stats.included, bgRects: stats.bgRects, header: stats.header, estimated: stats.estimated, excluded: stats.excluded },
       cssBytes: css.length, boxIndexHash: prep.boxIndex.hash, scratchHash, cloneFullH: prep.cloneFullH,
       srcCache: prep.srcCache.srcTag, shots: gradable ? { src: shotSrc, band: shotBand } : null,
