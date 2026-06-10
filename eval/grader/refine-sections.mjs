@@ -21,6 +21,13 @@
  *       editability   >= baseline.editability - EDIT_TOL (0.005)
  *       no NEW contentVoid firing · no NEW rasteredText firing · candidate gradable
  *     All gates are evaluated without short-circuit so a rejection reports EVERY failed gate.
+ *     C ROUND 5 HARDENING (closes the e7b4774 TEST-D holes): matchedTexts/editability now come from
+ *     sectionvisual's bandLocalText feed — a source band text counts as reproduced ONLY if its clone leaf is
+ *     genuinely VISIBLE (effective opacity + glyph alpha >= 0.4 AND rendered paint-energy floor — D1) AND its
+ *     box y-intersects THE BAND (within-band movement legal, out-of-band drops it — D2); editability weights
+ *     each matched text by its tree carrier (native widget 1.0, html/raster 0.5 — D3), so fade-to-invisible,
+ *     move-out-of-band and native→html swaps all trip a deterministic gate. Enforced (not xfail) by
+ *     _refine-sections-selftest.mjs TEST D.
  *  3. IDENTITY REJECTION — a candidate whose JSON equals the working tree is rejected as 'identity-no-op'
  *     WITHOUT a render (deterministic; also sidesteps joist's 422 unchanged-tree guard). The shipped 'noop'
  *     operator exercises exactly this path → zero keeps, zero renders beyond baselines.

@@ -915,11 +915,22 @@ export async function capture(ctx, target, withSections) {
     const texts = []; const seen = new Set();
     // DETECTOR(1) TEXT-COLLISION raw feed: ALL visible text leaves with FULL boxes, captured BEFORE the seen-set
     // dedup (overlapping doubled text would otherwise be deduped away and become invisible to the grader). Pure
-    // geometry — no extra render. Each entry: {t, x, y, w, h}. Populated in the SAME element loop below.
+    // geometry — no extra render. Each entry: {t, x, y, w, h, op, ca}. Populated in the SAME element loop below.
+    // op/ca (C round 5, D1 gate hardening): ADDITIVE per-leaf visibility telemetry — `op` = EFFECTIVE opacity
+    // (product of own + ancestor computed opacity; CSS opacity composites multiplicatively, so a 0.06 wrapper
+    // anywhere up the chain shows here even though each element's own computed opacity can read 1) and `ca` =
+    // the glyph color's alpha channel. NO scoring path in THIS file reads them — the corpus-wide vis() floor
+    // (+cs.opacity < 0.05 above) is UNCHANGED BY EXPLICIT DECISION: frozen src caches were captured under that
+    // floor, so raising it clone-side only would manufacture false lostTexts corpus-wide (deflation lie); the
+    // corpus-wide vis-gate raise is its OWN gated grader round (reversible flag + byte-identical legacy + corpus
+    // A/B). Consumed by sectionvisual.mjs bandLocalText (the refine-loop keep-gate feed), where the asymmetry
+    // cannot arise (clone side is always a fresh capture).
+    const effOp = (el) => { let o = 1, n = el; for (let i = 0; n && n.nodeType === 1 && i < 64; i++, n = n.parentElement) { const v = parseFloat(getComputedStyle(n).opacity); if (!isNaN(v)) o *= v; if (o < 0.001) break; } return Math.round(o * 1000) / 1000; };
+    const colorAlpha = (c) => { const s = String(c || '').trim(); let m = s.match(/^rgba\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*,\s*([\d.]+)\s*\)$/) || s.match(/^rgba?\(\s*[\d.]+\s+[\d.]+\s+[\d.]+\s*\/\s*([\d.]+%?)\s*\)$/); if (!m) return 1; const a = m[1].endsWith('%') ? parseFloat(m[1]) / 100 : parseFloat(m[1]); return isNaN(a) ? 1 : Math.round(a * 1000) / 1000; };
     const textLeaves = [];
     // include pre/code (rebuilt code blocks render as <pre>); allow longer text for them so the code blob is
     // counted (else captured code is invisible to the grader → recovery looks like no gain).
-    for (const e of document.querySelectorAll('h1,h2,h3,h4,h5,h6,p,a,button,span,li,div,pre,code')) { const own = [...e.childNodes].some((n) => n.nodeType === 3 && clean(n.textContent)); if (!own) continue; const s = clean(e.innerText); const cap = /^(pre|code)$/i.test(e.tagName) ? 3000 : 200; if (!s || s.length > cap) continue; if (!vis(e)) continue; if (parseFloat(getComputedStyle(e).fontSize) < 10) continue; const r0 = e.getBoundingClientRect(); textLeaves.push({ t: s, x: Math.round(r0.left), y: Math.round(r0.top + scrollY), w: Math.round(r0.width), h: Math.round(r0.height) }); const k = s.toLowerCase(); if (seen.has(k)) continue; seen.add(k); const r = e.getBoundingClientRect(); texts.push({ t: s, y: Math.round(r.top + scrollY) }); }
+    for (const e of document.querySelectorAll('h1,h2,h3,h4,h5,h6,p,a,button,span,li,div,pre,code')) { const own = [...e.childNodes].some((n) => n.nodeType === 3 && clean(n.textContent)); if (!own) continue; const s = clean(e.innerText); const cap = /^(pre|code)$/i.test(e.tagName) ? 3000 : 200; if (!s || s.length > cap) continue; if (!vis(e)) continue; if (parseFloat(getComputedStyle(e).fontSize) < 10) continue; const r0 = e.getBoundingClientRect(); textLeaves.push({ t: s, x: Math.round(r0.left), y: Math.round(r0.top + scrollY), w: Math.round(r0.width), h: Math.round(r0.height), op: effOp(e), ca: colorAlpha(getComputedStyle(e).color) }); const k = s.toLowerCase(); if (seen.has(k)) continue; seen.add(k); const r = e.getBoundingClientRect(); texts.push({ t: s, y: Math.round(r.top + scrollY) }); }
     let sections = null;
     if (withSections) { const ys = new Set([0]); for (const e of document.querySelectorAll('body *')) { const r = e.getBoundingClientRect(); if (r.width >= vw * 0.82 && r.height >= 120 && r.top + scrollY >= 0) ys.add(Math.round(r.top + scrollY)); } const arr = [...ys].sort((a, b) => a - b); const m = []; for (const y of arr) { if (!m.length || y - m[m.length - 1] > 60) m.push(y); } sections = m; }
     // DETECTOR(2) FULL-BLEED raw feed: top-level section BAND boxes (x + width at viewport vw). A band is a wide,

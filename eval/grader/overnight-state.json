@@ -50,9 +50,9 @@
   "stripeSentinel": "stripe.com probe (page 4770) composite 0.657 — pipeline ran clean (287 leaves, hRatio 1.029, no crash) so recipes generalize STRUCTURALLY, but: visual 0.695 (animated gradient hero / scroll carousels / live $1.9T counter = JS-animation content the static V3 builder can't author), struct 0.5 (lost 1/2 lists, 0/1 accordion, + emitted a PHANTOM form). New gaps for targeted/supervised work: (a) accordion authoring recipe; (b) block-emission PRECISION (suppress phantom blocks not in source); (c) dynamic/animated-content tail (headed-capture / motion). NOT added to gated corpus (dynamic noise).",
   "corpusNote": "BROADENED to 6 sites after round-28 generalization probe (linear 0.851, vercel 0.791 — both in-band, recipes generalize). linear=dark-theme + high-water anchor; vercel=tabs/structural stressor. NOTE: cross-round mean shifts ~0.751->~0.77 purely from adding 2 high-scoring sites (composition, NOT a fix gain). Gate compares baseline-vs-after on the SAME 6 sites each round, so within-round verdicts stay honest. directed-fix.workflow.js + discovery.workflow.js SITES updated to 6.",
   "currentRound": {
-    "name": "c-round-4-nav-deinline",
+    "name": "c-round-5-gate-hardening",
     "status": "launching",
-    "detail": "nav-channel de-inline: the 2 residual FAIL_INERTs (tailwind Plus theme-blue, resend Get Started white) — nav emission path gets the C-r1 treatment; target pooled round-trip toward >=0.90; malicious-operator critic re-running in parallel (light) | QUEUED-NEXT (blocking new operators): c-round-5-gate-hardening (holes D1/D2 + html-swap blindness, pins e7b4774)"
+    "detail": "BLOCKING for all new operators: close refine-gate holes D1 (opacity/visibility floor — also grader-wide void-textguard blind spot) + D2 (band-local geometry bound on matchedTexts) + widget-type-aware editability gate; pins e7b4774 must flip from xfail to enforced"
   },
   "flowAbsSurvivalUnknown": "PREREQ for the linear overlay fix (next round): the diagnostic found 0/528 live elements are position:absolute on the FLOW clone (pages 5404/5405 on sg-host) -> build-flow's EXISTING leaf-overlay abs path (build-flow.mjs ~line 771) is NOT rendering as absolute on the frontend. YET build-absolute achieves hRatio ~1.0 via abs on the SAME sg-host stack -> abs CAN work. So before/with the linear buildOverlay() fix (abs-layer the z-overlapped chart+card container children, currently flowed into a column stack = 51% of linear's page excess), RESOLVE why build-flow's abs is stripped/not-applying (diff build-flow's abs-emission vs build-absolute's working mechanism — likely different setting keys or a missing position:relative parent). Fallback if abs truly can't survive in flow: clip the over-tall chart subtree as a sized/clipped html widget to box.h (the kind:code line-282 overflow-cap recipe). Do NOT widen the z-overlay IoU gate (only 16% on tailwind; prior widening regressed coverage).",
   "barClassTokenPoison": "FUTURE LEVER (capture, from capture-markup-flow-gate screenshots): tailwindcss.com's hero code-as-art poison is NOT <div> markup — it's BARE UTILITY-CLASS TOKENS ('text-8xl text-gray-950 tracking-tighter text-balance ...') rendered inline with prose, no angle brackets so markupFrac=0. To strip: detect runs of >=2 consecutive hyphenated CSS-class identifiers (/^[a-z]+(-[a-z0-9]+)+$/) in a non-structural mono/decorative leaf + strip/raster them. Deferred behind the height-pin lever (the dominant one); revisit if tailwind perElement stays starved after height drift is fixed.",
@@ -4146,6 +4146,54 @@
       "verdict": "GATE PASS — both named buttons PASS; pooled round-trip 0.810 (<0.85 target, binding constraint = mapped_panel_rate, out of scope); no stratum regressed; corpus no-regression (tw 0.695/sb 0.840/re 0.651 vs baseline 0.694/0.840/0.651); refine split-bg restored (§10 0.489→0.889, sections composite 0.864)",
       "detail": "Corpus rebuild of 3146/2986/2988 with the a06b3c7 nav de-inline (deinlineNavAnchor, ABS_NO_DEINLINE=1 reverts). Probe targets: tw Plus PASS, re Get-Started PASS (both formerly data_verified-but-render-inert). Round-trip per site: tw 0.792 (mapped 0.864 x pass 0.917), sb 0.843 (12/12), re 0.795 (12/12). Two probe-infra FALSE-FAILs diagnosed and fixed in probe-roundtrip.mjs (C r4 determinism): (1) JS-sticky chrome painted at drifting document slots in stitched before/after fullPage shots (~19px -> 21k px FALSE FAIL_SIDE_EFFECT on unedited header links) and was absent from one companion viewport shot (FALSE FAIL_INERT on a sentinel that LOOK-verifiably rendered orange); fix = scroll-jiggle reset BEFORE box-measure + both captures, vbox re-measured at capture state. (2) tw remaining text FAIL_INERT (run ⌘K) is HONEST: the abs-pinned ⌘K leftover is covered by the real fixed header at scroll-0 (elementsFromPoint-verified) — clone double-render defect, next-round lever (suppress abs leftovers under real chrome). Other next-round levers reaffirmed: mapped_panel_rate 0.795-0.864 binds pooled round-trip (nav-menu links + footer html-widget landmarks probe-unmappable); supabase blank top band pre-existing (no dei-nav on sb, grade flat). LOOK: tw nav links+steel-blue Plus correct; re Get-Started white-on-dark correct; sticky chrome intact; no h-scroll.",
       "plateauEffect": "round-trip pooled 0.794 -> 0.810; button stratum 0.75 -> 1.0 on tw, named targets cleared"
+    },
+    {
+      "name": "c-round-4-verdict",
+      "date": "2026-06-10",
+      "verdict": "KEPT (a06b3c7 nav de-inline + deaf6c2 probe sticky-state fix) — both named targets PASS, pooled round-trip 0.794->0.810, button stratum 1.0",
+      "detail": "Mechanism: Path A nav CTA inline color stamp in editor HTML (build-absolute.mjs:1869 pre-fix) was the only color channel — panel edits saved but never rendered. Fix: deinlineNavAnchor (dei-nav-N namespace), native text_color + per-leaf a{color:inherit} reset (re-measured as REQUIRED: bare theme a-rule rgb(0,123,255) wins post-strip). Composites flat (tw .695/sb .840/re .651); refine restore EXACT (s10 0.489->0.889) + 2 extra keeps (b2 0.323->0.677, b8 0.787->0.840) -> tailwind grade-structure 0.736 (from .695!). Critic independently reproduced byte-identity, probe numbers, restore, LOOK — 0 mustFix. C exit gate NOT met: binding constraint = mapped_panel_rate 0.83 (nav-menu links + footer html-widgets unmappable) + 1 honest text fail (cmd-K double-render = builder lever). CRITIC RANKED DEFECTS (human-salient, pre-existing): supabase 2986 NO HEADER AT ALL; resend logo black-on-black + 3 menu links stacked vertically; tailwind nav missing logo/search-pill/GitHub icon, links left-aligned, Plus lacks pill bg — the next nav-fidelity round target list.",
+      "plateauEffect": "reset"
+    },
+    {
+      "name": "c-round-5-validation",
+      "date": "2026-06-10",
+      "verdict": "PASS — independent validation of C-round-5 gate hardening (band-local bandLocalText feed: D1 visibility/contrast floor + D2 band-geometry bound + D3 widget-type-aware editability). 8/8 malicious operators REJECTED on tailwind 3146 (graded GET-only, hash unchanged); 7/7 known-good split-bg keeps still PASS the hardened gates (zero false rejections); corpus grade byte-identical (band-only decision, option a).",
+      "selftest": "_refine-sections-selftest.mjs ALL PASS (TEST D now ENFORCED, formerly e7b4774 xfail): D0 bandLocalText unit pins, D1 fade-0.06→textCoverage gate, D2 move-out-of-band→textCoverage gate, D3 native→html swap→editability gate; A noop, B anti-deletion, C crash-injection mid-run (debris swept to 404).",
+      "attackSweep": {
+        "harness": "eval/grader/_c5val-attack.mjs",
+        "band": "§5 y3063-3295 heading 171c2a39 'built for the modern web.' (unique-carrier)",
+        "allRejected": true,
+        "gradedUntouched": true,
+        "rejectionTable": {
+          "mal-delete": "textCoverage+editability+visual (Δmatched -1, Δedit -0.333)",
+          "mal-1char": "textCoverage+editability+visual (Δmatched -1 — 1-char corruption breaks the normalized match)",
+          "mal-move": "textCoverage+editability+visual (Δmatched -1, out-of-band)",
+          "mal-tinyfont": "visual ONLY (Δmatched 0, Δedit 0 — 6px span text still painted measurable energy via the large h2 wrapper leaf; not deterministically gated)",
+          "mal-fade": "textCoverage+editability+visual (Δmatched -1 — opacity 0.06 dropped by D1 floor)",
+          "mal-htmlswap": "editability+visual (Δedit -0.167, Δmatched 0 — D3 widget-type weighting; strongest pin, text still rendered visibly)",
+          "mal-ghost45 (NEW: opacity 0.45 just above 0.4 floor + text color = source bg)": "visual ONLY (Δvisual -0.002 — clone bg under heading is NOT white so white-at-0.45 stayed visible→paint-energy above floor→leaf kept; nothing to inflate, no keep)",
+          "mal-edgepark (NEW: _offset_y=y1-2, 2px band graze)": "textCoverage+editability+visual (Δmatched -1 — min(8px,25%h) overlap floor drops the 2px graze, distinguishing it from legal within-band reflow)"
+        },
+        "residual": "mal-tinyfont and mal-ghost45 were caught by the (noisy) visual gate, not a deterministic gate, because neither actually hid the text in the CLONE render (leafAudit lowPaint=0/lowOpacity=0) nor inflated band visual (Δvisual 0 and -0.002) — there was no keep to block deterministically. Residual risk only if a future band lets either BOTH hide text AND inflate visual past +0.01; follow-ups: a font-size visibility floor would close tinyfont, ghost45 is already closed by the paint-energy floor whenever clone-bg≈text-color."
+      },
+      "falseRejectionProbe": {
+        "harness": "eval/grader/_c5val-legit-replay.mjs",
+        "replayed": "7 known-good split-bg keeps from the C-r4 restore run (b2-cand1/2, b8-cand1/2/3, b10-cand1/2), accumulating base chain",
+        "allHardenedPass": true,
+        "allKeep": true,
+        "gradedUntouched": true,
+        "visualDeltasReproducedExactly": "b2 0.223/0.131, b8 0.017/0.016/0.020, b10 0.387/0.013 (== C-r4); Δmatched>=0 and Δedit>=0 on every candidate → textCoverage+editability gates pass"
+      },
+      "corpusImpact": {
+        "decision": "band-only (option a) — grade-sections capture() op/ca added as PURE non-consumed telemetry; corpus vis floor (opacity<0.05) and perBandVisual page-wide join UNCHANGED. Corpus vis-gate raise deferred to its own gated grader round (frozen-src-cache asymmetry risk).",
+        "abTest": "grade-sections ON (op/ca, working copy) vs OFF (git HEAD, no op/ca) regrade of tailwind 3146",
+        "deterministicMetricsByteIdentical": true,
+        "identical": "structuralFidelity 0.756, editabilityMean 0.914, hRatio 1, collisionRate 0 (the only textLeaves consumer), overflowRatio 1, excessOverlap 0, contentVoidCount 1, mediaIdentityMean 0.508, fullBleedOk, chunkedMediaCount 2, realNavOk, sectionsFailing 20, blockMisses, blocksSource/Clone, srcTextRuns 277, perSection 22, ssimRaw 0.843",
+        "nonByteIdentical": "visualMean 0.879 vs 0.843 / composite 0.865 vs 0.852 — fully explained by an ORTHOGONAL intermittent: usePerElement flipped True(ON)→False(OFF) (perElement child unavailable on the OFF run), NOT op/ca; ssimRaw identical confirms the underlying visual signal is unchanged.",
+        "grepProof": "op/ca are write-only in grade-sections (no .op/.ca read anywhere; textCollision reads only t/x/y/w/h) — A/B confirms the analytic proof empirically."
+      },
+      "rails": "All experiments PROPOSAL/scratch-only; graded page 3146 hash unchanged across all runs (sha256:1ed760...e979b in selftest; hash0==hash1 in attack sweep); zero JOIST-SCRATCH pages leaked; OFF-leg HEAD swap restored byte-correct (effOp/colorAlpha present, node --check passes); JOIST_AUTH_B64 never printed.",
+      "artifacts": "_refine-sections-selftest.mjs (enforced), _c5val-attack.mjs, _c5val-legit-replay.mjs; reports /tmp/refine-selftest.json, /tmp/c5val-attack-report.json, /tmp/c5val-legit-report.json, /tmp/c5val-corpus-{on,off}/sections.json"
     }
   ],
   "phase5backlog_wave3": [
