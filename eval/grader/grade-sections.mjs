@@ -204,7 +204,7 @@ const SRC_CACHE_DIR = '/tmp/grade-src-cache';
 // every JSON-serializable field capture() returns (everything except the PNG `shot`, persisted alongside).
 const SRC_CACHE_FIELDS = ['texts', 'sections', 'imgs', 'blocks', 'pageH', 'textLeaves', 'bands', 'mediaLeaves', 'navStruct', 'docScrollW', 'docClientW', 'leafBoxes'];
 const srcTag = String(source).replace(/^https?:\/\//, '').replace(/[^a-z0-9]/gi, '').slice(0, 40)
-  + '-gsec' + (USE_VISIBLE_BLOCKS ? '' : '-novb') + (FORM_CLUSTER ? '' : '-nofc');
+  + '-gsec' + (USE_VISIBLE_BLOCKS ? '' : '-novb') + (FORM_CLUSTER ? '' : '-nofc') + (LAZY_SETTLE ? '' : '-nols');
 const refreshSource = process.argv.includes('--refresh-source');
 
 // ---- pure detector helpers (geometry already in hand; NO network) ----
