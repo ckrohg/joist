@@ -450,6 +450,13 @@ function cropPng(png, box, dpr) {
   // <span> fragments aren't re-emitted (also closes the pre-existing >600-keep parent+child flatten dup).
   // CAPTURE_NO_INLINEMERGE=1 → __NO_INLINEMERGE true → byte-identical legacy silent drop.
   try { await page.evaluate((off) => { window.__NO_INLINEMERGE = off; }, process.env.CAPTURE_NO_INLINEMERGE === '1'); } catch {}
+  // IMG-LEAF METADATA (media-identity feed, default ON): every kind:'image' leaf additionally carries
+  // srcURL (best srcset variant: currentSrc → src attr → LAST/highest-res srcset entry — distinct from the
+  // existing `src`, which is the PAINTED variant), natW/natH (naturalWidth/Height; 0 = never loaded → the
+  // builder must fetch by URL; the 0 is itself the lazy-fail signal), and objectPosition (completes the
+  // existing objectFit for crop reproduction). ADDITIVE ONLY — no existing field is touched (alt already
+  // exists). CAPTURE_NO_IMGMETA=1 → __NO_IMGMETA true → the new keys are not emitted → byte-identical legacy.
+  try { await page.evaluate((off) => { window.__NO_IMGMETA = off; }, process.env.CAPTURE_NO_IMGMETA === '1'); } catch {}
 
   const data = await page.evaluate(() => {
     const MAXD = 8; const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
@@ -780,9 +787,24 @@ function cropPng(png, box, dpr) {
       const pcs = getComputedStyle(el);
       return { kind: 'container', tag: el.tagName.toLowerCase(), box: rectOf(el), layout: layoutOf(pcs), ...boxModel(pcs), background: bgOf(pcs), border: nz(pcs.borderTopWidth) ? `${pcs.borderTopWidth} ${pcs.borderTopStyle} ${pcs.borderTopColor}` : null, radius: nz(pcs.borderTopLeftRadius) ? pcs.borderTopLeftRadius : null, boxShadow: nz(pcs.boxShadow) ? pcs.boxShadow : null, backdropFilter: bdfOf(pcs), position: pcs.position, children };
     }
+    // best-variant URL resolver (hoisted from the mockup-recovery branch so BOTH image-leaf emit sites share
+    // it): resolve a usable URL even for a never-painted lazy img — currentSrc → src attr → LAST (highest-res)
+    // srcset entry. Used by the img leaf branch (srcURL metadata) and single-img mockup recovery.
+    const imgUrl = (im) => {
+      let u = im.currentSrc || im.getAttribute('src') || '';
+      if ((!u || u.startsWith('data:')) && im.getAttribute('srcset')) {
+        const cand = im.getAttribute('srcset').split(',').map((s) => s.trim().split(/\s+/)[0]).filter((s) => s && !s.startsWith('data:'));
+        if (cand.length) u = cand[cand.length - 1]; // last srcset entry = highest-res variant
+      }
+      return (u && !u.startsWith('data:')) ? u : '';
+    };
+    // IMG-LEAF METADATA fields (media-identity feed; CAPTURE_NO_IMGMETA=1 → {} → byte-identical legacy):
+    // srcURL = best fetchable variant (may differ from painted `src`); natW/natH 0 = never loaded (lazy-fail
+    // signal — builder must fetch by URL); objectPosition completes objectFit for crop reproduction.
+    const imgMeta = (im, ics) => (window.__NO_IMGMETA === true ? {} : { srcURL: imgUrl(im), natW: im.naturalWidth || 0, natH: im.naturalHeight || 0, objectPosition: ics.objectPosition });
     function leaf(el, cs) {
       const tag = el.tagName.toLowerCase(); const box = rectOf(el);
-      if (tag === 'img') { const src = el.currentSrc || el.src; if (!src || src.startsWith('data:') || box.w < 8) return null; return { kind: 'image', tag, src, alt: el.alt || '', objectFit: cs.objectFit, box, radius: cs.borderTopLeftRadius, boxShadow: nz(cs.boxShadow) ? cs.boxShadow : null, backdropFilter: bdfOf(cs) }; }
+      if (tag === 'img') { const src = el.currentSrc || el.src; if (!src || src.startsWith('data:') || box.w < 8) return null; return { kind: 'image', tag, src, alt: el.alt || '', objectFit: cs.objectFit, box, radius: cs.borderTopLeftRadius, boxShadow: nz(cs.boxShadow) ? cs.boxShadow : null, backdropFilter: bdfOf(cs), ...imgMeta(el, cs) }; }
       if (tag === 'svg') { if (box.w < 6) return null; return { kind: 'svg', tag, svg: el.outerHTML.slice(0, 4000), box }; }
       let t = clean(el.innerText || el.textContent); if (!t) return null;
       if (t.length > 600) { // LONG-TEXT KEEP (see block comment above) — legacy: silent drop
@@ -1290,15 +1312,8 @@ function cropPng(png, box, dpr) {
           // gradient promos have no single covering <img> and still rasterize exactly as before (byte-identical).
           if (window.__NO_IMGRECOVER !== true) {
             const imgsHere = [...el.querySelectorAll('img')].filter((im) => visible(im));
-            // resolve a usable URL even for a never-painted lazy img: currentSrc → src attr → largest srcset entry.
-            const imgUrl = (im) => {
-              let u = im.currentSrc || im.getAttribute('src') || '';
-              if ((!u || u.startsWith('data:')) && im.getAttribute('srcset')) {
-                const cand = im.getAttribute('srcset').split(',').map((s) => s.trim().split(/\s+/)[0]).filter((s) => s && !s.startsWith('data:'));
-                if (cand.length) u = cand[cand.length - 1]; // last srcset entry = highest-res variant
-              }
-              return (u && !u.startsWith('data:')) ? u : '';
-            };
+            // usable-URL resolution (currentSrc → src attr → largest srcset entry) lives in the shared imgUrl()
+            // hoisted next to leaf() — same resolver as the srcURL metadata field.
             // measure each img's coverage of mb (layout box; a never-painted lazy img still has a layout rect).
             let domImg = null, domArea = 0, secondArea = 0;
             for (const im of imgsHere) { const r = im.getBoundingClientRect(); const a = r.width * r.height; if (a > domArea) { secondArea = domArea; domArea = a; domImg = im; } else if (a > secondArea) { secondArea = a; } }
@@ -1311,7 +1326,7 @@ function cropPng(png, box, dpr) {
               if (url && coversW && coversArea && noBigSecond) {
                 const ibox = rectOf(domImg); // the img's OWN box — bounded, faithful position/size (no dark gutter)
                 const ics = getComputedStyle(domImg);
-                return { kind: 'image', tag: 'img', src: url, alt: domImg.alt || '', objectFit: ics.objectFit, box: (ibox.w >= 8 && ibox.h >= 8) ? ibox : mb, radius: cs.borderTopLeftRadius, boxShadow: nz(ics.boxShadow) ? ics.boxShadow : null, backdropFilter: bdfOf(ics), recovered: 'mockup-img' };
+                return { kind: 'image', tag: 'img', src: url, alt: domImg.alt || '', objectFit: ics.objectFit, box: (ibox.w >= 8 && ibox.h >= 8) ? ibox : mb, radius: cs.borderTopLeftRadius, boxShadow: nz(ics.boxShadow) ? ics.boxShadow : null, backdropFilter: bdfOf(ics), recovered: 'mockup-img', ...(window.__NO_IMGMETA === true ? {} : { srcURL: url, natW: domImg.naturalWidth || 0, natH: domImg.naturalHeight || 0, objectPosition: ics.objectPosition }) };
               }
             }
           }
