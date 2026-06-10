@@ -34,12 +34,21 @@ so the inputs are in hand.
 
 ## The design tension (MUST surface)
 
-build-absolute is **DESKTOP-PIXEL**: pinned at 1440, un-pinned to rough stacking at ≤1024 — NOT true
-responsive. build-hybrid's flex-flow is responsive-ish but visually wrong on complex sections. So abs
-editable sections **raise visual/composite while lowering responsive quality**. Critically, the objective
-grader `grade-structure.mjs` does NOT measure responsive (`grade-responsive.mjs` is separate) — so the
-headline will improve while a real cost stays invisible. **Track grade-responsive alongside every change**
-([[grader_strictness_is_progress]]: a truer grader is the point; don't optimize a blind headline).
+**STATUS (corrected 2026-06-09):** two claims in this section rotted.
+1. `grade-structure.mjs` NOW MEASURES responsive: composite carries a 0.20-weight responsive term
+   (`0.5*mobileFit + 0.5*mobileOrder` at 390px; `grade-structure.mjs` ~line 318-326). The "blind headline"
+   risk below is closed — decision #4 was answered YES and shipped.
+2. The responsive tension was RESOLVED at a CONFIRMED CEILING ([[abs_responsive_ceiling]]): the absolute
+   builder remains **desktop-only**; per-breakpoint matching was built (`per-breakpoint`) and the 2026-06-07
+   model fixes (commit `de3af44`: dice+best-pair+fuzzy-absence+clamp) improved it, but it STILL loses to the
+   clean 1-col stack (collisions + capture-disagreement + 1-col density). The vertical tax is ~2.9x height
+   blowup @390. Do NOT re-do the matcher; next levers are capture-alignment or true reflow.
+
+Original framing (kept for context): build-absolute is **DESKTOP-PIXEL**: pinned at 1440, un-pinned to rough
+stacking at ≤1024 — NOT true responsive. build-hybrid's flex-flow is responsive-ish but visually wrong on
+complex sections. So abs editable sections **raise visual/composite while lowering responsive quality**.
+**Track the responsive term alongside every change** ([[grader_strictness_is_progress]]: a truer grader is
+the point; don't optimize a blind headline).
 
 ## Phased plan
 
@@ -70,10 +79,12 @@ headline will improve while a real cost stays invisible. **Track grade-responsiv
 ## Decisions needed (before building)
 1. **Scope**: abs for ALL editable sections, or only complex multi-column (recommended — keep simple sections
    responsive via flow)?
-2. **Responsive**: port mobile un-pin / rough-reflow (recommended — don't ship broken mobile) or desktop-only?
+2. **Responsive**: ANSWERED (2026-06-09) — per-breakpoint matching was tried and hit a confirmed ceiling
+   ([[abs_responsive_ceiling]]); abs ships desktop-only with the rough ≤1024 un-pin; true reflow is a
+   separate future lever.
 3. **Reuse**: factor a shared `abs-positioning.mjs` from build-absolute (recommended) or copy primitives?
-4. **Objective grader**: add a responsive term to `grade-structure.mjs` so the desktop-pixel tradeoff is
-   visible in the headline (separate but related — otherwise we optimize a blind metric)?
+4. **Objective grader**: ANSWERED YES (2026-06-09) — `grade-structure.mjs` composite now carries a
+   0.20-weight responsive term (mobileFit + mobileOrder); the tradeoff is visible in the headline.
 
 ## Effort
 Medium-large — a dedicated effort, not an inch. P1+P2 are the core (one focused session); P3 tuning + P4

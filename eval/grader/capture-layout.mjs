@@ -1666,14 +1666,15 @@ function cropPng(png, box, dpr) {
     // modalBg → dominantBoxBg (exported pure helper in _bgsample.mjs). The vertical-discontinuity guard makes a
     // wrapper container that spans a light region over a dark region (tailwind §9 "Ship faster and smaller" headline
     // sitting above the dark code-editor panel) ABSTAIN instead of over-painting the whole wrapper with the dark
-    // sub-region's modal colour. OPT-IN (default OFF, byte-identical to the pre-2026-06-09 path): enable with
-    // CAPTURE_SPLITBG=1. RATIONALE for opt-in (2026-06-09): a capture A/B confirmed it correctly drops the dark
-    // over-paint on the §9 wrapper, BUT that wrapper is the ONLY container carrying the §10 code-editor's dark bg
-    // (the clone collapsed headline+editor into one flat wrapper — see memory tailwind_bg_overpaint_structural), so
-    // abstaining also turns the editor white. That is a NET fidelity TRADEOFF (fixes §9, de-themes §10) whose sign
-    // needs a full rebuild+grade corpus-regression to settle — not run-able tonight. Kept opt-in until then; the
-    // real fix is structural (split the wrapper / raster the editor). Reversible/legacy also via CAPTURE_LEGACY=1.
-    const SPLIT_GUARD = process.env.CAPTURE_LEGACY !== '1' && process.env.CAPTURE_SPLITBG === '1';
+    // sub-region's modal colour. KEY INSIGHT: abstaining defers the box to its PARENT's bg, which is the TRUE
+    // section bg — a LIGHT parent (tailwind §9 page) → white headline restored; a DARK parent (resend's black
+    // section with a white composer card on it) → the box stays black via the parent, NO regression. DEFAULT ON
+    // (2026-06-09); reversible CAPTURE_NO_SPLITBG=1 (or CAPTURE_LEGACY=1) ⇒ legacy whole-box over-paint, byte-
+    // identical to the pre-fix path. GATE (full): _bgsample-selftest.mjs ALL PASS (uniform preserved, reversible
+    // == legacy); tailwind full rebuild+grade+LOOK §9 visual 0.16→0.899 (composite 0.834→0.841, §10 neutral, no
+    // h-scroll); resend full rebuild+LOOK black section PRESERVED (parent carries it); supabase/vercel capture-level
+    // 0 dark-risk abstentions. Genuinely-uniform sections never abstain (no top/bottom split → returns their colour).
+    const SPLIT_GUARD = process.env.CAPTURE_LEGACY !== '1' && process.env.CAPTURE_NO_SPLITBG !== '1';
     const modalBg = (box) => {
       const W = png.width, H = png.height;
       const x0 = Math.max(0, (box.x * dpr) | 0), y0 = Math.max(0, (box.y * dpr) | 0), x1 = Math.min(W, ((box.x + box.w) * dpr) | 0), y1 = Math.min(H, ((box.y + box.h) * dpr) | 0);

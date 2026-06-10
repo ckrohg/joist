@@ -213,9 +213,16 @@ LOOK-validation.
 
 ---
 
-## EFFORT #2 — section-background-capture  ⟵ EARLY MEASURABLE WIN (runs in parallel with #1)
+## EFFORT #2 — section-background-capture
 
-**Verdict: needs-fixes (confidence 0.82). The dominant-solid-stop path is a KNOWN-INFERIOR move — fix before
+**STATUS (corrected 2026-06-09): BUILT as a GATED prototype, default-OFF.** Shipped in commit `3591b20`
+(verbatim gradient section-bg capture+emit). Gate is `HYBRID_SECTION_BG === '1'` at `build-hybrid.mjs:43` —
+it was NEVER promoted to default-on (Step 4 below not reached); the steps/issues below remain the promotion
+checklist. (Related but separate: capture-side band-bg gutter sampling in `capture-layout.mjs:1686` is
+default-ON via `CAPTURE_NO_BANDBG` opt-out; the `CAPTURE_SPLITBG` modalBg vertical-split guard is opt-in,
+net unverified — see [[tailwind_bg_overpaint_structural]].)
+
+**Original verdict: needs-fixes (confidence 0.82). The dominant-solid-stop path is a KNOWN-INFERIOR move — fix before
 shipping.**
 
 ### Verified approach
@@ -293,9 +300,16 @@ coupled win.
 
 ---
 
-## EFFORT #3 — grid-reconstruction  ⟵ BLOCKED until a real 2D grid is found in the corpus
+## EFFORT #3 — grid-reconstruction
 
-**Verdict: REJECT (confidence 0.85). Do NOT build until the blockers below are cleared. The design's empirical
+**STATUS (corrected 2026-06-09): SHIPPED, DEFAULT-ON.** The block below ("BLOCKED / REJECT") is the
+pre-build verdict and is SUPERSEDED: the true 2D card-grid reconstruction landed as commit `d2c0b5b`
+(gated) and was promoted DEFAULT-ON in `ab8f7ab` (2026-06-08) after corpus (+0.004) + LOOK validation
+with no drift ([[layout_engine_wave_shipped]]). The shipped gate is `HYBRID_GRID !== '0'` (opt-OUT) at
+`build-hybrid.mjs:144` — NOT the `HYBRID_GRID2` flag this doc proposed; `detectGrid`/`buildGridSection`
+live at `build-hybrid.mjs:67+`.
+
+**Original (pre-build) verdict: REJECT (confidence 0.85). Do NOT build until the blockers below are cleared. The design's empirical
 grounding was FALSE against the cached models.**
 
 ### Why it's blocked (verified against /tmp/hybrid-cache)
@@ -365,9 +379,13 @@ a width-preserved sub-container. Conservative: fire ONLY on real card grids; REF
 
 ---
 
-## EFFORT #4 — imagery-region-capture (icons → grid cells)  ⟵ depends on #3
+## EFFORT #4 — imagery-region-capture (icons → grid cells)  ⟵ depends on #3 (which has since shipped)
 
-**Verdict: needs-fixes (confidence 0.78). The ink-gate + cap are SOUND; the classification flip + flow-
+**STATUS (corrected 2026-06-09): BUILT as a GATED prototype, default-OFF.** Shipped in commit `9681e2f`
+(icon capture into grid cells). Gate is `HYBRID_ICONS === '1'` at `build-hybrid.mjs:350` (in-page collector
+at `:311`) — NOT promoted to default-on; the LOOK/grader promotion steps below remain outstanding.
+
+**Original verdict: needs-fixes (confidence 0.78). The ink-gate + cap are SOUND; the classification flip + flow-
 fallback + reasoning errors MUST be fixed.**
 
 ### Verified approach
