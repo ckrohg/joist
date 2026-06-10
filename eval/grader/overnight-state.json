@@ -50,9 +50,9 @@
   "stripeSentinel": "stripe.com probe (page 4770) composite 0.657 — pipeline ran clean (287 leaves, hRatio 1.029, no crash) so recipes generalize STRUCTURALLY, but: visual 0.695 (animated gradient hero / scroll carousels / live $1.9T counter = JS-animation content the static V3 builder can't author), struct 0.5 (lost 1/2 lists, 0/1 accordion, + emitted a PHANTOM form). New gaps for targeted/supervised work: (a) accordion authoring recipe; (b) block-emission PRECISION (suppress phantom blocks not in source); (c) dynamic/animated-content tail (headed-capture / motion). NOT added to gated corpus (dynamic noise).",
   "corpusNote": "BROADENED to 6 sites after round-28 generalization probe (linear 0.851, vercel 0.791 — both in-band, recipes generalize). linear=dark-theme + high-water anchor; vercel=tabs/structural stressor. NOTE: cross-round mean shifts ~0.751->~0.77 purely from adding 2 high-scoring sites (composition, NOT a fix gain). Gate compares baseline-vs-after on the SAME 6 sites each round, so within-round verdicts stay honest. directed-fix.workflow.js + discovery.workflow.js SITES updated to 6.",
   "currentRound": {
-    "name": "b1-round-3-mediaid-foldblockers",
-    "status": "validated",
-    "detail": "4 fold-blockers fixed (088442b) + real-page validation done (tw miMean 0.390->0.772, sb 0.537->0.763; worst bands LOOK-verified genuine; report-only proof held on degraded clone). Dim stays REPORT-ONLY. Round 4 = the fold decision (projected: tw composite 0.858->0.852, sb 0.812->0.808; note the frac>=0.10 gate exempts brand-logo omissions)."
+    "name": "b1-round-4-fold-decision",
+    "status": "complete — RECOMMENDATION published, pending user/main-loop sign-off",
+    "detail": "T13+T14 killed (d05d28b). Max-gamed analysis: full trick-bundle recoup tw +0.003 / sb +0.002 < honest fold cost -0.010 / -0.006 — SAFE both pages (gamed-folded < unfolded). RECOMMENDATION in PATH_TO_TRUE_1TO1.md §2 addendum: FOLD at floor 0.45, gate srcMediaFrac>=0.10, grade-sections only; miMean stays telemetry. Caveat measured: live miMean NOT value-stable post-T14 (tw 0.772->0.498, sb 0.763->0.705; permuted-wall re-price + F2 drift false-deflation, both LOOKed) -> round-5 priors: wall set-identity carve-out, drift tolerance, small-leaf hardening."
   },
   "flowAbsSurvivalUnknown": "PREREQ for the linear overlay fix (next round): the diagnostic found 0/528 live elements are position:absolute on the FLOW clone (pages 5404/5405 on sg-host) -> build-flow's EXISTING leaf-overlay abs path (build-flow.mjs ~line 771) is NOT rendering as absolute on the frontend. YET build-absolute achieves hRatio ~1.0 via abs on the SAME sg-host stack -> abs CAN work. So before/with the linear buildOverlay() fix (abs-layer the z-overlapped chart+card container children, currently flowed into a column stack = 51% of linear's page excess), RESOLVE why build-flow's abs is stripped/not-applying (diff build-flow's abs-emission vs build-absolute's working mechanism — likely different setting keys or a missing position:relative parent). Fallback if abs truly can't survive in flow: clip the over-tall chart subtree as a sized/clipped html widget to box.h (the kind:code line-282 overflow-cap recipe). Do NOT widen the z-overlay IoU gate (only 16% on tailwind; prior widening regressed coverage).",
   "barClassTokenPoison": "FUTURE LEVER (capture, from capture-markup-flow-gate screenshots): tailwindcss.com's hero code-as-art poison is NOT <div> markup — it's BARE UTILITY-CLASS TOKENS ('text-8xl text-gray-950 tracking-tighter text-balance ...') rendered inline with prose, no angle brackets so markupFrac=0. To strip: detect runs of >=2 consecutive hyphenated CSS-class identifiers (/^[a-z]+(-[a-z0-9]+)+$/) in a non-structural mono/decorative leaf + strip/raster them. Deferred behind the height-pin lever (the dominant one); revisit if tailwind perElement stays starved after height drift is fixed.",
@@ -4030,6 +4030,80 @@
       ],
       "artifacts": "/tmp/mi3-tw-on|tw-off|sb-on/sections.json; LOOK crops /tmp/mi3-look-{tw-b2,tw-b17,tw-b4a,tw-b4b,sb-b0,sb-b14,sb-b2}.png; compare script /tmp/mi3-compare.py",
       "plateauEffect": "n/a (grader validation round)"
+    },
+    {
+      "name": "b1-round-3-verdict",
+      "date": "2026-06-10",
+      "verdict": "KEPT (088442b fixes + a5d9c79 validation + 2bce4e5 attack3 lab) — fold DEFERRED to round 4",
+      "detail": "All 4 fold-blockers flipped: presence-gaming 0.409->0.021 (identity-weighted), bg-div 0->1.0 (same-box pixel fallback, drift bonus 0->0.439), LQIP 0.938->0.336 (per-cell variance hf term), wrong-photo W3 0.696->0.443 / wrong-logo 0.27->0.065 / stretch 0.978->0.641 (corr + box-aspect; nat-based deferred to avoid a capture change). 39/39 selftests; live tw miMean 0.390->0.772 (logo-wall false-zero gone — wall reproduced but per-cell permuted), sb 0.537->0.763; worst-band LOOKs genuine. Goodhart critic found 2 NEW games BEFORE fold could be hurt: T13 video-box presence stuffing (presence-only leaves take full geometric credit; one gamed video band recoups more than the fold honest cost -> fold as specified net-gameable) + T14 grain-over-LQIP (film-grain on shipped placeholder 0.336->0.788, economically rational on broken heroes). Fold deferred until both die. Also noted for round 4: small-imagery omission is fold-INVISIBLE via the srcMediaFrac>=0.10 gate (count-weighted identity question).",
+      "plateauEffect": "reset"
+    },
+    {
+      "name": "b1-round-4-folddecision",
+      "date": "2026-06-10",
+      "verdict": "RECOMMEND FOLD (floor 0.45, gate srcMediaFrac>=0.10, grade-sections only) — pending user/main-loop sign-off; composite weights NOT changed this round",
+      "maxGamed": {
+        "perArchetype": {
+          "photoHero_LQIP": 0.336,
+          "grainOverLQIP_max": 0.323,
+          "logoWall_wrongLogo": 0.09,
+          "logoWall_LQIPceiling": 0.336,
+          "mixedIconStuff_bandGain": 0.004,
+          "videoBand_junkVideoTag": 1,
+          "flatTexture_N5_residual": 0.6
+        },
+        "perBandUpperBound": "M_gamed <= M + 0.336*(1-M) identity bands; 1.0 presence-only",
+        "liveTrickBundle": {
+          "tailwind3146": {
+            "honestCost": 0.01,
+            "maxRecoup": 0.003,
+            "unfolded": 0.858,
+            "foldedHonest": 0.848,
+            "foldedMaxGamed": 0.851,
+            "margin": 0.007,
+            "safe": true
+          },
+          "supabase2986": {
+            "honestCost": 0.006,
+            "maxRecoup": 0.002,
+            "unfolded": 0.814,
+            "foldedHonest": 0.808,
+            "foldedMaxGamed": 0.81,
+            "margin": 0.004,
+            "safe": true
+          }
+        },
+        "criterion": "maxRecoup < honestCost on both pages AND honest compliance (M 1.0 via region-raster) out-earns best trick ~3x; residual by-design ceiling = junk-video tag 1.0 (~0.006 worst single-band recoup; requires real painting <video>, SSIM still prices wrong pixels)"
+      },
+      "liveRegrade": {
+        "tailwind": {
+          "page": 3146,
+          "miMean_r3": 0.772,
+          "miMean_r4": 0.498,
+          "composite": 0.858,
+          "projectedFold": {
+            "visual": "0.862->0.834",
+            "composite": "0.858->0.848",
+            "deltaComposite": -0.01
+          }
+        },
+        "supabase": {
+          "page": 2986,
+          "miMean_r3": 0.763,
+          "miMean_r4": 0.705,
+          "composite": 0.814,
+          "projectedFold": {
+            "visual": "0.940->0.924",
+            "composite": "0.814->0.808",
+            "deltaComposite": -0.006
+          },
+          "videoBand8": "kept legit 1.0 post-T13"
+        },
+        "stability": "NOT value-stable post-T14 — LOOK-characterized: tw section-4 randomized logo wall re-priced (wrong 12->34/36, same logo set shuffled per load = nondeterministic-wall under-credit amplified) + tw section-19 drift false-deflation (0.793->0.351, same template-collage with small drift = F2 known cost on a live band). Worst-band ranking unchanged. Both channels were pre-documented KNOWN COSTS in the d05d28b flag block."
+      },
+      "smallImagery": "EVALUATED+DEFERRED: N3 8/9-icons-missing = 0.929 area-weighted; count-weighting 0.111 opens 13x stuffing (+0.051 vs +0.004); per-leaf floor /32 = 0.788 at +0.012 stuffing but unbounded false-low risk on logo-dense pages. Round-5: harden small-leaf identity first, then floor-weight with live A/B.",
+      "artifacts": "/tmp/mi4-tw-on|mi4-sb-on/sections.json; LOOKs /tmp/mi4-look-tw-b19.png /tmp/mi4-look-tw-b4.png; calculator eval/grader/zz-mi-foldcalc.tmp.mjs (reconstructs published projected.* exactly before gaming)",
+      "plateauEffect": "n/a (decision package; no grader/builder behavior changed)"
     }
   ],
   "phase5backlog_wave3": [
