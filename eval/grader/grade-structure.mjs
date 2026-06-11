@@ -231,6 +231,63 @@ async function mobileLayout(ctx, cloneUrl) {
     return { fit, mobileTexts: info.mobileTexts };
   } catch { return null; } finally { await p.close().catch(() => {}); }
 }
+// ---- G1 MULTI-WIDTH (grader-truth round 2026-06-10; qa-stepback diagnosis; reversible GRADER_NO_MIDWIDTH=1) ----
+// THE HOLE: the grader only ever looked at 1440 (+390 fit/order). The user's QA happened at ~1000-1200px where
+// build-absolute is catastrophically broken in two DISTINCT ways the 1440 grade is blind to:
+//   • the 1024px CLIFF — at <=1024 (Elementor tablet bp) the abs pins drop (248/263 measured) → unstyled flow
+//     stack, page height +82% (h(1024)/h(1025) = 1.82 measured on 3146) → composite VETO-CAP <= 0.35.
+//   • 1025-1439 AMPUTATION — a frozen 1440 canvas clips content off the right edge (44 content elements past
+//     the viewport at 1200, hero font +33%). Measured by RIGHTMOST-EXTENT of CONTENT elements (own text or
+//     img/video/canvas), NOT scrollWidth — overflow-x:hidden masks scrollWidth but a human still sees the cut
+//     content (and the hOverflow detector never fires). To protect innocents (marquees/carousels legitimately
+//     park content past the edge — the SOURCE itself measures clipped>0), the cap keys on the EXCESS of clone
+//     clipped count over the source's own at the same width: excess > 10 ⇒ composite cap <= 0.45.
+//   • hero-font-ratio at 1200 (clone heroFs / source heroFs) — reported DIAGNOSTIC only (no cap): the frozen
+//     canvas zooms type ~+20-33% at mid-widths; a refine loop can target it.
+// Probes are CLONE-side page loads at 1200/1025/1024 (+ source at 1200 for excess/hero baselines) — pure
+// measurement, no scoring of pixels at those widths (that's the vision-judge's job). Skipped (like the mobile
+// pass) under --no-responsive or non-URL targets. Flag off → no probes, no report fields, composite untouched.
+const USE_MIDWIDTH = process.env.GRADER_NO_MIDWIDTH !== '1';
+async function midwidthMeasure(ctx, url, width) {
+  const p = await ctx.newPage();
+  try {
+    await p.setViewportSize({ width, height: 900 });
+    try { await p.goto(url, { waitUntil: 'networkidle', timeout: 45000 }); } catch { try { await p.goto(url, { waitUntil: 'load', timeout: 30000 }); } catch {} }
+    await p.waitForTimeout(900);
+    return await p.evaluate(() => {
+      const vw = document.documentElement.clientWidth;
+      let clipped = 0, maxBeyond = 0;
+      for (const el of document.querySelectorAll('body *')) {
+        const cs = getComputedStyle(el);
+        if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+        const r = el.getBoundingClientRect();
+        if (r.width < 2 || r.height < 2) continue;
+        let t = ''; for (const n of el.childNodes) if (n.nodeType === 3) t += n.textContent;
+        const isMedia = /^(IMG|VIDEO|CANVAS)$/.test(el.tagName);
+        if (!isMedia && !t.trim()) continue;                 // CONTENT elements only (own text or media)
+        const beyond = r.right - vw;
+        if (beyond > 8) { clipped++; if (beyond > maxBeyond) maxBeyond = beyond; }
+      }
+      const hero = document.querySelector('h1, .elementor-heading-title');
+      return { h: document.documentElement.scrollHeight, clipped, maxBeyond: Math.round(maxBeyond), heroFs: hero ? parseFloat(getComputedStyle(hero).fontSize) : null };
+    });
+  } catch { return null; } finally { await p.close().catch(() => {}); }
+}
+async function midwidthProbe(ctx, cloneUrl, srcUrl) {
+  if (!USE_MIDWIDTH || process.argv.includes('--no-responsive') || !/^https?:/.test(cloneUrl)) return null;
+  const c1200 = await midwidthMeasure(ctx, cloneUrl, 1200);
+  const c1025 = await midwidthMeasure(ctx, cloneUrl, 1025);
+  const c1024 = await midwidthMeasure(ctx, cloneUrl, 1024);
+  const s1200 = (srcUrl && /^https?:/.test(srcUrl)) ? await midwidthMeasure(ctx, srcUrl, 1200) : null;
+  if (!c1200 && !c1025 && !c1024) return null;               // probe infrastructure failed entirely → no term
+  const cliffRatio = (c1024 && c1025 && c1024.h > 0 && c1025.h > 0)
+    ? +(Math.max(c1024.h, c1025.h) / Math.min(c1024.h, c1025.h)).toFixed(3) : null;
+  const clipped = c1200 ? c1200.clipped : null;
+  const clippedExcess = c1200 ? Math.max(0, c1200.clipped - ((s1200 && s1200.clipped) || 0)) : null;
+  const heroFontRatio = (c1200 && s1200 && c1200.heroFs && s1200.heroFs) ? +(c1200.heroFs / s1200.heroFs).toFixed(3) : null;
+  return { cliffRatio, h1024: c1024 ? c1024.h : null, h1025: c1025 ? c1025.h : null, clipped, srcClipped: s1200 ? s1200.clipped : null, clippedExcess, maxBeyond1200: c1200 ? c1200.maxBeyond : null, heroFontRatio, cloneHeroFs1200: c1200 ? c1200.heroFs : null, srcHeroFs1200: s1200 ? s1200.heroFs : null };
+}
+
 // ORDER agreement: of the text runs shared by source (reading order) and clone-mobile, what fraction lie in a
 // common monotonic subsequence? 1.0 = clone mobile reads in source order; low = scrambled. LCS over the shared set.
 function orderAgreement(srcOrder, cloneMobileOrder) {
@@ -269,6 +326,7 @@ const refreshSource = process.argv.includes('--refresh-source');
   const cln = await capture(ctx, clone, false);
   const cloneML = await mobileLayout(ctx, clone); // clone mobile fit + reading order (390px)
   let srcML = cloneML ? (srcMobileTexts ? { mobileTexts: srcMobileTexts } : await mobileLayout(ctx, source)) : null; // source mobile reading order (390px reference)
+  const midwidth = await midwidthProbe(ctx, clone, source); // G1: 1024/1025 cliff + 1200 amputation/hero probes
   if (!useSrcCache && /^https?:/.test(source)) { // persist a fresh source capture for deterministic future grades
     try { fs.mkdirSync(SRC_CACHE_DIR, { recursive: true }); fs.writeFileSync(srcCachePng, PNG.sync.write(src.shot)); fs.writeFileSync(srcCacheJson, JSON.stringify({ texts: src.texts, textPos: src.textPos, census: src.census, ds: src.ds, pageH: src.pageH, mobileTexts: srcML ? srcML.mobileTexts : null })); } catch {}
   }
@@ -402,6 +460,15 @@ const refreshSource = process.argv.includes('--refresh-source');
     : (cds.contrastFails || []).filter((f) => f.ratio < 1.3 && f.fsz >= 18 && f.w > 0 && lumRange(cln.shot, f.x, f.y, f.w, f.h) < 24);
   const invisDefect = process.env.GRADER_NODEFECT === '1' ? 0 : Math.min(0.20, invisRuns.length * 0.04);
   composite = composite * (1 - invisDefect);
+  // ---- G1 MULTI-WIDTH VETO-CAPS (see midwidthProbe block; reversible GRADER_NO_MIDWIDTH=1 → probes skipped,
+  // composite untouched). A page that DOUBLES in height crossing 1024→1025 (abs-pin drop → unstyled stack) or
+  // amputates >10 content elements past the 1200 viewport (frozen 1440 canvas) is broken at every mid-width a
+  // human actually browses at — no 1440 score survives that. Caps are VETOES (min), not subtractions.
+  const midwidthCaps = [];
+  if (midwidth) {
+    if (midwidth.cliffRatio != null && midwidth.cliffRatio > 1.3) { composite = Math.min(composite, 0.35); midwidthCaps.push(`cliff(${midwidth.cliffRatio})→cap0.35`); }
+    if (midwidth.clippedExcess != null && midwidth.clippedExcess > 10) { composite = Math.min(composite, 0.45); midwidthCaps.push(`amputation(${midwidth.clippedExcess})→cap0.45`); }
+  }
 
   const report = {
     source, clone,
@@ -410,6 +477,8 @@ const refreshSource = process.argv.includes('--refresh-source');
     breakdown: { ssim_mean: +ssimMean.toFixed(3), exactPixel_mean: +exactMean.toFixed(3), cgm_mean: +cgmMean.toFixed(3), cgmOverDensity: cgmRes.overDensity, hRatio: +hRatio.toFixed(3), heightPenalty: +hPen.toFixed(3), textCoverage: +textCoverage.toFixed(3), editVisCoupled: +editability.toFixed(3), srcTextRuns: srcPos.length, cloneTextRuns: cln.texts.length, nativeRatio: +nativeRatio.toFixed(3), invisibleText: invisRuns.length, invisibleDefect: +invisDefect.toFixed(3), ...(INVISTEXT2 ? { invisDetector: 'localbg-v2', invisRuns: invisRuns.slice(0, 8).map((f) => ({ y: f.y, fsz: f.fsz, ratio: f.ratio, text: f.text })) } : {}), cloneWidgets: { heading: c.wHeading, text: c.wText, button: c.wButton, image: c.wImage } },
     designLint: { paletteFidelity: +palFid.toFixed(3), typeFidelity: +typeFid.toFixed(3), contrastPass: +contrastPass.toFixed(3), contrastPairs: cds.contrastPairs || 0, contrastFail: (cds.contrastPairs || 0) - (cds.contrastPass || 0), hasPrimary: !!hasPrimary, hasTypography: !!hasType, cloneFonts: cds.fontCount || 0, clonePalette: (cds.palette || []).length, cloneRadii: cds.radii || [] },
     responsiveDetail: responsive != null ? { mobileFit: +mobileFitV.toFixed(3), mobileOrder: +mobileOrderV.toFixed(3) } : null,
+    // G1 MULTI-WIDTH (absent entirely under GRADER_NO_MIDWIDTH=1 / --no-responsive / probe failure → legacy report shape).
+    ...(midwidth ? { midwidth: { ...midwidth, caps: midwidthCaps } } : {}),
     note: 'composite = 0.35*visual + 0.35*editability + 0.10*designSystem + 0.20*responsive (3-term 0.45/0.45/0.10 fallback when responsive unavailable; visual<0.5 floors it). editability = mean over source text runs of (reproduced-as-selectable ? bandVisual(y) : 0) — coupled to visual so shredded/broken-band text earns little (un-gameable); textCoverage is the raw uncoupled diagnostic. designSystem = 0.35*paletteFidelity + 0.30*typeFidelity + 0.25*contrastPass(WCAG AA) + 0.10*completeness. responsive = 0.5*mobileFit(no 390px overflow) + 0.5*mobileOrder(clone mobile reading-order vs source, LCS).',
   };
   console.log(JSON.stringify(report, null, 2));
