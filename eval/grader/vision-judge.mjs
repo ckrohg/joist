@@ -14,16 +14,28 @@
  * Usage:
  *   node vision-judge.mjs --source <url> --clone <url> [--widths 1440,1100] [--out dir] [--tileh 900]
  *                         [--runs 1] [--jobs 3] [--model sonnet] [--budget 10] [--max-tiles 40]
- *                         [--manifest-only]
+ *                         [--manifest-only] [--gating] [--structure <grade-structure results.json>]
  * Outputs: <out>/w<width>-tile-NN.png, <out>/manifest.json, <out>/results.json (unless --manifest-only).
  * Judge path: `claude -p` per tile (vision via Read tool, --output-format json), strict-parse + 1 retry,
  * model recorded from modelUsage. --manifest-only skips judging (agent-based judging can consume the manifest).
  * Determinism: --runs N>1 judges each tile N times and takes the per-tile MEDIAN score (defects from median run).
+ * --gating: MANDATES runs>=3 (single-run spread measured up to 20pts on marquee/animated bands; tile-median
+ *   stabilizes). Any gating/calibration use of pageScore MUST pass --gating.
+ * VETO COMBINER (--structure): vision pageScore is the headline ONLY through deterministic vetoes —
+ *   publishedScore = min(visionScore, vetoCappedScore) where textVetoCap = 100*min(1, textCoverage/0.9)
+ *   (full-page-raster text earns ~0 native textCoverage → cannot win) and heightVetoCap reuses
+ *   grade-structure's h-overflow penalty. Without --structure, publishedScore=null (RAW vision, not publishable).
+ * Isolation: nested claude sessions run with --strict-mcp-config + --setting-sources "" (no MCP servers, no
+ *   settings scaffold, no context-hub daemon spawned in OUT). NO startup pkill of chrome-headless-shell —
+ *   each capture launches its own ephemeral Playwright browser (own temp user-data-dir), so parallel runs
+ *   cannot kill each other's captures (set VJ_PKILL=1 to opt IN to the old stale-process sweep).
  * Alignment: proportional y (clone band = source band * cloneH/sourceH) — degenerates to identity at hRatio 1.
  * Reversible/inert: pure capture+slice+judge; no grader or builder mutation; logged-out contexts; read-only.
+ * Selftest: _vj-selftest.mjs (identical src|src pair must score >=95 with no sev>=2 defects).
  */
 import fs from 'fs';
 import path from 'path';
+import { pathToFileURL } from 'url';
 import { execFileSync, execFile } from 'child_process';
 import { chromium } from 'playwright';
 import { PNG } from 'pngjs';
@@ -36,17 +48,16 @@ const SOURCE = arg('source'), CLONE = arg('clone');
 const WIDTHS = String(arg('widths', '1440,1100')).split(',').map((s) => parseInt(s, 10)).filter((n) => n > 200);
 const OUT = arg('out', '/tmp/vision-judge');
 const TILE_H = +arg('tileh', 900);
-const RUNS = Math.max(1, +arg('runs', 1));
+const GATING = has('gating');               // gating/calibration use: runs>=3 is MANDATORY (single-run spread up to 20pts)
+const RUNS = Math.max(GATING ? 3 : 1, +arg('runs', GATING ? 3 : 1) || 1);
 const JOBS = Math.max(1, +arg('jobs', 3));
 const MODEL = arg('model', 'sonnet');
 const BUDGET = +arg('budget', 10);          // max total USD across all claude -p calls
 const MAX_TILES = +arg('max-tiles', 40);    // per width, safety cap on very tall pages
 const MANIFEST_ONLY = has('manifest-only');
+const STRUCTURE = arg('structure');         // grade-structure results.json for the veto combiner (publishedScore)
 const FOLD_Y = 1000;                        // aboveFold = source-band y0 < 1000
 const DIVIDER = 14;                         // px magenta divider between source and clone
-
-if (!SOURCE || !CLONE) { console.error('usage: node vision-judge.mjs --source <url> --clone <url> [--widths 1440,1100] [--out dir] [--manifest-only]'); process.exit(2); }
-fs.mkdirSync(OUT, { recursive: true });
 
 // ── tiny 5x7 bitmap font (no font deps) for burned-in corner labels ─────────────────────────────────────────
 const FONT = {
@@ -152,7 +163,13 @@ Score the RIGHT side's fidelity to the LEFT, 0-100:
 - 100 = indistinguishable at a glance
 - 50 = same skeleton but obviously different on inspection
 - below 30 = clearly broken or missing content
-Enumerate EVERY visible defect of the RIGHT side relative to the LEFT. Each defect is {"desc": "<specific, names the element>", "severity": 1-5 (5 = ruins the page), "category": "missing-content"|"wrong-style"|"layout-broken"|"text-junk"|"imagery-missing"|"chrome-missing"}.
+Enumerate EVERY visible defect of the RIGHT side relative to the LEFT. Each defect is {"desc": "<specific, names the element>", "severity": 1-5, "category": "missing-content"|"wrong-style"|"layout-broken"|"text-junk"|"imagery-missing"|"chrome-missing"}.
+Severity anchors — calibrate strictly to these examples:
+- 5 = RUINS the page: whole hero/section missing or blank, layout collapsed into an unreadable pile, page dominated by junk text. A missing two-word sub-heading is NOT a 5.
+- 4 = major: brand logo missing or wrong, primary CTA unstyled/invisible, hero image missing, dead UI mockup (no window dots/tabs/syntax colors).
+- 3 = clearly noticeable: wrong font/color on a prominent heading, misaligned card grid, a secondary image missing.
+- 2 = minor: small spacing/weight/radius differences, a short sub-heading or caption missing.
+- 1 = trivial nitpick visible only side-by-side.
 Be strict: missing logos/icons/images, unstyled buttons or pills, text rendered as junk/stacked fragments, flattened inline code, dead UI mockups (missing window dots/tabs/syntax colors), overflowing or misaligned layout ALL count.
 If both sides are empty or identical, score 100 with zero defects. Dark-gray padding at the bottom of one side only reflects a page-height mismatch — judge the painted content.
 Output ONLY this JSON, no prose, no markdown fences: {"score": <0-100>, "defects": [{"desc": "...", "severity": <1-5>, "category": "..."}]}`;
@@ -165,28 +182,44 @@ function extractJson(text) {
   try { return JSON.parse(text.slice(a, b + 1)); } catch { return null; }
 }
 
-function claudeOnce(prompt, timeoutMs = 240000) {
+// NO-WEDGE: killSignal SIGKILL on the soft (execFile) timeout PLUS an unref'd hard-timeout race at
+// timeoutMs+30s that SIGKILLs the child and resolves {ok:false,error:'hard-timeout'} — a hung claude call
+// must never wedge a pool worker. ISOLATION: --strict-mcp-config + --setting-sources "" so the nested
+// session loads NO project/user settings, spawns NO MCP servers / context-hub daemon, and leaves NO
+// .claude/.tenet/.mcp.json scaffold in cwd. (Do NOT use --bare — it breaks OAuth.)
+function claudeOnce(prompt, timeoutMs = 240000, opts = {}) {
+  const model = opts.model || MODEL;
+  const cwd = opts.cwd || OUT;
+  const hardMs = opts.hardMs || timeoutMs + 30000;
   return new Promise((resolve) => {
-    const child = execFile('claude',
-      ['-p', prompt, '--model', MODEL, '--output-format', 'json', '--allowedTools', 'Read', '--max-budget-usd', '0.60'],
-      { timeout: timeoutMs, maxBuffer: 16 * 1024 * 1024, cwd: OUT },
+    let child = null;
+    const hard = setTimeout(() => {
+      try { if (child) child.kill('SIGKILL'); } catch {}
+      resolve({ ok: false, error: 'hard-timeout' });
+    }, hardMs);
+    hard.unref();
+    child = execFile('claude',
+      ['-p', prompt, '--model', model, '--output-format', 'json', '--allowedTools', 'Read',
+       '--max-budget-usd', '0.60', '--strict-mcp-config', '--setting-sources', ''],
+      { timeout: timeoutMs, killSignal: 'SIGKILL', maxBuffer: 16 * 1024 * 1024, cwd },
       (err, stdout) => {
+        clearTimeout(hard);
         if (err && !stdout) return resolve({ ok: false, error: String(err && err.message || err) });
         let outer = null; try { outer = JSON.parse(stdout); } catch {}
         if (!outer) return resolve({ ok: false, error: 'outer JSON parse failed', raw: String(stdout).slice(0, 400) });
         const verdict = extractJson(outer.result);
-        const model = outer.modelUsage ? Object.keys(outer.modelUsage)[0] : MODEL;
+        const usedModel = outer.modelUsage ? Object.keys(outer.modelUsage)[0] : model;
         const cost = +outer.total_cost_usd || 0;
         if (!verdict || typeof verdict.score !== 'number' || !Array.isArray(verdict.defects)) {
-          return resolve({ ok: false, error: 'verdict JSON invalid', cost, model, raw: String(outer.result).slice(0, 400) });
+          return resolve({ ok: false, error: 'verdict JSON invalid', cost, model: usedModel, raw: String(outer.result).slice(0, 400) });
         }
         verdict.score = Math.max(0, Math.min(100, verdict.score));
         verdict.defects = verdict.defects
           .filter((d) => d && d.desc)
           .map((d) => ({ desc: String(d.desc).slice(0, 300), severity: Math.max(1, Math.min(5, +d.severity || 1)), category: String(d.category || 'wrong-style') }));
-        resolve({ ok: true, verdict, cost, model });
+        resolve({ ok: true, verdict, cost, model: usedModel });
       });
-    child.on('error', () => resolve({ ok: false, error: 'spawn failed' }));
+    child.on('error', () => { clearTimeout(hard); resolve({ ok: false, error: 'spawn failed' }); });
   });
 }
 
@@ -222,10 +255,20 @@ async function pool(items, n, fn) {
   return results;
 }
 
-// ── main ─────────────────────────────────────────────────────────────────────────────────────────────────────
-(async () => {
+// ── exports (consumed by _vj-selftest.mjs and agent-based judging) ──────────────────────────────────────────
+export { composeTile, captureFull, claudeOnce, RUBRIC, extractJson, drawLabel };
+
+// ── main (only when invoked directly — importable as a library without side effects) ────────────────────────
+const IS_MAIN = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
+if (IS_MAIN) (async () => {
+  if (!SOURCE || !CLONE) { console.error('usage: node vision-judge.mjs --source <url> --clone <url> [--widths 1440,1100] [--out dir] [--gating] [--structure <grade-structure results.json>] [--manifest-only]'); process.exit(2); }
+  fs.mkdirSync(OUT, { recursive: true });
   const t0 = Date.now();
-  if (!process.env.VJ_NO_PKILL) { try { execFileSync('pkill', ['-9', '-f', 'chrome-headless-shell']); } catch {} }
+  // NO sibling-pkill: every captureFull() launches its own ephemeral Playwright browser (own temp
+  // user-data-dir), so parallel vision-judge runs are already isolated. The old unconditional
+  // `pkill -9 chrome-headless-shell` killed SIBLING runs' captures mid-screenshot. Opt IN with VJ_PKILL=1
+  // only for manual stale-process cleanup when nothing else is running.
+  if (process.env.VJ_PKILL === '1') { try { execFileSync('pkill', ['-9', '-f', 'chrome-headless-shell']); } catch {} }
   const tiles = [];
   const perWidthMeta = {};
   {
@@ -287,9 +330,31 @@ async function pool(items, n, fn) {
   for (const t of enriched) if (t.judged) for (const d of t.defects) allDefects.push({ ...d, width: t.width, tile: t.idx, yRange: t.yRange, aboveFold: t.aboveFold, tileScore: t.score });
   allDefects.sort((a, b) => (b.severity - a.severity) || (b.aboveFold - a.aboveFold) || (a.tileScore - b.tileScore));
 
+  // ── VETO COMBINER: vision pageScore is the headline ONLY through deterministic vetoes ────────────────────
+  // publishedScore = min(visionScore, vetoCappedScore). A full-page-raster clone has ~0 native textCoverage in
+  // grade-structure → textVetoCap ~0 → it cannot win on vision alone. h-overflow reuses grade-structure's hPen.
+  let veto = null, publishedScore = null;
+  if (STRUCTURE) {
+    try {
+      const sj = JSON.parse(fs.readFileSync(STRUCTURE, 'utf8'));
+      const b = sj.breakdown || sj;
+      const textCoverage = Number(b.textCoverage ?? sj.textCoverage);
+      const hRatio = Number(b.hRatio ?? sj.hRatio);
+      const textVetoCap = Number.isFinite(textCoverage) ? +(100 * Math.min(1, textCoverage / 0.9)).toFixed(1) : null;
+      const heightVetoCap = Number.isFinite(hRatio) ? +(100 * Math.max(0.3, Math.min(1, 1 - Math.max(0, Math.abs(hRatio - 1) - 0.1) * 0.6))).toFixed(1) : null;
+      const caps = [textVetoCap, heightVetoCap].filter((c) => c != null);
+      const vetoCappedScore = caps.length ? Math.min(...caps) : null;
+      if (overall.pageScore != null) publishedScore = vetoCappedScore != null ? +Math.min(overall.pageScore, vetoCappedScore).toFixed(1) : overall.pageScore;
+      veto = { structure: STRUCTURE, textCoverage: Number.isFinite(textCoverage) ? textCoverage : null, hRatio: Number.isFinite(hRatio) ? hRatio : null, textVetoCap, heightVetoCap, vetoCappedScore, capped: publishedScore != null && overall.pageScore != null && publishedScore < overall.pageScore };
+    } catch (e) { veto = { structure: STRUCTURE, error: String(e && e.message || e) }; console.error(`[veto] failed to read --structure: ${e && e.message || e} — publishedScore=null`); }
+  } else {
+    console.error('[veto] WARNING: no --structure <grade-structure results.json> given — pageScore is RAW vision; publishedScore=null (NOT publishable for gating: a full-page-raster clone could max raw vision).');
+  }
+
   const modelUsed = enriched.find((t) => t.judged)?.model || MODEL;
   const results = {
-    source: SOURCE, clone: CLONE, widths: WIDTHS, runsPerTile: RUNS, model: modelUsed,
+    source: SOURCE, clone: CLONE, widths: WIDTHS, runsPerTile: RUNS, gating: GATING, model: modelUsed,
+    publishedScore, veto,
     pageScore: overall.pageScore, baseScore: overall.base, severityPenalty: overall.penalty,
     perWidth, tilesJudged: overall.judged, tilesSkipped: overall.skipped,
     costUsd: +spentUsd.toFixed(2), wallSec: Math.round((Date.now() - t0) / 1000),
@@ -298,9 +363,10 @@ async function pool(items, n, fn) {
   fs.writeFileSync(path.join(OUT, 'results.json'), JSON.stringify(results, null, 2));
 
   console.log(JSON.stringify({
+    publishedScore, veto,
     pageScore: overall.pageScore, baseScore: overall.base, severityPenalty: overall.penalty,
     perWidth: Object.fromEntries(Object.entries(perWidth).map(([w, v]) => [w, { pageScore: v.pageScore, base: v.base, penalty: v.penalty, hRatio: v.hRatio, judged: v.judged, skipped: v.skipped }])),
-    model: modelUsed, costUsd: results.costUsd, wallSec: results.wallSec,
+    model: modelUsed, runsPerTile: RUNS, gating: GATING, costUsd: results.costUsd, wallSec: results.wallSec,
     tilesJudged: overall.judged, tilesSkipped: overall.skipped,
     topDefects: allDefects.slice(0, 12).map((d) => `[sev${d.severity}|${d.category}|${d.width}px y${d.yRange[0]}] ${d.desc}`),
     out: { manifest: path.join(OUT, 'manifest.json'), results: path.join(OUT, 'results.json') },
