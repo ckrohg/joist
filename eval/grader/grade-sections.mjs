@@ -56,6 +56,20 @@ const USE_EFFECTS = !process.env.GRADER_NO_EFFECTS;
 const USE_RESPONSIVE = !process.env.GRADER_NO_RESPONSIVE;
 const RESP_WIDTHS = process.env.RESPONSIVE_WIDTHS || '390,768,1440';
 
+// ---- G2 FOLD GATE (grader-truth round 2026-06-10; qa-stepback diagnosis) ----
+// THE ARITHMETIC HOLE: the user's QA verdict ("nowhere NEAR 1:1") was driven by ABOVE-THE-FOLD breakage (broken
+// hero, dead nav) — but a fold defect dilutes into a ~20-band page mean at ~1/20 weight, and the non-visual terms
+// (edit/struct/responsive) FLOOR the composite at ~0.556 even at visual=0. Additive fold-weighting is therefore
+// ARITHMETICALLY DEAD (proven in the diagnosis — it cannot close a 17-26pt overstatement). The gate must be
+// MULTIPLICATIVE on the whole composite: publishedComposite = composite × (0.4 + 0.6·foldVisual), where
+// foldVisual = mean per-band visual of the bands intersecting y < FOLDGATE_PX (1000px ≈ what a human sees in the
+// first 3 seconds at 1440×900). Monotonic DE-INFLATION only: foldVisual ≤ 1 → mult ∈ [0.4, 1] — the gate can
+// never RAISE a score, so it adds no gaming surface (raising foldVisual = genuinely fixing the fold = the goal).
+// Source-vs-source selftest: every band visual 1.0 → foldVisual 1 → mult exactly 1 → no-op.
+// Reversible: GRADER_NO_FOLDGATE=1 → byte-identical legacy composite AND legacy report (no fold fields).
+const USE_FOLDGATE = !process.env.GRADER_NO_FOLDGATE;
+const FOLDGATE_PX = 1000;
+
 // ---- GRADER-HONESTY DETECTORS (USER #5-meta: the grader was INFLATING — it must SEE human-obvious defects) ----
 // FOUR additive, env-flag-gated penalties that fold into the EXISTING visual/structural terms (NO new top-level
 // composite weight). Each is a PURE FUNCTION over geometry capture() ALREADY collects (text-leaf boxes, band
@@ -1346,9 +1360,15 @@ if (IS_MAIN) (async () => {
   const usingResponsive = USE_RESPONSIVE && responsiveScore != null;
   // composite uses the DETECTOR-ADJUSTED structural term (chunked-media + real-nav fold in here); visualMean was
   // already detector-adjusted above (text-collision + full-bleed). NO new top-level composite weight is added.
-  const composite = usingResponsive
+  const compositePreFold = usingResponsive
     ? +(0.35 * visualMean + 0.20 * editabilityMean + 0.20 * structuralFidelityAdj + 0.25 * responsiveScore).toFixed(3)
     : +(0.4 * visualMean + 0.3 * editabilityMean + 0.3 * structuralFidelityAdj).toFixed(3);
+  // ---- G2 FOLD GATE (multiplicative; see USE_FOLDGATE flag block). foldVisual = mean band visual over the
+  // bands intersecting y < FOLDGATE_PX. Source-vs-source: all band visuals 1.0 → mult exactly 1 → no-op.
+  const foldBands = sections.filter((s) => s.y0 < FOLDGATE_PX);
+  const foldVisual = foldBands.length ? +(foldBands.reduce((a, s) => a + s.visual, 0) / foldBands.length).toFixed(3) : 1;
+  const foldMult = USE_FOLDGATE ? +(0.4 + 0.6 * foldVisual).toFixed(4) : 1;
+  const composite = USE_FOLDGATE ? +(compositePreFold * foldMult).toFixed(3) : compositePreFold;
   // ---- MEDIA-IDENTITY aggregation + PROJECTED fold (REPORT-ONLY: the composite above is UNTOUCHED either way;
   // projected.* computes what the round-3 fold WOULD do so the folding decision is made on published numbers).
   let mediaIdentityMean = null, mediaIdentityReport = null;
@@ -1382,6 +1402,8 @@ if (IS_MAIN) (async () => {
     source, clone: SELFTEST ? '(selftest: source vs source)' : clone,
     atTarget, target: { ...TGT, structuralFidelity: 0.95 },
     composite,
+    // G2 FOLD GATE (absent entirely under GRADER_NO_FOLDGATE=1 → byte-identical legacy report).
+    ...(USE_FOLDGATE ? { compositeUnfolded: compositePreFold, foldGate: { px: FOLDGATE_PX, foldVisual, mult: foldMult, bands: foldBands.map((s) => ({ idx: s.idx, y0: s.y0, y1: s.y1, visual: s.visual })) } } : {}),
     visualMean, editabilityMean, structuralFidelity: structuralFidelityAdj, hRatio: +hRatio.toFixed(3),
     // OBJECTIVE-FLIP telemetry: pre-blend SSIM mean + the per-element sub-scores folded into visual.
     ssimRaw,
@@ -1432,6 +1454,7 @@ if (IS_MAIN) (async () => {
     process.exit(ok ? 0 : 1);
   }
   console.log(`atTarget ${report.atTarget} | composite ${report.composite} (visual ${report.visualMean}${report.perElementScalar != null ? ` [ssim ${report.ssimRaw} ⊕ pe ${report.perElementScalar}]` : ''} edit ${report.editabilityMean} struct ${report.structuralFidelity}${report.useResponsive ? ` resp ${report.responsive.score}` : ''}) | hRatio ${report.hRatio} | ${report.sectionsFailing}/${report.sections} sections failing${report.wallRisk ? ' | ⚠ WALL-RISK' : ''}`);
+  if (USE_FOLDGATE) console.log(`fold-gate: foldVisual ${foldVisual} over ${foldBands.length} band(s) y<${FOLDGATE_PX} → ×${foldMult} (unfolded ${compositePreFold} → published ${report.composite})`);
   if (report.responsive) console.log(`responsive: score ${report.responsive.score} (edgeSet ${report.responsive.edgeSet} · layout ${report.responsive.layout} · coverage ${report.responsive.coverage})`);
   if (report.perElement) console.log(`per-element: color ${report.perElement.color} typo ${report.perElement.typography} pos ${report.perElement.position} text ${report.perElement.text} effects ${report.perElement.effects} cov ${report.perElement.coverage}`);
   if (report.blockMisses.length) console.log('block-type misses (source → clone): ' + report.blockMisses.map((b) => `${b.block} ${b.source}→${b.clone}`).join(', '));
