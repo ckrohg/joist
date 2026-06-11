@@ -29,7 +29,22 @@
  *   settings scaffold, no context-hub daemon spawned in OUT). NO startup pkill of chrome-headless-shell —
  *   each capture launches its own ephemeral Playwright browser (own temp user-data-dir), so parallel runs
  *   cannot kill each other's captures (set VJ_PKILL=1 to opt IN to the old stale-process sweep).
- * Alignment: proportional y (clone band = source band * cloneH/sourceH) — degenerates to identity at hRatio 1.
+ * Alignment: BAND-ANCHORED (VJ-ALIGN 2026-06-10, default ON; reversible GRADER_NO_VJALIGN=1 → legacy
+ *   proportional-y path byte-identical: no meta extraction, no align fields, same tile loop). WHY: proportional y
+ *   (clone band = source band * cloneH/sourceH) compares DIFFERENT sections whenever heights diverge at
+ *   non-capture widths (3146@1100: src 14926 vs clone 21149 → phantom "wrong/missing section" defects in the
+ *   2026-06-09 calibration). FIX: match source bands to clone bands by CONTENT — unique text-leaf anchors + LIS
+ *   monotone filter → piecewise-linear y-maps (s2c/c2s); tile WITHIN matched band pairs so each tile compares the
+ *   SAME section. A source band with >=2 unique texts and ZERO anchor matches in the clone is PIXEL-ARBITRATED
+ *   (void-textguard lesson, inverted: text absence alone must not claim a missing band — 3146 smoke band 11
+ *   "mansions" grid lost only its captions, imagery present): if the anchor-interpolated clone window is BLANK
+ *   (luma std < 8) → explicit DETERMINISTIC "clone-missing band" tile (sev5 missing-content, score 10, no LLM
+ *   call); if the window has content → JUDGED tile over that window (align:'unmatched' — the vision judge sees
+ *   whether it is the band reproduced sans text, or different/squeezed content, and prices it). An uncovered
+ *   clone band with >=2 NOVEL texts (absent from source entirely) becomes "clone-extra band" (sev4 text-junk,
+ *   score 30, deterministic). Those are REAL defects and are priced into pageScore — but two different sections
+ *   are never compared as if aligned. Textless bands interpolate via the anchor map (align:'interp', judged
+ *   normally). <4 anchor pairs → honest proportional FALLBACK (perWidth.align.mode, tiles align:'proportional').
  * Reversible/inert: pure capture+slice+judge; no grader or builder mutation; logged-out contexts; read-only.
  * Selftest: _vj-selftest.mjs (identical src|src pair must score >=95 with no sev>=2 defects).
  */
@@ -58,6 +73,8 @@ const MANIFEST_ONLY = has('manifest-only');
 const STRUCTURE = arg('structure');         // grade-structure results.json for the veto combiner (publishedScore)
 const FOLD_Y = 1000;                        // aboveFold = source-band y0 < 1000
 const DIVIDER = 14;                         // px magenta divider between source and clone
+const VJALIGN = process.env.GRADER_NO_VJALIGN !== '1'; // band-anchored tile alignment (VJ-ALIGN), default ON
+const MIN_ANCHOR_PAIRS = 4;                 // under-determined maps over-extrapolate → proportional fallback
 
 // ── tiny 5x7 bitmap font (no font deps) for burned-in corner labels ─────────────────────────────────────────
 const FONT = {
@@ -73,6 +90,14 @@ const FONT = {
   '9': ['01110', '10001', '10001', '01111', '00001', '00010', '01100'],
   S: ['01111', '10000', '10000', '01110', '00001', '00001', '11110'],
   R: ['11110', '10001', '10001', '11110', '10100', '10010', '10001'],
+  A: ['01110', '10001', '10001', '11111', '10001', '10001', '10001'],
+  B: ['11110', '10001', '10001', '11110', '10001', '10001', '11110'],
+  D: ['11110', '10001', '10001', '10001', '10001', '10001', '11110'],
+  G: ['01110', '10001', '10000', '10111', '10001', '10001', '01110'],
+  I: ['01110', '00100', '00100', '00100', '00100', '00100', '01110'],
+  M: ['10001', '11011', '10101', '10101', '10001', '10001', '10001'],
+  T: ['11111', '00100', '00100', '00100', '00100', '00100', '00100'],
+  U: ['10001', '10001', '10001', '10001', '10001', '10001', '01110'],
   C: ['01110', '10001', '10000', '10000', '10000', '10001', '01110'],
   L: ['10000', '10000', '10000', '10000', '10000', '10000', '11111'],
   O: ['01110', '10001', '10001', '10001', '10001', '10001', '01110'],
@@ -112,7 +137,8 @@ function drawLabel(png, x0, y0, text, scale = 2) {
 }
 
 // ── side-by-side composite: [source | magenta divider | clone], labels burned top corners ────────────────────
-function composeTile(srcTile, clnTile, width, y0) {
+// labels = { src?, clone? } — optional overrides for the VJ-ALIGN missing/extra band tiles; default identical.
+function composeTile(srcTile, clnTile, width, y0, labels = {}) {
   const h = Math.max(srcTile.height, clnTile.height);
   const w = srcTile.width + DIVIDER + clnTile.width;
   const out = new PNG({ width: w, height: h });
@@ -122,15 +148,78 @@ function composeTile(srcTile, clnTile, width, y0) {
   blit(srcTile, 0);
   blit(clnTile, srcTile.width + DIVIDER);
   for (let r = 0; r < h; r++) for (let c = srcTile.width + 2; c < srcTile.width + DIVIDER - 2; c++) { const i = (r * w + c) << 2; out.data[i] = 255; out.data[i + 1] = 0; out.data[i + 2] = 220; out.data[i + 3] = 255; }
-  drawLabel(out, 6, 6, `SRC ${width}PX Y${y0}`);
-  drawLabel(out, srcTile.width + DIVIDER + 6, 6, `CLONE ${width}PX`);
+  drawLabel(out, 6, 6, labels.src || `SRC ${width}PX Y${y0}`);
+  drawLabel(out, srcTile.width + DIVIDER + 6, 6, labels.clone || `CLONE ${width}PX`);
   return out;
+}
+
+// dark-maroon placeholder canvas for the side of a missing/extra band tile that has NO corresponding content —
+// visually distinct from both page content and the dark-gray (24,24,24) height-mismatch padding.
+function bandPlaceholder(w, h) {
+  const png = new PNG({ width: w, height: Math.max(60, h) });
+  for (let i = 0; i < png.data.length; i += 4) { png.data[i] = 56; png.data[i + 1] = 14; png.data[i + 2] = 14; png.data[i + 3] = 255; }
+  return png;
+}
+
+// luma standard deviation of a horizontal band (sampled every 4px) — the missing-band pixel arbitration:
+// a clone window with std < 8 is near-uniform background (no content), so a text-unmatched source band can be
+// DETERMINISTICALLY declared clone-missing; any real content (imagery sans captions, squeezed neighbors) → judge.
+function bandLumaStd(img, y0, y1) {
+  let s = 0, s2 = 0, n = 0;
+  for (let y = Math.max(0, y0); y < Math.min(img.height, y1); y += 4) for (let x = 0; x < img.width; x += 4) {
+    const i = (y * img.width + x) << 2;
+    const L = 0.299 * img.data[i] + 0.587 * img.data[i + 1] + 0.114 * img.data[i + 2];
+    s += L; s2 += L * L; n++;
+  }
+  if (!n) return 0;
+  const m = s / n;
+  return Math.sqrt(Math.max(0, s2 / n - m * m));
 }
 
 // ── capture: logged-out FRESH browser per capture (renderer-crash isolation), full-page, settleLazy ──────────
 // A renderer crash mid-screenshot ("Target page... has been closed", seen on tailwind@1100 2026-06-10) poisons
 // the shared browser; per-capture launch + one retry makes each capture independent and self-healing.
-async function captureFull(url, width) {
+// VJ-ALIGN meta (text leaves + full-width bands) is extracted AFTER the screenshot (never perturbs pixels);
+// deviceScaleFactor 1 → DOM y == screenshot pixel y. Same band heuristic as grade-sections capture().
+async function extractMeta(p) {
+  try {
+    return await p.evaluate(() => {
+      const vw = document.documentElement.clientWidth || window.innerWidth;
+      const sy = window.scrollY || 0;
+      const clean = (s) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+      const leaves = [];
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
+      let el;
+      while ((el = walker.nextNode())) {
+        const own = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
+        if (!own) continue;
+        const t = clean(el.innerText || el.textContent);
+        if (t.length < 6 || t.length > 200) continue;
+        const cs = getComputedStyle(el);
+        if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+        const r = el.getBoundingClientRect();
+        if (r.width < 2 || r.height < 2 || r.height > 400) continue;
+        const y = Math.round(r.top + sy);
+        if (y < 0) continue;
+        leaves.push({ key: t.slice(0, 80), y });
+      }
+      leaves.sort((a, b) => a.y - b.y);
+      const bands = []; const seenBy = [];
+      for (const e of document.querySelectorAll('body *')) {
+        const r = e.getBoundingClientRect();
+        if (r.width >= vw * 0.82 && r.height >= 120 && r.top + sy >= 0) {
+          const by = Math.round(r.top + sy);
+          if (seenBy.some((y) => Math.abs(y - by) <= 60)) continue;
+          seenBy.push(by);
+          bands.push({ y: by, h: Math.round(r.height) });
+        }
+      }
+      bands.sort((a, b) => a.y - b.y);
+      return { leaves, bands };
+    });
+  } catch { return { leaves: [], bands: [] }; }
+}
+async function captureFull(url, width, wantMeta = false) {
   let lastErr;
   for (let attempt = 0; attempt < 2; attempt++) {
     const browser = await chromium.launch({ args: ['--disable-blink-features=AutomationControlled'] });
@@ -145,7 +234,10 @@ async function captureFull(url, width) {
         p.screenshot({ fullPage: true, timeout: 90000 }),
         new Promise((_, rej) => setTimeout(() => rej(new Error('screenshot >120s')), 120000)),
       ]);
-      return PNG.sync.read(buf);
+      const png = PNG.sync.read(buf);
+      if (!wantMeta) return png;
+      const meta = await extractMeta(p);
+      return { png, leaves: meta.leaves, bands: meta.bands };
     } catch (e) {
       lastErr = e;
       console.error(`[capture] attempt ${attempt + 1} failed for ${url} @${width}: ${e && e.message || e}${attempt === 0 ? ' — retrying with fresh browser' : ''}`);
@@ -154,6 +246,130 @@ async function captureFull(url, width) {
     }
   }
   throw lastErr;
+}
+
+// ── VJ-ALIGN pure functions (exported; unit-testable without network) ───────────────────────────────────────
+// matchUniqueAnchors: pairs of (source y, clone y) for texts that occur EXACTLY ONCE on each side, then a
+// longest-non-decreasing-subsequence filter on clone y kills crossings from false text matches (band order
+// cannot cross). NOTE: deliberately NOT grade-vision-tiles.matchAnchors — its 120px DOM-y proximity gate
+// assumes aligned heights, which is exactly what breaks at non-capture widths (src 14926 vs clone 21149 @1100).
+export function matchUniqueAnchors(srcLeaves, clnLeaves) {
+  const count = (ls) => { const m = new Map(); for (const l of ls) m.set(l.key, (m.get(l.key) || 0) + 1); return m; };
+  const sc = count(srcLeaves), cc = count(clnLeaves);
+  const cByKey = new Map(); for (const c of clnLeaves) if (cc.get(c.key) === 1) cByKey.set(c.key, c);
+  const pairs = [];
+  for (const s of srcLeaves) {
+    if (sc.get(s.key) !== 1) continue;
+    const c = cByKey.get(s.key); if (!c) continue;
+    pairs.push({ key: s.key, sy: s.y, cy: c.y });
+  }
+  pairs.sort((a, b) => (a.sy - b.sy) || (a.cy - b.cy));
+  // LIS (patience, O(n log n)) on cy → longest monotone subset
+  const n = pairs.length; if (n === 0) return [];
+  const tails = [], tailIdx = [], parent = new Array(n).fill(-1);
+  for (let i = 0; i < n; i++) {
+    const v = pairs[i].cy;
+    let lo = 0, hi = tails.length;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (tails[mid] <= v) lo = mid + 1; else hi = mid; }
+    tails[lo] = v; tailIdx[lo] = i;
+    parent[i] = lo > 0 ? tailIdx[lo - 1] : -1;
+  }
+  const out = [];
+  let k = tailIdx[tails.length - 1];
+  while (k >= 0) { out.push(pairs[k]); k = parent[k]; }
+  return out.reverse();
+}
+
+// anchorMaps: monotone piecewise-linear y-maps from anchor pairs; endpoints extrapolate with the GLOBAL height
+// ratio (not the nearest segment's slope — a noisy edge pair must not fling the extrapolation off the page).
+export function anchorMaps(pairs, srcH, clnH) {
+  const r = clnH / Math.max(1, srcH);
+  const xs = [], ys = [];
+  for (const p of pairs) { if (xs.length && p.sy <= xs[xs.length - 1]) continue; xs.push(p.sy); ys.push(p.cy); }
+  const interp = (X, Y, v, ratio) => {
+    if (!X.length) return v * ratio;
+    if (v <= X[0]) return Math.max(0, Y[0] - (X[0] - v) * ratio);
+    if (v >= X[X.length - 1]) return Y[Y.length - 1] + (v - X[X.length - 1]) * ratio;
+    let lo = 0, hi = X.length - 1;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (X[mid] <= v) lo = mid; else hi = mid; }
+    const t = (v - X[lo]) / Math.max(1, X[hi] - X[lo]);
+    return Y[lo] + t * (Y[hi] - Y[lo]);
+  };
+  return { s2c: (y) => interp(xs, ys, y, r), c2s: (y) => interp(ys, xs, y, 1 / r) };
+}
+
+// segmentByBands: full-width band starts → ordered, non-overlapping segments covering [0, pageH].
+export function segmentByBands(bands, pageH) {
+  const ys = [0];
+  for (const b of [...bands].sort((a, b) => a.y - b.y)) {
+    if (b.y >= pageH - 60) continue;
+    if (b.y - ys[ys.length - 1] >= 120) ys.push(b.y);
+  }
+  const segs = [];
+  for (let i = 0; i < ys.length; i++) { const y1 = i + 1 < ys.length ? ys[i + 1] : pageH; if (y1 - ys[i] >= 60) segs.push({ y0: ys[i], y1 }); }
+  if (!segs.length) segs.push({ y0: 0, y1: pageH });
+  return segs;
+}
+
+// planBandTiles: the VJ-ALIGN tiling plan. Per source band segment:
+//   matched (>=1 anchor pair inside)  → tile WITHIN the pair via the anchor map (same content both sides)
+//   missing (>=2 unique src texts, 0 matched) → ONE 'missing' candidate spec carrying the interpolated clone
+//     window; MAIN pixel-arbitrates it (blank window → deterministic sev5 clone-missing; content → judged
+//     'unmatched' tile — imagery-sans-captions must not be deterministically condemned)
+//   else (textless / non-unique text) → interpolated clone range, judged normally (align:'interp')
+// Then clone segments with >=2 NOVEL texts (absent from the source entirely) and <30% coverage by mapped
+// ranges → deterministic 'clone-extra band' tiles (sev4, score 30). <minAnchors pairs → proportional fallback.
+export function planBandTiles({ srcLeaves, clnLeaves, srcBands, clnBands, srcH, clnH, tileH = 900, minAnchors = MIN_ANCHOR_PAIRS }) {
+  const pairs = matchUniqueAnchors(srcLeaves || [], clnLeaves || []);
+  if (pairs.length < minAnchors) return { mode: 'proportional-fallback', pairs: pairs.length, plan: null, stats: null };
+  const { s2c, c2s } = anchorMaps(pairs, srcH, clnH);
+  const srcKeyCount = new Map(); for (const l of srcLeaves) srcKeyCount.set(l.key, (srcKeyCount.get(l.key) || 0) + 1);
+  const clnKeyCount = new Map(); for (const l of clnLeaves) clnKeyCount.set(l.key, (clnKeyCount.get(l.key) || 0) + 1);
+  const segs = segmentByBands(srcBands || [], srcH);
+  const plan = [];
+  const stats = { segments: segs.length, matched: 0, interpolated: 0, missing: 0, extra: 0 };
+  const covered = [];
+  const clampC = (y) => Math.max(0, Math.min(Math.round(y), clnH));
+  const emitPairChunks = (seg, band, align, sample, anchors) => {
+    for (let a = seg.y0; a < seg.y1; a += tileH) {
+      const b = Math.min(a + tileH, seg.y1);
+      if (b - a < 60) break;
+      const cy0 = clampC(s2c(a)), cy1 = Math.max(clampC(s2c(b)), cy0 + 20);
+      plan.push({ kind: 'pair', band, align, sy0: a, sy1: b, cy0, cy1, sample, anchors });
+    }
+  };
+  for (let i = 0; i < segs.length; i++) {
+    const { y0, y1 } = segs[i];
+    const inSeg = pairs.filter((p) => p.sy >= y0 && p.sy < y1);
+    const srcUniqueInSeg = (srcLeaves || []).filter((l) => l.y >= y0 && l.y < y1 && srcKeyCount.get(l.key) === 1);
+    if (inSeg.length >= 1) {
+      stats.matched++;
+      covered.push([clampC(s2c(y0)), clampC(s2c(y1))]);
+      emitPairChunks(segs[i], i, 'band', inSeg[0].key.slice(0, 60), inSeg.length);
+    } else if (srcUniqueInSeg.length >= 2) {
+      stats.missing++;
+      // text-unmatched: carry the anchor-interpolated clone window (min 240px) — MAIN pixel-arbitrates it
+      // (blank → deterministic clone-missing; content → judged 'unmatched' tile). Pure function stays pixel-free.
+      const wc0 = Math.max(0, Math.min(clampC(s2c(y0)), clnH - 240));
+      const wc1 = Math.min(clnH, Math.max(clampC(s2c(y1)), wc0 + 240));
+      plan.push({ kind: 'missing', band: i, sy0: y0, sy1: Math.min(y1, y0 + 2 * tileH), fullSy1: y1, cy0: wc0, cy1: wc1, sample: srcUniqueInSeg[0].key.slice(0, 60) });
+    } else {
+      stats.interpolated++;
+      covered.push([clampC(s2c(y0)), clampC(s2c(y1))]);
+      emitPairChunks(segs[i], i, 'interp', null, 0);
+    }
+  }
+  for (const cs of segmentByBands(clnBands || [], clnH)) {
+    const novel = (clnLeaves || []).filter((l) => l.y >= cs.y0 && l.y < cs.y1 && clnKeyCount.get(l.key) === 1 && !srcKeyCount.has(l.key));
+    if (novel.length < 2) continue;
+    let cov = 0;
+    for (const [a, b] of covered) cov += Math.max(0, Math.min(b, cs.y1) - Math.max(a, cs.y0));
+    if (cov / Math.max(1, cs.y1 - cs.y0) >= 0.3) continue;
+    stats.extra++;
+    const sy0 = Math.max(0, Math.round(c2s(cs.y0)));
+    plan.push({ kind: 'extra', band: -1, cy0: cs.y0, cy1: Math.min(cs.y1, cs.y0 + 2 * tileH), fullCy1: cs.y1, sy0, sy1: Math.max(0, Math.round(c2s(cs.y1))), sample: novel[0].key.slice(0, 60) });
+  }
+  return { mode: 'band', pairs: pairs.length, plan, stats };
 }
 
 // ── judge: claude -p headless vision call, strict JSON parse + 1 retry ───────────────────────────────────────
@@ -257,8 +473,8 @@ async function pool(items, n, fn) {
   return results;
 }
 
-// ── exports (consumed by _vj-selftest.mjs and agent-based judging) ──────────────────────────────────────────
-export { composeTile, captureFull, claudeOnce, RUBRIC, extractJson, drawLabel };
+// ── exports (consumed by _vj-selftest.mjs, _vjalign-selftest.mjs and agent-based judging) ───────────────────
+export { composeTile, captureFull, claudeOnce, RUBRIC, extractJson, drawLabel, bandPlaceholder };
 
 // ── main (only when invoked directly — importable as a library without side effects) ────────────────────────
 const IS_MAIN = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
@@ -276,26 +492,82 @@ if (IS_MAIN) (async () => {
   {
     for (const width of WIDTHS) {
       console.error(`[capture] ${width}px source...`);
-      const src = await captureFull(SOURCE, width);
+      const srcCap = await captureFull(SOURCE, width, VJALIGN);
       console.error(`[capture] ${width}px clone...`);
-      const cln = await captureFull(CLONE, width);
+      const clnCap = await captureFull(CLONE, width, VJALIGN);
+      const src = VJALIGN ? srcCap.png : srcCap;
+      const cln = VJALIGN ? clnCap.png : clnCap;
       const r = cln.height / src.height; // proportional y alignment (identity at hRatio 1)
       perWidthMeta[width] = { srcHeight: src.height, cloneHeight: cln.height, hRatio: +r.toFixed(3) };
       console.error(`[tile] ${width}px srcH=${src.height} clnH=${cln.height} hRatio=${r.toFixed(3)}`);
       let idx = 0;
-      for (let y0 = 0; y0 < src.height && idx < MAX_TILES; y0 += TILE_H) {
-        const h = Math.min(TILE_H, src.height - y0);
-        if (h < 60) break;
-        const cy0 = Math.round(y0 * r);
-        const ch = Math.max(60, Math.min(Math.round(h * r), cln.height - cy0));
-        const sTile = crop(src, 0, y0, src.width, h);
-        const cTile = crop(cln, 0, cy0, cln.width, Math.max(ch, 1));
-        const comp = composeTile(sTile, cTile, width, y0);
+      const proportionalTiles = (align) => { // legacy geometry; align label only present on the VJALIGN fallback
+        for (let y0 = 0; y0 < src.height && idx < MAX_TILES; y0 += TILE_H) {
+          const h = Math.min(TILE_H, src.height - y0);
+          if (h < 60) break;
+          const cy0 = Math.round(y0 * r);
+          const ch = Math.max(60, Math.min(Math.round(h * r), cln.height - cy0));
+          const sTile = crop(src, 0, y0, src.width, h);
+          const cTile = crop(cln, 0, cy0, cln.width, Math.max(ch, 1));
+          const comp = composeTile(sTile, cTile, width, y0);
+          const tilePath = path.join(OUT, `w${width}-tile-${String(idx).padStart(2, '0')}.png`);
+          fs.writeFileSync(tilePath, PNG.sync.write(comp));
+          tiles.push({ idx, width, yRange: [y0, y0 + h], cloneYRange: [cy0, cy0 + ch], tilePath, aboveFold: y0 < FOLD_Y, ...(align ? { align } : {}) });
+          idx++;
+        }
+      };
+      if (!VJALIGN) { proportionalTiles(null); continue; } // legacy path: byte-identical tiles + manifest shape
+      // ── VJ-ALIGN: band-anchored tiling (see header). Same content on both sides of every judged tile. ──────
+      const bp = planBandTiles({ srcLeaves: srcCap.leaves, clnLeaves: clnCap.leaves, srcBands: srcCap.bands, clnBands: clnCap.bands, srcH: src.height, clnH: cln.height, tileH: TILE_H });
+      if (bp.mode !== 'band') {
+        perWidthMeta[width].align = { mode: 'proportional-fallback', anchorPairs: bp.pairs };
+        console.error(`[align] ${width}px FALLBACK proportional (${bp.pairs} anchor pairs < ${MIN_ANCHOR_PAIRS})`);
+        proportionalTiles('proportional');
+        continue;
+      }
+      perWidthMeta[width].align = { mode: 'band', anchorPairs: bp.pairs, ...bp.stats };
+      console.error(`[align] ${width}px band-anchored: ${bp.pairs} anchors, ${bp.stats.segments} src bands -> ${bp.stats.matched} matched / ${bp.stats.interpolated} interp / ${bp.stats.missing} clone-missing / ${bp.stats.extra} clone-extra`);
+      for (const spec of bp.plan) {
+        if (idx >= MAX_TILES) break;
         const tilePath = path.join(OUT, `w${width}-tile-${String(idx).padStart(2, '0')}.png`);
-        fs.writeFileSync(tilePath, PNG.sync.write(comp));
-        tiles.push({ idx, width, yRange: [y0, y0 + h], cloneYRange: [cy0, cy0 + ch], tilePath, aboveFold: y0 < FOLD_Y });
+        if (spec.kind === 'pair') {
+          const sTile = crop(src, 0, spec.sy0, src.width, spec.sy1 - spec.sy0);
+          const cTile = crop(cln, 0, spec.cy0, cln.width, Math.max(spec.cy1 - spec.cy0, 1));
+          fs.writeFileSync(tilePath, PNG.sync.write(composeTile(sTile, cTile, width, spec.sy0)));
+          tiles.push({ idx, width, yRange: [spec.sy0, spec.sy1], cloneYRange: [spec.cy0, spec.cy1], tilePath, aboveFold: spec.sy0 < FOLD_Y, band: spec.band, align: spec.align, anchors: spec.anchors });
+        } else if (spec.kind === 'missing') {
+          const h = spec.sy1 - spec.sy0;
+          const sTile = crop(src, 0, spec.sy0, src.width, h);
+          // PIXEL ARBITRATION (see header): deterministic clone-missing ONLY when the mapped window is blank.
+          const winStd = bandLumaStd(cln, spec.cy0, spec.cy1);
+          if (winStd < 8) {
+            const cTile = crop(cln, 0, spec.cy0, cln.width, spec.cy1 - spec.cy0); // show the REAL blank window (evidence)
+            fs.writeFileSync(tilePath, PNG.sync.write(composeTile(sTile, cTile, width, spec.sy0, { clone: 'CLONE-MISSING BAND' })));
+            tiles.push({
+              idx, width, yRange: [spec.sy0, spec.fullSy1], cloneYRange: [spec.cy0, spec.cy1], tilePath, aboveFold: spec.sy0 < FOLD_Y, band: spec.band, align: 'missing', sample: spec.sample, windowLumaStd: +winStd.toFixed(1),
+              det: { judged: true, deterministic: true, score: 10, scores: [10], model: 'band-align-deterministic', defects: [{ desc: `clone-missing band: source section y${spec.sy0}-${spec.fullSy1} ("${spec.sample}") has no text match anywhere in the clone and its mapped clone region y${spec.cy0}-${spec.cy1} is blank`, severity: 5, category: 'missing-content' }] },
+            });
+          } else { // content in the window (imagery sans captions / squeezed neighbors) → the vision judge arbitrates
+            const cTile = crop(cln, 0, spec.cy0, cln.width, spec.cy1 - spec.cy0);
+            fs.writeFileSync(tilePath, PNG.sync.write(composeTile(sTile, cTile, width, spec.sy0)));
+            tiles.push({ idx, width, yRange: [spec.sy0, spec.sy1], cloneYRange: [spec.cy0, spec.cy1], tilePath, aboveFold: spec.sy0 < FOLD_Y, band: spec.band, align: 'unmatched', sample: spec.sample, windowLumaStd: +winStd.toFixed(1) });
+          }
+        } else { // extra
+          const h = spec.cy1 - spec.cy0;
+          const cTile = crop(cln, 0, spec.cy0, cln.width, h);
+          fs.writeFileSync(tilePath, PNG.sync.write(composeTile(bandPlaceholder(src.width, h), cTile, width, spec.sy0, { src: 'NO SOURCE BAND' })));
+          tiles.push({
+            idx, width, yRange: [spec.sy0, spec.sy1], cloneYRange: [spec.cy0, spec.fullCy1], tilePath, aboveFold: spec.sy0 < FOLD_Y, band: spec.band, align: 'extra', sample: spec.sample,
+            det: { judged: true, deterministic: true, score: 30, scores: [30], model: 'band-align-deterministic', defects: [{ desc: `clone-extra band: clone y${spec.cy0}-${spec.fullCy1} ("${spec.sample}") has no corresponding source section`, severity: 4, category: 'text-junk' }] },
+          });
+        }
         idx++;
       }
+      // record the missing-band pixel arbitration outcome (textMissing candidates → deterministic vs judged)
+      const w = tiles.filter((t) => t.width === width);
+      perWidthMeta[width].align.missingDeterministic = w.filter((t) => t.align === 'missing').length;
+      perWidthMeta[width].align.unmatchedJudged = w.filter((t) => t.align === 'unmatched').length;
+      if (bp.stats.missing) console.error(`[align] ${width}px missing-band arbitration: ${perWidthMeta[width].align.missingDeterministic} blank->deterministic, ${perWidthMeta[width].align.unmatchedJudged} content->judged`);
     }
   }
 
@@ -306,13 +578,15 @@ if (IS_MAIN) (async () => {
 
   console.error(`[judge] ${tiles.length} tiles x ${RUNS} run(s), ${JOBS} parallel, model=${MODEL}, budget $${BUDGET}`);
   const judgments = await pool(tiles, JOBS, async (t, i) => {
+    // VJ-ALIGN deterministic tiles (clone-missing/extra band) carry their verdict — no LLM call, no cost.
+    if (t.det) { console.error(`[judge] tile ${t.width}/${String(t.idx).padStart(2, '0')} DETERMINISTIC score=${t.det.score} (${t.align} band)`); return t.det; }
     const j = await judgeTile(t);
     console.error(`[judge] tile ${t.width}/${String(t.idx).padStart(2, '0')} ${j.judged ? `score=${j.score} defects=${j.defects.length}` : `SKIPPED (${j.reason})`} | spent $${spentUsd.toFixed(2)}`);
     return j;
   });
 
   // ── aggregate: weighted mean (aboveFold x3) minus sev>=4 penalties; per-width breakdown ───────────────────
-  const enriched = tiles.map((t, i) => ({ ...t, ...judgments[i] }));
+  const enriched = tiles.map((t, i) => { const { det, ...rest } = t; return { ...rest, ...judgments[i] }; });
   const aggregate = (subset) => {
     const judged = subset.filter((t) => t.judged);
     if (!judged.length) return { pageScore: null, base: null, penalty: 0, judged: 0, skipped: subset.length };
@@ -353,7 +627,7 @@ if (IS_MAIN) (async () => {
     console.error('[veto] WARNING: no --structure <grade-structure results.json> given — pageScore is RAW vision; publishedScore=null (NOT publishable for gating: a full-page-raster clone could max raw vision).');
   }
 
-  const modelUsed = enriched.find((t) => t.judged)?.model || MODEL;
+  const modelUsed = enriched.find((t) => t.judged && !t.deterministic)?.model || MODEL;
   const results = {
     source: SOURCE, clone: CLONE, widths: WIDTHS, runsPerTile: RUNS, gating: GATING, model: modelUsed,
     publishedScore, veto,
