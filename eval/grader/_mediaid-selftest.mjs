@@ -283,8 +283,12 @@ img{display:block;margin-top:16px}
   const rep1 = rj('/tmp/mediaid-st-on');
   log(st1.status === 0 && (st1.stdout || '').includes('PASS (judge consistent)'), `CLI1 --selftest flag-ON: exit 0 + PASS line (exit ${st1.status})`);
   log(rep1.mediaIdentityMean === 1, `CLI1 selftest mediaIdentityMean === 1.0 (got ${rep1.mediaIdentityMean})`);
-  log(rep1.detectors.mediaIdentity && rep1.detectors.mediaIdentity.meanRaw === 1 && rep1.detectors.mediaIdentity.folded === false,
-    `CLI1 selftest RAW mean (pre-short-circuit) === 1.0 and folded:false (got raw ${rep1.detectors.mediaIdentity?.meanRaw})`);
+  // folded-flag pin updated for G4 (grader-truth round 2026-06-10): the MI fold is LIVE by default →
+  // folded:true unless GRADER_NO_MIFOLD=1 (legacy report-only shape). The selftest composite stays 1.0 either
+  // way (M short-circuits to 1 → foldMult exactly 1 → live fold is a no-op) — pinned by CLI1 exit-0 above.
+  const expectFolded = process.env.GRADER_NO_MIFOLD !== '1';
+  log(rep1.detectors.mediaIdentity && rep1.detectors.mediaIdentity.meanRaw === 1 && rep1.detectors.mediaIdentity.folded === expectFolded,
+    `CLI1 selftest RAW mean (pre-short-circuit) === 1.0 and folded:${expectFolded} (got raw ${rep1.detectors.mediaIdentity?.meanRaw}, folded ${rep1.detectors.mediaIdentity?.folded})`);
   // CLI-2: real --selftest, flag OFF → PASS line byte-identical, zero media fields
   const st2 = run(['--source', `file://${FIX}/source.html`, '--selftest', '--out', '/tmp/mediaid-st-off'], { ...baseEnv, GRADER_NO_MEDIAID: '1' });
   const rep2 = rj('/tmp/mediaid-st-off');
