@@ -208,7 +208,9 @@ function claudeOnce(prompt, timeoutMs = 240000, opts = {}) {
         let outer = null; try { outer = JSON.parse(stdout); } catch {}
         if (!outer) return resolve({ ok: false, error: 'outer JSON parse failed', raw: String(stdout).slice(0, 400) });
         const verdict = extractJson(outer.result);
-        const usedModel = outer.modelUsage ? Object.keys(outer.modelUsage)[0] : model;
+        // modelUsage lists the haiku CLI helper alongside the judge model — record the NON-helper one
+        // (critic mustFix: first-key picked the helper and misattributed every judgment to haiku).
+        const usedModel = outer.modelUsage ? (Object.keys(outer.modelUsage).find((k) => !/haiku/.test(k)) || Object.keys(outer.modelUsage)[0]) : model;
         const cost = +outer.total_cost_usd || 0;
         if (!verdict || typeof verdict.score !== 'number' || !Array.isArray(verdict.defects)) {
           return resolve({ ok: false, error: 'verdict JSON invalid', cost, model: usedModel, raw: String(outer.result).slice(0, 400) });
