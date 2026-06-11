@@ -161,8 +161,8 @@ export function classifyVoid({ srcEnergy, cloneEnergy, cloneReproducedBandText, 
   return true;
 }
 
-// ---- MEDIA-IDENTITY DIMENSION (REPORT-ONLY this round — appears in the report, folds NOTHING into the
-// composite; the would-be fold is published under detectors.mediaIdentity.projected for the round-3 decision).
+// ---- MEDIA-IDENTITY DIMENSION (LIVE-FOLDED since G4, grader-truth round 2026-06-10 — see the MI_FOLD_LIVE
+// flag block below; GRADER_NO_MIFOLD=1 restores the report-only behavior, projected.* published either way).
 // THE GAP (grader_overstates_top_end): the grader over-credits geometry and under-penalizes wrong-logos /
 // broken-heroes — a band can reproduce every text leaf, suppress the void penalty via the TEXT-GUARD, and still
 // have ALL its imagery missing or wrong with near-zero price. This dim measures, per source band, (a) PRESENCE
@@ -248,8 +248,33 @@ const MI_VIDEO_DE_MIN = 0.5;   // T13 poster gate: an img/picture standing in fo
                                // 4×4 pooled-palette deSim ≥ this vs the captured source frame (else 0 credit)
 const MI_AR_TOL = 0.65;        // aspect tolerance: box-aspect ratio ≥0.65 (≈±35% reflow/crop slack) is free;
                                // below, linear — the A1 480×280→1440×360 stretch (asim 0.43) → aTerm 0.66
-const MI_FOLD_FLOOR = 0.45;    // ROUND-3 fold proposal (NOT applied): visual_b ×= (0.45 + 0.55·M_b) when the
-                               // band's source media covers ≥10% of the band — published as projected.* only.
+const MI_FOLD_FLOOR = 0.45;    // fold floor: visual_b ×= (0.45 + 0.55·M_b) on gated bands (LIVE since G4, below).
+
+// ---- G4 MI FOLD LIVE (grader-truth round 2026-06-10; flips the §2-addendum recommendation to LIVE) ----
+// The fold visual_b ×= (MI_FOLD_FLOOR + (1−MI_FOLD_FLOOR)·M_b) leaves projected.* and becomes the band's REAL
+// visual — wrong/missing imagery finally PRICES the band (the addendum's max-gamed safety case: honest
+// compliance out-earns the best trick bundle ~3×; fold-blocker pins T9-T14 stay enforced by _mediaid-selftest).
+// TWO MEASURED LEAF FIXES ship with the flip (both diagnosed in qa-stepback):
+//  (a) ABOVE-FOLD GATE — the 0.10 frac gate EXCLUDED the tailwind hero's own imagery (band frac 0.044): the
+//      most human-salient imagery on the page was exempt from its own dim. Live gate: srcMediaFrac >= 0.10
+//      anywhere, OR >= 0.03 on ABOVE-FOLD bands (y0 < 1000, the same fold the G2 gate measures). WHY 0.03-
+//      above-fold and not an absolute-area floor: an absolute floor (e.g. 30k px²) scales badly — a tall band
+//      (tailwind §8 is 3.9M px²) would fold on a 0.8%-of-band icon; the relative 0.03 keeps the "media is a
+//      salient part of this band" semantics, and restricting the lowered gate to above-fold bounds the blast
+//      radius to exactly the human-salient zone the QA event measured. Sub-gate bands stay REPORTED, not folded
+//      (nav micro-icon bands: frac ~0.019 — folding 55% of a band's visual on 2% media area would over-weight
+//      favicon-scale imagery).
+//  (b) SVG LEAF FLOOR — nav/footer logos+icons are svg and 16-20px tall; the MI_MIN_LEAF=24 floor excluded
+//      EVERY ONE of them (tailwind nav logo 159×20 dies on h<24 — "nav svgs never reach band media leaves").
+//      svg-tagged leaves now use a 12px floor (capture is UNCHANGED — svgs were always captured with tags; the
+//      floor is scoring-side, so NO cache-tag change). The 8px-probe trick stays dead by construction (8 < 12);
+//      area-weighted presence keeps small-leaf stuffing at the documented ~+0.004 negligible gain.
+// Reversible: GRADER_NO_MIFOLD=1 → byte-identical legacy (projected-only fold, 0.10 gate, 24px svg floor,
+// legacy report shape). Selftest no-op: M short-circuits to 1 under --selftest → foldMult exactly 1.
+const MI_FOLD_LIVE = USE_MEDIAID && !process.env.GRADER_NO_MIFOLD;
+const MI_SVG_MIN_LEAF = MI_FOLD_LIVE ? 12 : MI_MIN_LEAF;  // (b) — tied to the G4 flag for one-switch reversibility
+const MI_FOLD_ABOVEFOLD_PX = 1000;                        // (a) above-fold zone (matches G2's FOLDGATE_PX)
+const MI_FOLD_ABOVEFOLD_FRAC = 0.03;                      // (a) lowered gate for above-fold bands
 
 // ---- VISIBLE-BLOCKS HARDENING (anti-gaming) ----
 // structuralFidelity counts, per source block type {form/video/table/list/tabs/accordion/nav}, how many the clone
@@ -758,7 +783,10 @@ export function mediaIdentityBand({ srcShot, cloneShot, srcMedia, cloneMedia, y0
   const eligible = (list, img) => {
     const out = [];
     for (const m of (list || [])) {
-      if (!inBand(m) || m.w < MI_MIN_LEAF || m.h < MI_MIN_LEAF) continue;       // size floor: 8px probes die here
+      // size floor: 8px probes die here. G4(b): svg leaves use the lower MI_SVG_MIN_LEAF (nav/footer logos and
+      // icons are 16-20px svgs — the flat 24px floor excluded ALL of them); == MI_MIN_LEAF when G4 is off.
+      const floor = String(m.tag || 'img').toLowerCase() === 'svg' ? MI_SVG_MIN_LEAF : MI_MIN_LEAF;
+      if (!inBand(m) || m.w < floor || m.h < floor) continue;
       const box = clip(m, img); if (!box) continue;
       if (cropEnergy(img, box).energy < MI_SRC_PAINT) continue;                 // paint guard: unpainted → excluded
       const tag = String(m.tag || 'img').toLowerCase();
@@ -1219,24 +1247,31 @@ if (IS_MAIN) (async () => {
     // Per-band visual/void/rastered/editability live in the EXPORTED pure perBandVisual (shared verbatim with
     // sectionvisual.mjs — one implementation, zero formula drift; see the function's header above).
     const pb = perBandVisual({ srcShot: src.shot, cloneShot: cln.shot, srcTexts: src.texts, cloneTexts: cln.texts, cloneImgs: cln.imgs, y0, y1, H, selftest: SELFTEST });
-    const { gradable, visual, visualRaw, visualPreVoid, contentVoid: isVoid, rasteredText, editability, srcTextCount, lostTexts } = pb;
+    const { gradable, visualRaw, visualPreVoid, contentVoid: isVoid, rasteredText, editability, srcTextCount, lostTexts } = pb;
+    let visual = pb.visual; // G4: the live MI fold below may lower it (GRADER_NO_MIFOLD=1 → never reassigned)
     const gy1 = pb.gy1, px = { exact: pb.exact, meanDE: pb.meanDE }, srcTex = { energy: pb.srcEnergy }, cloneTex = { energy: pb.cloneEnergy };
-    // ---- MEDIA-IDENTITY DIM (REPORT-ONLY this round; reversible GRADER_NO_MEDIAID=1; see flag block). Pure
-    // pixels over the two shots + mediaLeaves geometry already in hand — no extra render/navigation/network.
-    // Does NOT touch visual/composite; the would-be round-3 fold is computed here per band (visualRaw ×
-    // (0.45+0.55·M_b) when the band's source media covers ≥10%, rastered-text cap re-applied after — the real
-    // fold's exact insertion point) and published under detectors.mediaIdentity.projected only.
-    let mi = null;
+    // ---- MEDIA-IDENTITY DIM (reversible GRADER_NO_MEDIAID=1; LIVE fold gated by MI_FOLD_LIVE — see both flag
+    // blocks). Pure pixels over the two shots + mediaLeaves geometry already in hand — no extra render/network.
+    // Per band: visualRaw × (0.45+0.55·M_b) on gated bands, rastered-text cap re-applied after. With G4 live
+    // this IS the band's visual; under GRADER_NO_MIFOLD=1 it's published under detectors.mediaIdentity.projected only.
+    let mi = null, miFolded = false;
     if (USE_MEDIAID) {
       mi = gradable ? mediaIdentityBand({ srcShot: src.shot, cloneShot: cln.shot, srcMedia: src.mediaLeaves, cloneMedia: cln.mediaLeaves, y0, y1: gy1, selftest: SELFTEST }) : null;
       const bandArea = Math.max(1, W * Math.max(1, gy1 - y0));
       const srcMediaFrac = (mi && mi.srcMediaArea) ? mi.srcMediaArea / bandArea : 0;
-      const foldMult = (mi && mi.score != null && srcMediaFrac >= 0.10) ? (MI_FOLD_FLOOR + (1 - MI_FOLD_FLOOR) * mi.score) : 1;
+      // G4(a): gate 0.10 anywhere; when the fold is LIVE additionally 0.03 on ABOVE-FOLD bands (the hero's own
+      // imagery measured frac 0.044 — exempt under the flat 0.10 gate). Legacy flag → exact 0.10-only gate.
+      const foldGateHit = (mi && mi.score != null) && (srcMediaFrac >= 0.10 || (MI_FOLD_LIVE && y0 < MI_FOLD_ABOVEFOLD_PX && srcMediaFrac >= MI_FOLD_ABOVEFOLD_FRAC));
+      const foldMult = foldGateHit ? (MI_FOLD_FLOOR + (1 - MI_FOLD_FLOOR) * mi.score) : 1;
       const visualFolded = rasteredText ? +Math.min(visualRaw * foldMult, 0.35).toFixed(3) : +(visualRaw * foldMult).toFixed(3);
-      miBands.push({ idx: i, y0, y1: gy1, mi, srcMediaFrac: +srcMediaFrac.toFixed(3), visualFolded });
+      miBands.push({ idx: i, y0, y1: gy1, mi, srcMediaFrac: +srcMediaFrac.toFixed(3), visualFolded, ...(MI_FOLD_LIVE ? { foldMult: +foldMult.toFixed(4), visualUnfolded: visual } : {}) });
+      // G4 LIVE FOLD: the band's media defects now price its REAL visual (was projected.*-only telemetry).
+      // Selftest: M short-circuits to 1 → foldMult exactly 1 → no-op. GRADER_NO_MIFOLD=1 → never applied.
+      if (MI_FOLD_LIVE && visualFolded < visual) { visual = visualFolded; miFolded = true; }
     }
     // attribution
     const fails = []; const why = [];
+    if (miFolded && mi && mi.score < 0.7) { fails.push('visual'); why.push('wrong-or-missing-imagery'); }
     if (rasteredText) { fails.push('visual'); why.push('rastered-text-cheat'); }
     if (isVoid) { fails.push('visual'); why.push('content-void'); }
     if (editability < TGT.editability && srcTextCount) { fails.push('editability'); const lost = lostTexts; const capLost = layoutTexts ? lost.filter((t) => !inLayout(t)).length : null; why.push(layoutTexts ? (capLost > lost.length / 2 ? 'capture-lost-text' : 'build-lost-text') : 'missing-text'); }
@@ -1386,11 +1421,11 @@ if (IS_MAIN) (async () => {
       ? +(0.35 * visualMeanFolded + 0.20 * editabilityMean + 0.20 * structuralFidelityAdj + 0.25 * responsiveScore).toFixed(3)
       : +(0.4 * visualMeanFolded + 0.3 * editabilityMean + 0.3 * structuralFidelityAdj).toFixed(3);
     mediaIdentityReport = {
-      enabled: true, folded: false,           // report-only this round — folding is the round-3 decision
+      enabled: true, folded: MI_FOLD_LIVE,    // G4: LIVE since the grader-truth round (GRADER_NO_MIFOLD=1 → legacy report-only)
       mean: mediaIdentityMean, meanRaw: mediaIdentityMeanRaw, bandsWithMedia: withMedia.length,
-      thresholds: { minLeaf: MI_MIN_LEAF, srcPaint: MI_SRC_PAINT, deMax: MI_DE_MAX, matchIoU: MI_MATCH_IOU, wId: MI_W_ID, wPresence: MI_W_PRESENCE, floorMult: MI_FOLD_FLOOR },
+      thresholds: { minLeaf: MI_MIN_LEAF, srcPaint: MI_SRC_PAINT, deMax: MI_DE_MAX, matchIoU: MI_MATCH_IOU, wId: MI_W_ID, wPresence: MI_W_PRESENCE, floorMult: MI_FOLD_FLOOR, ...(MI_FOLD_LIVE ? { svgMinLeaf: MI_SVG_MIN_LEAF, aboveFoldFrac: MI_FOLD_ABOVEFOLD_FRAC, aboveFoldPx: MI_FOLD_ABOVEFOLD_PX } : {}) },
       projected: { visualMeanFolded, compositeFolded },
-      bands: withMedia.map((b) => ({ idx: b.idx, yRange: [b.y0, b.y1], identity: b.mi.identity, presence: b.mi.presence, score: b.mi.score, srcMediaFrac: b.srcMediaFrac, srcMediaArea: b.mi.srcMediaArea, cloneMediaArea: b.mi.cloneMediaArea, cloneOnlyMediaArea: b.mi.cloneOnlyMediaArea, leaves: b.mi.leaves })),
+      bands: withMedia.map((b) => ({ idx: b.idx, yRange: [b.y0, b.y1], identity: b.mi.identity, presence: b.mi.presence, score: b.mi.score, srcMediaFrac: b.srcMediaFrac, srcMediaArea: b.mi.srcMediaArea, cloneMediaArea: b.mi.cloneMediaArea, cloneOnlyMediaArea: b.mi.cloneOnlyMediaArea, leaves: b.mi.leaves, ...(MI_FOLD_LIVE ? { foldMult: b.foldMult, visualUnfolded: b.visualUnfolded } : {}) })),
     };
   }
   // structural misses are real defects → fail target if any block type unreproduced (use the adjusted value).
@@ -1462,7 +1497,9 @@ if (IS_MAIN) (async () => {
   if (DET_MASTER) console.log(`reality: hOverflow ratio ${report.overflowRatio} (cloneScrollW ${hoRaw.cloneScrollW}/srcScrollW ${hoRaw.srcScrollW}/denom ${hoRaw.denom}, ×${hOverflowMult}) · widgetOverlap excess ${report.excessOverlap} (clone ${woClone.overlapFrac}@${woClone.pairs}pairs / src ${woSrc.overlapFrac}@${woSrc.pairs}pairs, ×${overlap2Mult})`);
   if (DET_VOIDPENALTY) { console.log(`content-void: ${voidCount} band(s) penalized (cap ${VOID_CEIL})`); for (const b of voidBands) console.log(`  §${b.idx} y${b.y0}-${b.y1} srcEnergy ${b.srcEnergy} cloneEnergy ${b.cloneEnergy} → visual ${b.visualPreVoid}→${b.visual}`); }
   if (USE_MEDIAID && mediaIdentityReport) {
-    console.log(`media-identity (report-only, NOT in composite): mean ${mediaIdentityMean} over ${mediaIdentityReport.bandsWithMedia} media band(s) · projected fold: visual ${visualMean}→${mediaIdentityReport.projected.visualMeanFolded} composite ${composite}→${mediaIdentityReport.projected.compositeFolded}`);
+    console.log(MI_FOLD_LIVE
+      ? `media-identity (G4 LIVE fold in band visuals): mean ${mediaIdentityMean} over ${mediaIdentityReport.bandsWithMedia} media band(s) · ${mediaIdentityReport.bands.filter((b) => b.foldMult != null && b.foldMult < 1).length} band(s) folded`
+      : `media-identity (report-only, NOT in composite): mean ${mediaIdentityMean} over ${mediaIdentityReport.bandsWithMedia} media band(s) · projected fold: visual ${visualMean}→${mediaIdentityReport.projected.visualMeanFolded} composite ${composite}→${mediaIdentityReport.projected.compositeFolded}`);
     for (const b of mediaIdentityReport.bands.filter((x) => x.score != null && x.score < 0.7).sort((a, c) => a.score - c.score).slice(0, 6)) console.log(`  §${b.idx} y${b.yRange[0]}-${b.yRange[1]} M ${b.score} (id ${b.identity} pres ${b.presence}) leaves ${b.leaves.eligible} matched ${b.leaves.matched} wrong ${b.leaves.wrong} missing ${b.leaves.missing}`);
   }
   console.log('top defects:'); for (const d of report.rankedDefects.slice(0, 6)) console.log(`  §${d.section} y${d.yRange[0]}-${d.yRange[1]} sev ${d.severity} [${d.fails.join('+')}: ${d.why.join(',')}] vis ${d.visual} edit ${d.editability}${d.example ? ' e.g. "' + d.example + '"' : ''}`);
