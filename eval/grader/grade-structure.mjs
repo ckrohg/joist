@@ -374,7 +374,32 @@ const refreshSource = process.argv.includes('--refresh-source');
     for (let y = Math.max(0, by); y < y1b; y += 2) for (let x = Math.max(0, bx); x < x1; x += 2) { const i = (y * img.width + x) * 4; const L = 0.299 * img.data[i] + 0.587 * img.data[i + 1] + 0.114 * img.data[i + 2]; if (L < lo) lo = L; if (L > hi) hi = L; n++; }
     return n ? hi - lo : 0;
   };
-  const invisRuns = (cds.contrastFails || []).filter((f) => f.ratio < 1.3 && f.fsz >= 18 && f.w > 0 && lumRange(cln.shot, f.x, f.y, f.w, f.h) < 24);
+  // G6 INVISIBLE-TEXT UNGATE (grader-truth round 2026-06-10; reversible GRADER_NO_INVISTEXT2=1 → byte-identical
+  // legacy). The legacy detector was DOUBLE-GATED (fsz>=18 AND whole-bbox lumRange<24) and NEVER FIRED in
+  // production: (a) the size gate excluded every small invisible run (white-on-white 14px body/nav text — a defect
+  // a human sees instantly as "missing words"); (b) lumRange over the MERGED element bbox sees NEIGHBORING content
+  // (other lines/columns inside a tall/wide box) → range >= 24 even when the run's own glyphs are invisible.
+  // V2: drop the size gate entirely (capture already floors at fsz>=8) and PIXEL-VERIFY with per-run LOCAL bg
+  // sampling — clip to the run's FIRST LINE strip (height min(h, fsz·1.8) — never the merged multi-line box),
+  // take the strip's MEDIAN luma as the LOCAL background (most pixels in any text strip are bg), and count the
+  // fraction of pixels contrasting >40 luma against that local bg (glyph pixels). No contrasting pixels
+  // (<1%) → the run genuinely renders invisible. The gradient/background-clip:text false-positive the pixel
+  // check was built for (resend hero) stays killed: visible gradient glyphs contrast with the local bg → frac
+  // >> 1% → not flagged. Penalty formula/cap UNCHANGED (0.04/run, cap 0.20; GRADER_NODEFECT=1 still disables).
+  const INVISTEXT2 = process.env.GRADER_NO_INVISTEXT2 !== '1';
+  const invisibleLocal = (img, f) => {
+    const x0 = Math.max(0, f.x), y0 = Math.max(0, f.y);
+    const x1 = Math.min(img.width, f.x + f.w), y1b = Math.min(img.height, f.y + Math.min(f.h, Math.ceil((f.fsz || 16) * 1.8)));
+    const lum = [];
+    for (let y = y0; y < y1b; y += 2) for (let x = x0; x < x1; x += 2) { const i = (y * img.width + x) * 4; lum.push(0.299 * img.data[i] + 0.587 * img.data[i + 1] + 0.114 * img.data[i + 2]); }
+    if (lum.length < 50) return false;                          // strip too small to verify → don't fire (conservative)
+    const sorted = lum.slice().sort((a, b) => a - b); const localBg = sorted[Math.floor(sorted.length / 2)];
+    let glyph = 0; for (const L of lum) if (Math.abs(L - localBg) > 40) glyph++;
+    return glyph / lum.length < 0.01;                           // <1% contrasting pixels → no visible glyphs
+  };
+  const invisRuns = INVISTEXT2
+    ? (cds.contrastFails || []).filter((f) => f.ratio < 1.3 && f.w > 0 && f.h > 0 && invisibleLocal(cln.shot, f))
+    : (cds.contrastFails || []).filter((f) => f.ratio < 1.3 && f.fsz >= 18 && f.w > 0 && lumRange(cln.shot, f.x, f.y, f.w, f.h) < 24);
   const invisDefect = process.env.GRADER_NODEFECT === '1' ? 0 : Math.min(0.20, invisRuns.length * 0.04);
   composite = composite * (1 - invisDefect);
 
@@ -382,7 +407,7 @@ const refreshSource = process.argv.includes('--refresh-source');
     source, clone,
     composite: +composite.toFixed(3),
     visual: +visual.toFixed(3), editability: +editability.toFixed(3), designSystem: +designSystem.toFixed(3), responsive: responsive != null ? +responsive.toFixed(3) : null,
-    breakdown: { ssim_mean: +ssimMean.toFixed(3), exactPixel_mean: +exactMean.toFixed(3), cgm_mean: +cgmMean.toFixed(3), cgmOverDensity: cgmRes.overDensity, hRatio: +hRatio.toFixed(3), heightPenalty: +hPen.toFixed(3), textCoverage: +textCoverage.toFixed(3), editVisCoupled: +editability.toFixed(3), srcTextRuns: srcPos.length, cloneTextRuns: cln.texts.length, nativeRatio: +nativeRatio.toFixed(3), invisibleText: invisRuns.length, invisibleDefect: +invisDefect.toFixed(3), cloneWidgets: { heading: c.wHeading, text: c.wText, button: c.wButton, image: c.wImage } },
+    breakdown: { ssim_mean: +ssimMean.toFixed(3), exactPixel_mean: +exactMean.toFixed(3), cgm_mean: +cgmMean.toFixed(3), cgmOverDensity: cgmRes.overDensity, hRatio: +hRatio.toFixed(3), heightPenalty: +hPen.toFixed(3), textCoverage: +textCoverage.toFixed(3), editVisCoupled: +editability.toFixed(3), srcTextRuns: srcPos.length, cloneTextRuns: cln.texts.length, nativeRatio: +nativeRatio.toFixed(3), invisibleText: invisRuns.length, invisibleDefect: +invisDefect.toFixed(3), ...(INVISTEXT2 ? { invisDetector: 'localbg-v2', invisRuns: invisRuns.slice(0, 8).map((f) => ({ y: f.y, fsz: f.fsz, ratio: f.ratio, text: f.text })) } : {}), cloneWidgets: { heading: c.wHeading, text: c.wText, button: c.wButton, image: c.wImage } },
     designLint: { paletteFidelity: +palFid.toFixed(3), typeFidelity: +typeFid.toFixed(3), contrastPass: +contrastPass.toFixed(3), contrastPairs: cds.contrastPairs || 0, contrastFail: (cds.contrastPairs || 0) - (cds.contrastPass || 0), hasPrimary: !!hasPrimary, hasTypography: !!hasType, cloneFonts: cds.fontCount || 0, clonePalette: (cds.palette || []).length, cloneRadii: cds.radii || [] },
     responsiveDetail: responsive != null ? { mobileFit: +mobileFitV.toFixed(3), mobileOrder: +mobileOrderV.toFixed(3) } : null,
     note: 'composite = 0.35*visual + 0.35*editability + 0.10*designSystem + 0.20*responsive (3-term 0.45/0.45/0.10 fallback when responsive unavailable; visual<0.5 floors it). editability = mean over source text runs of (reproduced-as-selectable ? bandVisual(y) : 0) — coupled to visual so shredded/broken-band text earns little (un-gameable); textCoverage is the raw uncoupled diagnostic. designSystem = 0.35*paletteFidelity + 0.30*typeFidelity + 0.25*contrastPass(WCAG AA) + 0.10*completeness. responsive = 0.5*mobileFit(no 390px overflow) + 0.5*mobileOrder(clone mobile reading-order vs source, LCS).',
