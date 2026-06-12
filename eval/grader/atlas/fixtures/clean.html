@@ -1,0 +1,122 @@
+<!doctype html>
+<!-- @purpose lint-authoring selftest fixture: fully contract-conformant page exercising the expressible
+     construct vocabulary (nav-row, nav-links, hero-stack, heading, body-text, inline-styled-text,
+     button-cta, badge-pill, logo-band, image, icon-svg, card, split-2col, code-panel, divider,
+     cta-band, footer-columns). MUST lint with zero violations. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Clean fixture</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #ffffff; color: #131316;
+    font-family: ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif; }
+  a { text-decoration: none; color: inherit; }
+  .topnav { display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 32px; border-bottom: 1px solid #ececef; }
+  .brand-name { font-size: 17px; font-weight: 700; }
+  .nav-links { display: flex; gap: 24px; list-style: none; }
+  .nav-links li { font-size: 14px; font-weight: 500; }
+  .hero { display: flex; flex-direction: column; align-items: center; gap: 24px;
+    padding: 96px 24px; text-align: center; }
+  .badge { background: #eef2ff; color: #4338ca; border-radius: 999px;
+    padding: 4px 12px; font-size: 12px; font-weight: 600; }
+  .hero h1 { font-size: 56px; line-height: 64px; font-weight: 700; }
+  .hero p { font-size: 17px; line-height: 26px; color: #5e5f6e; max-width: 640px; }
+  .cta-row { display: flex; gap: 14px; justify-content: center; }
+  .btn-primary { background: #6c47ff; color: #ffffff; border-radius: 999px;
+    padding: 10px 20px; font-size: 14px; font-weight: 600; }
+  .btn-ghost { background: #ffffff; border: 1px solid #e3e3e6; border-radius: 999px;
+    padding: 10px 20px; font-size: 14px; font-weight: 600; }
+  .logo-band { display: flex; align-items: center; justify-content: center; gap: 48px;
+    padding: 32px 24px; border-top: 1px solid #ececef; border-bottom: 1px solid #ececef; }
+  .features { display: flex; gap: 24px; padding: 64px 32px; }
+  .card { flex: 1 1 0; background: #ffffff; border: 1px solid #ececef; border-radius: 12px;
+    padding: 24px; display: flex; flex-direction: column; gap: 12px; }
+  .card h3 { font-size: 20px; font-weight: 700; }
+  .card p { font-size: 15px; line-height: 24px; color: #5e5f6e; }
+  .split { display: flex; gap: 48px; padding: 64px 32px; align-items: center; }
+  .split-col { flex: 1 1 0; display: flex; flex-direction: column; gap: 16px; }
+  .code-panel { background: #0d1117; color: #e6edf3; border-radius: 10px; padding: 20px;
+    font-family: ui-monospace, Menlo, monospace; font-size: 13px; line-height: 22px; }
+  .rule { border: 0; border-top: 1px solid #ececef; margin: 0 32px; }
+  .cta-band { background: #131316; display: flex; flex-direction: column; align-items: center;
+    gap: 20px; padding: 72px 24px; text-align: center; }
+  .cta-band h2 { color: #ffffff; font-size: 36px; font-weight: 700; }
+  .footer { display: flex; gap: 64px; padding: 48px 32px; border-top: 1px solid #ececef; }
+  .foot-col { display: flex; flex-direction: column; gap: 10px; font-size: 14px; color: #5e5f6e; }
+  @media (max-width: 1024px) {
+    .features { flex-direction: column; }
+    .split { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <a class="brand-name" href="#">acme</a>
+  <ul class="nav-links">
+    <li>Products</li>
+    <li>Docs</li>
+    <li>Pricing</li>
+  </ul>
+</header>
+
+<section class="hero">
+  <span class="badge">New</span>
+  <h1>Build interfaces, faster</h1>
+  <p>Everything you need to ship a polished product &mdash; components, auth, and billing in one place.</p>
+  <div class="cta-row">
+    <a class="btn-primary" href="#">Start building</a>
+    <a class="btn-ghost" href="#">View docs</a>
+  </div>
+</section>
+
+<section class="logo-band">
+  <img src="logo-alpha.png" alt="Alpha logo">
+  <img src="logo-beta.png" alt="Beta logo">
+  <svg width="80" height="24" viewBox="0 0 80 24"><circle cx="12" cy="12" r="10" fill="#131316"></circle></svg>
+</section>
+
+<section class="features">
+  <div class="card">
+    <h3>Components</h3>
+    <p>Drop-in UI that matches <span style="color:#6c47ff;font-weight:600">your brand</span> out of the box.</p>
+  </div>
+  <div class="card">
+    <h3>Security</h3>
+    <p>SOC 2 ready with audit logs on every plan.</p>
+  </div>
+</section>
+
+<section class="split">
+  <div class="split-col">
+    <h2>Works with your stack</h2>
+    <p>One import and you are live. No config files, no rewrites.</p>
+    <img src="diagram-stack.png" alt="Architecture diagram">
+  </div>
+  <div class="split-col">
+    <pre class="code-panel"><span style="color:#ff7b72">import</span> { Acme } <span style="color:#ff7b72">from</span> <span style="color:#a5d6ff">'@acme/ui'</span>;<br><span style="color:#ff7b72">export default</span> () =&gt; &lt;Acme /&gt;;</pre>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section class="cta-band">
+  <h2>Ready when you are</h2>
+  <a class="btn-primary" href="#">Get started free</a>
+</section>
+
+<footer class="footer">
+  <div class="foot-col">
+    <a href="#">About</a>
+    <a href="#">Careers</a>
+  </div>
+  <div class="foot-col">
+    <a href="#">Docs</a>
+    <a href="#">Support</a>
+  </div>
+</footer>
+
+</body>
+</html>
