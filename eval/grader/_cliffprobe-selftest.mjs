@@ -17,6 +17,18 @@
  *      honest responsive behavior) but cliffExcess ≈ 1 → NOT capped. The core value of fix #2.
  *   C3 CLIFFY SOURCE SELF-PAIR — a source that legitimately jumps >1.3 at 1024 graded against itself: a
  *      PERFECT clone of a cliffy source must NOT be capped (srcCliffRatio>1.3, caps empty).
+ * CLIFF-PROBE FINAL round (2026-06-10, fresh-critic dodges /tmp/critic-dodge-test.mjs → pinned here):
+ *   D1 BETWEEN-SAMPLES WINDOW DODGE — blowup confined to a ±8px window around a HASH-DERIVED sample width
+ *      (replicated from grade-structure.mjs; window contains NO fixed sample) → the F2 hash sample catches it
+ *      → cap 0.35 with cliffWidth ∉ {1200,1025,1024,900,768}.
+ *   D2 THRESHOLD-SKATE — +~24% height at <=1024 (under the 1.3 veto): NOT capped, but the F3 graded
+ *      sub-threshold cost fires (subThresholdPenalty>0, responsive term reduced) — skating costs something.
+ *   D3 ANCHOR-POISONING — spacer shown only @1100-1299 inflates cloneH(1200) so a FULL blowup at <=1024 reads
+ *      growth≈1 (judge-blind). F1 guard: growth<0.85 at 1025 → anchor poisoned → re-anchor at min height →
+ *      excess>1.3 → cap 0.35 (anchorPoisoned=true).
+ *   D3-CTL SAME full blowup WITHOUT the anchor spacer → capped via the NORMAL path (anchorPoisoned=false).
+ *   D3b SOURCE-SIDE POISONING SYMMETRY — the anchordodge page graded against ITSELF: the source side re-anchors
+ *      its own baseline (srcAnchorPoisoned=true) → faithful clone stays at excess≈1 → zero caps (self-pair clean).
  * Exit 0 = ALL PASS.
  */
 import http from 'http';
@@ -50,6 +62,24 @@ ${Array.from({ length: 10 }, (_, i) => `<p style="color:#222;font-size:16px;marg
 <script>const fit=()=>{document.getElementById('cv').style.transform='scale('+(window.innerWidth/1440)+')';};fit();window.addEventListener('resize',fit);</script>
 </body></html>`;
 
+// ---- D-round (CLIFF-PROBE FINAL) fixtures ----
+// F2 width derivation — MUST mirror grade-structure.mjs exactly (drift here = loud test failure, by design).
+// Canonicalization strips protocol AND port, so the widths are computable before the random test port is known.
+const MW_FIXED = [1200, 1025, 1024, 900, 768];
+const mwCanon = (u) => String(u).replace(/^https?:\/\//, '').replace(/:\d+/, '').replace(/\/+$/, '').toLowerCase();
+const mwFnv = (s) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h; };
+const hashWidths = (u) => {
+  const h = mwFnv(mwCanon(u));
+  let wA = 770 + (h % 215), wB = 985 + ((h >>> 8) % 214);
+  while (MW_FIXED.includes(wA)) wA++;
+  while (MW_FIXED.includes(wB) || wB === wA) wB++;
+  return [wA, wB];
+};
+const [dwA, dwB] = hashWidths('http://127.0.0.1/flatsrc'); // source for all D-cases
+// dodge window center: a hash width whose ±8 window contains NO fixed sample (so the catch is provably F2's)
+const dPick = [dwA, dwB].find((w) => MW_FIXED.every((f) => Math.abs(f - w) > 8)) ?? dwA;
+const flatBody = `<div style="height:3600px"><p style="color:#222;font-size:16px;margin:24px">tall fixed content body for a stable base height</p></div>`;
+
 const pages = {
   '/innocent': base('', innocentBody),
   '/cliff1023': base('#pad{display:none} @media (max-width:1023px){#pad{display:block;height:8000px}}', cliffBody),
@@ -57,6 +87,11 @@ const pages = {
   '/scaled': scaledPage,
   '/grid768': gridPage(768),
   '/grid1024': gridPage(1024),
+  '/flatsrc': base('', `<div id="pad"></div>${flatBody}`),
+  '/winddodge': base(`#pad{display:none} @media (min-width:${dPick - 8}px) and (max-width:${dPick + 8}px){#pad{display:block;height:6000px}}`, `<div id="pad"></div>${flatBody}`),
+  '/partialunpin': base('#pad{display:none} @media (max-width:1024px){#pad{display:block;height:900px}}', `<div id="pad"></div>${flatBody}`),
+  '/anchordodge': base('#pad,#anchor{display:none} @media (max-width:1024px){#pad{display:block;height:4000px}} @media (min-width:1100px) and (max-width:1299px){#anchor{display:block;height:4000px}}', `<div id="pad"></div><div id="anchor"></div>${flatBody}`),
+  '/unpinctl': base('#pad{display:none} @media (max-width:1024px){#pad{display:block;height:4000px}}', `<div id="pad"></div>${flatBody}`),
 };
 
 const srv = http.createServer((req, res) => {
@@ -87,6 +122,7 @@ function grade(srcP, clnP, { env = {}, tag = '', refresh = true } = {}) {
 let fail = 0;
 const check = (name, cond, detail) => { console.log(`${cond ? 'PASS' : 'FAIL'}  ${name}${detail ? ' — ' + detail : ''}`); if (!cond) fail++; };
 const mw = (r) => r.midwidth || {};
+const isHashW = (w) => w != null && !MW_FIXED.includes(w); // D1: the catch must come from an F2 hash sample
 
 const a1 = await grade('/innocent', '/cliff1023');
 check('A1 1023-unpin dodge: adjacent pair reads clean (dodge confirmed)', mw(a1).cliffRatio != null && mw(a1).cliffRatio < 1.05, `cliffRatio ${mw(a1).cliffRatio}`);
@@ -105,6 +141,20 @@ check('C2 honest-reflow: clone\'s own adjacent jump >1.3 (legacy WOULD have capp
 check('C2 honest-reflow: source-baselined excess ≈1 → NOT capped', mw(c2).cliffExcess != null && mw(c2).cliffExcess <= 1.3 && mw(c2).caps.length === 0 && c2.composite > 0.6, `cliffExcess ${mw(c2).cliffExcess} srcFullGrowth ${mw(c2).srcFullGrowth} composite ${c2.composite}`);
 const c3 = await grade('/grid1024', '/grid1024');
 check('C3 cliffy SOURCE self-pair: perfect clone of a >1.3-jump source NOT capped', mw(c3).srcCliffRatio != null && mw(c3).srcCliffRatio > 1.3 && mw(c3).caps.length === 0 && c3.composite > 0.6, `srcCliffRatio ${mw(c3).srcCliffRatio} cliffExcess ${mw(c3).cliffExcess} composite ${c3.composite}`);
+
+// ---- D-round (CLIFF-PROBE FINAL 2026-06-10) ----
+console.log(`   [D] hash widths for 127.0.0.1/flatsrc: wA=${dwA} wB=${dwB} → dodge window ${dPick - 8}-${dPick + 8}`);
+const d1 = await grade('/flatsrc', '/winddodge');
+check('D1 between-samples window dodge: hash sample catches it → cap 0.35', mw(d1).cliffExcess > 1.3 && isHashW(mw(d1).cliffWidth) && mw(d1).caps.some((c) => c.startsWith('cliff')) && d1.composite <= 0.35, `cliffExcess ${mw(d1).cliffExcess}@${mw(d1).cliffWidth} composite ${d1.composite} caps ${JSON.stringify(mw(d1).caps)}`);
+const d2 = await grade('/flatsrc', '/partialunpin');
+check('D2 threshold-skate: NOT capped but graded cost fires', mw(d2).caps.length === 0 && mw(d2).cliffExcess > 1.1 && mw(d2).cliffExcess <= 1.3 && mw(d2).subThresholdPenalty > 0.1 && d2.composite > 0.35, `cliffExcess ${mw(d2).cliffExcess} subThresholdPenalty ${mw(d2).subThresholdPenalty} composite ${d2.composite}`);
+check('D2 threshold-skate: responsive term reduced (skating costs something)', d2.responsive != null && d2.responsive <= 0.9, `responsive ${d2.responsive} (detail ${JSON.stringify(d2.responsiveDetail)})`);
+const d3 = await grade('/flatsrc', '/anchordodge');
+check('D3 anchor-poisoning: guard re-anchors → blowup caught → cap 0.35', mw(d3).anchorPoisoned === true && mw(d3).cliffExcess > 1.3 && mw(d3).caps.some((c) => c.startsWith('cliff')) && d3.composite <= 0.35, `anchorPoisoned ${mw(d3).anchorPoisoned} anchorH ${mw(d3).anchorH} cliffExcess ${mw(d3).cliffExcess}@${mw(d3).cliffWidth} composite ${d3.composite}`);
+const dc = await grade('/flatsrc', '/unpinctl');
+check('D3-CTL same blowup, no spacer: capped via the NORMAL path (guard inert)', mw(dc).anchorPoisoned === false && mw(dc).cliffExcess > 1.3 && dc.composite <= 0.35, `anchorPoisoned ${mw(dc).anchorPoisoned} cliffExcess ${mw(dc).cliffExcess} composite ${dc.composite}`);
+const d3b = await grade('/anchordodge', '/anchordodge');
+check('D3b source-side poisoning symmetry: self-pair stays CLEAN', mw(d3b).srcAnchorPoisoned === true && mw(d3b).anchorPoisoned === true && mw(d3b).caps.length === 0 && (mw(d3b).cliffExcess == null || mw(d3b).cliffExcess <= 1.1) && d3b.composite > 0.8, `srcAnchorPoisoned ${mw(d3b).srcAnchorPoisoned} cliffExcess ${mw(d3b).cliffExcess} composite ${d3b.composite} caps ${JSON.stringify(mw(d3b).caps)}`);
 
 srv.close();
 console.log(fail === 0 ? 'ALL PASS' : `${fail} FAILURE(S)`);
