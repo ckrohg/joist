@@ -117,3 +117,32 @@ They **don't try to recover THE source — they redefine success as observable e
 2. **GAD's lesson generalizes**: schema-valid ≠ good. A constrained decoder happily emits a valid tree with wrong geometry. Form-validity (schema) and semantic-validity (render-grade) are different layers; never collapse them. Our split — validate_widget (form) then grade-structure/vision-judge (semantics) — is the architecture the field converged to.
 3. **Cheap win available now**: express more INVARIANTS as schema (e.g. "absolute children require _element_custom_width", "container padding key is `padding`") so they're caught at emission/validation rather than discovered as render drift. Every render-truth memory entry that can be encoded as a schema constraint should be — it moves a semantic bug into the guaranteed-form layer.
 
+
+## 5. Amortized inference vs per-instance search — when to TRAIN vs when to SEARCH
+
+### What the field says
+
+- **DreamCoder** (Ellis et al., PLDI 2021 — [arXiv 2006.08381](https://arxiv.org/pdf/2006.08381)): the canonical hybrid. Wake phase: solve real tasks by neurally-GUIDED search (not pure model emission). Sleep phase: (a) grow a LIBRARY by compressing discovered solutions into reusable components, (b) retrain the recognition model on "dreams" — programs sampled from the library, executed, paired with their outputs. Amortization and search are not rivals; search generates the training data that makes the next search cheaper. Follow-up ([arXiv 2306.07856](https://arxiv.org/abs/2306.07856)) even "decompiles" the trained policy back into library components.
+- **Verifier-based test-time scaling is provably stronger**: "Scaling Test-Time Compute Without Verification or RL is Suboptimal" ([arXiv 2502.12118](https://arxiv.org/pdf/2502.12118)) — verifier-based algorithms scale with compute by Ω(√H) over any verifier-free (pure distillation/imitation) approach. With a RELIABLE verifier, search dominates asymptotically; distillation alone caps out.
+- **Expert iteration** (AlphaZero pattern, echoed in test-time-compute literature — [survey](https://arxiv.org/html/2508.16665v3)): search+verifier produces expert traces → distill into the policy → policy makes search cheaper → repeat. Amortization is a RATCHET on search, not a replacement.
+- **When amortization pays**: many tasks sharing structure (DreamCoder), or millions of free synthetic pairs because you own the compiler (LLM4Decompile, StarVector, WebSight). **When per-instance search pays**: few/heterogeneous instances, expensive instances, reliable verifier, or output complexity beyond the amortized model's ceiling (Design2Code: end-to-end whole-page emission fails exactly on layout).
+
+### Verdict for Joist at our scale
+
+Per-instance search-with-verifier (our loop) is RIGHT today: corpus is small (~6–20 sites), instances are heterogeneous, and our verifier (grader + LOOK + vision-judge) is the most-developed asset. The literature unanimously says: keep the verifier loop as the spine, and amortize INCREMENTALLY as a ratchet:
+
+1. **Now (no training infra)**: distill refine-loop traces into retrieval/few-shot assets — per-archetype playbooks, fix-pattern libraries (this is DreamCoder's library-learning sleep phase done with files instead of gradients, and matches the existing "refine-loop+distill" memory).
+2. **Now (data accumulation)**: start the PLAD/Decompile-Bench corpus — every built tree gets rendered and stored as a (render, tree) pair; plus pure synthetic sampling (generate Elementor trees from templates/library, render at 3 viewports). Costs ~nothing, compounds, and doubles as grader test material (render a tree, inject a known defect, you have ground-truth for injected-defect grader tests).
+3. **Later (when pairs ≈ 10⁴–10⁵)**: fine-tune a section-level proposer (capture-tree slice → widget subtree) and a cheap value model (rank candidate sections before expensive grading). Constrained decoding (§4) applies at that point. The proposer's job is only to make the FIRST shot land closer — the verifier loop remains the correctness authority.
+
+---
+
+## Synthesis — the five transfers, ranked
+
+1. **PLAD-style pair mining (start immediately, zero risk).** Render every tree we build; store (clone-render → tree) + synthetic (sampled-tree-render → tree) pairs. We own the compiler; this is the field's single most replicated trick (LLM4Decompile, WebSight/WebCode2M, SVG-Stack, CSGNet bootstrap, DreamCoder dreams).
+2. **Equivalence-class success metric is already right.** Re-executability ≡ render-equivalence + editability. The field never recovers THE source; it canonicalizes. Stop worrying that many DOMs map to one Elementor tree — that's the solved part.
+3. **Deterministic front-end + learned refiner + per-section verifier loop** is the convergent architecture (Ghidra→LLM4Decompile-V2; DETR-annotator→ScreenAI; primitives→Ellis's synthesis; our capture-tree→builder→refine). Invest in capture-tree quality and a value-function-like cheap ranker for partial builds, not in end-to-end vision models.
+4. **Structure-as-denoiser (Ellis 2018)**: fit repetition/symmetry/grid models over captured elements and reject outliers BEFORE building — attacks capture-disagreement, the documented per-breakpoint ceiling cause.
+5. **Schema-constrained emission + library mining are cheap compounding wins**: encode render-truths as schema invariants (form layer); ShapeCoder-style mine recurring section subtrees into parameterized macro-templates (shorter programs, fewer failure modes, better editability).
+
+Status: COMPLETE (sections 1–5 + synthesis).
