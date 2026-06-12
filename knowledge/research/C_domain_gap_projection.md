@@ -120,3 +120,114 @@ sanitization + font loading ("real"). Robotics has four mature answers, in order
   explicit dynamic-region mask per source (carousels, video posters, timestamps) applied on BOTH
   sides of the diff, instead of letting those regions inject noise into composite scores.
 
+
+## 2. Lossy projection in practice — when the target language cannot express everything
+
+Every field below faces our exact shape: continuous/unbounded input, discrete/bounded output
+vocabulary. Four convergent moves recur: (1) make the expressible set EXPLICIT (a dictionary/
+atlas, not an assumption); (2) project by minimizing PERCEPTUAL error, not symbol-level error;
+(3) give the residual a principled channel (escape hatch or diffusion), never silently drop it;
+(4) allocate the output budget greedily where the residual error is largest.
+
+### 2.1 Image → SVG (vectorization): perceptual-loss-guided, error-driven primitive budget
+
+- DiffVG made rasterization of vector primitives differentiable, so vector parameters are
+  optimized to match a target image by minimizing a deep PERCEPTUAL loss — not per-pixel RGB —
+  ([DiffVG in PyTorch-SVGRender](https://pytorch-svgrender.readthedocs.io/en/latest/diffvg.html),
+  [repo](https://github.com/ximinng/PyTorch-SVGRender)).
+- LIVE (CVPR 2022) adds the key structural idea: LAYER-WISE GREEDY ADDITION — start with few
+  Bézier paths, add the next path where reconstruction error is largest, producing "compact and
+  semantically consistent" SVGs that preserve image topology with no redundant shapes —
+  [LIVE: Towards Layer-wise Image Vectorization](https://ma-xu.github.io/LIVE/),
+  [paper PDF](https://ma-xu.github.io/LIVE/index_files/CVPR22_LIVE_main.pdf).
+- **Transfer (concrete):** LIVE is literally our refine loop with the right control law:
+  (a) widget budget should be ALLOCATED BY RESIDUAL — after each build+grade, add/split widgets
+  only in the section tiles with the worst perceptual error, not uniformly; (b) optimize against
+  a perceptual metric (vision-judge tiles — already the new headline per the vision-judge pivot),
+  not DOM-symbol similarity; (c) LIVE's "no redundancy" objective = our editability dimension:
+  a clone made of fewer, semantically-aligned widgets is BOTH more editable and what LIVE calls
+  topology-preserving. Same objective, two fields.
+
+### 2.2 Photo → LEGO / voxel (legolization): project to grid, then merge under legality constraints
+
+- The canonical pipeline is two-stage: voxelize the model (raw projection onto the grid), THEN
+  merge voxels into larger legal bricks while analyzing/repairing structural problems on a
+  connectivity graph; stability is optimized with stochastic search (simulated annealing) —
+  [Legolizer](https://www.researchgate.net/publication/221337507_Legolizer_A_Real-Time_System_for_Modeling_and_Rendering_LEGO_R_Representations_of_Boundary_Models),
+  [Image2Lego, arXiv:2108.08477](https://arxiv.org/pdf/2108.08477),
+  [brick-optimization-builder](https://github.com/dzungpng/brick-optimization-builder).
+- Newer work generates LEGO designs that must be PHYSICALLY STABLE AND BUILDABLE — feasibility
+  is a hard constraint checked by a verifier, not a soft preference —
+  [Generating Physically Stable and Buildable LEGO Designs from Text, arXiv:2505.05469](https://arxiv.org/html/2505.05469v1).
+  And the "vivid sculptures" line prioritizes SALIENT visual features (repetition, shape detail,
+  planarity) over uniform voxel fidelity — perceptual saliency-weighted projection —
+  [Automatic Generation of Vivid LEGO Architectural Sculptures](https://www.researchgate.net/publication/331094372_Automatic_Generation_of_Vivid_LEGO_Architectural_Sculptures).
+- **Transfer (concrete):** (a) our capture-tree → widget-tree mapping should formally be
+  voxelize-then-merge: first project the source into a fine neutral grid (captured boxes), then
+  MERGE into the largest legal Elementor constructs (a 2×3 card area becomes one grid container,
+  not six absolute widgets) — merging is where editability is won, exactly as brick-merging is
+  where stability is won; (b) "buildable" = a hard verifier (round-trip ≥90% editability gate in
+  PATH_TO_TRUE_1TO1) run as a separate pass, like LEGO stability analysis — never folded into the
+  visual score; (c) saliency-weighting: spend widget fidelity on human-salient features first
+  (logos, headings, CTAs — exactly the grader_overstates_top_end finding) rather than uniform
+  box-IoU.
+
+### 2.3 Music → MIDI (automatic transcription): TWO targets, and residual channels in the spec
+
+- MIDI's base vocabulary cannot express per-note expression: "MIDI code supports pitch bend only
+  by channel, not note-by-note"; continuous timbre/dynamics within a note and microtonal
+  inflection are inexpressible in the core spec —
+  [What's Wrong with MIDI? (Perfect Circuit)](https://www.perfectcircuit.com/signal/whats-wrong-with-midi),
+  [ViolinDiff, arXiv:2409.12477](https://arxiv.org/html/2409.12477v1),
+  [IRMA Iranian classical corpus, arXiv:2508.19876](https://arxiv.org/pdf/2508.19876).
+- The field's two answers: (1) EXTEND THE VOCABULARY with auxiliary continuous channels — pitch
+  bend, CCs, and eventually MPE (per-note expression) — i.e. standardized residual channels
+  bolted onto the constrained core; (2) split the TASK into two distinct targets:
+  performance-level transcription (keep exact onset times, velocities — "what was played") vs
+  score-level transcription (quantize to the rhythmic grid — "what was meant"); rhythm
+  quantization is its own research problem because deliberate expressive deviations fight the
+  grid — [Monte Carlo Tempo Tracking & Rhythm Quantization, arXiv:1106.4863](https://arxiv.org/pdf/1106.4863),
+  [Musically Informed Evaluation of Piano Transcription, arXiv:2406.08454](https://arxiv.org/pdf/2406.08454).
+- **Transfer (concrete):** (a) our absolute-vs-flow builder split IS performance-vs-score
+  transcription: absolute positioning = performance MIDI (exact, desktop-pixel, not "musical");
+  flow/grid layout = score (quantized to Elementor's layout grid, responsive, editable). Stop
+  treating them as competing quality levels — they are different TARGETS, and the right product
+  answer (like modern DAWs) is to keep BOTH and convert score→performance only where the source
+  genuinely deviates from any grid; (b) MPE's lesson for the residual channel: standardize it.
+  Per-widget custom CSS is our pitch-bend — define a fixed, small schema of allowed residual
+  properties rather than free-form CSS, so the residual stays parseable/editable (MPE works
+  because it's a SPEC, not ad-hoc sysex).
+
+### 2.4 Text → controlled vocabulary (ASD-STE100): the dictionary is explicit, versioned, and machine-checked
+
+- Simplified Technical English = 53 writing rules + ~900 approved words, one meaning per word
+  (Jan 2025 edition); writers accept the expressiveness loss in exchange for unambiguity —
+  [ASD-STE100](https://www.asd-ste100.org/about_STE.html), [Wikipedia: STE](https://en.wikipedia.org/wiki/Simplified_Technical_English),
+  [CNL survey, arXiv:1507.01701](https://arxiv.org/pdf/1507.01701).
+- Operationally, STE works because of CHECKER SOFTWARE (HyperSTE, Acrolinx) that flags
+  non-conformant constructs at authoring time against the explicit dictionary —
+  [HyperSTE](https://hyperste.ai/asd-ste100-simplified-technical-english-for-aerospace-and-defense/),
+  [Acrolinx STE guide](https://www.acrolinx.com/blog/a-guide-to-simplified-technical-english-improving-your-technical-documentation/).
+- **Transfer (concrete):** the Elementor Capability Atlas (§5) is our STE dictionary, and the
+  transpiler needs an STE-style CONFORMANCE LINTER: before any build, every captured feature is
+  classified against the atlas as expressible / expressible-with-loss / inexpressible, with the
+  decision logged. Today that classification lives implicitly in builder code paths; STE shows
+  it should be an explicit, versioned artifact that authoring tools check against. DesignMD's
+  lint-rules-as-grader-dims steal (memory: designmd_steal_plan) is the same move.
+
+### 2.5 Color quantization → error diffusion (Floyd–Steinberg): the residual is conserved, not dropped
+
+- Floyd–Steinberg (1976): quantize each pixel to the limited palette, then PUSH the quantization
+  error onto not-yet-quantized neighbors (7/16, 3/16, 5/16, 1/16); humans perceive "more colors
+  than there actually are"; doing the diffusion in a perceptually uniform space (CIELAB) beats
+  raw RGB — [Wikipedia: Floyd–Steinberg dithering](https://en.wikipedia.org/wiki/Floyd%E2%80%93Steinberg_dithering),
+  [ScienceDirect: Error Diffusion](https://www.sciencedirect.com/topics/computer-science/error-diffusion),
+  [Cloudinary glossary](https://cloudinary.com/glossary/floyd-steinberg-dithering).
+- **Transfer (concrete):** when Elementor's vocabulary forces value quantization (spacing presets,
+  container gaps, column units, font-size steps), do not absorb each error locally — CONSERVE the
+  residual along the layout axis: if a section's expressible top-padding undershoots the source by
+  9px, add those 9px to the next inter-section gap so cumulative vertical offsets (and therefore
+  every downstream section's y-position) stay aligned. This is exactly why per-section grading can
+  look fine while whole-page alignment drifts: un-diffused quantization error accumulates. A
+  running "vertical error accumulator" in the builder is a ~20-line change with page-level payoff.
+
