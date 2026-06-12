@@ -1,0 +1,70 @@
+<!doctype html>
+<!-- @purpose Exemplar syn-footer-columns — SYNTHETIC coverage sample for the footer-columns construct (histogram count 4, uncovered by backfill). Authored per the contract: <footer> landmark, flex-row of column containers (grid is V-GRID-banned), link columns as flex divs of <a> leaves (ul>li>a chains hit V-NEST depth 5), bottom legal row. Lint-clean required; no fidelity claim. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>exemplar: footer columns (synthetic)</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #101013; color: #e6e6ea;
+    font-family: ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  a { text-decoration: none; color: inherit; }
+  .site-footer { background: #101013; padding: 72px 24px 36px; }
+  .foot-cols { max-width: 1120px; margin: 0 auto; display: flex; gap: 48px; }
+  .foot-brand { flex: 1 1 280px; display: flex; flex-direction: column; gap: 14px; }
+  .foot-mark { font-size: 20px; font-weight: 700; color: #ffffff; letter-spacing: -0.3px; }
+  .foot-tag { font-size: 14px; line-height: 22px; color: #9b9ba4; max-width: 260px; }
+  .foot-col { flex: 0 1 180px; display: flex; flex-direction: column; gap: 14px; }
+  .foot-h { font-size: 13px; font-weight: 600; color: #ffffff; letter-spacing: 0.4px; }
+  .foot-links { display: flex; flex-direction: column; gap: 10px; }
+  .foot-links a { font-size: 14px; color: #9b9ba4; }
+  .foot-legal { max-width: 1120px; margin: 56px auto 0; padding-top: 24px; border-top: 1px solid #232328;
+    display: flex; justify-content: space-between; font-size: 13px; color: #6e6e78; }
+  @media (max-width: 820px) {
+    .foot-cols { flex-direction: column; gap: 32px; }
+  }
+</style>
+</head>
+<body>
+<footer class="site-footer">
+  <div class="foot-cols">
+    <div class="foot-brand">
+      <div class="foot-mark">acme</div>
+      <p class="foot-tag">Infrastructure for product teams that ship every day.</p>
+    </div>
+    <div class="foot-col">
+      <div class="foot-h">Product</div>
+      <div class="foot-links">
+        <a href="#">Features</a>
+        <a href="#">Pricing</a>
+        <a href="#">Changelog</a>
+        <a href="#">Roadmap</a>
+      </div>
+    </div>
+    <div class="foot-col">
+      <div class="foot-h">Developers</div>
+      <div class="foot-links">
+        <a href="#">Documentation</a>
+        <a href="#">API reference</a>
+        <a href="#">Status</a>
+        <a href="#">Open source</a>
+      </div>
+    </div>
+    <div class="foot-col">
+      <div class="foot-h">Company</div>
+      <div class="foot-links">
+        <a href="#">About</a>
+        <a href="#">Blog</a>
+        <a href="#">Careers</a>
+        <a href="#">Contact</a>
+      </div>
+    </div>
+  </div>
+  <div class="foot-legal">
+    <span>&copy; 2026 Acme, Inc.</span>
+    <span>Privacy &middot; Terms &middot; Security</span>
+  </div>
+</footer>
+</body>
+</html>
