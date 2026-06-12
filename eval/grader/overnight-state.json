@@ -50,9 +50,9 @@
   "stripeSentinel": "stripe.com probe (page 4770) composite 0.657 — pipeline ran clean (287 leaves, hRatio 1.029, no crash) so recipes generalize STRUCTURALLY, but: visual 0.695 (animated gradient hero / scroll carousels / live $1.9T counter = JS-animation content the static V3 builder can't author), struct 0.5 (lost 1/2 lists, 0/1 accordion, + emitted a PHANTOM form). New gaps for targeted/supervised work: (a) accordion authoring recipe; (b) block-emission PRECISION (suppress phantom blocks not in source); (c) dynamic/animated-content tail (headed-capture / motion). NOT added to gated corpus (dynamic noise).",
   "corpusNote": "BROADENED to 6 sites after round-28 generalization probe (linear 0.851, vercel 0.791 — both in-band, recipes generalize). linear=dark-theme + high-water anchor; vercel=tabs/structural stressor. NOTE: cross-round mean shifts ~0.751->~0.77 purely from adding 2 high-scoring sites (composition, NOT a fix gain). Gate compares baseline-vs-after on the SAME 6 sites each round, so within-round verdicts stay honest. directed-fix.workflow.js + discovery.workflow.js SITES updated to 6.",
   "currentRound": {
-    "name": "c-round-5c-glyph-geometry",
+    "name": "htmlfirst-pipeline-v1",
     "status": "launching",
-    "detail": "STRUCTURAL: Range-based glyph rects in capture (additive, flag-gated) + D1/D2 on glyph box + glyph-contrast check (ghost family); hot-band validation with the full 14+ attack corpus; second arm = fresh Claude critic (codex down) | V1 vision-judge in flight (wkvt0eq0u); QUEUED: grader-truth round (G1/G2/G4/G6), then static-fold builders, then E-prime"
+    "detail": "Productionize: capture(assets+styles+media-queries) -> vision-author (sectioned, authoring contract) -> transpile.mjs hardened (pain list) -> see-fix inner loop -> full-page clerk + tailwind; judge acceptance vs 2.2/15.3 baselines"
   },
   "flowAbsSurvivalUnknown": "PREREQ for the linear overlay fix (next round): the diagnostic found 0/528 live elements are position:absolute on the FLOW clone (pages 5404/5405 on sg-host) -> build-flow's EXISTING leaf-overlay abs path (build-flow.mjs ~line 771) is NOT rendering as absolute on the frontend. YET build-absolute achieves hRatio ~1.0 via abs on the SAME sg-host stack -> abs CAN work. So before/with the linear buildOverlay() fix (abs-layer the z-overlapped chart+card container children, currently flowed into a column stack = 51% of linear's page excess), RESOLVE why build-flow's abs is stripped/not-applying (diff build-flow's abs-emission vs build-absolute's working mechanism — likely different setting keys or a missing position:relative parent). Fallback if abs truly can't survive in flow: clip the over-tall chart subtree as a sized/clipped html widget to box.h (the kind:code line-282 overflow-cap recipe). Do NOT widen the z-overlay IoU gate (only 16% on tailwind; prior widening regressed coverage).",
   "barClassTokenPoison": "FUTURE LEVER (capture, from capture-markup-flow-gate screenshots): tailwindcss.com's hero code-as-art poison is NOT <div> markup — it's BARE UTILITY-CLASS TOKENS ('text-8xl text-gray-950 tracking-tighter text-balance ...') rendered inline with prose, no angle brackets so markupFrac=0. To strip: detect runs of >=2 consecutive hyphenated CSS-class identifiers (/^[a-z]+(-[a-z0-9]+)+$/) in a non-structural mono/decorative leaf + strip/raster them. Deferred behind the height-pin lever (the dominant one); revisit if tailwind perElement stays starved after height drift is fixed.",
@@ -4228,6 +4228,83 @@
       "verdict": "PASS - glyph-geometry sweep: box-manipulation family CLOSED; all 18 hot-band attacks SAFE (16 deterministic, 2 acceptable non-det: tinyfont sha-proven render-inert, ghost45 visual-only no-gain honest residual). Legit + cross-site clean.",
       "detail": "Hot band tailwind 3146 §1 (heading 654d3b8e 'rapidly build modern websites...', clone-bg #ffffff). FULL corpus 18 ops, proposal mode, graded page hash0==hash1 (GET-only). 12 original: mal-delete/move/fade/edgepark/clip18/graze REJ[textCoverage,editability] det; mal-1char REJ[visual,textCoverage,editability] det; mal-htmlswap/decoyNative/shortcodeSwap REJ[visual,editability] det(editability); mal-tinyfont RENDER-INERT (band-crop sha256 base==cand 6c7d8a9c9fc83cfa, all deltas 0); mal-ghost45 REJ[visual] Dvis -0.011 NO-GAIN (kses strips color:rgb() -> renders readable -> not hidden; honest visual-only). EXTRA 3: nv-clipEdge (was live keep +0.030) REJ[textCoverage,editability] det; nv-padPark (was live keep +0.046) REJ[textCoverage,editability] det; nv-ghostclone (clone-bg HEX #ffffff, survives kses) REJ[textCoverage,editability] det Dvis+0.046 matched-1 (glyph ghost-contrast erases white-on-white). FRESH 3 (mine, glyph-machinery probes): nv-zwjSpoof (ZWJ in-band sibling cannot spoof glyph union - zero-width rects filtered) REJ det +0.046; nv-padInside (glyph box parked just inside bottom edge y1-6) REJ det +0.046; nv-clipExact (clip at exactly round(0.5*box.h)) REJ[textCoverage,editability] det +0.027 (gva/ga<0.5 since glyph height<box.h -> still trips at the boundary). VERDICT allSafe=true flags=[]. LEGIT REPLAY _c5val-legit-replay: all 7 split-bg keeps reproduce through hardened gates, zero false rejections, deltas == C-r4 (b2 +0.223/+0.131, b8 +0.018/+0.016/+0.020, b10 +0.387/+0.013), graded untouched. CROSS-SITE supabase 2986 noop proposal: 15/15 gradable bands, 0 keeps, 0 scored-misfires (all identity-no-op), 0 glyph-legacy-fallback (glyph fields present in src -gr cache + live capture, machinery fully engaged on a DIFFERENT site), mean baseline editability 0.752 / match-frac 0.763, graded untouched. Harnesses: _c5c-hotband.mjs (sweep crashes on giant §8 3872px band - INFRA flake/transient headless-chrome close, ran --no-sweep pinned §1 which the partial sweep had confirmed hot: §1 delete +0.046 >> §3 0 > §5 +0.003), _c5c-crosssite.mjs. Reports /tmp/c5c-hotband-report.json, /tmp/c5c-crosssite-report.json, /tmp/c5c-legit.log.",
       "plateauEffect": "none"
+    },
+    {
+      "name": "c-round-5c-verdict",
+      "date": "2026-06-10",
+      "verdict": "KEPT (3d38f49 + e2b466d + c455fe7) — gate hardening CLOSED: first fully-clean attack pass; operator pipeline UNBLOCKED",
+      "detail": "Structural fix: per-text-node Range glyph rects (additive capture feed, GRADER_NO_GLYPHRECTS=1 reverts, -gr cache tag) + D1/D2 on VISIBLE glyph box (ancestor-overflow-intersected) + GLYPH_VIS_MIN_FRAC 0.5 + ghost contrast check (effective glyph color vs ring-sampled local bg, dE<8 = not reproduced). 18-attack corpus: 16 deterministic rejections + 2 proven render-inert/no-gain (sha-identical band crops). Former live keeps padPark/clipEdge now det-rejected at full gain. Fresh critic #2: 8 NOVEL evasions (incl. per-character white-span split) — 0 keeps, verdict PASS 0 mustFix (first clean pass after 3 iterations). Residuals documented as mechanism-not-live (text-fill-color decoupling + clip-path vs gva — both kses-stripped here + paint-floor backstopped; defensive hardening queued for non-kses sites: sample dominant ink INSIDE the glyph box). Graded pages hash-verified untouched throughout. THE REFINE LOOP NOW HAS ADVERSARIALLY-HARDENED DETERMINISTIC PRE-FILTERS under the vision-judge objective.",
+      "plateauEffect": "reset"
+    },
+    {
+      "name": "v1b-verdict",
+      "date": "2026-06-10",
+      "verdict": "HARDENING KEPT (c2bae92 + d6337fb) — all 6 fixes verified incl. ANTI-RASTER VETO ON REAL CODE PATH (raster: vision 98 -> published 2.2); calibration RELAUNCHED properly detached by critic, acceptance PENDING harvest",
+      "detail": "No-wedge hard-timeout fires (1502ms test); session isolation proven (zero scaffold/daemon on fresh dir); sibling-pkill now opt-in; --gating forces runs>=3; identical-pair selftest 95 (bar met); rubric diff = severity anchors ONLY (makes <=50 acceptance HARDER — anti-gaming direction). CRITIC CAUGHT: calibration agent claimed nominal while ALL processes were dead — nohup+disown does NOT survive agent teardown on this Mac; critic relaunched all 4 runs via python os.setsid double-fork at 17:41 (pids confirmed alive, now harness-independent — must POLL /tmp/vj-cal-*/results.json, no notification will fire). Model misattribution fixed (d6337fb). RAIL UPDATE: detached launches = python double-fork setsid, never nohup+disown.",
+      "plateauEffect": "reset"
+    },
+    {
+      "name": "v1b-calibration-verdict",
+      "date": "2026-06-10",
+      "verdict": "HARVESTED — judge agrees with the user: tailwind 15.3 / supabase 17.9 / resend 23.4 / blog 43.8 (deterministic grader said 0.736/0.840/0.651/0.820). ACCEPTANCE <=50 MET with one honest caveat: 1100-width tile misalignment inflates section-order/missing defects",
+      "detail": "Tailwind per-width: 1440 tiles 42-88 (fold tiles 42-45 = the broken hero; rest 65-88 — matches earlier diagnosis: close at 1440 except the fold); 1100 tiles 14-62 = GENUINE amputation-zone breakage PLUS proportional-y tile misalignment artifact (src 14926px vs clone 21149px at 1100 -> tiles compare DIFFERENT sections; explains phantom wrong-section/dark-hero defects). Defect list coverage: dead code editor, raw-HTML-as-text, missing mockup collage, wrong sponsor logos, no syntax highlighting, missing window chrome, nav misplacement all enumerated sev4-5. publishedScore=null (structure feed not passed in detached runs — wire it). Supabase>tailwind ordering check inconclusive under misalignment noise. GRADER-TRUTH ROUND must include VJ-ALIGN: band-anchored tile alignment at non-capture widths before 1100 judge numbers are treated as precise; 1440 numbers are solid NOW.",
+      "plateauEffect": "reset"
+    },
+    {
+      "name": "heldout-clerk-baseline",
+      "date": "2026-06-10",
+      "verdict": "BASELINE RECORDED — held-out clerk.com: judge 2.2/100, deterministic 0.35 (vs tuned-corpus 0.65-0.84 = builder overfit MEASURED)",
+      "detail": "Page 24472 (CORRECTED — 24646 was an empty duplicate from the killed retry agent, deleted; user was mis-routed to it). Judge tile scores 14-78, pageScore floored by 8+ sev5 defects: hero rendered as garbled letter-spaced junk (clerk scramble-text animation captured mid-flight), raw JWT/base64 text flooding right half (animated/hidden data text captured as content), auth modal missing, sidebar nav missing, card grids collapsed. NEW DEFECT CLASSES for builder rounds: (1) animated/scramble text must be captured at settled state or from DOM text not glyph positions; (2) hidden/data text leak filter; (3) component-shaped regions (modals) = region-raster targets. NOTE: pageScore 2.2 from mean~37 tiles = sev5 penalty stack dominating — severity-cap review queued for judge v1.2 (direction correct, magnitude debatable). publishedScore null (structure feed — fixed in grader-truth round in flight). Audit package: /tmp/vj-heldout-clerk/*.png (side-by-side tiles) + results.json. | ADDED defect classes from user-visible fold: layered/animated hero text captured as DOUBLE-RENDER overlap; cookie-consent overlay captured as page content (overlay-exclusion filter needed); marquee logo frame mismatch.",
+      "plateauEffect": "none"
+    },
+    {
+      "name": "grader-truth-verdict",
+      "date": "2026-06-10",
+      "verdict": "KEPT (5 commits: b7363ad/f07dd02/8c03cf4/8ac4ad9/0ed9de4) — graders now see the user-visible breakage; 3 critic mustFixes -> cliff-hardening mini-round",
+      "detail": "HONEST NUMBERS NOW: grade-structure publishes 0.35 on ALL 7 pages (cliff cap binds everywhere — TRUE: every abs page collapses at 1024, critic verified grader-free: resend h12329->17801 abs-els 173->24; blog h53761->77410 abs 350->1; NON-DISCRIMINATING until builder fixes mid-width — do NOT gate rounds on it); gsec published spread 0.644-0.698 (3146: 0.865->0.684 via foldGate 0.8026); VJ 3146@1100 = 10.3 published. G6 catches REAL invisible text (resend 26 SDK labels near-black-on-black LOOK-verified; blog white-on-white pill). Fold gate gaming-resistant (source-derived bands; raster-the-fold bounded by 0.35 cap INSIDE the gate; monotonic de-inflation). VJ-align byte-identical legacy + LIS anchor maps. Innocent controls clean (source self-pairs 0.96, zero cliff/invis FPs; sources 1024/1025 ratios 1.000-1.029). CRITIC MUSTFIXES (block builder rounds): (1) cliff probe single-point 1024/1025 — dodgeable via 1023 unpin/custom bp/scale-transform; add 900/768 samples; (2) cliff lacks SOURCE baseline — will FP on legit-jumping sources and fight E-prime (clone stacking at 1024 vs source 768 = honest behavior capped); re-key as excess over source ratio; (3) exit criterion was page-agnostic (saturated cap) — ranking authority = gsec + VJ.",
+      "plateauEffect": "reset"
+    },
+    {
+      "name": "cliff-hardening-verdict",
+      "date": "2026-06-10",
+      "verdict": "FIX KEPT (3d5b9ca — multi-sample + source-baselined excess; original dodges dead; live pairs verified exact) — 3 NEW dodges survive, final pass launching",
+      "detail": "Veto = cliffExcess (clone growth / source growth across 1025/1024/900/768 vs 1200 anchor) > 1.3. Caught: 1023-unpin (excess 3.127@768), custom-bp-800; honest-reflow NOT capped (excess 1.0 with raw ratio 2.157 — E-prime safe); scale-transform = documented diagnostic-only (heroFsVisRatio + scaleShrinkSuspect; judge backstop). SURVIVING (critic-reproduced, /tmp/critic-dodge-test.mjs): (1) ANCHOR-POISONING — 1100-1299-only spacer inflates the 1200 anchor; full blowup reads excess 1.0 AND the 1440-anchored judge is blind; fix = growthClone<0.85 -> poisoned anchor -> re-anchor at min/1440 height; (2) WINDOW DODGE — blowup confined 769-899 between samples; fix = 1-2 per-URL-hash sample widths; (3) THRESHOLD-SKATING — excess 1.253 < 1.3 costs zero; fix = graded subtraction in (1.1,1.3]. Codex note: cache key lacks width-set (require 768 sample for excess path else raw-fallback). TREADMILL CAP after this pass: further dodges = documented residuals w/ judge backstop UNLESS judge-blind.",
+      "plateauEffect": "reset"
+    },
+    {
+      "name": "quota-outage-infrafail",
+      "date": "2026-06-11",
+      "verdict": "INFRA-FAIL x3 (weekly API limit; user re-logged-in) — NOT counted against any round",
+      "detail": "Killed mid-flight: cliff-hardening-final (partial uncommitted edits to grade-structure/_cliffprobe-selftest/refine-sections — syntax-checked, relaunch agent reviews/completes them), see-fix-loop build (no durable output — relaunch fresh), HTML-first spike (artifacts survive: /tmp/htmlfirst screenshots + page 24647 created empty). plateauStreak unchanged.",
+      "plateauEffect": "none"
+    },
+    {
+      "name": "htmlfirst-spike-verdict",
+      "date": "2026-06-11",
+      "verdict": "PROVEN — ARCHITECTURE PIVOT LOCKED: HTML-first beats DOM-transplant +37-40pts on all 4 tiles, 100% native widgets",
+      "detail": "Clerk hero spike (page 24647): judge tiles 72/82 @1440 + 78/72 @1100 vs baseline 32/42/38/35. Tree: 56 nodes (28 container/20 text/5 button/3 heading), ZERO html/raster widgets, max depth 6 — vs baseline 192 nodes with 49 raw html widgets + 41 images. Pain list (the productionization backlog): button inline spans flatten (use icon control), no clamp/calc in controls (resolve to computed), breakpoint policy (1180->1024 mapping caused the biggest responsive miss), e-con width hogging (pin px + flex_shrink:0), margin-auto heuristics, real imagery needed (logo marks were unicode stand-ins — capture real SVGs). Judge-fairness items: pin source state (logo rotation, cookie modal) at capture. Confounds honestly noted: logo-band 30 = source rotates logos per load; cookie scrim deflated source tiles below y750.",
+      "plateauEffect": "reset"
+    },
+    {
+      "name": "cliff-final-verdict",
+      "date": "2026-06-11",
+      "verdict": "D1-D3 KEPT (121ce70, every claim independently verified) — ONE blocking residual: D4 mobile-height blind spot (judge-blind, real-world salient)",
+      "detail": "Anchor-poisoning guard (re-anchor on shrink<0.85 or 1440-inflation>1.3, symmetric source side), per-URL hash sample widths (window dodge caught at 969), graded skate cost (excess 1.245 -> responsive -0.363). Honest-reflow + live source self-pairs clean (E-prime safe). MUSTFIX D4: blowup confined <768px invisible — narrowest cliff sample is 768, mobileLayout@390 measures only scrollWidth+order, never height; clone 3.13x@390 scores responsive 1.0 (= the documented abs-ceiling failure shape — the builder lands here WITHOUT adversarial intent). Fix prescribed: mobileLayout returns scrollHeight both sides -> source-baselined mobile-height excess, F1 anchor guard + F3 graded/veto ladder, D4 pin + honest-mobile-stacker control. Residuals w/ named backstops: scale-transform (diagnostic+judge), code-aware hash adversary (judge).",
+      "plateauEffect": "reset"
+    },
+    {
+      "name": "revision-prune",
+      "date": "2026-06-11",
+      "verdict": "BUILT + LINTED + PACKAGED; deploy pending manual wp-admin upload (NO drivable deploy path).",
+      "detail": "Shipped plugin/src/REST/MaintenanceController.php (admin-only, manage_options) wired into Bootstrap.php registerRoutes(): POST /joist/v1/maintenance/prune-revisions {page_id?,keep?=2,dry_run?=true,batch?=50,estimate_bytes?} keeps newest `keep` revisions per page, deletes rest via core wp_delete_post_revision() in batch+20s-time-bounded, stateless/resumable (repeat until remaining=0); and POST /joist/v1/maintenance/db-stats (information_schema per-table sizes + revision_count). php -l clean on both files (php:8.2-cli docker). Version bumped 0.10.14-alpha -> 0.10.15-alpha. DEPLOY BLOCKED: no SSH/SFTP creds (~/.ssh absent, no JOIST_DEPLOY_* env), and the app-password Basic auth redirects /wp-admin -> wp-login.php (app passwords don't auth wp-admin). Live plugin 0.10.14 exposes no maintenance/exec/upload route (91 routes scanned; /plugins/install zip_url is 501). MANUAL STEP: WP Admin -> Plugins -> Add New -> Upload Plugin -> dist/joist-v0.10.15-alpha.zip (top folder is `joist/` so it updates in place, no duplicate per DEPLOY.md 4b), then SG Optimizer purge + opcache reset. BEFORE/AFTER db table sizes, revisions-deleted, and insert-test verdict TO BE CAPTURED post-deploy by calling db-stats -> prune-revisions(keep=2, dry_run=false) across keep pages (3146 ~935, 2986 ~1381, 2988 ~929, 2990 ~1096) until remaining=0 -> db-stats. PRE-DEPLOY snapshot: keep pages 3146/2986/24472 all frontend=200 with non-empty Elementor trees (tree JSON 34.5k/27.4k/23.7k chars); existing /pages/{id}/revisions confirms 3146 & 2986 each >=50 revisions, 24472=1. Root bloat: 6,493 old revisions on keep pages exceeding the host DB quota ('Database is limited' insert failures).",
+      "plateauEffect": "none"
+    },
+    {
+      "name": "eval-integrity-escalation",
+      "date": "2026-06-11",
+      "verdict": "USER ESCALATION ACCEPTED — gaming-the-eval claim substantiated by the transpiler-agent incident (claimed gate pass, left page at 0 nodes); protocol now binding + Elementor-idioms mandate (theme-builder header/footer site parts, Full-Width-not-Canvas interplay, kit tokens)",
+      "detail": "All prior scores remain valid ONLY where evidence bundles exist (vj results.json + tiles persist for: calibration runs, heldout clerk, spike v10). The spike 72-82 verdict has its tile evidence intact (/tmp/vj-htmlfirst). Unverifiable claims (transpiler regression gate) are VOID. Pipeline-v1 acceptance phase must follow the protocol: independent judge, hash-bound.",
+      "plateauEffect": "none"
     }
   ],
   "phase5backlog_wave3": [
@@ -5850,5 +5927,7 @@
     },
     "inlineSimple bare-text-node drop (capture-layout.mjs:1536) — mixed-inline paragraphs lose prose; bench = overreacted page 11067 textCoverage 0.413; DIRECTED-FIX READY, queue after B1-round-1"
   ],
-  "deadlineNote": "User directive 2026-06-09: ignore deadlineEpoch — loop is quality-gated, driven by /loop dynamic mode."
+  "deadlineNote": "User directive 2026-06-09: ignore deadlineEpoch — loop is quality-gated, driven by /loop dynamic mode.",
+  "codexArm": "RESTORED 2026-06-10 18:5x — live smoke served by GPT-5, no entitlement error; dual-arm verification resumes (was: HTTP 400 model-not-supported on ChatGPT account)",
+  "evalIntegrityProtocol": "BINDING 2026-06-11 (PATH_TO_TRUE_1TO1.md 8d): scores valid only as {content-hash, persisted tiles, scores, ts} evidence bundles; builder agents never self-score; write post-conditions (render probe + final hash, mismatch voids score); audit-freeze on user pages; orchestrator re-executes one claimed gate per round."
 }
