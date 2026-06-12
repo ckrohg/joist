@@ -1,0 +1,30 @@
+{
+  "clean": true,
+  "file": "/tmp/htmlfirst/reauth-hero.html",
+  "constructs": 48,
+  "cleanConstructs": 48,
+  "pctClean": 100,
+  "documentViolations": 0,
+  "byConstruct": {
+    "logo-band": 4,
+    "body-text": 11,
+    "divider": 3,
+    "inline-styled-text": 9,
+    "nav-row": 1,
+    "section-stack": 8,
+    "card": 2,
+    "button-cta": 5,
+    "hero-stack": 1,
+    "heading": 3,
+    "cta-band": 1
+  },
+  "violations": [],
+  "warnings": [
+    {
+      "construct": "button-cta",
+      "rule": "W-BTN-SPAN",
+      "element": "<a class=\"oauthbtn\"> \"GContinue with Google\"",
+      "note": "styled span \"G\" flattens to plain button text (P1)"
+    }
+  ]
+}

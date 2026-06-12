@@ -1,0 +1,182 @@
+<!doctype html>
+<!-- @purpose P2 gate (b): clerk.com nav+hero+logobar+components-top RE-AUTHORED under the atlas
+     authoring contract (knowledge/AUTHORING_CONTRACT.md). Vision-authored from /tmp/htmlfirst crops
+     (c-nav/c-hero/c-logos) + /tmp/local-fidelity/cap. Contract deltas vs the proven spike:
+     (1) no CSS math — clamp()/max()/calc() frozen to px at the two authoring widths (1440 / <=1180);
+     (2) components section flattened to container depth <=4 (wrap+row merged into .comp-row). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clerk — hero re-authored (contract)</title>
+<style>
+  :root {
+    --ink: #131316; --muted: #5e5f6e; --purple: #6c47ff;
+    --bg: #f8f8f9; --line: #ececef; --line2: #f3f3f3;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--ink);
+    font-family: ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  a { text-decoration: none; color: inherit; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 0 24px; }
+
+  /* announcement bar */
+  .announce { background: #131316; height: 40px; display: flex; align-items: center; justify-content: center; gap: 16px; }
+  .announce .msg { color: #f2f2f2; font-size: 13.5px; font-weight: 600; }
+  .announce .sep { width: 1px; height: 16px; background: #3c3c3f; }
+  .announce .more { color: #c9c9cf; font-size: 13.5px; font-weight: 500; }
+  .announce .more .arr { font-size: 11px; color: #9a9aa0; margin-left: 6px; }
+
+  /* nav */
+  .navwrap { padding-top: 7px; }
+  .navcard { background: #fbfbfb; border: 1px solid #e8e8e8; border-radius: 12px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.05); height: 43px;
+    display: flex; align-items: center; padding: 0 14px; gap: 28px; }
+  .brand { display: flex; align-items: center; gap: 8px; }
+  .brand .dot { width: 19px; height: 19px; border-radius: 50%; background: #131316; }
+  .brand .name { font-size: 17px; font-weight: 700; letter-spacing: -0.2px; }
+  .navlinks { display: flex; align-items: center; gap: 26px; flex: 1; }
+  .navlinks a { font-size: 14px; font-weight: 500; color: var(--ink); }
+  .navlinks a .chev { color: #8e8e93; font-size: 9px; margin-left: 5px; vertical-align: 1px; }
+  .navright { display: flex; align-items: center; gap: 18px; }
+  .signin { font-size: 14px; font-weight: 600; }
+  .pillbtn { display: inline-flex; align-items: center; gap: 10px; background: #fdfdfd;
+    border: 1px solid #e1e1e2; border-radius: 999px; height: 30px; padding: 0 13px;
+    font-size: 13px; font-weight: 600; }
+  .pillbtn .arr { color: #707072; font-size: 10px; }
+
+  /* hero */
+  .hero { text-align: center; padding-top: 121px; padding-bottom: 112px; }
+  .hero h1 { font-size: 64px; line-height: 72px; font-weight: 700; letter-spacing: 0; color: var(--ink); }
+  .hero .sub { margin: 26px auto 0; max-width: 780px; font-size: 17px; line-height: 26px; color: var(--muted); }
+  .ctas { margin-top: 46px; display: flex; justify-content: center; gap: 14px; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 18px;
+    border-radius: 999px; font-size: 14px; font-weight: 600; }
+  .btn-purple { background: var(--purple); color: #fff; }
+  .btn-ghost { background: #fff; color: var(--ink); border: 1px solid #e3e3e6; }
+  .btn-ghost .chev { font-size: 9px; color: #131316; }
+
+  /* logo bar — heights/paddings frozen to computed px (contract: no clamp/max/calc).
+     1440: clamp(112,9vw,130)=130, max(68px, 50%-608px)=112. <=1180 media overrides below. */
+  .logoband { background: #fff; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line2); }
+  .logoband .row { display: flex; }
+  .cell { min-height: 130px; display: flex; align-items: center; border-right: 1px solid var(--line2); }
+  .cell.label { width: 29.6%; padding-left: 112px; padding-right: 90px;
+    font-size: 14px; line-height: 25px; color: var(--ink); }
+  .cell.logo { width: 15.7%; justify-content: center; color: #36363a; font-size: 17px; font-weight: 600; }
+  .cell.logo .mk { font-weight: 700; margin-right: 9px; font-size: 15px; }
+  .cell.logo.samaya { font-size: 21px; font-weight: 500; letter-spacing: 0.5px; }
+  .cell.filler { flex: 1 1 40px; border-right: none; }
+
+  /* components section — flattened: ONE boxed row (depth: section > comp-row > authcard > oauth = 4) */
+  .components { background: #fff; padding-top: 144px; padding-bottom: 40px; }
+  .comp-row { max-width: 1280px; margin: 0 auto; padding: 0 32px;
+    display: flex; flex-wrap: wrap; align-items: flex-start; }
+  .comp-text { flex: 0 1 auto; width: 46.7%; max-width: 560px; }
+  .eyebrow { color: var(--purple); font-size: 14px; font-weight: 600; }
+  .comp-text h2 { margin-top: 22px; font-size: 38px; line-height: 46px; font-weight: 700; letter-spacing: -0.8px; }
+  .comp-text p { margin-top: 22px; max-width: 490px; font-size: 16px; line-height: 26px; color: var(--muted); }
+  .explore { display: inline-flex; align-items: center; gap: 24px; margin-top: 30px;
+    font-size: 14px; font-weight: 700; }
+  .explore .arr { font-size: 10px; }
+
+  .authcard { width: 360px; margin-left: auto; margin-right: 160px; margin-top: 40px;
+    background: #fff; border: 1px solid var(--line); border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.07); padding: 22px 24px 36px; text-align: center; }
+  .authcard .appicon { width: 48px; height: 48px; border-radius: 13px; background: #131316;
+    margin: 0 auto; display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 24px; line-height: 1; }
+  .authcard h3 { margin-top: 30px; font-size: 20px; font-weight: 700; }
+  .authcard .welcome { margin-top: 9px; font-size: 13.5px; color: #74747e; }
+  .authcard .oauth { margin-top: 24px; display: flex; flex-direction: column; gap: 12px; }
+  .oauthbtn { display: flex; align-items: center; justify-content: center; gap: 10px; height: 38px;
+    background: #fff; border: 1px solid #e6e6e9; border-radius: 999px;
+    font-size: 14px; font-weight: 500; color: var(--ink); }
+  .oauthbtn .gicon { font-weight: 700; font-size: 15px; color: #4285f4; }
+  .oauthbtn .ghicon { width: 16px; height: 16px; border-radius: 50%; background: #131316; }
+
+  /* narrow (<=1180): components stack + center; logo cells at the frozen narrow px */
+  @media (max-width: 1180px) {
+    .comp-row { flex-direction: column; align-items: center; }
+    .comp-text { text-align: center; width: auto; }
+    .comp-text p { margin-left: auto; margin-right: auto; }
+    .authcard { margin: 56px auto 0; }
+    .cell { min-height: 112px; }
+    .cell.label { padding-left: 68px; padding-right: 40px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="announce">
+  <span class="msg">Clerk raises $50m Series C</span>
+  <span class="sep"></span>
+  <a class="more" href="#">Learn more<span class="arr">&#9656;</span></a>
+</div>
+
+<header class="navwrap">
+  <div class="wrap">
+    <nav class="navcard">
+      <a class="brand" href="#"><span class="dot"></span><span class="name">clerk</span></a>
+      <div class="navlinks">
+        <a href="#">Products<span class="chev">&#9662;</span></a>
+        <a href="#">Docs<span class="chev">&#9662;</span></a>
+        <a href="#">Changelog<span class="chev">&#9662;</span></a>
+        <a href="#">Company<span class="chev">&#9662;</span></a>
+        <a href="#">Pricing</a>
+      </div>
+      <div class="navright">
+        <a class="signin" href="#">Sign in</a>
+        <a class="pillbtn" href="#">Start building <span class="arr">&#9656;</span></a>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <h1>More than authentication,<br>Complete User Management</h1>
+    <p class="sub">Need more than sign-in? Clerk gives you full stack auth and user management &mdash;<br>
+      so you can launch faster, scale easier, and stay focused on building your business.</p>
+    <div class="ctas">
+      <a class="btn btn-purple" href="#">Start building for free</a>
+      <a class="btn btn-ghost" href="#">Build with agents <span class="chev">&#9662;</span></a>
+    </div>
+  </div>
+</section>
+
+<section class="logoband">
+  <div class="row">
+    <div class="cell label">Trusted by fast-growing companies around the world.</div>
+    <div class="cell logo"><span class="mk">|||</span>David AI</div>
+    <div class="cell logo"><span class="mk">&#10094;</span>OpenRouter</div>
+    <div class="cell logo samaya">s&#803;amaya</div>
+    <div class="cell logo"><span class="mk">&#9400;</span>Consensus</div>
+    <div class="cell filler"></div>
+  </div>
+</section>
+
+<section class="components">
+  <div class="comp-row">
+    <div class="comp-text">
+      <div class="eyebrow">Clerk Components</div>
+      <h2>Pixel-perfect UIs,<br>embedded in minutes</h2>
+      <p>Drop-in UI components for authentication, profile management, organization management,
+        and billing. Match to your brand with any CSS library, then deploy to your own domain.</p>
+      <a class="explore" href="#">Explore all components <span class="arr">&#9656;</span></a>
+    </div>
+    <div class="authcard">
+      <div class="appicon">&#10033;</div>
+      <h3>Create your account</h3>
+      <p class="welcome">Welcome! Please fill in the details to get started.</p>
+      <div class="oauth">
+        <a class="oauthbtn" href="#"><span class="gicon">G</span>Continue with Google</a>
+        <a class="oauthbtn" href="#"><span class="ghicon"></span>Continue with GitHub</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>
