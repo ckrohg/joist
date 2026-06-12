@@ -1,0 +1,94 @@
+<!doctype html>
+<!-- @purpose P3 falsifier sec-06 WITHOUT-exemplars arm — clerk.com footer (crop w1440-s20): brand mark + 5 link columns + legal row with social glyphs. Authored from the crop under the contract, no library context. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>sec-06 without</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #f7f7f8; color: #131316;
+    font-family: ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  a { text-decoration: none; color: inherit; }
+  .foot { max-width: 1216px; margin: 0 auto; padding: 0 0 40px; }
+  .cols { display: flex; gap: 24px; }
+  .brandcol { flex: 0 0 280px; display: flex; align-items: flex-start; gap: 7px; padding-top: 14px; }
+  .brandcol .mark { width: 22px; height: 22px; border-radius: 50%; background: #131316; }
+  .brandcol .name { font-size: 19px; font-weight: 700; letter-spacing: -0.2px; }
+  .lcol { flex: 1; display: flex; flex-direction: column; gap: 16px; }
+  .lhead { font-size: 13px; color: #8e8e96; }
+  .llist { display: flex; flex-direction: column; gap: 14px; }
+  .llist a { font-size: 13.5px; color: #131316; }
+  .legal { margin-top: 56px; padding-top: 26px; border-top: 1px solid #e7e7ea;
+    display: flex; justify-content: space-between; align-items: center; }
+  .legal .copy { font-size: 13px; color: #5e5f6e; }
+  .socials { display: flex; gap: 22px; }
+  .soc { width: 18px; height: 18px; border-radius: 4px; background: #3f3f46; }
+  .soc.round { border-radius: 50%; }
+</style>
+</head>
+<body>
+<footer class="foot">
+  <div class="cols">
+    <div class="brandcol"><span class="mark"></span><span class="name">clerk</span></div>
+    <div class="lcol">
+      <div class="lhead">Product</div>
+      <div class="llist">
+        <a href="#">Authentication</a>
+        <a href="#">B2B Authentication</a>
+        <a href="#">Billing</a>
+        <a href="#">CLI</a>
+      </div>
+    </div>
+    <div class="lcol">
+      <div class="lhead">SDKs</div>
+      <div class="llist">
+        <a href="#">React</a>
+        <a href="#">Next.js</a>
+        <a href="#">Expo</a>
+        <a href="#">View all</a>
+      </div>
+    </div>
+    <div class="lcol">
+      <div class="lhead">Resources</div>
+      <div class="llist">
+        <a href="#">Documentation</a>
+        <a href="#">Changelog</a>
+        <a href="#">Glossary</a>
+        <a href="#">Feature requests</a>
+        <a href="#">Startups</a>
+        <a href="#">Students</a>
+        <a href="#">LLM Leaderboard</a>
+      </div>
+    </div>
+    <div class="lcol">
+      <div class="lhead">Company</div>
+      <div class="llist">
+        <a href="#">About</a>
+        <a href="#">Careers</a>
+        <a href="#">Blog</a>
+        <a href="#">Contact</a>
+        <a href="#">Brand assets</a>
+      </div>
+    </div>
+    <div class="lcol">
+      <div class="lhead">Legal</div>
+      <div class="llist">
+        <a href="#">Terms and conditions</a>
+        <a href="#">Privacy policy</a>
+        <a href="#">Website terms of use</a>
+        <a href="#">Legal Resources</a>
+        <a href="#">Do not sell/share my info</a>
+        <a href="#">Cookie manager</a>
+      </div>
+    </div>
+  </div>
+  <div class="legal">
+    <span class="copy">&copy; 2026 Clerk, Inc.</span>
+    <div class="socials">
+      <span class="soc"></span><span class="soc"></span><span class="soc round"></span><span class="soc round"></span><span class="soc"></span>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

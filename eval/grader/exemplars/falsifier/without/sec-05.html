@@ -1,0 +1,72 @@
+<!doctype html>
+<!-- @purpose P3 falsifier sec-05 WITHOUT-exemplars arm — clerk.com testimonial wall (crop w1440-s19): intro column (h2 + copy + dark pill CTA + testimonial card) + three columns of stacked quote cards. Authored from the crop under the contract, no library context; avatars as neutral circles, fine quote copy paraphrased at matched density. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>sec-05 without</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #f4f4f6; color: #131316;
+    font-family: ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  a { text-decoration: none; color: inherit; }
+  .wall { display: flex; gap: 14px; padding: 18px; }
+  .col { flex: 1; display: flex; flex-direction: column; gap: 14px; }
+  .intro h2 { font-size: 24px; line-height: 30px; font-weight: 700; letter-spacing: -0.4px; }
+  .intro p { margin-top: 12px; font-size: 13px; line-height: 20px; color: #5e5f6e; }
+  .cta { display: inline-flex; align-items: center; margin-top: 16px; height: 32px; padding: 0 16px;
+    border-radius: 999px; background: #131316; color: #ffffff; font-size: 12.5px; font-weight: 600; }
+  .tcard { background: #ffffff; border: 1px solid #e9e9ec; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .twho { display: flex; align-items: center; gap: 8px; }
+  .tava { width: 26px; height: 26px; border-radius: 50%; background: #d4cfc8; }
+  .tname { font-size: 11.5px; font-weight: 600; }
+  .thandle { font-size: 10.5px; color: #9a9aa2; }
+  .tquote { font-size: 11.5px; line-height: 17px; color: #44444b; }
+</style>
+</head>
+<body>
+<section class="wall">
+  <div class="col">
+    <div class="intro">
+      <h2>Trusted around the world</h2>
+      <p>Join the customers and champions who trust Clerk. Free for your first 50,000 monthly retained users and 100 monthly retained orgs.</p>
+      <a class="cta" href="#">Start building for free</a>
+    </div>
+    <div class="tcard">
+      <div class="twho"><span class="tava"></span><span><span class="tname">Patrick Collison</span><br><span class="thandle">@patrickc</span></span></div>
+      <p class="tquote">We're big admirers of what the team has built. Switching our auth tooling over was one of those rare migrations that just worked.</p>
+    </div>
+  </div>
+  <div class="col">
+    <div class="tcard">
+      <div class="twho"><span class="tava"></span><span><span class="tname">WebDevCody</span><br><span class="thandle">@webdevcody</span></span></div>
+      <p class="tquote">This is why I keep my auth out of my own database. I rolled my own auth once and this is the amount of code I never want to maintain again.</p>
+    </div>
+    <div class="tcard">
+      <div class="twho"><span class="tava"></span><span><span class="tname">John Ennis</span><br><span class="thandle">@johnennis</span></span></div>
+      <p class="tquote">Setting up authentication has always been a pain point. With Clerk it took me an afternoon, including the organization switcher.</p>
+    </div>
+  </div>
+  <div class="col">
+    <div class="tcard">
+      <div class="twho"><span class="tava"></span><span><span class="tname">Masad Cady</span><br><span class="thandle">@masadcady</span></span></div>
+      <p class="tquote">I rolled my own auth and I'm one of those people who will tell you not to. Took the team a week to move everything over.</p>
+    </div>
+    <div class="tcard">
+      <div class="twho"><span class="tava"></span><span><span class="tname">The Brisk CLI</span><br><span class="thandle">@briskcli</span></span></div>
+      <p class="tquote">The Brisk CLI is really good. Authentication used to be such a nightmare and the CLI makes things very easy again.</p>
+    </div>
+  </div>
+  <div class="col">
+    <div class="tcard">
+      <div class="twho"><span class="tava"></span><span><span class="tname">Ronald Soltiski</span><br><span class="thandle">@ronaldsol</span></span></div>
+      <p class="tquote">I'm experimenting with authentication in my starter app using Clerk's custom flow setup, and I'm honestly impressed.</p>
+    </div>
+    <div class="tcard">
+      <div class="twho"><span class="tava"></span><span><span class="tname">Clint Bieber</span><br><span class="thandle">@clintbieber</span></span></div>
+      <p class="tquote">I've used passport, firebase, and now this. Best auth option for startups: 1) Clerk 2) Probably Auth 3) Custom auth, etc.</p>
+    </div>
+  </div>
+</section>
+</body>
+</html>
