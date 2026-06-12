@@ -8,7 +8,7 @@ embodiment); we must reproduce the EXACT rendered result through Elementor's rig
 vocabulary (constrained output embodiment). We cannot change the input. We CAN sample the output
 grammar (author Elementor JSON, render it, get perfect (render, JSON) pairs for free).
 
-Status: IN PROGRESS — sections appended incrementally (stall-proof protocol).
+Status: COMPLETE — S1-S6 + sources.
 
 ---
 
@@ -181,3 +181,129 @@ Key evidence:
 4. Anti-gaming note: STaR-style loops are only as honest as the verifier — grader hardening
    (grader_honesty_both_directions, GAME-TEST dims) is therefore not hygiene, it is the FLYWHEEL'S
    load-bearing wall. A gameable judge poisons the corpus permanently.
+---
+
+## S5. Exemplar-retrieval vs fine-tuning at small scale — we have Claude, not a training cluster
+
+**The question:** can a retrieved exemplar library do the work fine-tuning does in S1/S4? The 2024-2026
+literature says yes — at our scale, retrieval is the BETTER deal.
+
+Key evidence:
+- **[Many-Shot In-Context Learning](https://arxiv.org/pdf/2404.11018)** (Agarwal et al., NeurIPS 2024):
+  with long-context models, scaling from few-shot to hundreds/thousands of in-context examples produces
+  large, consistent gains; many-shot ICL **generally outperforms LoRA fine-tuning on classification**
+  and overrides pretraining biases. Follow-up ([long-context ICL revisit](https://arxiv.org/pdf/2412.16926))
+  finds that at large context the gap between clever selection and random sampling narrows — i.e. the
+  LIBRARY matters more than the selector once you can afford many exemplars.
+- **[DAIL-SQL](https://arxiv.org/pdf/2308.15363)** (VLDB 2024): pure in-context learning with engineered
+  example selection hit 86.6% on Spider — **#1 on the leaderboard, beating fine-tuned systems**. Its
+  selection insight transfers directly: match on BOTH input similarity (the question) AND **output
+  similarity** (skeleton of a preliminary predicted SQL). Examples must be stored as full (input, output)
+  pairs — input-only or output-only exemplars measurably underperform.
+- **[Coverage-based example selection](https://arxiv.org/pdf/2305.14907)** (2023): for structured
+  outputs, selecting a SET of demonstrations that jointly covers the target's parts (BERTScore-recall)
+  beats top-k independent similarity — relevant when one section needs grid + gradient + icon exemplars
+  simultaneously.
+- **[SAFE-SQL](https://arxiv.org/pdf/2502.11438)** (2025): the model SELF-generates the exemplar pool,
+  then fine-grained-filters it for ICL — the S4 bootstrap feeding the S5 library with no fine-tuning
+  anywhere; this is precisely our architecture.
+- **Skill-library precedent:** [Voyager](https://arxiv.org/abs/2305.16291) (2023) showed an agent
+  accumulating a library of VERIFIED programs, retrieved by embedding for new tasks, compounds
+  capability without any weight updates — the agent-native version of the same conclusion.
+
+**Transfer to Joist:** fine-tuning is off the table (no cluster; Claude API) and the literature says
+that's fine: a few hundred verified, well-keyed (render, JSON) exemplars retrieved 5-30 at a time into
+the authoring/transpile prompts captures most of the fine-tuning win. Priorities, in order: (1) library
+COVERAGE of the archetype×feature matrix, (2) DAIL-style dual keys (visual descriptor of the SOURCE
+section + structural skeleton of the predicted Elementor output), (3) coverage-set selection over plain
+top-k. Selector sophistication is the LAST thing to optimize (many-shot result).
+
+---
+
+## S6. THE ELEMENTOR FLYWHEEL — concrete design
+
+Synthesis of S1-S5 into one pipeline. We control the renderer; the judge is the verifier; retrieval is
+the delivery mechanism.
+
+### 6.1 The exemplar unit (one record)
+```
+{
+  id, archetype,            // from 20-archetype taxonomy
+  source_render: png(s),    // 1440 + 1100 + 390 where available (tri-viewport)
+  elementor_json,           // the verified doc fragment (section/container subtree)
+  canonical_desc,           // OVERNIGHT-style: "3-col card grid, dark bg, icon+h4+p, 64px pad"
+  structural_skeleton,      // DAIL-style output key: container tree shape, widget types only
+  feature_tags,             // [grid, gradient-bg, absolute, marquee, ...] from S2 matrix
+  provenance,               // verified-clone | llm-authored | matrix-sweep  (S3 weighting)
+  judge_score, editability, // gates it passed
+  difficulty_tier           // S3 curriculum: 1 hero ... 4 overlapping/absolute
+}
+```
+
+### 6.2 Three corpus inlets (S3 realism spectrum)
+1. **Verified-clone bootstrap (primary, free):** at the end of every refine-loop section that passes
+   judge ≥ threshold AND the ≥90% round-trip editability gate, persist the record. STaR/UICoder pattern;
+   the corpus grows as a side effect of normal cloning. Also persist FAILURES with verdicts (V-STaR) into
+   a negative library that feeds authoring-prompt cautions.
+2. **LLM-authored matrix sweep (coverage):** enumerate the widget×layout matrix (S2/SING-SQL); for each
+   under-covered cell, Claude writes a concept then the Elementor doc; render on the scratch page;
+   self-judge for sanity; store with provenance=llm-authored. WebSight recipe, Elementor-targeted.
+3. **Re-expression of real captures (realism anchor):** for captured sections the cloner has NOT yet
+   conquered, author the doc manually-with-agent until verified, store. Each one is simultaneously a
+   capability fix and a permanent exemplar (compile-real-code analog).
+
+### 6.3 Retrieval at authoring time
+- New captured section → compute canonical_desc + feature_tags (the perception pass already extracts
+  this) → retrieve by (a) visual/desc similarity AND (b) skeleton similarity of a quick draft plan
+  (DAIL dual-key), with (c) coverage-set completion so every feature_tag present in the target has at
+  least one exemplar in context. 5-30 exemplars, full (render-thumbnail-desc, JSON) pairs, ranked by
+  provenance weight.
+- The transpile/author agent gets: matched exemplars + negative-library cautions for the detected
+  features. This replaces fine-tuning entirely (S5 evidence).
+
+### 6.4 Ratchet rules (anti-poisoning)
+- Judge hardening precedes corpus growth — a gamed judge poisons the library permanently (S4).
+- Dedupe by structural_skeleton before insert (UICoder's aggressive dedupe; prevents diversity collapse).
+- Re-validate the library when the grader gains a dimension (grader-strictness-IS-progress): re-score
+  stored exemplars, demote ones that no longer pass — the library inherits grader honesty.
+- Track per-archetype counts vs the taxonomy's web-frequency prior; steer inlet #2 toward deficits
+  (importance weighting applied at GENERATION time, not just retrieval time).
+
+### 6.5 Why this is the right shape (one line per field)
+- Decompilation: own-the-renderer ⇒ perfect labels in the forward direction, always (S1).
+- TransCoder-ST/STaR/UICoder: automated verifier ⇒ corpus without humans; iterate ⇒ ratchet (S1, S4).
+- OVERNIGHT/SING-SQL: sample the constrained grammar systematically; canonical descriptions as keys (S2).
+- WebSight + grounding literature: realism via LLM concepts + real-capture anchoring, not grammar noise (S3).
+- DAIL-SQL/many-shot: retrieval over a verified library ≈ fine-tuning at our scale; dual-key selection (S5).
+
+---
+
+## Sources (primary)
+- BTC retargetable neural decompilation (NDSS BAR 2022) — https://www.ndss-symposium.org/wp-content/uploads/bar2022_23009_paper.pdf
+- LLM4Decompile (EMNLP 2024) — https://aclanthology.org/2024.emnlp-main.203.pdf
+- Katz et al., RNN decompilation (SANER 2018) — https://www.cs.unm.edu/~eschulte/data/katz-saner-2018-preprint.pdf
+- SLaDe small decompiler (2023) — https://arxiv.org/pdf/2305.12520
+- TransCoder-ST (ICLR 2022) — https://arxiv.org/pdf/2110.06773 ; https://github.com/facebookresearch/CodeGen/blob/main/docs/TransCoder-ST.md
+- Code-aware FT + inference refinement (OpenReview) — https://openreview.net/forum?id=m4MhSqtaPC
+- Building a Semantic Parser Overnight (ACL 2015) — https://www.semanticscholar.org/paper/25369f56a933e3bfb1d8e1588cdc6c50df93ecae
+- SING-SQL (2025) — https://arxiv.org/abs/2509.25672
+- SQL-GEN dialects (2024) — https://arxiv.org/html/2408.12733v1
+- Text2SQL-Flow augmentation (2025) — https://arxiv.org/pdf/2511.10192
+- Gretel synthetic_text_to_sql — https://huggingface.co/datasets/gretelai/synthetic_text_to_sql
+- SAFE-SQL self-augmented ICL (2025) — https://arxiv.org/pdf/2502.11438
+- Synthetic data via LLMs survey (2025) — https://arxiv.org/pdf/2503.14023
+- Not All LLM-Generated Data Are Equal (2024) — https://arxiv.org/pdf/2410.21526
+- SynAlign few-shot distribution matching (2025) — https://arxiv.org/pdf/2502.08661
+- Real-Fake distribution matching (2023) — https://arxiv.org/pdf/2310.10402
+- WebSight (2024) — https://arxiv.org/abs/2403.09029
+- UICoder (Apple, VL/HCC 2024) — https://arxiv.org/abs/2406.07739 ; https://machinelearning.apple.com/research/uicoder
+- STaR (NeurIPS 2022) — https://openreview.net/pdf?id=_3ELRdg2sgI
+- V-STaR (2024) — https://openreview.net/pdf?id=stmqBSW2dV
+- STaR-SQL (ACL 2025) — https://aclanthology.org/2025.acl-long.1187.pdf
+- Many-Shot ICL (NeurIPS 2024) — https://arxiv.org/pdf/2404.11018
+- Long-context ICL revisit (2024) — https://arxiv.org/pdf/2412.16926
+- Coverage-based example selection (2023) — https://arxiv.org/pdf/2305.14907
+- DAIL-SQL (VLDB 2024) — https://arxiv.org/pdf/2308.15363 ; https://github.com/BeachWang/DAIL-SQL
+- Voyager skill library (2023) — https://arxiv.org/abs/2305.16291
+
+Status: COMPLETE.
