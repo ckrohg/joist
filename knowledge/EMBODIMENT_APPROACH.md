@@ -5,7 +5,9 @@ into one architecture doctrine: what the clone pipeline IS (cross-embodiment pro
 the five structural moves that follow, what changes vs today's plan (PATH_TO_TRUE_1TO1 §8c–8d),
 and the sequenced, falsifier-gated plan. Read this BEFORE proposing pipeline architecture changes.
 
-Date: 2026-06-12. Inputs: A_robotics_lessons.md, B_decompilation_inverse_graphics.md,
+Date: 2026-06-12. Revised same day: the critic's 7 mustFixes + 3 notes (verdict preserved at
+bottom) are applied in-body — phase gates hardened, citations corrected, sequencing reconciled.
+Inputs: A_robotics_lessons.md, B_decompilation_inverse_graphics.md,
 C_domain_gap_projection.md, D_data_flywheel.md; diffed against PATH_TO_TRUE_1TO1.md §8c–8d and
 RESEARCH_STEALS_2026H1.md. Citations: (A §n) (B §n) (C §n) (D Sn) = the research files; external
 papers named where load-bearing.
@@ -97,8 +99,11 @@ compiler knobs: same tree at multiple viewports/themes/kit settings, the analog 
 are the only zero-embodiment-gap data (A §3).
 
 Three corpus inlets, by realism (D S3, S6.2):
-1. **Verified-clone bootstrap** (primary, free): judge-passed sections from real runs — realistic
-   by construction (the input was real).
+1. **Verified-clone bootstrap** (primary, free, but STARVATION-PRONE at birth: under honest
+   calibration and the ≥90% round-trip gate, today's pass set is TENS of records, not hundreds —
+   inventory before sizing; and NEVER admit exemplars verified by the old inflated grader without
+   re-scoring — D S6.4's re-validation rule applies at birth, not only on upgrades): judge-passed
+   sections from real runs — realistic by construction (the input was real).
 2. **LLM-authored matrix sweep** (coverage): enumerate the widget×layout feature matrix
    (SING-SQL's coverage sweep, D S2) and author docs into under-covered cells (WebSight's
    concept→code recipe, D S3).
@@ -106,9 +111,11 @@ Three corpus inlets, by realism (D S3, S6.2):
 Never build pairs in the screenshot→guessed-JSON direction without the judge verifying — that is
 the error-propagation trap (D S2).
 
-**Retrieval replaces fine-tuning at our scale.** Many-shot ICL beats LoRA fine-tuning;
-DAIL-SQL hit #1 on Spider with pure in-context learning; Voyager compounds a verified skill
-library with zero weight updates (D S5). So the corpus is delivered as an **exemplar library**:
+**Retrieval replaces fine-tuning at our scale.** Many-shot ICL beats LoRA fine-tuning — a result
+the source qualifies as *on classification tasks* (D S5); the generation-side evidence is
+DAIL-SQL's #1 on Spider with pure in-context learning, on a grammar far smaller than Elementor's,
+plus Voyager compounding a verified skill library with zero weight updates (D S5). Scaling that
+to our grammar is a bet the P3 falsifier exists to test, not a settled result. So the corpus is delivered as an **exemplar library**:
 each record = (source render at 3 viewports, verified Elementor JSON fragment, OVERNIGHT-style
 canonical description, DAIL-style structural skeleton, feature tags, provenance, judge scores,
 difficulty tier) — full schema in D S6.1. Retrieval is dual-keyed (visual descriptor of the
@@ -121,9 +128,10 @@ sophistication — optimize the selector LAST (D S5: long-context ICL result).
 VLA models never emit free-form motor text: the action decoder is structurally constrained to the
 target's action space (256-bin tokens — the model *cannot* express an infeasible action; A §5).
 Grammar-constrained decoding gives the same guarantee for program emission: validity by
-construction, not by retry (B §4: Outlines/XGrammar/llguidance). And FAST proved the compression
-of the action space is itself a first-class lever — a well-chosen coarse op vocabulary beats a
-smarter model emitting raw output (A §5).
+construction, not by retry (B §4: Outlines/XGrammar/llguidance). And FAST showed the compression
+of the action space is itself a first-class lever — its coarse op vocabulary *matched* π₀ at 5×
+less training and beat naive binning (A §5); it did not beat a smarter model emitting raw output.
+The lever is efficiency and feasibility-by-construction, not supremacy over a better proposer.
 
 The move: **the authoring contract = atlas-expressible constructs only.**
 
@@ -270,23 +278,38 @@ Cadence rule inherited from PATH_TO_TRUE_1TO1: quality-gated, not calendar-gated
 estimates. Phases P1–P3 need ZERO WordPress (they run on existing captures, existing run
 artifacts, and pure-node tooling). WP enters at P4.
 
+**Sequencing vs the locked §8b order and the E′ mandate (user, 2026-06-10):** P1–P3 are the
+ACTIVE track precisely because they are the WP-free work that fits the current site pause — they
+do not displace the mandated sequence. E′ tri-viewport correspondence and V2 region-raster
+completeness STAY promoted exactly as mandated; their *implementation* folds into P4+ when the
+sandbox exists, because both need real renders to land (E′'s regrouping verification and V2's
+raster fills are render-side by nature). Under PATH §4's 2-track cap: track 1 = P1–P3 (now),
+track 2 = E′/V2 (resumes at sandbox entry), converging at P4.
+
 | Phase | What | Size | Falsifier (refute-by-default) | User-visible artifact |
 |---|---|---|---|---|
-| **P1 — Atlas v0 (WP-free half)** | Feature-frequency histogram over existing corpus captures → taxonomy head; atlas.json schema (feature × strategy × {AUTHOR, RENDER} × environment); pre-fill cells from measured-truth memories with `provenance: assumed-pending-probe` | 2–3 d | Taxonomy head (~top 50 constructs) must cover ≥95% of captured section features across the 6-site corpus; if the long tail dominates, the eager-head + probe-on-miss design re-scopes | `knowledge/atlas/atlas.json` + coverage stats table |
-| **P2 — Authoring contract v2 + conformance linter** | Contract = atlas-expressible constructs only; pure-node linter over vision-author HTML output; transpile TOTALITY check (enumerate: every lint-clean construct has a transpile rule, assert no gaps) | 2–3 d | Re-run the clerk-hero spike's authored output through the linter: if lint-CLEAN output still hits a transpiler gap, the atlas↔transpiler mapping is incomplete — fix before P3 | Lint report on the spike pages + the totality matrix |
-| **P3 — Exemplar library v0 + retrieval** | D S6.1 record schema; backfill from existing judge-passed sections (renders already on disk); dual-key retrieval (canonical-desc + skeleton) wired into the authoring prompt, 5–30 exemplars | 3–4 d | A/B author 3 held-out sections with vs without exemplars, judged pairwise: exemplars must win ≥2/3. If not, the KEYS are wrong — re-key before adding volume (D S5: coverage > selector) | The exemplar store + the A/B verdict table |
-| **P4 — MPC see-fix loop** (sandbox entry) | k=3 candidates/section, pairwise judge keep, re-capture between ops, residual-ledger entries on every channel escalation | ~1 wk | MPC loop must beat the sequential single-candidate loop on identical sections within the SAME render budget; deterministic gates as pre-filters throughout | A corpus-page clone with its trajectory + residual ledger |
-| **P5 — Atlas probe suite (WP)** | Execute AUTHOR/RENDER columns (save-survival + frontend-vs-ground-truth probes); system-ID calibration table (C §1.1: probe page, computed-style diff); residual-policy thresholds wired to measured cells; real2sim CSS-bundle import for the local preview (C §1.2) | ~1 wk | Sample 10 known render-drift bugs from memory: ≥8 must be probe-detectable. An atlas whose RENDER column can't predict observed failures is decoration | Atlas dashboard (PASS/DEGRADED/FAIL counts) + update-triggered regression run |
-| **P6 — Flywheel close** | Verified-section bootstrap DEFAULT-ON (judge ≥ threshold AND editability gate → library insert); negative library (V-STaR); skeleton dedupe; library re-validation hook on grader upgrades | ~1 wk, then continuous | Corpus mean must improve across 2 successive full corpus runs while the library grows; flat = retrieval isn't transferring (audit coverage/keys, not the concept) | Library growth + corpus-mean trend chart |
+| **P1 — Atlas v0 (WP-free half)** | **Pre-register the construct unit (§4.1) BEFORE computing anything**, then: feature-frequency histogram over existing corpus captures → taxonomy head; atlas.json schema (feature × strategy × {AUTHOR, RENDER} × environment); pre-fill cells from measured-truth memories with `provenance: assumed-pending-probe` | 2–3 d | Taxonomy head = **top 50** under the PRE-REGISTERED construct unit, covering ≥95% of captured section features across the 6-site corpus. (Reconciled vs C §5.2's "~top 100": 50 is the day-0 head — a 6-site corpus cannot statistically distinguish 100 distinct heads; ~100 is the eventual probe-SUITE size after probe-on-miss accretion.) Coarsening the unit after seeing counts VOIDS the gate. If the long tail dominates, the eager-head + probe-on-miss design re-scopes | `eval/grader/atlas/atlas.json` + histogram + coverage stats table |
+| **P2 — Authoring contract v2 + conformance linter** | Contract = atlas-expressible constructs only; pure-node linter over vision-author HTML output; transpile TOTALITY check (enumerate: every lint-clean construct has a transpile rule, assert no gaps) | 2–3 d | DUAL gate, both required: **(a)** ≥90% of the PROVEN clerk-hero spike output lint-clean AS-AUTHORED — a stricter linter makes "no gaps" vacuously true while strangling the author, so strictness itself is gated; **(b)** one section re-authored under the atlas-constrained contract HOLDS the spike's tile scores (72/82/78/72) within judge noise — GAD's constraint-distortion lesson (B §4) applied to our own biggest move: if the constraint regresses authoring quality vs the +37–40 proven win, fix the contract, not the author. Plus the original: lint-CLEAN output that still hits a transpiler gap = incomplete atlas↔transpiler mapping — fix before P3 | Lint report on the spike pages + the totality matrix + re-authored-section tile comparison |
+| **P3 — Exemplar library v0 + retrieval** | D S6.1 record schema; backfill from existing judge-passed sections (day-0 inventory FIRST — expect TENS of records, not hundreds; NEVER admit exemplars verified by the old inflated grader without re-scoring under the current judge); dual-key retrieval (canonical-desc + skeleton) wired into the authoring prompt | 3–4 d | A/B author **≥10** held-out sections with vs without exemplars, judged PAIRWISE with randomized left/right tile order, judge run under §8d separation-of-duties (judge ≠ implementer): exemplars must win **≥8/10** (the old 2-of-3 bar passed a coin flip ~50% of the time — statistically vacuous). Render path is explicitly WP-FREE: authored HTML rendered in LOCAL CHROMIUM, judged PRE-transpile — no WP silently re-enters the phase. If the bar fails, the KEYS are wrong — re-key before adding volume (D S5: coverage > selector) | The exemplar store + the A/B verdict table |
+| **P4 — MPC see-fix loop** (sandbox entry) | FIRST: real2sim CSS-bundle local preview (C §1.2) pulled FORWARD from P5 — candidate fan-out renders against the cheap LOCAL preview; the live WP render is paid ONLY for the kept candidate ("render is cheap, deterministic, free" is true vs robotics, FALSE vs one shared WP instance with PUT serialization). Then: k=3 candidates/section, pairwise judge keep, re-capture between ops, residual-ledger entries on every channel escalation | ~1.5 wk (re-sized: +preview import) | MPC loop must beat the sequential single-candidate loop on identical sections within the SAME LIVE-RENDER budget; deterministic gates as pre-filters throughout | A corpus-page clone with its trajectory + residual ledger + preview-vs-live agreement check |
+| **P5 — Atlas probe suite (WP)** | Execute AUTHOR/RENDER columns (save-survival + frontend-vs-ground-truth probes); system-ID calibration table (C §1.1: probe page, computed-style diff); residual-policy thresholds wired to measured cells; preview-vs-live calibration of the real2sim bundle (the import itself moved forward to P4) | ~1 wk | 10 known render-drift bugs, list PRE-REGISTERED with the orchestrator BEFORE probe authoring (the implementing agent cannot select them): ≥8 must be probe-detectable. An atlas whose RENDER column can't predict observed failures is decoration | Atlas dashboard (PASS/DEGRADED/FAIL counts) + update-triggered regression run |
+| **P6 — Flywheel close** | Verified-section bootstrap DEFAULT-ON (judge ≥ threshold AND editability gate → library insert); negative library (V-STaR); skeleton dedupe; library re-validation hook on grader upgrades | ~1 wk, then continuous | Metric = the VISION-JUDGE / human-estimate HEADLINE, never the demoted deterministic composite (measuring the flywheel on the rails metric would be metric-worship recidivism): headline must improve across 2 successive full corpus runs by MORE than the documented ±0.08 single-run visual-noise band, with §8d evidence bundles (hash-bound scores, separation of duties) on BOTH runs; flat-within-noise = retrieval isn't transferring (audit coverage/keys, not the concept) | Library growth + headline trend chart with noise band |
 
 Standing gates across all phases: eval-integrity protocol (§8d) on every score; deterministic
 rails/vetoes never bypassed; round-trip ≥90% editability gate unchanged; judge hardening precedes
-any library growth (D S4).
+any library growth (D S4). **Separation-of-duties extends to phase gates**: the orchestrator
+re-executes at least one falsifier per phase by direct re-run — never by reading the implementing
+agent's report — and pre-registered lists (P1 construct unit, P5 bug list) are held by the
+orchestrator, not the implementer; the theater channel §8d closed for page scores must not reopen
+one level up. The motion/interaction hard requirement (user, 2026-06-05) is explicitly ORTHOGONAL
+to P1–P6: PATH track D continues unchanged — it is not silently dropped.
 
 ### Immediate next 3 actions
 
-1. **Build the feature-frequency histogram** over existing corpus captures (computed styles are
-   already extracted) → the taxonomy head that seeds atlas.json. Pure node, hours, WP-free.
+1. **Pre-register the construct unit (§4.1), THEN build the feature-frequency histogram** over
+   existing corpus captures (computed styles are already extracted) → the taxonomy head that
+   seeds atlas.json. Pure node, hours, WP-free. Registration precedes computation — the coverage
+   gate is void otherwise.
 2. **Write the atlas.json schema and backfill assumed cells** from the measured-truth memories
    (container `padding` key, `_element_custom_width`, kses survivals, V4 normalizations…), each
    marked `assumed-pending-probe`; emit the conformance-linter rule list FROM the schema so P2
