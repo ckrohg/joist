@@ -304,6 +304,48 @@ orchestrator, not the implementer; the theater channel §8d closed for page scor
 one level up. The motion/interaction hard requirement (user, 2026-06-05) is explicitly ORTHOGONAL
 to P1–P6: PATH track D continues unchanged — it is not silently dropped.
 
+### 4.1 P1 pre-registration — the construct unit (LOCKED 2026-06-12, before histogram computation)
+
+Registered and committed BEFORE any frequency counting (per mustFix 3). The P1 coverage gate is
+evaluated under THIS unit; coarsening or re-keying after seeing counts VOIDS the gate.
+
+**Unit of counting.** One construct occurrence = one capture-tree node (or manifest section band)
+at one captured viewport that matches a construct key. The countable population = every visible
+node (box.w × box.h > 0, inside captured page height) in the persisted capture trees
+(`/tmp/abs-cache/*/layout.json` — 7 sites; `/tmp/local-fidelity/cap` manifest + style-facts —
+clerk). Visual-only artifacts (vj tile sets, qa-stepback bands) are spot-validation EVIDENCE,
+never counted — no double counting.
+
+**Construct identity = a key-triple:**
+
+1. **Structural signature** (closed enum, from `layout.display`/`flexDirection`/`gridCols`/
+   `position`): `flex-row` | `flex-col` | `grid-2col` | `grid-3col` | `grid-4pluscol` |
+   `absolute-overlay` (positioned children over a base) | `inline-flow` | `sticky-fixed-chrome` |
+   `split-2col` (two ~half-width siblings, text+media) | `block-stack`.
+2. **Content-class multiset**, presence-bucketed {0, 1, many}, classes from the closed list:
+   `heading`, `body-text`, `inline-styled-rich-text` (mixed paint/weight inside one block),
+   `button-cta`, `nav-links`, `image`, `background-image`, `icon-svg`, `logo` (image/svg in brand
+   role), `code-mockup`, `form-control`, `video-embed`, `badge-pill`, `stat-number`, `list`,
+   `divider`.
+3. **Property classes** (enums, never raw values): bg ∈ {none, flat, gradient, image};
+   border-or-shadow ∈ {yes, no}; radius-class ∈ {square, rounded, pill-circle}; dynamic-behavior
+   ∈ {static, marquee, carousel, accordion, tabs, modal, sticky}.
+
+**Granularity rules (anti-gaming, binding):**
+
+- Value-level differences NEVER split a construct: exact colors, px gaps, font sizes, copy,
+  child counts beyond the {1, many} bucket.
+- Property-CLASS differences ALWAYS split: grid-3col vs flex-row, gradient vs flat bg, marquee
+  vs static row.
+- Named constructs (nav-row, hero-stack, logo-band, card-grid, footer-columns, code-panel,
+  marquee, accordion, form, modal, sticky-chrome, bg-image-section, inline-styled-text, …) are
+  ALIASES for specific key-triples, declared in `eval/grader/atlas/atlas.json` beside the cells.
+  New aliases may be added during P1; the triple definition may not change.
+- Counting is per occurrence per viewport-capture; nested constructs count at each level (one
+  card-grid with 6 cards = 1 card-grid + 6 card occurrences), each node exactly once.
+- The ≥95% coverage gate denominator = all countable occurrences as defined above; the numerator
+  = occurrences whose key-triple is in the top-50 head.
+
 ### Immediate next 3 actions
 
 1. **Pre-register the construct unit (§4.1), THEN build the feature-frequency histogram** over
