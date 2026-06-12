@@ -375,6 +375,48 @@ V-BGIMAGE, V-MINWIDTH — no extras, card-grid carries its banned-by-constructio
   GAP constructs are V-banned with residual-channel pointers; no lint-clean construct without a
   transpile rule was observed on either gate input.
 
+### 4.3 P3 build record (2026-06-12) — library SHIPPED, falsifier **pending-judgment**
+
+Artifacts: `eval/grader/exemplars/` — `schema.json` (record format), `lib.mjs` (deterministic
+visual descriptor: 3-bit-quantized palette + closed density-tag set, same function keys records
+AND queries), `render-exemplar.mjs` (local-chromium, WP-free, pre-transpile), `build-record.mjs`
+(lint→render→descriptor→hash; REFUSES non-lint-clean records without `--allow-dirty`),
+`retrieve.mjs`, `records/` + `html/` + `renders/`.
+
+- **Library v0 = 16 records (honest TENS, day-0 inventory done first).** By provenance:
+  5 spike (clerk announce/nav/hero/logoband/components, verbatim extractions of the judged
+  spike; evidence /tmp/vj-htmlfirst + §4.2), 2 re-author (P2 contract logoband + components,
+  pixel-parity 99.82/100 — the other 3 reauth sections are byte-identical to the spike and were
+  NOT duplicated), 3 re-author/look-only (local-fidelity clerk annc/logos/darkcard, mechanical
+  BEM-rename for the linter, LOOK-verified renders), 6 synthetic (stat-number, code-panel,
+  badge-pill, inline-styled-text, footer-columns, cta-band — lint-clean ENFORCED; the footer's
+  ul>li>a chain was a real V-NEST catch). Verification statuses carried per record: judged /
+  pixel-parity / look-only / lint-clean-rendered; `elementorJson: null` everywhere until the
+  sandbox (never faked). ZERO records admitted on old-grader scores.
+- **Coverage: all 20 EXPRESSIBLE atlas constructs have ≥1 exemplar.** The remaining 5 of the
+  top-10 uncovered histogram constructs (video-embed, bg-image-section, absolute-overlay,
+  sticky-chrome, card-grid) are GAP-banned (§4.2 totality): a lint-clean exemplar is impossible
+  BY CONSTRUCTION — they enter the library only when the transpiler grows their rules.
+- **Retrieval (deterministic, smoke-tested 3/3 + byte-identical reruns):** lexicographic ranking
+  — rarity-weighted (IDF-flavored) construct Jaccard FIRST, visual (tag overlap + palette
+  proximity) second, id last. Two ranking bugs were found and fixed BY the smoke tests: summed
+  scoring let a visually-similar wrong-construct record outrank the right one; plain Jaccard let
+  body-text/heading swamp the distinctive construct (code-panel query missed syn-code-panel).
+- **Falsifier (hardened spec, mustFix 1) — EXECUTED UP TO THE JUDGING BOUNDARY, then STOPPED.**
+  10 held-out sections (none in the library): clerk w1440-s12/s13/s15/s17/s19/s20 + tailwind
+  band-src1000 y1400/y4200/y5600/y8400. Each authored twice under the SAME contract from the
+  SAME crops — WITH top-3 retrieved exemplars in context (retrieval logs:
+  `/tmp/p3-judging/retrieval-source-XX.json`) vs WITHOUT. All 20 authorings lint-clean (V-NEST
+  flattens applied identically to both arms). All 20 rendered WP-free in local chromium at crop
+  widths. **Judging package: `/tmp/p3-judging/` — manifest.json + 10 randomized left/right pairs
+  (seeded PRNG 20260612, reproducible via `falsifier/assemble-judging.mjs`) + SEALED
+  answer-key.json.** Gate: WITH wins ≥8/10, judged pairwise by a NON-implementing judge (§8d
+  separation of duties). Honesty caveats recorded in the manifest: single-agent authoring bounds
+  arm isolation (contamination is knowledge-level; the integrity boundary is the separated
+  judge); pairs 09/10 isolate convention transfer (shared layout skeleton, exemplar-convention
+  restyle). **Status: pending-judgment — the orchestrator runs the judge; the implementer did
+  not score anything.**
+
 ### Immediate next 3 actions
 
 1. **Pre-register the construct unit (§4.1), THEN build the feature-frequency histogram** over
