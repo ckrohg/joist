@@ -102,3 +102,18 @@ They **don't try to recover THE source — they redefine success as observable e
 3. **Nobody in this lineage outputs full real-world HTML/CSS** — every system that works emits a normalized/simplified vocabulary (DSL, simplified HTML, UI schema). Elementor JSON as output vocabulary is not a handicap; it is the field-standard move. The handicap would be trying to emit arbitrary CSS.
 4. **Self-revision = our refine loop**, but theirs is single-shot whole-page. Per-section revision with measured diffs (what we do) is strictly finer-grained than the published SOTA loop.
 
+
+## 4. Grammar/schema-constrained decoding — guaranteed-valid program emission
+
+### State of the art
+
+- **Mechanism**: intercept token logits each step; mask everything that cannot extend to a valid string of the target grammar/JSON-schema. Validity is guaranteed BY CONSTRUCTION, not by retry. Mature implementations: **Outlines** (FSM/regex pre-compiled masks), **XGrammar** (fast portable CFG engine, in vLLM/TensorRT-LLM), **llguidance** ([repo](https://github.com/guidance-ai/llguidance) — ~50µs/token on a 128k vocab; full CFGs, negligible startup). Structured generation has standardized on JSON Schema as the constraint language ([benchmark study, arXiv 2501.10868](https://arxiv.org/html/2501.10868v1)).
+- **The caveat — distortion**: greedy token-masking warps the model's distribution: outputs are grammatical but can be LOW-PROBABILITY-given-the-constraint, i.e. degraded quality. **Grammar-Aligned Decoding / ASAp** (NeurIPS 2024 — [arXiv 2405.21047](https://arxiv.org/abs/2405.21047)) proves the fix needs *expected future grammaticality* weighting (approximating rejection sampling), at extra cost. Practical reading: constraints guarantee FORM, they do not guarantee the model picks the GOOD valid output — you still need a semantic verifier.
+- **Correctness-guaranteed code generation** ([arXiv 2508.15866](https://arxiv.org/pdf/2508.15866)) pushes beyond syntax toward semantic constraints (types, scoping) in the decoder — the trend is richer static checks during emission.
+
+### Concrete transfer to Joist
+
+1. **We already have the grammar** — Elementor widget JSON schemas (`joist_get_widget_schema`, `joist_validate_widget`). Today validity is enforced POST-HOC (validate→repair). If/when we run a local fine-tuned emitter (the amortized model of §5), wiring schemas into XGrammar/llguidance gives zero-invalid-JSON for free and removes the whole repair-loop tax. With hosted Claude, the equivalent is JSON-schema structured output + post-hoc `joist_validate_widget` — which we already do; the field says that's the right API-world fallback.
+2. **GAD's lesson generalizes**: schema-valid ≠ good. A constrained decoder happily emits a valid tree with wrong geometry. Form-validity (schema) and semantic-validity (render-grade) are different layers; never collapse them. Our split — validate_widget (form) then grade-structure/vision-judge (semantics) — is the architecture the field converged to.
+3. **Cheap win available now**: express more INVARIANTS as schema (e.g. "absolute children require _element_custom_width", "container padding key is `padding`") so they're caught at emission/validation rather than discovered as render drift. Every render-truth memory entry that can be encoded as a schema constraint should be — it moves a semantic bug into the guaranteed-form layer.
+
