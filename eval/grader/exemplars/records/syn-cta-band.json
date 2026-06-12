@@ -1,0 +1,50 @@
+{
+  "id": "syn-cta-band",
+  "constructIds": [
+    "cta-band",
+    "heading",
+    "body-text",
+    "button-cta"
+  ],
+  "visualDescriptor": {
+    "structuralSignature": "flex-col",
+    "palette": [
+      "#6c47ff",
+      "#fefeff",
+      "#9073ff"
+    ],
+    "densityTags": [
+      "mid-bg",
+      "sparse",
+      "muted",
+      "banner"
+    ]
+  },
+  "renderPng": "renders/syn-cta-band.png",
+  "renderSize": {
+    "w": 1440,
+    "h": 360
+  },
+  "authoredHtml": "html/syn-cta-band.html",
+  "elementorJson": null,
+  "provenance": "synthetic",
+  "verification": {
+    "status": "lint-clean-rendered",
+    "evidence": [
+      "records/syn-cta-band.json lint block",
+      "renders/syn-cta-band.png (LOOK sanity)"
+    ],
+    "notes": "Synthetic coverage sample (P3 backfill): lint-clean + rendered; NO fidelity claim (no source ground truth)."
+  },
+  "lint": {
+    "clean": true,
+    "violations": [],
+    "warnings": []
+  },
+  "source": {
+    "site": "",
+    "crop": "",
+    "width": 1440
+  },
+  "hash": "sha256:d6359fe7246fbfd1d9b596f9145fb7fd98d680cf6cebbb054b282723db5bc28a"
+}

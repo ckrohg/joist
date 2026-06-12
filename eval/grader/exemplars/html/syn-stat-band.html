@@ -1,0 +1,41 @@
+<!doctype html>
+<!-- @purpose Exemplar syn-stat-band — SYNTHETIC coverage sample for the stat-number construct (histogram count 49, uncovered by backfill). Authored per the contract: static stat figures (no count-up), flex-row of stat columns, computed px values. Lint-clean required; no source ground truth — no fidelity claim. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>exemplar: stat band (synthetic)</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #ffffff; color: #111114;
+    font-family: ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  .statband { padding: 88px 0; background: #ffffff; }
+  .stat-row { max-width: 1120px; margin: 0 auto; display: flex; justify-content: space-between; gap: 32px; padding: 0 24px; }
+  .stat { display: flex; flex-direction: column; gap: 8px; }
+  .stat-num { font-size: 56px; line-height: 60px; font-weight: 700; letter-spacing: -1px; color: #111114; }
+  .stat-lbl { font-size: 15px; line-height: 22px; color: #62636c; }
+</style>
+</head>
+<body>
+<section class="statband">
+  <div class="stat-row">
+    <div class="stat">
+      <div class="stat-num">99.99%</div>
+      <div class="stat-lbl">Uptime over the last 12 months</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">120M+</div>
+      <div class="stat-lbl">End users authenticated</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">38ms</div>
+      <div class="stat-lbl">Median API response time</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">10k</div>
+      <div class="stat-lbl">Teams shipping in production</div>
+    </div>
+  </div>
+</section>
+</body>
+</html>
