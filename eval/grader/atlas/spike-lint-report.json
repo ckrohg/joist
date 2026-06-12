@@ -1,0 +1,50 @@
+{
+  "clean": false,
+  "file": "/tmp/htmlfirst/hero.html",
+  "constructs": 49,
+  "cleanConstructs": 48,
+  "pctClean": 98,
+  "documentViolations": 0,
+  "byConstruct": {
+    "logo-band": 4,
+    "body-text": 11,
+    "divider": 3,
+    "inline-styled-text": 9,
+    "nav-row": 1,
+    "section-stack": 9,
+    "card": 2,
+    "button-cta": 5,
+    "hero-stack": 1,
+    "heading": 3,
+    "cta-band": 1
+  },
+  "violations": [
+    {
+      "construct": "section-stack",
+      "rule": "V-NEST",
+      "element": "<div class=\"oauth\"> \"GContinue with Google Continue\"",
+      "fixHint": "flatten wrappers: ≤4 container levels per top-level section [container depth 5]",
+      "residualChannel": "none"
+    }
+  ],
+  "warnings": [
+    {
+      "construct": "css",
+      "rule": "W-CSSMATH",
+      "element": ".cell { min-height: clamp(112px, 9vw, 130px) }",
+      "note": "frozen to computed px at authoring width (transpiler P2 policy)"
+    },
+    {
+      "construct": "css",
+      "rule": "W-CSSMATH",
+      "element": ".cell.label { padding-left: max(68px, 50% - 608px) }",
+      "note": "frozen to computed px at authoring width (transpiler P2 policy)"
+    },
+    {
+      "construct": "button-cta",
+      "rule": "W-BTN-SPAN",
+      "element": "<a class=\"oauthbtn\"> \"GContinue with Google\"",
+      "note": "styled span \"G\" flattens to plain button text (P1)"
+    }
+  ]
+}
