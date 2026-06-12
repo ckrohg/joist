@@ -298,3 +298,54 @@ ports/demakes, and constrained pixel art. Each contributes a distinct, transfera
   simplification is permitted ONLY when the atlas proves inexpressibility at that viewport, and
   it must be logged as a residual decision, never silent.
 
+
+## 4. Round-trip / cycle-consistency — as training signal AND runtime check
+
+### 4.1 What the fields established
+
+- **CycleGAN (vision):** with no paired data, adversarial loss alone can't pin down WHICH output
+  an input should map to; adding cycle-consistency loss ‖F(G(x)) − x‖₁ forces G and F to be
+  "loose inverses," preserving content through the translation —
+  [CycleGAN review](https://sh-tsang.medium.com/review-cyclegan-unpaired-image-to-image-translation-using-cycle-consistent-adversarial-networks-1c2602805be2),
+  [PyImageSearch guide](https://pyimagesearch.com/2022/09/12/cyclegan-unpaired-image-to-image-translation-part-1/).
+- **Machine translation:** round-trip translation (RTT) as a QUALITY CHECK was long criticized:
+  "it is possible to get a good back translation from a bad forward translation" — errors cancel;
+  early studies found no correlation with forward quality —
+  [Wikipedia: Round-trip translation](https://en.wikipedia.org/wiki/Round-trip_translation).
+  Recent work rehabilitates it for NMT (no copy-mechanism flaw) and uses RTT to expose what
+  benchmarks miss — [arXiv:2604.12911](https://arxiv.org/html/2604.12911v1); and round-trip
+  signal is now used as a TRAINING reward for low-resource MT —
+  [Round-Trip RL, arXiv:2601.12535](https://arxiv.org/html/2601.12535v1). Back-translation as
+  data augmentation has a known failure mode: weak initial models reinforce their own errors —
+  [Investigating Backtranslation, arXiv:1804.06189](https://arxiv.org/pdf/1804.06189).
+- **Property-based testing (compilers/serializers):** `parse(print(t)) == t` over GENERATED trees
+  is the canonical strongest property ("No Exception → Type Preservation → Invariant →
+  Idempotence → Roundtrip" strength hierarchy); generate a random valid AST, print, re-parse,
+  compare — [UPenn PLClub: Round-trip properties](https://www.cis.upenn.edu/~plclub/blog/2023-12-07-round-trip-properties/),
+  [Testing parsers with PBT](https://parkerlandon.com/posts/testing-parsers-thoroughly-with-property-based-testing).
+
+### 4.2 Transfer — we have THREE distinct round-trips; keep them separate
+
+1. **Render cycle (runtime check, per clone):** capture(source) → build → WP render →
+   re-capture → compare against original capture. This is CycleGAN's cycle at inference. CRITICAL
+   caveat from MT: error cancellation — a raster-image clone round-trips PERFECTLY visually while
+   destroying editability. This is precisely why the deterministic composite must stay as
+   rails/veto under the vision-judge headline (memory: vision_judge_pivot, flywheel_objective_grader).
+   A round-trip check is only trustworthy when paired with an independent anti-gaming dimension.
+2. **Edit cycle (the editability gate):** Elementor doc → editor open → save → doc unchanged
+   (lenient hash modulo V4 auto-normalizations — memory: v4_atomic_normalizations;
+   `joist_smoke_test_roundtrip` already implements the primitive). This is the PBT
+   `parse∘print=id` property, and PBT says how to run it: not just on real clones but on
+   GENERATED trees — fuzz random valid widget trees (from the §5 atlas generator), push through
+   save/load, and diff. That converts the editability gate from anecdotal to property-tested,
+   and directly feeds the PATH_TO_TRUE_1TO1 round-trip ≥90% gate.
+3. **Cycle as TRAINING signal (free paired data):** the forward direction (Elementor tree → WP
+   render → screenshot/DOM) is deterministic and cheap. Generating random-but-realistic trees and
+   rendering them yields UNLIMITED PERFECTLY-PAIRED (render, tree) data for distilling the
+   inverse model (capture→tree) — back-translation's trick, with one improvement: our "forward
+   translator" is exact (a renderer), so the weak-model-reinforces-itself failure mode of
+   back-translation does not apply on the forward side. Bias risk remains on the DISTRIBUTION
+   side: generated trees must match real-site statistics or the inverse model overfits synthetic
+   style (the classic back-translation domain-mismatch caveat). Seed the generator from the
+   corpus's empirical widget/layout statistics.
+
