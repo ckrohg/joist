@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 // @purpose retrieve.mjs — deterministic top-k exemplar retrieval (EMBODIMENT_APPROACH §P3).
 // Given a section crop PNG + its atlas construct classification, return the k best-matching library
-// records as few-shot context for the authoring agent. Match priority: construct-id overlap FIRST
-// (Jaccard, weight 2), visual second (density-tag overlap + palette distance, weight 1 each), tiny
-// lint-clean tiebreaker, then record-id lexicographic — same query → same answer, always.
+// records as few-shot context for the authoring agent. Match priority is LEXICOGRAPHIC, not summed
+// (a visually-similar wrong-construct record must never outrank a right-construct one): construct
+// overlap FIRST — rarity-weighted Jaccard, so the library's DISTINCTIVE construct (code-panel) beats
+// ubiquitous companions (body-text) — visual second (density-tag overlap + palette proximity + tiny
+// lint-clean bonus), record-id last. Same query + same library → same answer, always.
 // usage: node retrieve.mjs --png <crop.png> --constructs a,b,c [--k 3] [--json]
 import { describePng, loadRecords } from './lib.mjs';
 
@@ -29,24 +31,30 @@ function paletteDist(qp, rp) {
   return Math.min(1, sum / qp.length / 765);
 }
 
-const scored = loadRecords().map((rec) => {
+const records = loadRecords();
+// rarity weight: constructs appearing in few records dominate the match (IDF-flavored, deterministic)
+const freq = new Map();
+for (const r of records) for (const c of r.constructIds) freq.set(c, (freq.get(c) || 0) + 1);
+const w = (c) => 1 / (1 + (freq.get(c) || 0));
+
+const scored = records.map((rec) => {
   const rSet = new Set(rec.constructIds);
-  const inter = [...qSet].filter((c) => rSet.has(c)).length;
-  const union = new Set([...qSet, ...rSet]).size;
-  const jaccard = union ? inter / union : 0;
+  const interW = [...qSet].filter((c) => rSet.has(c)).reduce((s, c) => s + w(c), 0);
+  const unionW = [...new Set([...qSet, ...rSet])].reduce((s, c) => s + w(c), 0);
+  const jaccard = unionW ? interW / unionW : 0;
   const qt = new Set(q.densityTags), rt = new Set(rec.visualDescriptor.densityTags || []);
   const tagInter = [...qt].filter((t) => rt.has(t)).length;
   const tagScore = tagInter / Math.max(1, new Set([...qt, ...rt]).size);
   const pd = paletteDist(q.palette, rec.visualDescriptor.palette || []);
   const lintBonus = rec.lint && rec.lint.clean === false ? 0 : 0.01;
-  const score = 2 * jaccard + tagScore + (1 - pd) + lintBonus;
-  return { id: rec.id, score: +score.toFixed(6), jaccard: +jaccard.toFixed(4), tagScore: +tagScore.toFixed(4), paletteDist: +pd.toFixed(4), constructIds: rec.constructIds, provenance: rec.provenance, verification: rec.verification.status, authoredHtml: rec.authoredHtml, renderPng: rec.renderPng };
+  const visual = tagScore + (1 - pd) + lintBonus;
+  return { id: rec.id, jaccard: +jaccard.toFixed(4), visual: +visual.toFixed(6), tagScore: +tagScore.toFixed(4), paletteDist: +pd.toFixed(4), constructIds: rec.constructIds, provenance: rec.provenance, verification: rec.verification.status, authoredHtml: rec.authoredHtml, renderPng: rec.renderPng };
 });
-scored.sort((a, b) => b.score - a.score || (a.id < b.id ? -1 : 1));
+scored.sort((a, b) => b.jaccard - a.jaccard || b.visual - a.visual || (a.id < b.id ? -1 : 1));
 const top = scored.slice(0, k);
 
 if (process.argv.includes('--json')) console.log(JSON.stringify({ query: { png, constructs, descriptor: { palette: q.palette, densityTags: q.densityTags } }, top }, null, 2));
 else {
   console.log(`query: ${png}\n constructs=[${constructs.join(',')}] palette=${q.palette.join(',')} tags=${q.densityTags.join(',')}`);
-  for (const t of top) console.log(`  ${t.score.toFixed(3)}  ${t.id}  (j=${t.jaccard} tags=${t.tagScore} pal=${t.paletteDist})  ${t.provenance}/${t.verification}  → ${t.authoredHtml}`);
+  for (const t of top) console.log(`  j=${t.jaccard} v=${t.visual.toFixed(3)}  ${t.id}  (tags=${t.tagScore} pal=${t.paletteDist})  ${t.provenance}/${t.verification}  → ${t.authoredHtml}`);
 }
