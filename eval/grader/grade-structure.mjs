@@ -276,8 +276,45 @@ async function mobileLayout(ctx, cloneUrl) {
 // heights are CACHED with the source capture (midwidthSrc key; old caches are patched in place on first run)
 // so corpus runs stay cheap. Skipped (like the mobile pass) under --no-responsive or non-URL targets.
 // Flag off → no probes, no report fields, composite untouched (byte-identical legacy).
+// CLIFF-PROBE FINAL (2026-06-10, fresh-critic-reproduced dodges → pins D1-D3 in _cliffprobe-selftest.mjs):
+//   F1 ANCHOR-POISONING GUARD — D3: a spacer shown only near 1200 (e.g. @media 1100-1299) inflates the growth
+//      ANCHOR cloneH(1200) so a FULL blowup at <=1024 reads growth≈1 → excess≈1 → judge-blind dodge (1440
+//      grading view stays perfect). Physics: a page ~never SHRINKS >15% when the viewport narrows — any
+//      growth < 0.85 (or H(1200) > 1.3× the 1440 grading height, which is hRatio-PROTECTED: gaming H(1440)
+//      low is already punished by hPen — this also catches a spacer spanning ALL sampled widths) marks the
+//      anchor POISONED → re-anchor at the MINIMUM of (all sampled heights ∪ the 1440 grading height). The
+//      guard is SYMMETRIC (source side gets the same treatment): a quirky source that legitimately hides
+//      content near 1200 re-anchors its own baseline → a faithful clone of it stays at excess≈1 → source
+//      self-pairs stay clean (pin D3b). If the re-anchor degenerates, behavior is unchanged (and when no
+//      source baseline exists at all, the raw adjacent-pair veto fallback is anchor-FREE — it still fires).
+//   F2 HASH-DERIVED SAMPLE WIDTHS — D1: a blowup confined to a window BETWEEN the fixed samples (e.g. only
+//      769-899) missed every probe. Two extra widths in (769,1199) are derived from an FNV-1a hash of the
+//      CANONICALIZED source URL (protocol + port stripped → selftests with random localhost ports stay
+//      deterministic) — stable per site (source mid-width cache stays valid; the WIDTH-SET is part of the
+//      midwidthSrc cache validity check, so a width-set change invalidates old caches instead of silently
+//      grading with missing samples) yet unpredictable a priori. Residual (honest): a grader-code-aware
+//      adversary can compute them per site — the vision-judge stays the backstop for that.
+//   F3 GRADED SUB-THRESHOLD COST — D2: excess in (1.1, 1.3] now subtracts proportionally from the RESPONSIVE
+//      term (see the skate block in the scoring section) so threshold-skating is no longer free.
+//   F4 (Codex note) the excess path REQUIRES the source 768 sample: without the source's full narrow-width
+//      growth, S_full is blind and would FALSE-CAP an honest early-stacker → fall back to the raw
+//      adjacent-pair veto, which now also stands down when the SOURCE itself jumps >1.3 at the same
+//      boundary (srcCliffRatio guard) — prevents narrow-width-only false caps.
 const USE_MIDWIDTH = process.env.GRADER_NO_MIDWIDTH !== '1';
-const MW_WIDTHS = [1200, 1025, 1024, 900, 768]; // 1200 = anchor + amputation width; 1025/1024 = Elementor tablet bp pair; 900/768 = dodge pins (un-pin at <=1023 / custom bps persist below the cliff → caught here)
+const MW_FIXED = [1200, 1025, 1024, 900, 768]; // 1200 = anchor + amputation width; 1025/1024 = Elementor tablet bp pair; 900/768 = dodge pins (un-pin at <=1023 / custom bps persist below the cliff → caught here)
+// F2: per-source-URL hash widths — one in each half of the open (769,1199) window so they stay spread apart.
+const mwCanon = (u) => String(u).replace(/^https?:\/\//, '').replace(/:\d+/, '').replace(/\/+$/, '').toLowerCase();
+const mwFnv = (s) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h; };
+const MW_HASH = (() => {
+  const h = mwFnv(mwCanon(source));
+  let wA = 770 + (h % 215);           // 770..984
+  let wB = 985 + ((h >>> 8) % 214);   // 985..1198
+  while (MW_FIXED.includes(wA)) wA++; // never collide with a fixed sample (would lose a distinct probe)
+  while (MW_FIXED.includes(wB) || wB === wA) wB++;
+  return [wA, wB];
+})();
+const MW_WIDTHS = [...new Set([...MW_FIXED, ...MW_HASH])].sort((a, b) => b - a);
+const MW_KEY = MW_WIDTHS.join(',');   // width-set identity — part of the midwidthSrc cache validity check (F2/F4)
 async function midwidthMeasure(ctx, url, width) {
   const p = await ctx.newPage();
   try {
@@ -311,17 +348,19 @@ async function midwidthMeasure(ctx, url, width) {
     });
   } catch { return null; } finally { await p.close().catch(() => {}); }
 }
-async function midwidthProbe(ctx, cloneUrl, srcUrl, cachedSrcMid) {
+async function midwidthProbe(ctx, cloneUrl, srcUrl, cachedSrcMid, cloneH1440, srcH1440) {
   if (!USE_MIDWIDTH || process.argv.includes('--no-responsive') || !/^https?:/.test(cloneUrl)) return null;
   const cm = {};
   for (const w of MW_WIDTHS) cm[w] = await midwidthMeasure(ctx, cloneUrl, w);
   const c1200 = cm[1200], c1025 = cm[1025], c1024 = cm[1024];
   if (!c1200 && !c1025 && !c1024) return null;               // probe infrastructure failed entirely → no term
-  // source mid-width baseline: cached with the source capture (cheap corpus runs); measured live on cache miss
-  let sm = (cachedSrcMid && cachedSrcMid[1200] !== undefined) ? cachedSrcMid : null;
+  // source mid-width baseline: cached with the source capture (cheap corpus runs); measured live on cache miss.
+  // F2/F4: the cached baseline is valid ONLY for the exact current width-set (incl. the per-URL hash widths) —
+  // a stale/partial width-set would leave the hash samples without a baseline and skew S_full.
+  let sm = (cachedSrcMid && cachedSrcMid[1200] !== undefined && cachedSrcMid.widths === MW_KEY) ? cachedSrcMid : null;
   let smFresh = false;
   if (!sm && srcUrl && /^https?:/.test(srcUrl)) {
-    sm = {}; smFresh = true;
+    sm = { widths: MW_KEY }; smFresh = true;
     for (const w of MW_WIDTHS) { const m = await midwidthMeasure(ctx, srcUrl, w); sm[w] = m ? { h: m.h, clipped: m.clipped, heroFs: m.heroFs, heroFsVis: m.heroFsVis } : null; }
   }
   const s1200 = sm ? sm[1200] : null, s768 = sm ? sm[768] : null;
@@ -330,12 +369,33 @@ async function midwidthProbe(ctx, cloneUrl, srcUrl, cachedSrcMid) {
     ? +(Math.max(c1024.h, c1025.h) / Math.min(c1024.h, c1025.h)).toFixed(3) : null;
   const srcCliffRatio = (sm && sm[1024] && sm[1025] && sm[1024].h > 0 && sm[1025].h > 0)
     ? +(Math.max(sm[1024].h, sm[1025].h) / Math.min(sm[1024].h, sm[1025].h)).toFixed(3) : null;
-  // cumulative growth anchored at 1200, source-baselined excess (the hardened veto metric — see block comment)
-  const growthClone = {}, growthSrc = {};
-  if (c1200 && c1200.h > 0) for (const w of [1025, 1024, 900, 768]) if (cm[w] && cm[w].h > 0) growthClone[w] = +(cm[w].h / c1200.h).toFixed(3);
-  if (s1200 && s1200.h > 0) for (const w of [1025, 1024, 900, 768]) if (sm[w] && sm[w].h > 0) growthSrc[w] = +(sm[w].h / s1200.h).toFixed(3);
+  // cumulative growth anchored at 1200, source-baselined excess (the hardened veto metric — see block comment).
+  // F1 ANCHOR-POISONING GUARD (see CLIFF-PROBE FINAL notes): a growth < 0.85 anywhere (page SHRINKING as the
+  // viewport narrows — physically anomalous) or H(1200) > 1.3× the 1440 grading height (hRatio-protected)
+  // marks the 1200 anchor POISONED → re-anchor at min(sampled heights ∪ 1440 height). SYMMETRIC on both sides.
+  const MW_SUB = MW_WIDTHS.filter((w) => w !== 1200);
+  const growthFrom = (m, anchor) => { const g = {}; if (anchor > 0) for (const w of MW_SUB) if (m[w] && m[w].h > 0) g[w] = +(m[w].h / anchor).toFixed(3); return g; };
+  const anchored = (m, h1440) => {
+    const a0 = m[1200] && m[1200].h > 0 ? m[1200].h : null;
+    if (!a0) return { anchor: null, growth: {}, poisoned: false };
+    const g0 = growthFrom(m, a0);
+    const shrink = Object.values(g0).some((g) => g < 0.85);
+    const inflated = h1440 > 0 && a0 / h1440 > 1.3;
+    if (!shrink && !inflated) return { anchor: a0, growth: g0, poisoned: false };
+    const hs = MW_WIDTHS.map((w) => (m[w] && m[w].h > 0 ? m[w].h : null)).filter((h) => h != null);
+    if (h1440 > 0) hs.push(h1440);
+    const a1 = Math.min(...hs);
+    if (!(a1 > 0) || a1 >= a0) return { anchor: a0, growth: g0, poisoned: false }; // degenerate re-anchor → unchanged (raw veto stays the fallback)
+    return { anchor: a1, growth: growthFrom(m, a1), poisoned: true };
+  };
+  const cAnch = anchored(cm, cloneH1440);
+  const sAnch = sm ? anchored(sm, srcH1440) : { anchor: null, growth: {}, poisoned: false };
+  const growthClone = cAnch.growth, growthSrc = sAnch.growth;
   let cliffExcess = null, cliffWidth = null, srcFullGrowth = null;
-  if (Object.keys(growthSrc).length && Object.keys(growthClone).length) {
+  // F4 (Codex): the excess path REQUIRES the source 768 sample — S_full without it is narrow-width-blind and
+  // would false-cap honest early-stackers. Missing → cliffExcess stays null → raw adjacent-pair fallback.
+  const s768ok = !!(s768 && s768.h > 0);
+  if (s768ok && Object.keys(growthSrc).length && Object.keys(growthClone).length) {
     srcFullGrowth = +Math.min(2.5, Math.max(1, ...Object.values(growthSrc))).toFixed(3);
     for (const w of Object.keys(growthClone)) {
       const e = +(growthClone[w] / srcFullGrowth).toFixed(3);
@@ -349,6 +409,10 @@ async function midwidthProbe(ctx, cloneUrl, srcUrl, cachedSrcMid) {
   const scaleShrinkSuspect = heroFsVisRatio768 != null && heroFsVisRatio768 < 0.75; // diagnostic only, no cap (VJ backstop)
   return {
     cliffRatio, srcCliffRatio, cliffExcess, cliffWidth, srcFullGrowth, growthClone, growthSrc,
+    anchorPoisoned: cAnch.poisoned, srcAnchorPoisoned: sAnch.poisoned,           // F1 (anchor-poisoning guard)
+    anchorH: cAnch.anchor, srcAnchorH: sAnch.anchor,
+    hashWidths: MW_HASH, widths: MW_KEY,                                          // F2 (per-URL sample widths)
+    ...(sm && !s768ok ? { src768Missing: true } : {}),                            // F4 (raw-fallback reason)
     h1024: c1024 ? c1024.h : null, h1025: c1025 ? c1025.h : null,
     heights: Object.fromEntries(MW_WIDTHS.map((w) => [w, cm[w] ? cm[w].h : null])),
     srcHeights: sm ? Object.fromEntries(MW_WIDTHS.map((w) => [w, sm[w] ? sm[w].h : null])) : null,
@@ -398,7 +462,7 @@ const refreshSource = process.argv.includes('--refresh-source');
   const cln = await capture(ctx, clone, false);
   const cloneML = await mobileLayout(ctx, clone); // clone mobile fit + reading order (390px)
   let srcML = cloneML ? (srcMobileTexts ? { mobileTexts: srcMobileTexts } : await mobileLayout(ctx, source)) : null; // source mobile reading order (390px reference)
-  const midwidth = await midwidthProbe(ctx, clone, source, srcMidCached); // G1: multi-boundary cliff + 1200 amputation/hero probes
+  const midwidth = await midwidthProbe(ctx, clone, source, srcMidCached, cln.pageH, src.pageH); // G1: multi-boundary cliff + 1200 amputation/hero probes (+1440 grading heights for the F1 anchor guard)
   if (!useSrcCache && /^https?:/.test(source)) { // persist a fresh source capture for deterministic future grades
     try { fs.mkdirSync(SRC_CACHE_DIR, { recursive: true }); fs.writeFileSync(srcCachePng, PNG.sync.write(src.shot)); fs.writeFileSync(srcCacheJson, JSON.stringify({ texts: src.texts, textPos: src.textPos, census: src.census, ds: src.ds, pageH: src.pageH, mobileTexts: srcML ? srcML.mobileTexts : null, midwidthSrc: midwidth && midwidth._srcMid ? midwidth._srcMid : null })); } catch {}
   } else if (useSrcCache && /^https?:/.test(source) && midwidth && midwidth._srcMidFresh && midwidth._srcMid) {
@@ -489,11 +553,27 @@ const refreshSource = process.argv.includes('--refresh-source');
   let responsive = null, mobileFitV = null, mobileOrderV = null;
   if (cloneML && srcML) { mobileFitV = cloneML.fit; mobileOrderV = orderAgreement(srcML.mobileTexts.map(norm), cloneML.mobileTexts.map(norm)); responsive = 0.5 * mobileFitV + 0.5 * mobileOrderV; }
   else if (cloneML) { mobileFitV = cloneML.fit; mobileOrderV = 1; responsive = cloneML.fit; } // source mobile order unavailable → fit only
+  // ---- F3 GRADED SUB-THRESHOLD COST (CLIFF-PROBE FINAL 2026-06-10; D2 threshold-skate dodge pin) ----
+  // A blowup engineered to stop JUST under the 1.3 veto (e.g. +25% height at every tablet width) used to cost
+  // literally NOTHING. Now cliffExcess in (1.1, 1.3] subtracts proportionally from the RESPONSIVE term:
+  //   frac = clamp((excess − 1.1)/0.2, 0, 1);   responsive −= 0.5·frac   (max composite cost 0.20·0.5 = 0.10)
+  // Monotonic in excess and bounded — NOT a veto-cap. The ≤1.1 dead-zone protects honest reflow + measurement
+  // noise (honest-reflow pin C2 sits at ≈1.0). Above 1.3 frac saturates and the 0.35 veto-cap dominates anyway,
+  // so composite stays monotone non-increasing in excess. 3-term path (responsive unavailable): the same
+  // bounded cost (0.10·frac) comes off the composite directly. Gated on midwidth (GRADER_NO_MIDWIDTH=1 →
+  // midwidth null → skateFrac 0 → byte-identical legacy).
+  let skateFrac = 0;
+  if (midwidth && midwidth.cliffExcess != null && midwidth.cliffExcess > 1.1) {
+    skateFrac = Math.min(1, (midwidth.cliffExcess - 1.1) / 0.2);
+    midwidth.subThresholdPenalty = +(0.5 * skateFrac).toFixed(3); // amount subtracted from responsive (reported)
+  }
+  if (responsive != null && skateFrac > 0) responsive = Math.max(0, responsive - 0.5 * skateFrac);
   // composite: 4 terms when responsive is available, else fall back to the 3-term form (renormalized).
   // Per "grader strictness IS progress": adding a truer dimension may move the headline — that's the win.
   let composite = (responsive != null)
     ? 0.35 * visual + 0.35 * editability + 0.10 * designSystem + 0.20 * responsive
     : 0.45 * visual + 0.45 * editability + 0.10 * designSystem;
+  if (responsive == null && skateFrac > 0) composite = Math.max(0, composite - 0.10 * skateFrac); // F3, 3-term path (same bound as 0.20·0.5)
   // FLOOR: a broken-looking page can't score high on the other dimensions alone
   if (visual < 0.5) composite = Math.min(composite, visual + 0.1);
   // HUMAN-SALIENT DEFECT PENALTY (grader-truth, anti-overstatement) — the grader over-credits geometry and
@@ -546,8 +626,10 @@ const refreshSource = process.argv.includes('--refresh-source');
   if (midwidth) {
     if (midwidth.cliffExcess != null) {
       if (midwidth.cliffExcess > 1.3) { composite = Math.min(composite, 0.35); midwidthCaps.push(`cliff(excess ${midwidth.cliffExcess}@${midwidth.cliffWidth})→cap0.35`); }
-    } else if (midwidth.cliffRatio != null && midwidth.cliffRatio > 1.3) {
-      // no source baseline measurable → legacy raw adjacent-pair veto (conservative fallback)
+    } else if (midwidth.cliffRatio != null && midwidth.cliffRatio > 1.3 && !(midwidth.srcCliffRatio > 1.3)) {
+      // no source baseline / no source-768 sample (F4) → legacy raw adjacent-pair veto (conservative fallback).
+      // srcCliffRatio guard: when the partial baseline shows the SOURCE itself jumps >1.3 at the same 1024/1025
+      // boundary, a clone matching it is innocent — the raw veto stands down (prevents partial-baseline false caps).
       composite = Math.min(composite, 0.35); midwidthCaps.push(`cliff(raw ${midwidth.cliffRatio})→cap0.35`);
     }
     if (midwidth.clippedExcess != null && midwidth.clippedExcess > 10) { composite = Math.min(composite, 0.45); midwidthCaps.push(`amputation(${midwidth.clippedExcess})→cap0.45`); }
