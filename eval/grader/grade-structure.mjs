@@ -205,7 +205,8 @@ async function capture(ctx, target, isSource) {
 //   • ORDER — does the clone's mobile content stack in the SAME reading order as the source? (LCS of the
 //             shared text runs by position). Catches abs un-pins that scramble order, and rewards correct-order
 //             stacks (flow, or abs sorted by y). This makes the abs mobile-quality cost VISIBLE beyond overflow.
-// Returns { fit, mobileTexts } or null. Skipped when clone isn't a URL or --no-responsive.
+// Returns { fit, mobileTexts, mobileH } or null. Skipped when clone isn't a URL or --no-responsive.
+// mobileH (scrollHeight at 390, post-lazy-settle) feeds the D4 mobile-height excess — see the D4 block below.
 async function mobileLayout(ctx, cloneUrl) {
   if (process.argv.includes('--no-responsive') || !/^https?:/.test(cloneUrl)) return null;
   const MW = 390; const p = await ctx.newPage();
@@ -227,11 +228,11 @@ async function mobileLayout(ctx, cloneUrl) {
       }
       runs.sort((a, b) => a.y - b.y); // visual top-to-bottom reading order at mobile width
       const seen = new Set(), out = []; for (const r of runs) { if (seen.has(r.t)) continue; seen.add(r.t); out.push(r.t); }
-      return { sw, mobileTexts: out };
+      return { sw, mobileTexts: out, mh: document.documentElement.scrollHeight };
     });
     const ratio = info.sw / MW;
     const fit = Math.max(0, Math.min(1, 1 - Math.max(0, ratio - 1.02) * 0.6));
-    return { fit, mobileTexts: info.mobileTexts };
+    return { fit, mobileTexts: info.mobileTexts, mobileH: info.mh };
   } catch { return null; } finally { await p.close().catch(() => {}); }
 }
 // ---- G1 MULTI-WIDTH (grader-truth round 2026-06-10; qa-stepback diagnosis; reversible GRADER_NO_MIDWIDTH=1) ----
@@ -301,6 +302,10 @@ async function mobileLayout(ctx, cloneUrl) {
 //      adjacent-pair veto, which now also stands down when the SOURCE itself jumps >1.3 at the same
 //      boundary (srcCliffRatio guard) — prevents narrow-width-only false caps.
 const USE_MIDWIDTH = process.env.GRADER_NO_MIDWIDTH !== '1';
+// D4 MOBILE-HEIGHT EXCESS (2026-06-11, closes the last judge-blind width window — see the D4 block in the main
+// flow). Reversible: GRADER_NO_MOBILEH=1 → byte-identical legacy report. Also implicitly OFF under
+// GRADER_NO_MIDWIDTH=1 (it reuses the midwidth probe's F1 poison-guarded anchors).
+const USE_MOBILEH = process.env.GRADER_NO_MOBILEH !== '1';
 const MW_FIXED = [1200, 1025, 1024, 900, 768]; // 1200 = anchor + amputation width; 1025/1024 = Elementor tablet bp pair; 900/768 = dodge pins (un-pin at <=1023 / custom bps persist below the cliff → caught here)
 // F2: per-source-URL hash widths — one in each half of the open (769,1199) window so they stay spread apart.
 const mwCanon = (u) => String(u).replace(/^https?:\/\//, '').replace(/:\d+/, '').replace(/\/+$/, '').toLowerCase();
@@ -448,26 +453,65 @@ const refreshSource = process.argv.includes('--refresh-source');
 (async () => {
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: W, height: 900 }, deviceScaleFactor: 1 });
-  let src, srcMobileTexts = null, srcMidCached = null;
+  let src, srcMobileTexts = null, srcMobileH = null, srcMidCached = null;
   const srcCacheJson = `${SRC_CACHE_DIR}/${srcTag}.json`, srcCachePng = `${SRC_CACHE_DIR}/${srcTag}.png`;
   const useSrcCache = /^https?:/.test(source) && fs.existsSync(srcCacheJson) && fs.existsSync(srcCachePng) && !refreshSource;
   if (useSrcCache) {
     const meta = JSON.parse(fs.readFileSync(srcCacheJson, 'utf8'));
     src = { shot: PNG.sync.read(fs.readFileSync(srcCachePng)), texts: meta.texts, textPos: meta.textPos, census: meta.census, ds: meta.ds, pageH: meta.pageH };
     srcMobileTexts = meta.mobileTexts;
+    srcMobileH = meta.mobileH || null;       // cached source 390px scrollHeight (D4 mobile-height baseline)
     srcMidCached = meta.midwidthSrc || null; // cached source mid-width heights (cliff-probe baseline)
   } else {
     src = await capture(ctx, source, true);
   }
   const cln = await capture(ctx, clone, false);
   const cloneML = await mobileLayout(ctx, clone); // clone mobile fit + reading order (390px)
-  let srcML = cloneML ? (srcMobileTexts ? { mobileTexts: srcMobileTexts } : await mobileLayout(ctx, source)) : null; // source mobile reading order (390px reference)
+  let srcML = cloneML ? (srcMobileTexts ? { mobileTexts: srcMobileTexts, mobileH: srcMobileH } : await mobileLayout(ctx, source)) : null; // source mobile reading order + 390px height (cached reference)
+  // D4: pre-mobileH source cache lacks the 390 height → measure it live ONCE and patch the cache in place
+  // (mirrors the midwidthSrc patching below). Cached mobileTexts stay authoritative (deterministic order term);
+  // only the height is taken from the fresh pass. Skipped under GRADER_NO_MOBILEH=1 / GRADER_NO_MIDWIDTH=1.
+  if (USE_MOBILEH && USE_MIDWIDTH && srcML && srcMobileTexts && !(srcML.mobileH > 0) && /^https?:/.test(source)) {
+    const freshML = await mobileLayout(ctx, source);
+    if (freshML && freshML.mobileH > 0) {
+      srcML.mobileH = freshML.mobileH;
+      try { const meta = JSON.parse(fs.readFileSync(srcCacheJson, 'utf8')); meta.mobileH = freshML.mobileH; fs.writeFileSync(srcCacheJson, JSON.stringify(meta)); } catch {}
+    }
+  }
   const midwidth = await midwidthProbe(ctx, clone, source, srcMidCached, cln.pageH, src.pageH); // G1: multi-boundary cliff + 1200 amputation/hero probes (+1440 grading heights for the F1 anchor guard)
   if (!useSrcCache && /^https?:/.test(source)) { // persist a fresh source capture for deterministic future grades
-    try { fs.mkdirSync(SRC_CACHE_DIR, { recursive: true }); fs.writeFileSync(srcCachePng, PNG.sync.write(src.shot)); fs.writeFileSync(srcCacheJson, JSON.stringify({ texts: src.texts, textPos: src.textPos, census: src.census, ds: src.ds, pageH: src.pageH, mobileTexts: srcML ? srcML.mobileTexts : null, midwidthSrc: midwidth && midwidth._srcMid ? midwidth._srcMid : null })); } catch {}
+    try { fs.mkdirSync(SRC_CACHE_DIR, { recursive: true }); fs.writeFileSync(srcCachePng, PNG.sync.write(src.shot)); fs.writeFileSync(srcCacheJson, JSON.stringify({ texts: src.texts, textPos: src.textPos, census: src.census, ds: src.ds, pageH: src.pageH, mobileTexts: srcML ? srcML.mobileTexts : null, ...(USE_MOBILEH && srcML && srcML.mobileH > 0 ? { mobileH: srcML.mobileH } : {}), midwidthSrc: midwidth && midwidth._srcMid ? midwidth._srcMid : null })); } catch {}
   } else if (useSrcCache && /^https?:/.test(source) && midwidth && midwidth._srcMidFresh && midwidth._srcMid) {
     // pre-hardening cache lacked midwidthSrc → patch it in place so future corpus runs skip the 5 source loads
     try { const meta = JSON.parse(fs.readFileSync(srcCacheJson, 'utf8')); meta.midwidthSrc = midwidth._srcMid; fs.writeFileSync(srcCacheJson, JSON.stringify(meta)); } catch {}
+  }
+  // ---- D4 MOBILE-HEIGHT EXCESS (2026-06-11; pins D4/D4-CTL/D4b in _cliffprobe-selftest.mjs; reversible
+  // GRADER_NO_MOBILEH=1 → none of these fields exist → byte-identical legacy) ----
+  // THE LAST JUDGE-BLIND WIDTH WINDOW: the cliff probe's narrowest sample is 768; mobileLayout@390 measured
+  // only horizontal FIT + reading ORDER — never HEIGHT. A vertical blowup confined to <768px (the documented
+  // abs 2.9x@390 tax, or a dodge spacer under max-width:767px — lab repro /tmp/critic-dodge-test.mjs
+  // '/mobiledodge': 3.13x@390, byte-identical >=768) was invisible to every deterministic term.
+  // Same C(w)/S_full structure as cliffExcess, at w=390, REUSING the F1 poison-guarded anchors (midwidth
+  // anchorH/srcAnchorH — a 1200-anchor spacer can't inflate the denominator) and the F3 ladder downstream:
+  //   C(390) = cloneH390/cloneAnchor;  S_m = clamp(max(1, srcH390/srcAnchor, growthSrc…), 1, 3.5)
+  //   mobileHExcess = C(390)/S_m — dead zone ≤1.1; graded 1.1-1.3 into the responsive term; >1.3 veto-cap 0.35.
+  // Clamp is 3.5 (NOT the cliff's 2.5): honest mobile stacks legitimately reach ~3x of their 1200 height — a
+  // 2.5 clamp would tax the self-pair of a legit 3.1x stacker (pin D4b). S_m also folds in the source's own
+  // mid-width growth (max with growthSrc — source-side measurements only, monotone anti-false-positive).
+  // F4 analog: the term REQUIRES the source 390 baseline + both anchors — missing → mobileHExcess null → no
+  // cost, no cap, and NO raw fallback (a clone's OWN 390 growth is legitimately large; clone-only height jump
+  // at mobile widths is honest stacking, not evidence).
+  if (USE_MOBILEH && midwidth && cloneML && cloneML.mobileH > 0) {
+    midwidth.h390 = cloneML.mobileH;
+    midwidth.srcH390 = srcML && srcML.mobileH > 0 ? srcML.mobileH : null;
+    midwidth.mobileHExcess = null;
+    if (midwidth.anchorH > 0 && midwidth.srcAnchorH > 0 && midwidth.srcH390) {
+      const c390 = +(midwidth.h390 / midwidth.anchorH).toFixed(3);
+      const s390 = +(midwidth.srcH390 / midwidth.srcAnchorH).toFixed(3);
+      const sFullM = +Math.min(3.5, Math.max(1, s390, ...Object.values(midwidth.growthSrc || {}))).toFixed(3);
+      midwidth.mobileGrowthClone = c390; midwidth.mobileGrowthSrc = s390; midwidth.srcMobileFull = sFullM;
+      midwidth.mobileHExcess = +(c390 / sFullM).toFixed(3);
+    }
   }
   await browser.close();
 
@@ -567,6 +611,14 @@ const refreshSource = process.argv.includes('--refresh-source');
     skateFrac = Math.min(1, (midwidth.cliffExcess - 1.1) / 0.2);
     midwidth.subThresholdPenalty = +(0.5 * skateFrac).toFixed(3); // amount subtracted from responsive (reported)
   }
+  // D4: the SAME ladder for the mobile-height excess (dead zone ≤1.1, graded 1.1-1.3). Combined as MAX with the
+  // cliff skate (bounded total — never more than one full 0.5 responsive subtraction; monotone in each excess).
+  // Absent entirely (undefined → `!= null` false) under GRADER_NO_MOBILEH=1 / GRADER_NO_MIDWIDTH=1.
+  if (midwidth && midwidth.mobileHExcess != null && midwidth.mobileHExcess > 1.1) {
+    const mf = Math.min(1, (midwidth.mobileHExcess - 1.1) / 0.2);
+    midwidth.mobileSubThresholdPenalty = +(0.5 * mf).toFixed(3);
+    skateFrac = Math.max(skateFrac, mf);
+  }
   if (responsive != null && skateFrac > 0) responsive = Math.max(0, responsive - 0.5 * skateFrac);
   // composite: 4 terms when responsive is available, else fall back to the 3-term form (renormalized).
   // Per "grader strictness IS progress": adding a truer dimension may move the headline — that's the win.
@@ -633,6 +685,10 @@ const refreshSource = process.argv.includes('--refresh-source');
       composite = Math.min(composite, 0.35); midwidthCaps.push(`cliff(raw ${midwidth.cliffRatio})→cap0.35`);
     }
     if (midwidth.clippedExcess != null && midwidth.clippedExcess > 10) { composite = Math.min(composite, 0.45); midwidthCaps.push(`amputation(${midwidth.clippedExcess})→cap0.45`); }
+    // D4 mobile-height veto: a clone whose 390px height blows up past the source's OWN full responsive growth
+    // (anywhere in 390-1200, clamp 3.5) is broken on every phone — no 1440 score survives that. Source-baselined
+    // like the cliff: an honest mobile stack of a tall-stacking source sits at excess ≈ 1 (pins D4-CTL/D4b).
+    if (midwidth.mobileHExcess != null && midwidth.mobileHExcess > 1.3) { composite = Math.min(composite, 0.35); midwidthCaps.push(`mobileH(excess ${midwidth.mobileHExcess}@390)→cap0.35`); }
   }
 
   const report = {

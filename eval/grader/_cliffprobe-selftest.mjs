@@ -29,6 +29,15 @@
  *   D3-CTL SAME full blowup WITHOUT the anchor spacer → capped via the NORMAL path (anchorPoisoned=false).
  *   D3b SOURCE-SIDE POISONING SYMMETRY — the anchordodge page graded against ITSELF: the source side re-anchors
  *      its own baseline (srcAnchorPoisoned=true) → faithful clone stays at excess≈1 → zero caps (self-pair clean).
+ * D4 round (MOBILE-HEIGHT EXCESS 2026-06-11 — closes the last judge-blind width window, <768px):
+ *   D4 MOBILE-ONLY BLOWUP — 8000px spacer under max-width:767px (clone ~3.1x@390, byte-identical >=768; lab
+ *      repro /tmp/critic-dodge-test.mjs '/mobiledodge'): every cliff sample reads clean (cliffExcess≈1, the
+ *      blindness confirmed) but mobileHExcess>1.3 → veto-cap 0.35 with a mobileH cap string.
+ *   D4-CTL HONEST MOBILE STACKER — source grid stacks at ≤480, clone at ≤520: BOTH 1-col at 390 (source's own
+ *      growth ~2.4x > 1.3 — non-vacuous control) → excess ≈ 1 → NOT capped, no graded cost.
+ *   D4b MOBILE-TALL SOURCE SELF-PAIR — mobiledodge graded against ITSELF: the source legitimately reaches
+ *      ~3.1x@390 (> the cliff's 2.5 clamp — pins the mobile clamp at 3.5) → excess ≈ 1 → clean self-pair.
+ *   D4-legacy REVERSIBILITY — GRADER_NO_MOBILEH=1 on the D4 dodge: no mobileH fields, no mobileH cap.
  * Exit 0 = ALL PASS.
  */
 import http from 'http';
@@ -92,6 +101,11 @@ const pages = {
   '/partialunpin': base('#pad{display:none} @media (max-width:1024px){#pad{display:block;height:900px}}', `<div id="pad"></div>${flatBody}`),
   '/anchordodge': base('#pad,#anchor{display:none} @media (max-width:1024px){#pad{display:block;height:4000px}} @media (min-width:1100px) and (max-width:1299px){#anchor{display:block;height:4000px}}', `<div id="pad"></div><div id="anchor"></div>${flatBody}`),
   '/unpinctl': base('#pad{display:none} @media (max-width:1024px){#pad{display:block;height:4000px}}', `<div id="pad"></div>${flatBody}`),
+  // D4 fixtures: mobile-only blowup (spacer strictly under the cliff probe's narrowest 768 sample) + honest
+  // mobile stackers (the SAME 9-card grid, stacking at ≤480 vs ≤520 — both 1-col at 390, flat at every cliff width)
+  '/mobiledodge': base('#pad{display:none} @media (max-width:767px){#pad{display:block;height:8000px}}', `<div id="pad"></div>${flatBody}`),
+  '/mstack480': gridPage(480),
+  '/mstack520': gridPage(520),
 };
 
 const srv = http.createServer((req, res) => {
@@ -155,6 +169,18 @@ const dc = await grade('/flatsrc', '/unpinctl');
 check('D3-CTL same blowup, no spacer: capped via the NORMAL path (guard inert)', mw(dc).anchorPoisoned === false && mw(dc).cliffExcess > 1.3 && dc.composite <= 0.35, `anchorPoisoned ${mw(dc).anchorPoisoned} cliffExcess ${mw(dc).cliffExcess} composite ${dc.composite}`);
 const d3b = await grade('/anchordodge', '/anchordodge');
 check('D3b source-side poisoning symmetry: self-pair stays CLEAN', mw(d3b).srcAnchorPoisoned === true && mw(d3b).anchorPoisoned === true && mw(d3b).caps.length === 0 && (mw(d3b).cliffExcess == null || mw(d3b).cliffExcess <= 1.1) && d3b.composite > 0.8, `srcAnchorPoisoned ${mw(d3b).srcAnchorPoisoned} cliffExcess ${mw(d3b).cliffExcess} composite ${d3b.composite} caps ${JSON.stringify(mw(d3b).caps)}`);
+
+// ---- D4 round (MOBILE-HEIGHT EXCESS 2026-06-11) ----
+const d4 = await grade('/flatsrc', '/mobiledodge');
+check('D4 mobile-only blowup: every cliff sample reads clean (blindness confirmed)', mw(d4).cliffExcess != null && mw(d4).cliffExcess <= 1.1 && !mw(d4).caps.some((c) => c.startsWith('cliff')), `cliffExcess ${mw(d4).cliffExcess} heights ${JSON.stringify(mw(d4).heights)}`);
+check('D4 mobile-height excess catches it → cap 0.35', mw(d4).mobileHExcess > 1.3 && mw(d4).caps.some((c) => c.startsWith('mobileH')) && d4.composite <= 0.35, `mobileHExcess ${mw(d4).mobileHExcess} (C390 ${mw(d4).mobileGrowthClone} / S_m ${mw(d4).srcMobileFull}) h390 ${mw(d4).h390} srcH390 ${mw(d4).srcH390} composite ${d4.composite} caps ${JSON.stringify(mw(d4).caps)}`);
+const d4c = await grade('/mstack480', '/mstack520');
+check('D4-CTL honest mobile stacker: source grows >1.3 at 390 (non-vacuous control)', mw(d4c).mobileGrowthSrc != null && mw(d4c).mobileGrowthSrc > 1.3, `mobileGrowthSrc ${mw(d4c).mobileGrowthSrc}`);
+check('D4-CTL honest mobile stacker: clone matches → NOT capped, no graded cost', mw(d4c).mobileHExcess != null && mw(d4c).mobileHExcess <= 1.1 && mw(d4c).caps.length === 0 && mw(d4c).mobileSubThresholdPenalty === undefined && d4c.composite > 0.6, `mobileHExcess ${mw(d4c).mobileHExcess} caps ${JSON.stringify(mw(d4c).caps)} composite ${d4c.composite}`);
+const d4b = await grade('/mobiledodge', '/mobiledodge');
+check('D4b mobile-tall source self-pair: ~3.1x@390 legit (>2.5 — pins the 3.5 clamp) → CLEAN', mw(d4b).mobileGrowthSrc > 2.5 && mw(d4b).mobileHExcess != null && mw(d4b).mobileHExcess <= 1.1 && mw(d4b).caps.length === 0 && d4b.composite > 0.8, `mobileGrowthSrc ${mw(d4b).mobileGrowthSrc} srcMobileFull ${mw(d4b).srcMobileFull} mobileHExcess ${mw(d4b).mobileHExcess} composite ${d4b.composite} caps ${JSON.stringify(mw(d4b).caps)}`);
+const d4l = await grade('/flatsrc', '/mobiledodge', { env: { GRADER_NO_MOBILEH: '1' }, tag: '-legacy' });
+check('D4-legacy reversibility: GRADER_NO_MOBILEH=1 → no mobileH fields, no mobileH cap', mw(d4l).mobileHExcess === undefined && mw(d4l).h390 === undefined && !mw(d4l).caps.some((c) => c.startsWith('mobileH')) && d4l.composite > 0.35, `mobileHExcess ${mw(d4l).mobileHExcess} composite ${d4l.composite} caps ${JSON.stringify(mw(d4l).caps)}`);
 
 srv.close();
 console.log(fail === 0 ? 'ALL PASS' : `${fail} FAILURE(S)`);
