@@ -1,0 +1,52 @@
+{
+  "id": "spike-clerk-nav",
+  "constructIds": [
+    "nav-row",
+    "nav-links",
+    "logo",
+    "button-cta"
+  ],
+  "visualDescriptor": {
+    "structuralSignature": "flex-row",
+    "palette": [
+      "#f8f8f9",
+      "#141417",
+      "#d1d1d2"
+    ],
+    "densityTags": [
+      "light-bg",
+      "sparse",
+      "muted",
+      "wide-band"
+    ]
+  },
+  "renderPng": "renders/spike-clerk-nav.png",
+  "renderSize": {
+    "w": 1440,
+    "h": 200
+  },
+  "authoredHtml": "html/spike-clerk-nav.html",
+  "elementorJson": null,
+  "provenance": "spike",
+  "verification": {
+    "status": "judged",
+    "evidence": [
+      "/tmp/vj-htmlfirst/results.json (VOLATILE /tmp)",
+      "/tmp/vj-htmlfirst/manifest.json tiles w1440-00..04 (VOLATILE)",
+      "knowledge/EMBODIMENT_APPROACH.md §4.2 (commit fbfddda)",
+      "eval/grader/atlas/spike-lint-report.json"
+    ],
+    "notes": "Verbatim spike nav section."
+  },
+  "lint": {
+    "clean": true,
+    "violations": [],
+    "warnings": []
+  },
+  "source": {
+    "site": "clerk.com",
+    "crop": "/tmp/htmlfirst/c-nav.png",
+    "width": 1440
+  },
+  "hash": "sha256:29f669f538859b0d720586b54f18653ffed6a1118e38a4c6f6aa115ee8d69e6b"
+}

@@ -1,0 +1,57 @@
+{
+  "id": "lf-clerk-announce",
+  "constructIds": [
+    "section-stack",
+    "body-text",
+    "icon-svg",
+    "divider"
+  ],
+  "visualDescriptor": {
+    "structuralSignature": "flex-row",
+    "palette": [
+      "#f7f7f8",
+      "#131316",
+      "#2e2e31"
+    ],
+    "densityTags": [
+      "light-bg",
+      "medium",
+      "muted",
+      "wide-band"
+    ]
+  },
+  "renderPng": "renders/lf-clerk-announce.png",
+  "renderSize": {
+    "w": 1440,
+    "h": 200
+  },
+  "authoredHtml": "html/lf-clerk-announce.html",
+  "elementorJson": null,
+  "provenance": "re-author",
+  "verification": {
+    "status": "look-only",
+    "evidence": [
+      "/tmp/local-fidelity/clerk.html s1 (VOLATILE)",
+      "/tmp/local-fidelity/cap/shots/w1440.png y0-40 (VOLATILE)"
+    ],
+    "notes": "Local-fidelity partial, LOOK-verified only. Mechanical BEM class rename for the linter (render-identical)."
+  },
+  "lint": {
+    "clean": true,
+    "violations": [],
+    "warnings": [
+      {
+        "construct": "body-text",
+        "rule": "W-FONT",
+        "element": "<span> \"Clerk raises $50m Series C\"",
+        "note": "font \"suisse\" not a system/kit family"
+      }
+    ]
+  },
+  "source": {
+    "site": "clerk.com",
+    "crop": "/tmp/local-fidelity/cap/sections/w1440-s0.png",
+    "width": 1440
+  },
+  "hash": "sha256:04d6e55c18b7b871cc535abb9d86fbba974ed6dc19d1478a11d95f43cb9b8a17"
+}

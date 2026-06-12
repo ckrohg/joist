@@ -1,0 +1,58 @@
+{
+  "id": "reauth-clerk-components",
+  "constructIds": [
+    "split-2col",
+    "card",
+    "heading",
+    "body-text",
+    "button-cta"
+  ],
+  "visualDescriptor": {
+    "structuralSignature": "flex-row",
+    "palette": [
+      "#ffffff",
+      "#131316",
+      "#cfcfd2"
+    ],
+    "densityTags": [
+      "light-bg",
+      "sparse",
+      "muted",
+      "banner"
+    ]
+  },
+  "renderPng": "renders/reauth-clerk-components.png",
+  "renderSize": {
+    "w": 1440,
+    "h": 524
+  },
+  "authoredHtml": "html/reauth-clerk-components.html",
+  "elementorJson": null,
+  "provenance": "re-author",
+  "verification": {
+    "status": "pixel-parity",
+    "evidence": [
+      "eval/grader/atlas/reauth-lint-report.json",
+      "knowledge/EMBODIMENT_APPROACH.md §4.2 gate (b): 99.82% @1440 / 100.00% @1100 exact-pixel vs spike renders (commit fbfddda)"
+    ],
+    "notes": "P2 contract re-author: flattened to depth <=4 (comp-row). Pixel-parity vs the judged spike; lint-clean fix of the spike V-NEST."
+  },
+  "lint": {
+    "clean": true,
+    "violations": [],
+    "warnings": [
+      {
+        "construct": "button-cta",
+        "rule": "W-BTN-SPAN",
+        "element": "<a class=\"oauthbtn\"> \"GContinue with Google\"",
+        "note": "styled span \"G\" flattens to plain button text (P1)"
+      }
+    ]
+  },
+  "source": {
+    "site": "clerk.com",
+    "crop": "/tmp/htmlfirst/cmp-1440-top.png",
+    "width": 1440
+  },
+  "hash": "sha256:ccb0c1ceb8771c347de1c5f241ba8a732d661414830a74b91af84dc58a5da218"
+}

@@ -1,0 +1,39 @@
+<!doctype html>
+<!-- @purpose Exemplar spike-clerk-hero — centered hero-stack section, extracted VERBATIM from the proven HTML-first spike /tmp/htmlfirst/hero.html (judge-verified, /tmp/vj-htmlfirst). h1 + subcopy + dual CTA row (solid + ghost pill buttons). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>exemplar: hero stack</title>
+<style>
+  :root { --ink: #131316; --muted: #5e5f6e; --purple: #6c47ff; --bg: #f8f8f9; --line: #ececef; --line2: #f3f3f3; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--ink);
+    font-family: ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  a { text-decoration: none; color: inherit; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 0 24px; }
+  .hero { text-align: center; padding-top: 121px; padding-bottom: 112px; }
+  .hero h1 { font-size: 64px; line-height: 72px; font-weight: 700; letter-spacing: 0; color: var(--ink); }
+  .hero .sub { margin: 26px auto 0; max-width: 780px; font-size: 17px; line-height: 26px; color: var(--muted); }
+  .ctas { margin-top: 46px; display: flex; justify-content: center; gap: 14px; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 18px;
+    border-radius: 999px; font-size: 14px; font-weight: 600; }
+  .btn-purple { background: var(--purple); color: #fff; }
+  .btn-ghost { background: #fff; color: var(--ink); border: 1px solid #e3e3e6; }
+  .btn-ghost .chev { font-size: 9px; color: #131316; }
+</style>
+</head>
+<body>
+<section class="hero">
+  <div class="wrap">
+    <h1>More than authentication,<br>Complete User Management</h1>
+    <p class="sub">Need more than sign-in? Clerk gives you full stack auth and user management &mdash;<br>
+      so you can launch faster, scale easier, and stay focused on building your business.</p>
+    <div class="ctas">
+      <a class="btn btn-purple" href="#">Start building for free</a>
+      <a class="btn btn-ghost" href="#">Build with agents <span class="chev">&#9662;</span></a>
+    </div>
+  </div>
+</section>
+</body>
+</html>
