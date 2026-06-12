@@ -101,3 +101,46 @@ Sections below: (1) learning from human video, (2) embodiment-agnostic intermedi
 - Pooling lesson #3: low-data regime is where pooling pays most (+50%). We are permanently in the low-data regime per-site (each site seen once) — so cross-site pooling of fix-patterns (the defect→repair pairs the corpus runner already ranks) is exactly the RT-X bet, and robotics says it pays.
 
 ---
+
+## 5. VLA Action Decoding — Constraining Output to the Feasible Manifold
+
+**What the field found:**
+
+- Vision-Language-Action models never emit free-form motor text; the action decoder is *structurally constrained* to the target's action space. Dominant scheme: **per-dimension discretization into ~256 bins**, with bin IDs as reserved vocabulary tokens (RT-2 numeric tokens; OpenVLA reserving the 256 least-frequent tokens) ([VLA review, arXiv 2510.07077](https://arxiv.org/pdf/2510.07077)). The model literally *cannot* express an action outside the robot's bounded ranges — feasibility is enforced by the vocabulary, not by hoping the model behaves.
+- [FAST (arXiv 2501.09747)](https://arxiv.org/pdf/2501.09747) improves the tokenization itself (DCT along time + BPE), matching π₀'s flow-matching performance at 5× less training — evidence that *how you compress the action space* is a first-class lever, separate from model quality.
+- [π0.5-style hybrids](https://arxiv.org/pdf/2510.09976) pair a **discrete head for broad pretraining** (coarse, pools across embodiments) with a **continuous expert for high-fidelity control** (fine, embodiment-specific). Per-embodiment action *heads* on a shared trunk are the standard answer to differing DOF across robots ([OpenVLA-OFT](https://openvla-oft.github.io/), [Discrete Diffusion VLA, arXiv 2508.20072](https://arxiv.org/pdf/2508.20072)).
+
+**Transfer to website→Elementor:**
+
+- Enforce widget-schema validity **at generation time, not by post-hoc repair**. The Elementor equivalent of bin-tokens is schema-constrained decoding: builders/LLM-refiners should emit only ops from a closed, validated vocabulary (joist_validate_widget as the "bin boundary"), so invalid trees are unrepresentable rather than caught later. Every kses-strip or 409 we debug post-hoc is a symptom of decoding outside the manifold.
+- FAST's lesson: invest in the **action-space compression** itself. A well-chosen edit-op vocabulary (coarse ops that expand deterministically into valid widget JSON) is worth more than a smarter model emitting raw JSON — same reason FAST beat naive binning at 5× less cost.
+- The π0.5 hybrid maps onto our builder split: a shared coarse planner (band layout, roles — pools across all sites/builders, cf. §4) + per-"embodiment" fine heads (absolute-pinning head, flow-layout head, raster head). Don't make one monolith fluent in every output dialect; share the trunk, specialize the heads.
+
+---
+
+## 6. World Models / MPC — Plan by Predicted Outcome, Verify by Execution
+
+**What the field found:**
+
+- A world model is "an action-conditioned predictive system" ([World Models for Robotic Manipulation survey, arXiv 2606.00113](https://arxiv.org/html/2606.00113v1)). The MPC loop: sample candidate action sequences → predict outcomes with the model → score against the goal → **execute only the first action** → observe → replan. "This replanning makes the approach robust to inaccuracies in the learned dynamics model" ([BAIR](https://bair.berkeley.edu/blog/2017/11/30/model-based-rl/)) — you never need the model to be right, only right *enough to rank candidates*, because execution feedback corrects drift every step.
+- World models double as **verifiers**: "before the robot executes an action, the world model simulates the outcome and checks for violations"; counterfactual comparison of multiple futures is worth its inference cost when "model errors are controlled by replanning, uncertainty estimates, or verification" ([SVRC overview](https://www.roboticscenter.ai/blog/world-models-robot-deployment)).
+- The whole arc of §§1–6 converges here: outcome-space representation (§2) + feasible-manifold decoding (§5) + outcome prediction and execution-verified replanning (§6) is THE architecture; raw mechanism imitation (§1) appears in 2026 only as a baseline to beat.
+
+**Transfer to website→Elementor:**
+
+- We have a luxury robots dream of: our "world model" can be **exact** — render the candidate tree headless and look. No model error term. Robotics pays heavy inference cost for *approximate* outcome prediction and still wins with it; we get ground truth for one render. The implication: be far more MPC-like than we are — **sample k candidate section-plans, render all, keep the best** (counterfactual comparison), instead of one-shot building + sequential patching. Candidate filtering is cheap when the simulator is truth.
+- "Execute only the first action, then replan": refine per-section against the *actual current page state* (re-capture after each apply), never against the stale plan — this is exactly the shared-scratch-page stale-read lesson already learned the hard way (clone_validation_pitfalls).
+- A *learned* fast world model is still worth having as a pre-filter: a cheap predictor of "will this op help the grade" (trained on logged episodes from §3) prunes candidates before paying for full WP render+grade — robotics' synthetic-experience + candidate-filtering roles, verbatim.
+- Verification asymmetry: the grader-as-verifier only works if it's honest in both directions (already a hard-won invariant) — MPC with a biased reward model is how robots confidently do the wrong thing; same failure as grader-inflation.
+
+---
+
+## Summary — The Six Steals, Ranked by Leverage
+
+1. **Teleop-style episode logging (§3)** — log every (target, tree, render, grade) tuple from every run into one schema; it's the only zero-gap data and the distillation substrate. Cheap to start, compounds forever.
+2. **MPC-ify the refine loop (§6)** — k candidates per section, render all, keep best; re-capture state between ops. Our simulator is exact; robotics wins with approximate ones.
+3. **Canonical coarse edit-op vocabulary (§4+§5)** — RT-X's shared interface + FAST's compression: one closed op set all builders emit, schema-valid by construction, so fixes/preferences pool across sites and builders.
+4. **Outcome-invariant objective, mechanism as tiebreaker (§1)** — never score DOM/widget similarity as fidelity; rendered-outcome equivalence is force closure, structure similarity is only an editability tiebreaker. (Largely already internalized — grade-structure/vision-judge.)
+5. **Capture tree as hard interface contract (§2)** — builders never read raw DOM; RT-Trajectory granularity (coarse layout sketch, not pixels-only, not "make a hero") for plans.
+6. **Expert-in-Elementor demonstrations (§3)** — a few hand-built reproductions by a skilled operator reveal the constrained embodiment's native idioms; mine them as few-shot exemplars.
+
