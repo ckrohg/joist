@@ -349,3 +349,92 @@ ports/demakes, and constrained pixel art. Each contributes a distinct, transfera
    style (the classic back-translation domain-mismatch caveat). Seed the generator from the
    corpus's empirical widget/layout statistics.
 
+
+## 5. THE ELEMENTOR CAPABILITY ATLAS — measured, not assumed
+
+### 5.1 The precedents say: capability knowledge must be EXECUTABLE tests + a versioned matrix
+
+- **web-platform-tests / wpt.fyi:** browser capability is not asserted, it is MEASURED — tens of
+  thousands of executable tests run DAILY against Chrome/Edge/Firefox/Safari, aggregated into a
+  public dashboard; Interop scores = % of tests passing in ALL engines —
+  [wpt.fyi about](https://results.web-platform-tests.org/about),
+  [web-platform-tests docs](https://web-platform-tests.org/),
+  [Interop 2024](https://github.com/web-platform-tests/interop/blob/main/2024/README.md).
+- **caniuse:** the de-facto authoring-time oracle is a machine-readable, versioned support matrix
+  (raw JSON on GitHub, CC BY 4.0) backed by a "basic test suite… to quickly test basic support"
+  ([tests.caniuse.com](https://tests.caniuse.com/)) — per feature, per browser version, with
+  partial-support notes.
+- **MIDI Implementation Chart:** every MIDI device MUST ship a standardized two-column chart —
+  Transmit vs Recognize per message type — so "a user can judge the compatibility of two devices
+  simply by comparing the Transmit column of one with the Recognize column of the other" —
+  [MIDI.org chart v2](https://midi.org/midi-implementation-chart-version-2),
+  [chart instructions PDF](http://www.synthmind.com/midi_chart-v2.pdf).
+- **STE dictionary (§2.4):** versioned explicit vocabulary + checker software at authoring time.
+
+### 5.2 Concrete design (buildable with existing pipeline pieces; WP-dependent parts deferred — ZERO-WP tonight)
+
+1. **Feature taxonomy from the corpus, not from spec-reading.** Enumerate visual/layout
+   constructs by FREQUENCY in our own captures (flex/grid variants, gradients, blend modes,
+   transforms, masks/clip-path, sticky, pseudo-element decorations, asymmetric radii, shadows,
+   aspect-ratio, object-fit, webfonts/variable fonts, hover transitions, scroll reveal, marquee,
+   video bg, inline SVG…). The capture pipeline already extracts computed styles — a frequency
+   histogram over the corpus IS the prioritized feature list. (Lesson: Interop picks its focus
+   areas by developer pain, not spec completeness.)
+2. **Per feature × per expression strategy, an EXECUTABLE PROBE.** Strategies, in editability
+   order: native widget/container setting → widget composition → Elementor custom CSS →
+   HTML widget → region raster. A probe = minimal widget JSON authored via the API + the intended
+   ground-truth rendering (the same construct in plain chromium). Existing primitives:
+   `joist_validate_widget`, `joist_smoke_test_roundtrip`, the grade harness screenshot tooling.
+3. **Two verdict columns, MIDI-style:**
+   - **AUTHOR (transmit):** does the construct survive `Document::save()` + kses + V4
+     normalization byte-stably? (FAIL-AUTHOR = stripped/mangled on save.)
+   - **RENDER (recognize):** does the frontend render match the ground truth? Verdict ∈
+     {PASS, DEGRADED(Δ recorded — measured SSIM/style-diff, not a boolean), FAIL-RENDER}.
+   Compatibility check at build time = compare a source feature's requirements against the
+   RENDER column, exactly the MIDI two-chart comparison.
+4. **Storage = versioned JSON keyed by environment** (Elementor version, theme, active plugins,
+   kit hash) — caniuse's model. Re-run the probe suite on any plugin/theme update (wpt's daily
+   run, our update-triggered run). The same suite doubles as a REGRESSION suite: an Elementor
+   update that flips a cell from PASS to DEGRADED is detected before it corrupts clones.
+5. **Cost control:** probe the histogram head eagerly (~top 100 constructs); the long tail gets
+   PROBE-ON-MISS — first time the builder meets an unknown construct, it runs the probe live,
+   caches the verdict, and proceeds. The atlas grows exactly along the distribution of real sites.
+6. **What this replaces:** the existing knowledge files (V3 widget reference, expressive-ceiling
+   study, WIDGET_PACK truths) are ASSUMED atlases written by reading docs and one-off experiments.
+   Convert their claims into probes; keep the prose as commentary on measured cells. An atlas
+   cell with a probe cannot rot — docs-rot is the disease this branch exists to fix.
+
+## 6. RESIDUAL-CHANNEL POLICY — custom CSS vs image fallback, decided by projection error
+
+Synthesis of §2/§3 lessons into one decision procedure (the pandoc RawBlock + MPE + dithering +
+hi-color budget, combined):
+
+1. **Channel ladder (by editability cost, cheapest first):** native setting → restructure
+   (widget composition) → Elementor per-widget custom CSS → HTML widget → region raster.
+   Raster is the channel of last resort but it is a LEGITIMATE channel (pandoc keeps RawBlock
+   first-class; MIDI keeps pitch bend in the spec) — the sin is silent or unbudgeted use.
+2. **Decision rule = measured projection error, not vibes:** for a source feature F in region R,
+   walk the ladder; take the FIRST channel whose atlas-predicted render error ≤ threshold(R).
+   Thresholds are saliency-weighted: logos/headings/CTAs get strict thresholds, decorative
+   texture gets loose ones (directly answers grader_overstates_top_end — human-salient defects
+   are where strictness belongs). When the atlas has no cell, probe-on-miss (§5.2.5) before
+   deciding — never guess.
+3. **Standardize the custom-CSS residual (the MPE lesson):** allowed-property whitelist +
+   structured storage (one block per widget, machine-parseable), so the residual survives
+   round-trip, is lintable, and is migratable to V4 atomic styles later. Free-form CSS blobs are
+   ad-hoc sysex — they work once and rot.
+4. **Conserve un-fixed residual (the Floyd–Steinberg lesson):** quantization errors in spacing
+   accumulate down the page; carry a running vertical-error term in the builder and absorb it at
+   the next section boundary so whole-page alignment holds even when individual values are
+   off-grid.
+5. **Budget + ledger (the hi-color lesson + anti-gaming):** global per-page budgets (e.g. raster
+   ≤ N% of page area, custom-CSS blocks ≤ M) enforced by the build, and a RESIDUAL LEDGER in the
+   page's build record: every channel-escalation logged with (feature, region, predicted error
+   per channel, chosen channel, measured error after). The ledger is (a) the anti-gaming
+   counterweight to the render round-trip (§4.2.1), (b) ranked defect attribution for corpus-run,
+   (c) the empirical priority list for which atlas gaps to fix next — the residual ledger of
+   today is the native-coverage roadmap of next month.
+6. **Sticky decisions across refine iterations:** channel choices persist unless their measured
+   error changes by more than the grader noise floor (±0.08 visual — memory: grader_visual_noise),
+   preventing channel-thrash inside the refine loop.
+
