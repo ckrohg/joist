@@ -67,3 +67,37 @@ Sections below: (1) learning from human video, (2) embodiment-agnostic intermedi
 - Scene-flow-for-motion maps to the interaction-fidelity gap: represent hover/scroll behavior as *element-trajectory deltas* (what moves/fades, when), not as the source's JS/CSS mechanism — then re-author with native Motion Effects or the GSAP escape hatch.
 
 ---
+
+## 3. The ALOHA/Teleop Lesson — Collect Data Directly IN the Target Action Space
+
+**What the field found:**
+
+- [ALOHA](https://github.com/tonyzhaozh/aloha) / [Mobile ALOHA (arXiv 2401.02117)](https://arxiv.org/abs/2401.02117) made cheap **teleoperation** — a human driving the *actual robot* — the dominant data source for imitation learning. Nearly every major robot-learning dataset of 2023–2026 is teleop-based ([Claru teleop overview](https://claru.ai/training-data/teleoperation)).
+- Why it dominates human video, despite video being ~free and teleop being expensive: teleop gives **perfect action-state correspondence and zero embodiment gap** — every observation comes with the exact action *in the target's own action space* that produced it. Human video has no robot action labels; inverse-dynamics relabeling exists but "policies built on them underperform those fine-tuned on real teleoperation" ([Shaip data-strategy comparison](https://www.shaip.com/blog/robot-training-data-strategy/); [Motion Tracks, arXiv 2501.06994](https://arxiv.org/html/2501.06994)).
+- Subtler point: a teleop demonstration is **feasible by construction**. The human operator, forced to work through the 2-finger gripper, *discovers strategies native to the constrained embodiment* (push-then-pinch instead of palm-grasp). The demonstration never contains motions the robot cannot do. Human video constantly does ("even just replaying a tracked human hand trajectory on a robot end-effector may fail" — [X-Diffusion, arXiv 2511.04671](https://arxiv.org/pdf/2511.04671)).
+- The 2026 synthesis is a portfolio: human video for breadth/priors, teleop for grounding, sim for scale — but the *grounding* layer is always target-action-space data.
+
+**Transfer to website→Elementor:**
+
+- The single most actionable steal. Source websites = human video (no "action labels" — no widget tree that produced those pixels). What we lack is **teleop data: (rendered outcome ← Elementor tree) pairs collected in Elementor's own action space**.
+- Concretely: every clone run, every refine-loop iteration, every hand-built Joist page is a teleop episode — `(target screenshot, widget-tree JSON, achieved screenshot, grade)`. Log them ALL into a corpus. That corpus is the only data with zero embodiment gap, and it's the natural distillation substrate for the refine-loop ("refine-loop+distill is the canonical scalable lever").
+- The feasibility-by-construction point explains *why* skilled-human-in-Elementor examples are precious: an Elementor expert reproducing stripe.com discovers the *native idioms* (what containers+absolute can express) that no DOM translation reveals. Even a handful of such "expert teleop" pages (e.g. the designed-page case study) are worth more per byte than thousands of scraped sites — they show the constrained embodiment's own strategy vocabulary.
+- Corollary for synthetic data: generate random/LLM-sampled *Elementor trees*, render them, and use (render → tree) pairs as perfectly-labeled training/few-shot data — "self-teleop." Infinitely scalable, zero gap, and it teaches the inverse model exactly the feasible manifold (cf. §5).
+
+---
+
+## 4. Open X-Embodiment / RT-X — Pooling Across Embodiments Works (Given a Shared Interface)
+
+**What the field found:**
+
+- [Open X-Embodiment (arXiv 2310.08864)](https://arxiv.org/pdf/2310.08864) ([site](https://robotics-transformer-x.github.io/), [DeepMind blog](https://deepmind.google/blog/scaling-up-learning-across-many-different-robot-types/)) pooled 60 datasets, 22 robot embodiments, 1M+ trajectories, and asked whether co-training transfers. It does: **RT-1-X ≈ +50% mean success over robot-specific baselines in low-data regimes**; RT-2-X got ~**3× better out-of-distribution generalization** and *emergent skills absent from a given robot's own data* (e.g. spatial relations learned from another robot's trajectories).
+- What made pooling possible was a deliberately **lowest-common-denominator interface**: every robot's data was coerced to (camera image, language instruction → 7-DOF end-effector delta action). Embodiment-specific detail was thrown away; transfer happened *because* the interface was shared, coarse, and outcome-adjacent (end-effector in task space, not joint angles).
+- Skills flow *across* morphologies: data from a robot that has a capability teaches it to one that never demonstrated it ([analysis](https://notes.aimodels.fyi/deepmind-open-x-embodiment-rt-x/), [Emergent Mind summary](https://www.emergentmind.com/topics/open-x-embodiment-project)).
+
+**Transfer to website→Elementor:**
+
+- Pooling lesson #1: our episodes from *different builders* (absolute, hybrid, per-breakpoint, raster) and different sites are one dataset, not four — IF logged through a shared schema. Define the RT-X-style episode record now: `(capture-tree band, viewport, builder-action sequence, rendered result, grade dims)`. Skills learned on supabase episodes should inform tailwind builds the way one robot's data taught another's skills.
+- Pooling lesson #2 (the LCD interface): transfer came from coercing everything to a coarse shared action space. Our equivalent of "end-effector delta" is a small **canonical edit-op vocabulary** (place-band, split-columns, set-bg, pin-absolute, set-typography…) that every builder emits, instead of each builder hand-writing widget JSON its own way. Coarse, shared, outcome-adjacent — that's the layer where few-shot examples, distilled preferences, and refine-loop fixes should live so they pool across sites and builders.
+- Pooling lesson #3: low-data regime is where pooling pays most (+50%). We are permanently in the low-data regime per-site (each site seen once) — so cross-site pooling of fix-patterns (the defect→repair pairs the corpus runner already ranks) is exactly the RT-X bet, and robotics says it pays.
+
+---
