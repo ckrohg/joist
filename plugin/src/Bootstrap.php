@@ -218,6 +218,8 @@ final class Bootstrap
             \Joist\REST\SettingsController::class,
             // v0.10: MCP server — Joist as a tool surface for Claude Code (and any MCP client).
             \Joist\REST\McpController::class,
+            // Admin-only DB hygiene: revision prune + table-size stats (DB quota relief).
+            \Joist\REST\MaintenanceController::class,
         ];
         foreach ($controllers as $c) {
             if (class_exists($c)) {
