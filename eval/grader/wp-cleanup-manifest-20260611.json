@@ -40992,5 +40992,36 @@
       "filesize": 451571,
       "source_url": "https://georges232.sg-host.com/wp-content/uploads/2026/06/section_a.png"
     }
-  ]
+  ],
+  "executionResult": {
+    "executedAt": "2026-06-12T03:08:05.225Z",
+    "pages": {
+      "deleted": 166,
+      "failures": 0
+    },
+    "posts": {
+      "deleted": 1,
+      "failures": 0
+    },
+    "media": {
+      "deleted": 4963,
+      "notfound": 1,
+      "failures": 0,
+      "freedMB": 676
+    },
+    "revisions": {
+      "deleted": 0,
+      "blocked": "wp/v2 revisions DELETE returns 403 rest_cannot_delete even for administrator (WP core map_meta_cap do_not_allow on revision delete_post); Joist plan-approval path requires wp-admin UI token flow; no SSH/WP-CLI access to sg-host. 6493 revisions remain on keep-list pages."
+    },
+    "verification": {
+      "keepPagesIntact": true,
+      "afterCounts": {
+        "pages_publish": 19,
+        "pages_draft": 1,
+        "pages_trash": 0,
+        "media": 402,
+        "posts_trash": 0
+      }
+    }
+  }
 }
