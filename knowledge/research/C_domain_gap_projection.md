@@ -231,3 +231,70 @@ atlas, not an assumption); (2) project by minimizing PERCEPTUAL error, not symbo
   look fine while whole-page alignment drifts: un-diffused quantization error accumulates. A
   running "vertical error accumulator" in the builder is a ~20-line change with page-level payoff.
 
+
+## 3. Style/constraint transfer — same CONTENT, different generative system
+
+The clone task is not style transfer (we keep style AND content; we change the GENERATIVE
+SUBSTRATE). The fields that do exactly this: universal document conversion, retro-hardware
+ports/demakes, and constrained pixel art. Each contributes a distinct, transferable policy.
+
+### 3.1 Pandoc: a deliberately less-expressive hub AST + an explicit raw escape hatch
+
+- Pandoc's manual states it plainly: "Pandoc's intermediate representation of a document is less
+  expressive than many of the formats it converts between, so one should not expect perfect
+  conversions… Conversions from formats more expressive than pandoc's Markdown can be expected
+  to be lossy" — [Pandoc User's Guide](https://pandoc.org/MANUAL.html). The architecture is
+  readers → AST → writers ([Using the pandoc API](https://pandoc.org/using-the-pandoc-api.html)).
+- The residual channel is FIRST-CLASS in the AST: `RawBlock`/`RawInline` carry format-specific
+  markup that the AST cannot represent, flowing through conversion untouched and emitted only by
+  writers of the matching format — [Pandoc Lua filters](https://pandoc.org/lua-filters.html),
+  [Pandoc filters](https://pandoc.org/filters.html).
+- **Transfer (concrete):** three lessons. (a) HONESTY AS SPEC: document the expressiveness
+  ceiling of the Elementor projection the way pandoc does — a written contract of what is lossy,
+  per construct class (the atlas in §5 makes it measurable). (b) RESIDUAL AS AST NODE: our
+  intermediate capture-tree should carry the residual EXPLICITLY — a `raw` node type (custom CSS
+  / raster region) inside the tree, not a post-hoc patch applied after building. Then every
+  downstream stage (grader, editor-roundtrip, refine loop) sees and accounts for residual usage.
+  (c) Pandoc survives BECAUSE the hub is small: resisting the urge to grow the intermediate
+  representation toward "everything HTML can do" is what keeps N readers × M writers tractable.
+  Our capture-tree should stay close to Elementor's semantics, not CSS's.
+
+### 3.2 ZX Spectrum attribute clash: design INTO the constraint grid; exploit the renderer to exceed nominal limits
+
+- The Spectrum allowed only 2 colors per 8×8 cell; a third color in a cell overwrites one —
+  "attribute clash" — [Wikipedia: Attribute clash](https://en.wikipedia.org/wiki/Attribute_clash).
+  Artists' three workarounds: (1) ALIGN the artwork to the cell grid so color boundaries fall on
+  cell boundaries ("careful design could achieve impressive results"); (2) dithering within the
+  2-color cell (ordered + error-diffusion) to fake intermediate shades; (3) "hi-color" tricks:
+  re-write attributes per scanline in sync with the display refresh, effectively turning 8×8
+  cells into 8×1 — exceeding the machine's nominal vocabulary by exploiting renderer timing —
+  [PixelatedArcade: When Colors Clash](https://pixelatedarcade.com/news/when-colors-clash),
+  [Grokipedia: ZX Spectrum graphic modes](https://grokipedia.com/page/ZX_Spectrum_graphic_modes).
+- **Transfer (concrete):** (a) BOUNDARY ALIGNMENT is a projection-quality lever we can control:
+  choose section/container cut lines to coincide with the source's own visual boundaries (bg
+  changes, full-width bands) so Elementor's container edges never land mid-gradient or mid-card —
+  misaligned cuts are our attribute clash (visible seams, wrong bg bleed; cf. the tailwind §9
+  modalBg over-paint, which was exactly a cut landing inside a split-bg box). (b) The hi-color
+  lesson: every rigid vocabulary has renderer-level exploits that expand it (for us: custom CSS
+  injection, the HTML widget, per-container background layers). They are legitimate but EXPENSIVE
+  (fragile, less editable) — exactly like racing the beam: use them deliberately, budgeted, where
+  the atlas says the nominal vocabulary cannot reach (the §6 policy).
+
+### 3.3 Demakes/ports: distill to salient structure when fidelity is impossible — but we must NOT
+
+- Demakes recreate modern games under old hardware limits; the craft is "distilling complex
+  modern games into simpler forms," preserving core mechanics/identity over graphical fidelity —
+  [TV Tropes: Video Game Demake](https://tvtropes.org/pmwiki/pmwiki.php/Main/VideoGameDemake),
+  [Celeste NES demake devlog](https://john-smit.itch.io/celeste-snes-demake/devlog/1312472/porting-it-to-the-nes).
+  NES discipline: 8×8 tiles, 3 colors + shared black per sub-palette; "every shading step must be
+  a hard edge or a dithered pattern" — [NES palette](https://www.pixel-editor.com/palettes/nes).
+- **Transfer (concrete, mostly as a NEGATIVE boundary):** demakes are the regime where the output
+  vocabulary is SO much weaker that the goal degrades from reproduction to evocation. Useful as a
+  calibration: Elementor+CSS is NOT that weak — the expressive ceiling study already shows most
+  static 2026 layouts are reachable (memory: clone_pipeline_architecture, 75%→raised). So when a
+  build "demakes" a source (simplifies a layout into a generic 1-col stack), that is a BUILDER
+  failure, not a vocabulary ceiling — the abs-responsive ceiling finding showed the 1-col stack
+  winning only at 390px, where density physically can't survive. Policy: demake-style
+  simplification is permitted ONLY when the atlas proves inexpressibility at that viewport, and
+  it must be logged as a residual decision, never silent.
+
