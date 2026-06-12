@@ -40,3 +40,47 @@ They **don't try to recover THE source — they redefine success as observable e
 3. **The Ghidra pattern is our capture-tree pattern.** Deterministic front-end (capture-tree extraction) + learned/LLM refiner beats end-to-end screenshot→JSON. Our pipeline shape (capture-tree → native widget tree → refine loop) is the V2 architecture; the missing piece is the trained/amortized *refiner* distilled from our own refine-loop traces.
 4. **Skeleton-then-skin maps to structure-then-style.** Recover container/section geometry first, then typography/colors/spacing as a second pass — matches our existing layered build and SK²Decompile's measured win.
 
+
+## 2. Inverse procedural modeling / analysis-by-synthesis
+
+### CSGNet — render-feedback as REWARD (no ground-truth programs needed)
+
+**CSGNet** (Sharma et al., CVPR 2018 — [arXiv 1712.08290](https://arxiv.org/pdf/1712.08290)): CNN+RNN parses a 2D/3D shape into a CSG program (boolean ops over primitives).
+
+- Bootstrap phase: supervised training on SYNTHETIC (program → rendered shape) pairs — sample programs from the grammar, execute them, learn the inverse. Same data trick as decompilation.
+- Adaptation phase: on REAL shapes (no ground-truth program exists), switch to **policy-gradient RL where the reward is render-similarity** (Chamfer distance between the predicted program's render and the input). The renderer-in-the-loop substitutes for labels.
+- Inference: beam search + a post-hoc **visually-guided refinement** of primitive parameters against the target image.
+
+### Ellis et al. — neurally-guided proposal + symbolic search, and errors CORRECTED by the program layer
+
+**Learning to Infer Graphics Programs from Hand-Drawn Images** (Ellis, Ritchie, Solar-Lezama, Tenenbaum, NeurIPS 2018 — [arXiv 1707.09627](https://arxiv.org/pdf/1707.09627)): hand drawing → LaTeX/TikZ program.
+
+- Two-stage: CNN proposes primitives (lines, circles, rectangles) one at a time, rendering each accepted primitive back onto the canvas and DIFFING against the input ("trace hypothesis") — then constraint-based program synthesis (Sketch) finds loops/symmetry structure over the primitives. 63% top-1 exact program match.
+- KEY: the program-synthesis layer **corrects the neural net's perceptual errors** — a primitive that breaks an inferred symmetry/loop pattern is rejected as noise. Structure acts as a prior that denoises perception.
+
+**Write, Execute, Assess** (Ellis et al., NeurIPS 2019 — [arXiv 1906.04604](https://arxiv.org/pdf/1906.04604)): equips synthesis with a REPL: every partial program is EXECUTED immediately; a learned policy proposes the next line and a learned **value function scores the executed partial state**; Sequential Monte Carlo over (write → execute → assess). Addresses the core pain that tiny syntax changes cause huge semantic changes — you only ever evaluate semantics (renders), never syntax.
+
+### PLAD — the bootstrapping trick when ground-truth programs DON'T exist
+
+**PLAD** (Jones et al., CVPR 2022 — [arXiv 2011.13045](https://arxiv.org/pdf/2011.13045), [page](https://rkjones4.github.io/plad.html)): the cleanest statement of how to train an inverse model when real inputs have NO program labels.
+
+- Family of techniques: wake-sleep (sample programs from a generative model, execute, train inverse on those pairs) and **self-training with executed pseudo-labels**: run the current recognition model on REAL shapes → get predicted programs → **execute the predicted programs and pair each program with ITS OWN render** (not the original shape). The pair is now PERFECT by construction (label mismatch impossible); only the input distribution is approximate — and it converges toward the real distribution as the model improves.
+- Iterate: infer → execute → fine-tune (MLE) → infer better… a virtuous cycle. No human labels at any point.
+
+### ShapeCoder — abstraction discovery (learn the LIBRARY, not just the programs)
+
+**ShapeCoder** (Jones et al., SIGGRAPH 2023 — [arXiv 2305.05661](https://arxiv.org/pdf/2305.05661)): given shapes as unstructured primitives, jointly discovers reusable abstraction FUNCTIONS (macros) and rewrites programs to use them (e-graphs + conditional rewrites). Programs become shorter and more semantic; the dictionary of abstractions is mined from the corpus, not hand-designed.
+
+### SVG/vector inference from raster — code-generation framing won
+
+- **Im2Vec / DeepSVG** (2020-21): latent-variable + RNN decoders into path space — superseded.
+- **StarVector** (CVPR 2025 — [arXiv 2312.11556](https://arxiv.org/pdf/2312.11556), [repo](https://github.com/joanrod/star-vector)): treats vectorization as **code generation** — VLM emits SVG source directly; trained on **SVG-Stack, 2M (image, svg) pairs** (again: render-the-corpus data trick). DinoScore 0.966–0.982 vs Im2Vec's 0.692–0.754. Lesson: emitting the textual program with a code-LLM beats bespoke latent geometric decoders, BUT it works best on icons/logos/diagrams — bounded-complexity outputs.
+
+### Concrete transfer to Joist
+
+1. **PLAD self-training is OUR distillation recipe, formalized.** Every clone run already produces (real-site capture → Elementor tree) attempts. Render each produced tree and store (clone-render → tree) pairs — perfect-by-construction, regardless of clone fidelity. Fine-tune/few-shot-mine on those; the input distribution approaches "real websites" exactly as the pipeline improves. This is the cheapest path to an amortized model and needs ZERO new labeling infrastructure — the corpus-run already renders everything.
+2. **Value-function-over-executed-partial-states ≈ grade sections as you build.** Write-Execute-Assess says: don't grade only finished pages; render and score PARTIAL trees (per-section) and use that to steer/prune. Our per-section refine loop is the SMC outer loop; what's missing is the cheap learned value function to rank candidate section-builds before full grading.
+3. **Ellis's "structure corrects perception"**: fit a symmetry/repetition model over captured elements (grids, repeated cards, consistent gutters) and REJECT capture outliers that violate it — directly applicable to capture-noise (our biggest per-bp matcher pain). The grammar isn't just output vocabulary; it's a denoiser for the input.
+4. **ShapeCoder → mine OUR corpus for macro-widgets**: recurring (hero, pricing-grid, logo-marquee, testimonial-row) subtrees should be auto-mined into parameterized templates; shorter programs = fewer degrees of freedom = fewer ways to be wrong, and more-editable output (semantic units map to what a human would edit).
+5. **StarVector's boundary is a warning**: pure end-to-end image→code saturates at icon-level complexity. Full pages need the decomposed pipeline (capture-tree front-end, per-section synthesis) — which is what we already have.
+
