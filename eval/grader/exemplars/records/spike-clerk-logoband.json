@@ -1,0 +1,64 @@
+{
+  "id": "spike-clerk-logoband",
+  "constructIds": [
+    "logo-band",
+    "body-text",
+    "divider"
+  ],
+  "visualDescriptor": {
+    "structuralSignature": "flex-row",
+    "palette": [
+      "#fcfcfd",
+      "#353538",
+      "#d1d1d2"
+    ],
+    "densityTags": [
+      "light-bg",
+      "sparse",
+      "muted",
+      "wide-band"
+    ]
+  },
+  "renderPng": "renders/spike-clerk-logoband.png",
+  "renderSize": {
+    "w": 1440,
+    "h": 200
+  },
+  "authoredHtml": "html/spike-clerk-logoband.html",
+  "elementorJson": null,
+  "provenance": "spike",
+  "verification": {
+    "status": "judged",
+    "evidence": [
+      "/tmp/vj-htmlfirst/results.json (VOLATILE /tmp)",
+      "/tmp/vj-htmlfirst/manifest.json tiles w1440-00..04 (VOLATILE)",
+      "knowledge/EMBODIMENT_APPROACH.md §4.2 (commit fbfddda)",
+      "eval/grader/atlas/spike-lint-report.json"
+    ],
+    "notes": "Verbatim spike logo band (text marks). Carries W-CSSMATH warnings (clamp/max), frozen at transpile."
+  },
+  "lint": {
+    "clean": true,
+    "violations": [],
+    "warnings": [
+      {
+        "construct": "css",
+        "rule": "W-CSSMATH",
+        "element": ".cell { min-height: clamp(112px, 9vw, 130px) }",
+        "note": "frozen to computed px at authoring width (transpiler P2 policy)"
+      },
+      {
+        "construct": "css",
+        "rule": "W-CSSMATH",
+        "element": ".cell.label { padding-left: max(68px, 50% - 608px) }",
+        "note": "frozen to computed px at authoring width (transpiler P2 policy)"
+      }
+    ]
+  },
+  "source": {
+    "site": "clerk.com",
+    "crop": "/tmp/htmlfirst/c-logos.png",
+    "width": 1440
+  },
+  "hash": "sha256:425aed456788f1716db7857d3421f4523a2bba79e85b884abf9ffbaa3e6d6391"
+}

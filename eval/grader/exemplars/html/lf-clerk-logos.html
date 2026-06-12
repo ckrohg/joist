@@ -1,0 +1,37 @@
+<!doctype html>
+<!-- @purpose Exemplar lf-clerk-logos — logo wall with REAL svg brand assets from the local-fidelity clerk partial (/tmp/local-fidelity/clerk.html s3), verified by LOOK against /tmp/local-fidelity/cap crops only (no judge run). Mechanical normalization for the contract linter: BEM "__" -> "-" classes, asset filenames sanitized (render-identical). Distinct from the spike logo band: real <img> logos, not text marks. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>exemplar: logo wall (local-fidelity)</title>
+<style>
+@font-face{font-family:'Suisse';src:url('fonts/SuisseIntl_Book.woff2') format('woff2');font-weight:450;font-style:normal;font-display:swap}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Suisse',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;color:#131316;background:#f7f7f8;font-weight:400;-webkit-font-smoothing:antialiased}
+img{display:block;max-width:100%}
+.logos{background:#fff;border-top:1px solid rgba(19,19,22,.05);border-bottom:1px solid rgba(19,19,22,.05)}
+.logos-inner{display:flex;align-items:stretch;max-width:1216px;margin:0 auto;height:127px}
+.logos-lead{flex:0 0 315px;display:flex;align-items:center;font-size:15px;line-height:24px;font-weight:450;color:#131316}
+.logos-lead p{max-width:240px}
+.logos-cell{flex:1;display:flex;align-items:center;justify-content:center;border-left:1px solid rgba(19,19,22,.07)}
+.logos-cell:last-child{border-right:1px solid rgba(19,19,22,.07)}
+.logos-cell img{width:144px;height:32px}
+@media (max-width:820px){
+  .logos-inner{flex-wrap:wrap;height:auto;padding:24px 0}
+  .logos-lead{flex:1 1 100%;justify-content:center;padding:0 24px 16px}
+  .logos-cell{flex:1 1 40%;border:0;padding:12px 0}
+}
+</style>
+</head>
+<body>
+<section class="logos">
+  <div class="logos-inner">
+    <div class="logos-lead"><p>Trusted by fast-growing companies around the world.</p></div>
+    <div class="logos-cell"><img src="assets/logo-david-ai.svg" alt="David AI logo"></div>
+    <div class="logos-cell"><img src="assets/logo-open-router.svg" alt="OpenRouter logo"></div>
+    <div class="logos-cell"><img src="assets/logo-samaya.svg" alt="Samaya logo"></div>
+    <div class="logos-cell"><img src="assets/logo-cartesia.svg" alt="Cartesia logo"></div>
+  </div>
+</section>
+</body>
+</html>
