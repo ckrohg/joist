@@ -346,6 +346,35 @@ never counted — no double counting.
 - The ≥95% coverage gate denominator = all countable occurrences as defined above; the numerator
   = occurrences whose key-triple is in the top-50 head.
 
+### 4.2 P2 gate verdict (2026-06-12) — DUAL GATE PASS [honest]
+
+Artifacts: `knowledge/AUTHORING_CONTRACT.md` (26c5fc9), `eval/grader/atlas/lint-authoring.mjs`
++ `fixtures/` (selftest 12/12 PASS: clean fixture = 19 expressible constructs / 42 occurrences /
+0 violations; planted fixture = exactly 5 violations caught — V-SCRIPT, V-GRID, V-POSITION,
+V-BGIMAGE, V-MINWIDTH — no extras, card-grid carries its banned-by-construction rule),
+`eval/grader/atlas/spike-lint-report.json`, `eval/grader/atlas/reauth-hero.html` +
+`reauth-lint-report.json`.
+
+- **Gate (a) — spike lint-clean as-authored: 48/49 = 98.0% (target ≥90) — PASS, no contract
+  iteration needed.** Sole violation: V-NEST (`.oauth` at container depth 5 in the components
+  auth-card chain section>wrap>row>authcard>oauth). Warnings (non-gating): 2× W-CSSMATH
+  (`clamp()`/`max()` in the logo band, frozen-px policy), 1× W-BTN-SPAN (Google "G" icon span
+  flattens). The strictness gate held WITHOUT loosening the contract.
+- **Gate (b) — clerk hero re-authored under the contract: structural parity — PASS.**
+  `reauth-hero.html` authored from the capture crops with both contract deltas applied (CSS math
+  frozen to px at 1440/≤1180; components flattened to depth ≤4 by merging wrap+row): 100%
+  lint-clean (48 constructs, 0 violations). Rendered 1440+1100 via local static server and
+  pixel-diffed vs the spike HTML's own renders: **99.82% @1440, 100.00% @1100** exact-pixel —
+  the only 1440 residual is the 0.4px clamp-freeze in logo-band cell height (129.6→130px)
+  rippling 1px antialiasing shifts below. The contract constraints cost the author nothing
+  measurable; tile-score parity follows a fortiori (same pixels ⇒ same judge tiles, no judge
+  re-run spent). Honest deltas vs the WP-transpiled finals (96.95%/93.95%): nav glyph/gap
+  micro-shifts and the 1100 components stack (spike WP render shows side-by-side — the
+  media-query→responsive-controls mapping is exactly P3's scoped work, not an authoring gap).
+- **Totality:** every lint-clean construct ∈ EXPRESSIBLE (asserted in selftest); the 11 atlas
+  GAP constructs are V-banned with residual-channel pointers; no lint-clean construct without a
+  transpile rule was observed on either gate input.
+
 ### Immediate next 3 actions
 
 1. **Pre-register the construct unit (§4.1), THEN build the feature-frequency histogram** over
