@@ -1,0 +1,47 @@
+<!doctype html>
+<!-- @purpose lint-authoring selftest fixture: EXACTLY 5 planted contract violations, one each of
+     V-SCRIPT (body script), V-GRID (display:grid card grid -> banned-by-construction card-grid),
+     V-POSITION (absolute-pinned badge), V-BGIMAGE (gradient hero background),
+     V-MINWIDTH (min-width media query). Everything else conformant: the selftest asserts the
+     linter catches ALL 5 and reports NO extras. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Violations fixture</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: ui-sans-serif, -apple-system, Arial, sans-serif; color: #131316; }
+  .hero-bg { background-image: linear-gradient(135deg, #1a1a2e, #16213e); color: #ffffff;
+    padding: 64px 32px; }
+  .hero-bg h1 { font-size: 44px; font-weight: 700; }
+  .host { position: relative; padding: 32px; }
+  .pinned { position: absolute; top: 8px; right: 8px; background: #eef2ff;
+    padding: 4px 10px; font-size: 12px; }
+  .grid-cards { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; padding: 32px; }
+  .grid-card { border: 1px solid #ececef; border-radius: 12px; padding: 16px; }
+  @media (min-width: 768px) {
+    .grid-cards { gap: 24px; }
+  }
+</style>
+</head>
+<body>
+
+<section class="hero-bg">
+  <h1>Hero on a gradient</h1>
+</section>
+
+<section class="host">
+  <span class="pinned">pinned</span>
+  <p>In-flow body text stays conformant.</p>
+</section>
+
+<div class="grid-cards">
+  <div class="grid-card">Card one</div>
+  <div class="grid-card">Card two</div>
+  <div class="grid-card">Card three</div>
+</div>
+
+<script>console.log('planted V-SCRIPT');</script>
+
+</body>
+</html>
