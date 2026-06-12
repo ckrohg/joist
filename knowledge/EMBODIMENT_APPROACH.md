@@ -295,3 +295,91 @@ any library growth (D S4).
    every judge-passed section with renders on disk becomes a library record with canonical-desc +
    skeleton keys.
 
+---
+
+## Critic verdict 2026-06-12: **pass-with-notes**
+
+Adversarial review, default-skeptical, against: the four research files at HEAD, PATH_TO_TRUE_1TO1
+§8a–8d, RESEARCH_STEALS_2026H1, and the repo state (969bc1c == working tree, verified). ~14
+citations spot-checked against A–D; 12 faithful, 2 inflated (mustFix 7), 1 fair-but-noted
+simplification. The doctrine (outcome-space objective, own-the-compiler corpus, constrained
+authoring, residual ledger, MPC loop) is genuinely grounded and consistent with the arc's proven
+results — judge-as-headline kept, HTML-first vehicle kept, E′ capture kept, §8d inherited and
+strengthened, DIES list matches what was already retired. What fails review is not the
+architecture but several phase gates that are confirmable-by-construction as written, one
+sequencing conflict with a user mandate, and two evidentiary overhangs.
+
+### mustFix (blocking before P1 kickoff)
+
+1. **P3's falsifier is statistically vacuous.** 3 held-out sections with a ≥2/3 win bar has a
+   ~50% pass probability under the null (coin flip). Fix: ≥10 sections, ≥8/10 pairwise wins,
+   randomized left/right tile order, judge run under §8d separation-of-duties. Also state the
+   WP-free render path explicitly (authored HTML in local chromium, judged pre-transpile) — as
+   written, judging authored output is the step that silently re-introduces WP into a "WP-free"
+   phase.
+2. **P2's falsifier passes-by-construction via linter strictness.** A linter that rejects most
+   constructs makes "lint-clean output hits no transpiler gap" vacuously true while strangling
+   the author. Dual gate required: (a) ≥90% of the PROVEN clerk-hero spike output lint-clean
+   as-authored, AND (b) one section re-authored under the atlas-constrained contract holds the
+   spike's tile scores (~72/82/78/72 minus judge noise). The doc cites GAD's
+   constraint-distortion lesson (B §4) but never applies it to its own biggest move — the
+   atlas-constrained contract could regress the arc's single largest proven win (+37–40) and no
+   gate currently measures that.
+3. **P1's head-coverage gate is gameable by taxonomy granularity.** Define the construct unit
+   (property × value-class list) and pre-register it BEFORE computing the histogram, else
+   "top-50 covers ≥95%" is satisfiable by coarsening definitions. Also reconcile P1's "~top 50"
+   with C §5.2's "~top 100" probe head.
+4. **Reconcile with the locked §8b sequence and the user-mandated E′ promotion (2026-06-10).**
+   The P1–P6 table never mentions V2 region-raster or E′, which the user promoted to
+   "immediately after V1/V2". State explicitly whether P1–P3 run beside E′ under PATH §4's
+   2-track cap or re-sequence it. Silently displacing a user mandate is how this plan dies in
+   its first contact with review.
+5. **P6's metric is undefined and noise-blind.** "Corpus mean" must bind to the vision-judge /
+   human-estimate headline (the deterministic composite is rails-only per §8b — measuring the
+   flywheel on the demoted metric would be metric-worship recidivism), with §8d evidence bundles
+   on both runs and a noise-aware improvement threshold (±0.08 single-run visual noise is
+   documented; two runs of a noisy scalar is weak evidence in either direction).
+6. **P4 (MPC) is scheduled before the cheap renderer exists.** real2sim CSS-bundle preview
+   (C §1.2) lands in P5, yet P4's k=3 candidates/section × re-capture between ops runs on ONE
+   shared live WP instance with PUT serialization. Pull the local-preview import forward into
+   P4, or re-size P4 honestly. "Render is cheap, deterministic, free forever" is true relative
+   to robotics, false relative to SiteGround.
+7. **Two citation inflations to correct (they underwrite moves b and c).** (i) D S5's
+   many-shot-ICL result is qualified "on classification" in the source; the generation-side
+   evidence is DAIL-SQL — on a grammar far smaller than Elementor's. (ii) FAST *matched* π₀ at
+   5× less training (and beat naive binning); it did not show a coarse vocabulary "beats a
+   smarter model emitting raw output." Keep both moves; fix the evidentiary overhang so the doc
+   doesn't claim more than its sources.
+
+### Notes (sharpest first)
+
+- **Flywheel bootstrap starvation.** Inlet 1 (verified-clone bootstrap, "primary, free")
+  requires judge ≥ threshold AND the ≥90% round-trip gate. Under honest calibration (user's
+  tailwind verdict ≤~50) and the round-trip indictment (text-editor/button panel edits inert),
+  today's pass set may be near-empty — and repo recon shows run artifacts scattered across
+  per-experiment `out-*` dirs with no per-section grade store. Do a day-0 inventory before
+  sizing P3; expect tens of records, not hundreds; and never admit exemplars verified by the
+  OLD inflated grader without re-scoring (D S6.4's re-validation rule applies at birth, not
+  only on upgrades).
+- **The theater channel moved up a level, it didn't close.** The falsifier discipline is real,
+  but P1–P3 verdict artifacts (coverage table, totality matrix, A/B verdicts) are self-produced
+  by the implementing agent — exactly the channel §8d closed for page scores. Extend
+  separation-of-duties to phase gates: orchestrator re-executes one falsifier per phase by
+  direct re-run, not by reading the report.
+- **Grounding verdict with a caveat about the layer below.** The synthesis is faithful to A–D;
+  but A–D themselves are the unverified layer (external papers not re-checked under this
+  critique's constraints). Treat the research files as testimony, not ground truth, whenever a
+  move gets expensive — e.g. "never real-world HTML/CSS" (B §3) is already a simplification
+  (Design2Code/WebSight systems do emit HTML; the doc's own HTML-shaped-surface caveat absorbs
+  it, barely).
+- Smaller: the motion/interaction hard requirement (user 2026-06-05) has zero slots in P1–P6 —
+  declare it explicitly orthogonal (PATH track D unchanged) or it reads as silently dropped.
+  Atlas scope should eventually cover Theme Builder site-part constructs (§8d idioms), not only
+  page-content widgets. P5's retro-validation falsifier (≥8/10 known drift bugs
+  probe-detectable) is the best-designed gate in the table — pre-register the 10-bug list with
+  the orchestrator so the implementing agent can't select them.
+
+**Net:** the reframe earns its place as doctrine; the plan ships after the seven fixes. The
+anti-detour protections (WP-free P1–P3, probe-on-miss, 2–4 day sizes) are adequate ON PAPER —
+they hold only if the phase gates above are made refute-by-default in fact, not just in label.
+
