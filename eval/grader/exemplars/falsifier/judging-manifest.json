@@ -1,0 +1,109 @@
+{
+  "task": "P3 exemplar-library falsifier — PAIRWISE judging",
+  "createdFor": "knowledge/EMBODIMENT_APPROACH.md §P3 (commit 1be95cf), hardened per critic mustFix 1",
+  "protocol": {
+    "question": "For each pair: which render (left or right) more faithfully reproduces the SOURCE crop? Judge fidelity to the source: layout structure, typography scale/weight/color, spacing rhythm, component chrome (cards/buttons/borders), palette. Ignore: placeholder boxes standing in for photos/brand assets (BOTH arms use them by design), minor height differences, anti-aliasing.",
+    "verdictPerPair": "left | right | tie",
+    "gate": "WITH-exemplars must win >=8/10 (ties do not count as wins)",
+    "separationOfDuties": "The judge MUST NOT be the implementing agent and MUST NOT read answer-key.json or the falsifier HTML comments before verdicts are recorded. Arm identity is only in answer-key.json.",
+    "renderPath": "WP-FREE: authored HTML rendered in local chromium pre-transpile (render-exemplar.mjs), per the P3 falsifier spec."
+  },
+  "pairs": [
+    {
+      "pair": "01",
+      "site": "clerk.com",
+      "section": "b2b-saas section header (eyebrow/h2/copy/link)",
+      "width": 1216,
+      "source": "/tmp/p3-judging/source-01.png",
+      "left": "/tmp/p3-judging/pair-01-left.png",
+      "right": "/tmp/p3-judging/pair-01-right.png"
+    },
+    {
+      "pair": "02",
+      "site": "clerk.com",
+      "section": "organizations 3-column feature cards",
+      "width": 1216,
+      "source": "/tmp/p3-judging/source-02.png",
+      "left": "/tmp/p3-judging/pair-02-left.png",
+      "right": "/tmp/p3-judging/pair-02-right.png"
+    },
+    {
+      "pair": "03",
+      "site": "clerk.com",
+      "section": "billing split: text col + pricing app mock",
+      "width": 1280,
+      "source": "/tmp/p3-judging/source-03.png",
+      "left": "/tmp/p3-judging/pair-03-left.png",
+      "right": "/tmp/p3-judging/pair-03-right.png"
+    },
+    {
+      "pair": "04",
+      "site": "clerk.com",
+      "section": "dark dual feature (frameworks/integrations) + icon grids",
+      "width": 1280,
+      "source": "/tmp/p3-judging/source-04.png",
+      "left": "/tmp/p3-judging/pair-04-left.png",
+      "right": "/tmp/p3-judging/pair-04-right.png"
+    },
+    {
+      "pair": "05",
+      "site": "clerk.com",
+      "section": "testimonial wall (intro + quote card columns)",
+      "width": 1280,
+      "source": "/tmp/p3-judging/source-05.png",
+      "left": "/tmp/p3-judging/pair-05-left.png",
+      "right": "/tmp/p3-judging/pair-05-right.png"
+    },
+    {
+      "pair": "06",
+      "site": "clerk.com",
+      "section": "footer (brand + 5 link columns + legal row)",
+      "width": 1440,
+      "source": "/tmp/p3-judging/source-06.png",
+      "left": "/tmp/p3-judging/pair-06-left.png",
+      "right": "/tmp/p3-judging/pair-06-right.png"
+    },
+    {
+      "pair": "07",
+      "site": "tailwindcss.com",
+      "section": "sponsors band (headline/CTA + hairline logo wall)",
+      "width": 1000,
+      "source": "/tmp/p3-judging/source-07.png",
+      "left": "/tmp/p3-judging/pair-07-left.png",
+      "right": "/tmp/p3-judging/pair-07-right.png"
+    },
+    {
+      "pair": "08",
+      "site": "tailwindcss.com",
+      "section": "built-for-the-modern-web band (logos tail + heading + responsive-design card)",
+      "width": 1000,
+      "source": "/tmp/p3-judging/source-08.png",
+      "left": "/tmp/p3-judging/pair-08-left.png",
+      "right": "/tmp/p3-judging/pair-08-right.png"
+    },
+    {
+      "pair": "09",
+      "site": "tailwindcss.com",
+      "section": "feature bento 2x2 (filters/dark-mode/css-variables/cascade-layers)",
+      "width": 1000,
+      "source": "/tmp/p3-judging/source-09.png",
+      "left": "/tmp/p3-judging/pair-09-left.png",
+      "right": "/tmp/p3-judging/pair-09-right.png"
+    },
+    {
+      "pair": "10",
+      "site": "tailwindcss.com",
+      "section": "transitions band (easing panel + logical-props/container-queries + code panel)",
+      "width": 1000,
+      "source": "/tmp/p3-judging/source-10.png",
+      "left": "/tmp/p3-judging/pair-10-left.png",
+      "right": "/tmp/p3-judging/pair-10-right.png"
+    }
+  ],
+  "notes": [
+    "Authoring-arm honesty: both arms authored by the same agent under the same contract from the same crops; WITH arm additionally re-read the top-3 retrieved exemplars (retrieval-source-XX.json) and reused their conventions. Single-agent authoring means knowledge contamination is bounded but not zero — judging separation is the integrity boundary.",
+    "Pairs 09 and 10: the WITH arm shares the WITHOUT arm layout skeleton (deterministic restyle to exemplar conventions) — these pairs isolate convention transfer, not layout choice.",
+    "All 20 files lint-clean under eval/grader/atlas/lint-authoring.mjs; V-NEST flattens were applied IDENTICALLY to both arms (fairness preserved).",
+    "Falsifier HTML committed at eval/grader/exemplars/falsifier/{with,without}/sec-XX.html (branch docs-rot-fixes-20260609)."
+  ]
+}
