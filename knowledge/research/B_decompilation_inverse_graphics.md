@@ -84,3 +84,21 @@ They **don't try to recover THE source — they redefine success as observable e
 4. **ShapeCoder → mine OUR corpus for macro-widgets**: recurring (hero, pricing-grid, logo-marquee, testimonial-row) subtrees should be auto-mined into parameterized templates; shorter programs = fewer degrees of freedom = fewer ways to be wrong, and more-editable output (semantic units map to what a human would edit).
 5. **StarVector's boundary is a warning**: pure end-to-end image→code saturates at icon-level complexity. Full pages need the decomposed pipeline (capture-tree front-end, per-section synthesis) — which is what we already have.
 
+
+## 3. GUI/web inverse rendering: pix2code → pix2struct → ScreenAI → Design2Code
+
+### Lineage and what representation won
+
+- **pix2code** (Beltramelli 2017 — [arXiv 1705.07962](https://arxiv.org/pdf/1705.07962)): CNN+LSTM emits a **DSL** (not raw HTML) per platform, then a deterministic compiler DSL→code. 1,750 synthetic pairs; ~77% token accuracy on toy GUIs. Note: even the 2017 origin point chose a CONSTRAINED intermediate vocabulary + deterministic compiler — the pix2code DSL is structurally an "Elementor JSON" move.
+- **pix2struct** (Google 2022): pretrained on masked-webpage-screenshot → **simplified HTML** parsing; key contributions were a screenshot-parsing objective and variable-resolution ViT patching. Representation: simplified/normalized HTML, not full source.
+- **ScreenAI** (Google 2024 — [arXiv 2402.04615](https://arxiv.org/pdf/2402.04615), [blog](https://research.google/blog/screenai-a-visual-language-model-for-ui-and-visually-situated-language-understanding/)): 5B VLM, SOTA on UI tasks. Pipeline: a **DETR-based layout annotator** auto-labels screenshots into a **textual UI schema** (element type ∈ {IMAGE, PICTOGRAM, BUTTON, TEXT…}, bbox, OCR text, description — [dataset](https://github.com/google-research-datasets/screen_annotation)); LLMs then generate task data at scale from those schemas. The load-bearing representation is a FLAT TYPED ELEMENT LIST WITH BBOXES — i.e., our capture-tree, not nested HTML.
+- **WebSight** (HuggingFace 2024) / **WebCode2M** ([arXiv 2404.06369](https://arxiv.org/pdf/2404.06369)): 2M (HTML, screenshot) synthetic pairs — LLM writes HTML, renderer screenshots it, train the inverse VLM. The decompilation data trick, already replicated in the web domain.
+- **Design2Code** (Stanford SALT 2024 — [arXiv 2403.03163](https://arxiv.org/pdf/2403.03163), [site](https://salt-nlp.github.io/Design2Code/)): benchmark of 484 REAL webpages. Metrics decompose like ours: block-match / text / position / color + CLIP. GPT-4V direct prompting: block-match 0.624, text 0.977, position 0.779, color 0.707, CLIP 0.892. Findings: (a) **element RECALL and LAYOUT are where everything fails** (text/color are nearly solved or fixable by fine-tuning); (b) text-augmented prompting (feed extracted text) helps; (c) **self-revision prompting — show the model its own render vs the target — helps**, validating render-feedback loops even for frontier VLMs.
+
+### Concrete transfer to Joist
+
+1. **Design2Code's failure decomposition matches ours exactly** — geometry/recall is the hard residual, text/color are easy. Their numbers justify our lever priority (layout engine, completeness/coverage) and our grader's dimension split. Also: their CLIP-only number (0.892) vs block-match (0.624) is the SAME overstatement gap our grader memory documents — high-level visual metrics flatter, element-level metrics tell the truth.
+2. **ScreenAI's annotator-then-LLM cascade**: a small cheap specialized detector produces the typed-bbox schema; the expensive model consumes SCHEMA not pixels. Endorses investing in capture-tree quality over bigger vision models, and suggests a cheap fine-tuned detector for element-type classification (BUTTON vs TEXT vs PICTOGRAM) where our heuristics misfire.
+3. **Nobody in this lineage outputs full real-world HTML/CSS** — every system that works emits a normalized/simplified vocabulary (DSL, simplified HTML, UI schema). Elementor JSON as output vocabulary is not a handicap; it is the field-standard move. The handicap would be trying to emit arbitrary CSS.
+4. **Self-revision = our refine loop**, but theirs is single-shot whole-page. Per-section revision with measured diffs (what we do) is strictly finer-grained than the published SOTA loop.
+
