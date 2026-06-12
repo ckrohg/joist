@@ -87,6 +87,19 @@ async function dismissOverlays(page) {
     const ACCEPT = /^(accept( all)?( cookies)?|allow( all)?( cookies)?|agree( & continue)?|i (agree|accept|understand)|got it|ok(ay)?|understood|dismiss|reject all|necessary( cookies)? only|only necessary|save( and| &)? (close|accept|exit)|close)$/i;
     const roots = [...document.querySelectorAll('[id*=cookie i],[class*=cookie i],[id*=consent i],[class*=consent i],[id*=gdpr i],[class*=gdpr i],#onetrust-banner-sdk,#CybotCookiebotDialog,.cc-window,[id*=cookiebanner i],[role=dialog],[aria-modal=true]')]
       .filter((el) => vis(el) && /cookie|consent|gdpr|privacy|tracking/i.test((el.textContent || '').slice(0, 4000) + ' ' + el.id + ' ' + el.className));
+    // pass A2: TEXT-detected banners with no consent markup at all (clerk.com: pure-Tailwind `fixed bottom-7
+    // z-150` div, no id/class keywords, no role=dialog, z far below the pass-B gate). A fixed/sticky element
+    // whose SHORT text says "we use cookies"-style phrasing IS a consent banner — no nav/hero ever says that.
+    const CONSENT_PHRASE = /\b(we use cookies|(this |our )?(web)?site uses cookies|cookie (policy|preferences|settings|notice)|manage (your )?cookie)\b/i;
+    for (const el of document.querySelectorAll('body *')) {
+      const cs = getComputedStyle(el);
+      if (cs.position !== 'fixed' && cs.position !== 'sticky') continue;
+      const txt = (el.textContent || '').replace(/\s+/g, ' ').trim();
+      if (txt.length > 600 || !CONSENT_PHRASE.test(txt)) continue;
+      const r = el.getBoundingClientRect();
+      if (!vis(el) || r.height > innerHeight * 0.6) continue;     // banner-shaped, not a takeover of the page
+      if (!roots.includes(el)) roots.push(el);
+    }
     for (const root of roots) {
       const btns = [...root.querySelectorAll('button,[role=button],a,input[type=button],input[type=submit]')].filter(vis);
       // prefer explicit accept over generic close
@@ -104,15 +117,21 @@ async function dismissOverlays(page) {
   const hidden = await page.evaluate(() => {
     const out = [];
     const cssPath = (el) => { const seg = []; let n = el, g = 0; while (n && n.nodeType === 1 && n !== document.documentElement && g++ < 12) { let s = n.tagName.toLowerCase(); if (n.id && /^[A-Za-z][\w-]*$/.test(n.id)) { seg.unshift(`${s}#${n.id}`); break; } const sib = n.parentElement ? [...n.parentElement.children].filter((c) => c.tagName === n.tagName) : []; if (sib.length > 1) s += `:nth-of-type(${sib.indexOf(n) + 1})`; seg.unshift(s); n = n.parentElement; } return seg.join('>'); };
+    const CONSENT_PHRASE = /\b(we use cookies|(this |our )?(web)?site uses cookies|cookie (policy|preferences|settings|notice)|manage (your )?cookie)\b/i;
     for (const el of document.querySelectorAll('body *')) {
       const cs = getComputedStyle(el);
       if (!(cs.position === 'fixed' || cs.position === 'sticky')) continue;
       const z = parseInt(cs.zIndex, 10) || 0;
-      if (z <= 999) continue;
       const r = el.getBoundingClientRect();
       if (r.width < 5 || r.height < 5 || cs.display === 'none' || cs.visibility === 'hidden') continue;
+      const shortTxt = (el.textContent || '').replace(/\s+/g, ' ').trim();
+      // STRONG text match ("we use cookies" phrasing, short, banner-shaped) needs no z gate — clerk's banner
+      // is z-150 with zero consent markup. Everything else keeps the z>999 gate (site navs are fixed low-z).
+      const strongConsent = shortTxt.length <= 600 && CONSENT_PHRASE.test(shortTxt) && r.height <= innerHeight * 0.6;
+      if (z <= 999 && !strongConsent) continue;
       const meta = `${el.id} ${typeof el.className === 'string' ? el.className : ''}`;
-      const looksConsent = /cookie|consent|gdpr|cmp-|onetrust|cookiebot|didomi|usercentrics|truste/i.test(meta)
+      const looksConsent = strongConsent
+        || /cookie|consent|gdpr|cmp-|onetrust|cookiebot|didomi|usercentrics|truste/i.test(meta)
         || (/cookie|consent|gdpr/i.test((el.textContent || '').slice(0, 4000)) && /privacy|polic|accept|agree|preferences|tracking/i.test((el.textContent || '').slice(0, 4000)));
       const coversViewport = r.width >= innerWidth * 0.85 && r.height >= innerHeight * 0.85;
       const modalish = el.matches('[role=dialog],[aria-modal=true],[class*=backdrop i],[class*=modal i],[class*=overlay i]');
