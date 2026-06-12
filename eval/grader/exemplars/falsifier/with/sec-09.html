@@ -1,0 +1,72 @@
+<!doctype html>
+<!-- @purpose P3 falsifier sec-09 WITH-exemplars arm — tailwindcss.com feature bento (crop band-src1000-y5600), authored WITH retrieved context [syn-code-panel, lf-clerk-announce, lf-clerk-darkcard]: syn-code-panel codebox conventions reused for both code cards (#0d1117 bg, #1f242c border, GitHub-dark token palette ff7b72/a5d6ff/8b949e/c9d1d9, <br> line discipline), darkcard h3/p rhythm (13.5/24 + muted) for card heads. Photo as tinted box. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>sec-09 with</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --ink: #0a0f1a; --muted: #6b7280; --line: #ececf0; }
+  body { background: #f6f7f9; color: var(--ink);
+    font-family: ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  .bento { display: flex; flex-wrap: wrap; gap: 14px; padding: 14px; }
+  .bcard { flex: 1 1 440px; background: #ffffff; border: 1px solid var(--line); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; }
+  .bhead { display: flex; align-items: center; gap: 12px; }
+  .bic { width: 34px; height: 24px; border: 1.5px solid #cbd5e1; border-radius: 5px; }
+  .bhead h3 { font-size: 13.5px; line-height: 24px; font-weight: 700; }
+  .bcopy { margin-top: 10px; font-size: 12px; line-height: 18px; color: var(--muted); }
+  .media { margin-top: 16px; border-radius: 8px; overflow: hidden; }
+  .duotone { height: 240px; background: #b48ed6; display: flex; align-items: flex-start; padding: 10px; }
+  .chip { font-family: ui-monospace, Menlo, monospace; font-size: 10px; background: #ffffff; border-radius: 4px; padding: 2px 6px; color: #374151; }
+  .pay { display: flex; }
+  .pay-l { flex: 1; background: #ffffff; border: 1px solid #ececf0; padding: 16px; }
+  .pay-r { flex: 1; background: #0f172a; color: #ffffff; padding: 16px; }
+  .pay-amt { font-size: 19px; font-weight: 700; }
+  .pay-btns { display: flex; gap: 8px; margin-top: 12px; }
+  .pbtn { flex: 1; display: flex; align-items: center; justify-content: center; height: 26px; border-radius: 6px; background: #2563eb; color: #ffffff; font-size: 10.5px; font-weight: 600; }
+  .pbtn.ghost { background: transparent; border: 1px solid #cbd5e1; color: #0a0f1a; }
+  .pay-r .pbtn.ghost { border-color: #334155; color: #ffffff; }
+  .pay-row { display: flex; justify-content: space-between; margin-top: 14px; font-size: 10.5px; color: #6b7280; }
+  .pay-r .pay-row { color: #94a3b8; }
+  .pay-val { font-weight: 600; color: #0a0f1a; }
+  .pay-r .pay-val { color: #ffffff; }
+  .codep { margin-top: 16px; background: #0d1117; border: 1px solid #1f242c; border-radius: 10px; padding: 14px 16px; font-family: ui-monospace, Menlo, monospace; font-size: 11px; line-height: 19px; color: #c9d1d9; flex: 1; }
+</style>
+</head>
+<body>
+<section class="bento">
+    <div class="bcard">
+      <div class="bhead"><span class="bic"></span><h3>Filters</h3></div>
+      <p class="bcopy">What's a website these days without filters? A few backdrop blurs? Yeah, stacking filters until your designer asks you to please, please stop.</p>
+      <div class="media duotone"><span class="chip">saturate-200</span></div>
+    </div>
+    <div class="bcard">
+      <div class="bhead"><span class="bic"></span><h3>Dark mode</h3></div>
+      <p class="bcopy">If you're not a fan of burning your retinas, just slap dark: in front of any color to apply it in dark mode.</p>
+      <div class="media pay">
+        <div class="pay-l">
+          <div class="pay-amt">$20,568.72 CAD</div>
+          <div class="pay-btns"><span class="pbtn">Send</span><span class="pbtn ghost">Request</span></div>
+          <div class="pay-row"><span>CAD</span><span class="pay-val">$14,689.24</span></div>
+        </div>
+        <div class="pay-r">
+          <div class="pay-amt">$20,568.72 CAD</div>
+          <div class="pay-btns"><span class="pbtn">Send</span><span class="pbtn ghost">Request</span></div>
+          <div class="pay-row"><span>USD</span><span class="pay-val">$364.28</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="bcard">
+      <div class="bhead"><span class="bic"></span><h3>CSS variables</h3></div>
+      <p class="bcopy">Customizing your theme is as simple as creating a few CSS variables.</p>
+      <pre class="codep"><span style="color:#8b949e"> 1</span>  <span style="color:#ff7b72">@theme</span> {<br><span style="color:#8b949e"> 2</span>    <span style="color:#79c0ff">--font-sans</span>: <span style="color:#a5d6ff">"Inter"</span>, sans-serif;<br><span style="color:#8b949e"> 3</span>    <span style="color:#79c0ff">--font-mono</span>: <span style="color:#a5d6ff">"IBM Plex Mono"</span>, monospace;<br><span style="color:#8b949e"> 4</span>    <span style="color:#79c0ff">--text-tiny</span>: <span style="color:#a5d6ff">0.625rem</span>;<br><span style="color:#8b949e"> 5</span>    <span style="color:#79c0ff">--color-mint-100</span>: <span style="color:#a5d6ff">oklch(0.97 0.15 145)</span>;<br><span style="color:#8b949e"> 6</span>    <span style="color:#79c0ff">--color-mint-200</span>: <span style="color:#a5d6ff">oklch(0.92 0.18 145)</span>;<br><span style="color:#8b949e"> 7</span>    <span style="color:#79c0ff">--color-mint-300</span>: <span style="color:#a5d6ff">oklch(0.85 0.22 145)</span>;<br><span style="color:#8b949e"> 8</span>    <span style="color:#79c0ff">--color-mint-400</span>: <span style="color:#a5d6ff">oklch(0.78 0.25 145)</span>;<br><span style="color:#8b949e"> 9</span>  }</pre>
+    </div>
+    <div class="bcard">
+      <div class="bhead"><span class="bic"></span><h3>Cascade layers</h3></div>
+      <p class="bcopy">Tailwind uses CSS layers so you don't have to worry about specificity issues.</p>
+      <pre class="codep"><span style="color:#8b949e"> 1</span>  <span style="color:#ff7b72">@layer</span> theme, base, components, utilities;<br><span style="color:#8b949e"> 2</span>  <span style="color:#ff7b72">@layer</span> <span style="color:#79c0ff">theme</span> {<br><span style="color:#8b949e"> 3</span>    <span style="color:#8b949e">/* your theme variables */</span><br><span style="color:#8b949e"> 4</span>  }<br><span style="color:#8b949e"> 5</span>  <span style="color:#ff7b72">@layer</span> <span style="color:#79c0ff">base</span> {<br><span style="color:#8b949e"> 6</span>    <span style="color:#8b949e">/* preflight styles */</span><br><span style="color:#8b949e"> 7</span>  }<br><span style="color:#8b949e"> 8</span>  <span style="color:#ff7b72">@layer</span> <span style="color:#79c0ff">components</span> {<br><span style="color:#8b949e"> 9</span>    <span style="color:#8b949e">/* your component classes */</span><br><span style="color:#8b949e">10</span>  }</pre>
+    </div>
+</section>
+</body>
+</html>

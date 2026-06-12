@@ -1,0 +1,86 @@
+<!doctype html>
+<!-- @purpose P3 falsifier sec-08 WITHOUT-exemplars arm — tailwindcss.com "Built for the modern web" band (crop band-src1000-y4200): logo-row tail (PostHog/auth0, Polar/Browserbase), pink mono eyebrow + headline + copy, then the Responsive design feature card with a listing-app mock. Authored from the crop under the contract, no library context; photos as neutral boxes. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>sec-08 without</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #ffffff; color: #0a0f1a;
+    font-family: ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  a { text-decoration: none; color: inherit; }
+  .tailrows { display: flex; flex-direction: column; }
+  .trow { display: flex; border-bottom: 1px solid #f0f0f2; }
+  .tcell { flex: 1; height: 96px; display: flex; align-items: center; justify-content: center;
+    border-right: 1px solid #f0f0f2; font-size: 22px; font-weight: 800; letter-spacing: -0.4px; }
+  .tcell:last-child { border-right: none; }
+  .tcell .mk { margin-right: 9px; font-size: 19px; }
+  .why { padding: 56px 32px 28px; }
+  .eyebrow { font-family: ui-monospace, Menlo, monospace; font-size: 11px; letter-spacing: 1.5px; color: #ec4899; }
+  .why h2 { margin-top: 14px; font-size: 30px; line-height: 36px; font-weight: 800; letter-spacing: -0.8px; }
+  .why p { margin-top: 12px; max-width: 640px; font-size: 15px; line-height: 24px; color: #4b5563; }
+  .feature { margin: 16px 32px 40px; border: 1px solid #f0f0f2; border-radius: 14px; overflow: hidden; }
+  .fhead { display: flex; align-items: flex-start; gap: 14px; padding: 22px; }
+  .fic { width: 44px; height: 30px; border: 1.5px solid #cbd5e1; border-radius: 6px; }
+  .fhead h3 { font-size: 15px; font-weight: 700; }
+  .fhead p { margin-top: 5px; font-size: 13px; line-height: 20px; color: #6b7280; max-width: 560px; }
+  .mock { margin: 0 22px 22px; border: 1px solid #f0f0f2; border-radius: 10px; overflow: hidden; }
+  .mock-nav { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid #f0f0f2; font-size: 10px; color: #9ca3af; }
+  .photos { display: flex; gap: 8px; padding: 14px 16px 0; }
+  .ph { border-radius: 8px; background: #b9c4ad; }
+  .ph.big { flex: 0 0 46%; height: 150px; }
+  .ph.sm { flex: 1; height: 150px; background: #cfc8bd; }
+  .lkind { font-size: 10px; color: #6b7280; padding: 14px 16px 0; }
+  .lrow { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; padding: 0 16px; }
+  .lrow h4 { font-size: 16px; font-weight: 700; }
+  .checkbtn { display: inline-flex; align-items: center; height: 28px; padding: 0 12px; border-radius: 8px; background: #ec4899; color: #ffffff; font-size: 11px; font-weight: 600; }
+  .lmeta { margin-top: 6px; display: flex; gap: 8px; align-items: center; font-size: 10px; color: #6b7280; padding: 0 16px; }
+  .star { color: #ec4899; }
+  .ldesc { margin-top: 10px; font-size: 11px; line-height: 17px; color: #4b5563; max-width: 560px; padding: 0 16px; }
+  .lmore { margin-top: 8px; font-size: 11px; font-weight: 600; padding: 0 16px 18px; }
+</style>
+</head>
+<body>
+<section class="modernweb">
+  <div class="tailrows">
+    <div class="trow">
+      <span class="tcell"><span class="mk">&#9650;</span>PostHog</span>
+      <span class="tcell"><span class="mk">&#11042;</span>auth0</span>
+    </div>
+    <div class="trow">
+      <span class="tcell"><span class="mk">&#9678;</span>Polar</span>
+      <span class="tcell"><span class="mk">B</span>Browserbase</span>
+    </div>
+  </div>
+  <div class="why">
+    <div class="eyebrow">WHY TAILWIND CSS?</div>
+    <h2>Built for the modern web.</h2>
+    <p>Tailwind is unapologetically modern, and takes advantage of all the latest and greatest CSS features to make the developer experience as enjoyable as possible.</p>
+  </div>
+  <div class="feature">
+    <div class="fhead">
+      <span class="fic"></span>
+      <span>
+        <h3>Responsive design</h3>
+        <p>Okay, it's not exactly cutting edge, but just throw a screen size in front of literally any utility to apply it at a specific breakpoint.</p>
+      </span>
+    </div>
+    <div class="mock">
+      <div class="mock-nav"><span>HobCo</span><span>&#9776;</span></div>
+      <div class="photos">
+        <span class="ph big"></span><span class="ph sm"></span><span class="ph sm"></span>
+      </div>
+        <div class="lkind">Entire house</div>
+        <div class="lrow">
+          <h4>Beach House on Lake Huron</h4>
+          <span class="checkbtn">Check availability</span>
+        </div>
+        <div class="lmeta"><span class="star">&#9733; 4.94</span><span>(128 reviews)</span><span>&middot; Bayfield, ON</span></div>
+        <p class="ldesc">This sunny and spacious room is for those traveling light and looking for a comfy and cozy place to lay their head for a night or two.</p>
+        <div class="lmore">Show more</div>
+    </div>
+  </div>
+</section>
+</body>
+</html>
