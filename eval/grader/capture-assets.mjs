@@ -28,6 +28,12 @@
 //       <out>/shots/w<W>.png          — state-pinned full-page screenshot per width
 //       <out>/sections/w<W>-s<i>.png  — per-section crops per width
 //       <out>/assets/*                — downloaded originals + serialized inline SVGs (hash-named, deterministic)
+//       <out>/source.html             — GAP 3: rendered post-JS DOM (copy-paste text source)   [CAPTURE_NO_DOM=1]
+//       <out>/outline.txt             — GAP 3: section-banded heading/CTA/paragraph outline      [CAPTURE_NO_DOM=1]
+//       <out>/crops/<id>-w<W>.png     — GAP 1: region-raster crops (product-UI / mock / illustration / image)
+//       <out>/crops-manifest.json     — GAP 1: {id, classification, confidence, perWidth box, files, suggestedWidth} [CAPTURE_NO_CROPS=1]
+// REVERSIBILITY (env, default = upgrades ON): CAPTURE_NO_SVGFIX=1 (GAP2 raw outerHTML), CAPTURE_NO_DOM=1 (GAP3),
+//   CAPTURE_NO_CROPS=1 (GAP1). Each flag isolates one upgrade so a regression is a single toggle.
 // DETERMINISM: no timestamps anywhere; asset files named by sha1(url|markup); element/section order is document
 // order; manifest key order is fixed. Two runs on a static fixture produce byte-identical manifests + shots.
 import { chromium } from 'playwright';
@@ -464,6 +470,159 @@ async function extractFacts(page, opts) {
   }, opts);
 }
 
+// ── GAP 1: region-raster crop auto-derivation ────────────────────────────────────────────────────────────────
+// Classify DOM subtrees into RASTER-WORTHY regions (product-UI screenshots / app mockups, decorative
+// illustrations / line-art, photographs) vs native-text the author should rebuild as widgets, and EMIT each
+// raster region as a ready-to-wire crop box. GENERAL (no per-site selectors): the signals are media density,
+// text-leaf density relative to area, computed-bg contrast against the parent band, and aspect/area thresholds.
+// Best-effort by design — every crop carries a `classification` + `confidence` so a consumer can threshold.
+// Returns { crops: [{ tag, classification, confidence, box{x,y,w,h}, signals, locator, suggestedWidth }] }.
+async function extractCropCandidates(page, opts) {
+  return await page.evaluate((O) => {
+    const cssPath = (el) => { const seg = []; let n = el, g = 0; while (n && n.nodeType === 1 && n !== document.documentElement && g++ < 12) { let s = n.tagName.toLowerCase(); if (n.id && /^[A-Za-z][\w-]*$/.test(n.id)) { seg.unshift(`${s}#${n.id}`); break; } const sib = n.parentElement ? [...n.parentElement.children].filter((c) => c.tagName === n.tagName) : []; if (sib.length > 1) s += `:nth-of-type(${sib.indexOf(n) + 1})`; seg.unshift(s); n = n.parentElement; } return seg.join('>'); };
+    const box = (r) => ({ x: Math.round(r.left + scrollX), y: Math.round(r.top + scrollY), w: Math.round(r.width), h: Math.round(r.height) });
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const maxPx = O.maxPx, MINAREA = O.minArea, PAGE_AREA = vw * Math.max(vh, 1);
+    const visible = (el, r, cs) => r.width > 2 && r.height > 2 && cs.display !== 'none' && cs.visibility !== 'hidden' && parseFloat(cs.opacity) > 0.02;
+    const parseRGB = (s) => { const m = (s || '').match(/rgba?\(([^)]+)\)/); if (!m) return null; const p = m[1].split(',').map((x) => parseFloat(x)); return { r: p[0], g: p[1], b: p[2], a: p[3] == null ? 1 : p[3] }; };
+    const colorDist = (a, b) => !a || !b ? 999 : Math.abs(a.r - b.r) + Math.abs(a.g - b.g) + Math.abs(a.b - b.b);
+
+    // text-leaf coverage of a subtree: union-ish area of its visible text-bearing leaf elements
+    const textArea = (root, rootArea) => {
+      let area = 0, leaves = 0;
+      const all = root.querySelectorAll('*');
+      const cap = Math.min(all.length, 1500);
+      for (let i = 0; i < cap; i++) {
+        const e = all[i];
+        if (e.children.length) continue; // leaf-ish
+        const t = (e.textContent || '').trim();
+        if (!t) continue;
+        const r = e.getBoundingClientRect();
+        if (r.width < 2 || r.height < 2) continue;
+        area += r.width * r.height; leaves++;
+      }
+      // direct text node owned by root itself
+      for (const node of root.childNodes) if (node.nodeType === 3 && node.textContent.trim()) { leaves++; area += Math.min(rootArea, 4000); }
+      return { frac: Math.min(1, area / Math.max(1, rootArea)), leaves };
+    };
+    const mediaArea = (root) => {
+      let area = 0, n = 0;
+      for (const m of root.querySelectorAll('img,picture,video,canvas,svg')) {
+        const r = m.getBoundingClientRect(); if (r.width < 4 || r.height < 4) continue;
+        area += r.width * r.height; n++;
+      }
+      return { area, n };
+    };
+    const bandBgAt = (el) => { // nearest ancestor with a non-transparent bg color → the band the region sits on
+      let n = el.parentElement, g = 0;
+      while (n && g++ < 20) { const c = parseRGB(getComputedStyle(n).backgroundColor); if (c && c.a > 0.5) return c; n = n.parentElement; }
+      return parseRGB(getComputedStyle(document.body).backgroundColor) || { r: 255, g: 255, b: 255, a: 1 };
+    };
+
+    const cands = [];
+    const seenBoxes = [];
+    const overlaps = (b) => seenBoxes.some((s) => {
+      const ix = Math.max(0, Math.min(b.x + b.w, s.x + s.w) - Math.max(b.x, s.x));
+      const iy = Math.max(0, Math.min(b.y + b.h, s.y + s.h) - Math.max(b.y, s.y));
+      const inter = ix * iy, minA = Math.min(b.w * b.h, s.w * s.h);
+      return inter / Math.max(1, minA) > 0.7; // mostly-contained by an already-emitted crop → skip (outermost wins)
+    });
+    const add = (el, r, cls, conf, signals) => {
+      const b = box(r);
+      if (b.w < 24 || b.h < 24) return;
+      if (overlaps(b)) return;
+      seenBoxes.push(b);
+      cands.push({ tag: el.tagName.toLowerCase(), locator: cssPath(el), classification: cls, confidence: Math.round(conf * 100) / 100, box: b, signals });
+    };
+
+    // Walk the document ONCE, document order (outer before inner → outermost coherent region wins the overlap test).
+    const els = [...document.querySelectorAll('body *')];
+    for (const el of els) {
+      if (cands.length >= O.cropCap) break;
+      const r = el.getBoundingClientRect();
+      const top = r.top + scrollY;
+      if (top > maxPx) continue;
+      const cs = getComputedStyle(el);
+      if (!visible(el, r, cs)) continue;
+      const area = r.width * r.height;
+      if (area < MINAREA) continue;
+      const tag = el.tagName;
+
+      // (1) DIRECT MEDIA leaf — img/picture/video/canvas → photograph or product screenshot
+      if (tag === 'IMG' || tag === 'PICTURE' || tag === 'VIDEO' || tag === 'CANVAS') {
+        const ar = r.width / Math.max(1, r.height);
+        // UI-screenshot vs photo: hard to know without pixels — emit as 'media' with aspect as a hint
+        const cls = (ar > 1.15 && ar < 2.4 && area > PAGE_AREA * 0.06) ? 'ui-screenshot' : 'media';
+        add(el, r, cls, 0.9, { kind: 'direct-media', aspect: +ar.toFixed(2), areaFrac: +(area / PAGE_AREA).toFixed(3) });
+        continue;
+      }
+      // (2) INLINE SVG — decorative illustration / line-art (skip tiny icons; require real complexity)
+      if (tag === 'svg' || tag === 'SVG') {
+        if (el.parentElement && el.parentElement.closest('svg')) continue; // nested → handled by root
+        const paths = el.querySelectorAll('path,rect,circle,ellipse,polygon,polyline,line').length;
+        const big = r.width >= 80 && r.height >= 80 && area > MINAREA * 1.5;
+        if (big && paths >= 4) add(el, r, 'illustration', paths >= 12 ? 0.8 : 0.6, { kind: 'inline-svg', paths, areaFrac: +(area / PAGE_AREA).toFixed(3) });
+        continue;
+      }
+      // (3) BACKGROUND-IMAGE region — a real raster/svg bg (not a gradient) painted on a sizeable box
+      const bg = cs.backgroundImage;
+      if (bg && bg !== 'none' && /url\(/.test(bg) && !/gradient/i.test(bg) && area > PAGE_AREA * 0.04) {
+        const txt = textArea(el, area);
+        if (txt.frac < 0.25) { add(el, r, 'bg-image', 0.75, { kind: 'bg-image', textFrac: +txt.frac.toFixed(2), areaFrac: +(area / PAGE_AREA).toFixed(3) }); continue; }
+      }
+      // (4) COMPOSITE UI BLOCK — a panel/card that READS as a screenshot/mockup: its computed bg contrasts with
+      //     the band behind it, it holds some media or chrome, and text is a MINORITY of its area. This is the
+      //     class that covers Linear's hero app-UI + feature mocks and clerk's bento/auth cards.
+      const selfBg = parseRGB(cs.backgroundColor);
+      const band = bandBgAt(el);
+      const bgContrast = selfBg && selfBg.a > 0.5 ? colorDist(selfBg, band) : 0;
+      const media = mediaArea(el);
+      const txt = textArea(el, area);
+      const mediaFrac = media.area / Math.max(1, area);
+      const aspect = r.width / Math.max(1, r.height);
+      // gating: sizeable, not a giant full-band wrapper, low-ish text, has SOME visual substance (media or
+      // contrasting panel + rounded/shadowed chrome), aspect not a thin strip
+      const rounded = parseFloat(cs.borderRadius) >= 6;
+      const shadowed = cs.boxShadow && cs.boxShadow !== 'none';
+      const bordered = parseFloat(cs.borderTopWidth) >= 1 && parseRGB(cs.borderTopColor)?.a > 0.2;
+      const chrome = rounded || shadowed || bordered;
+      // a real mockup/card/panel is INSET — it does not span the full viewport width. Full-width boxes are band
+      // wrappers (their raster content is a CHILD that gets its own candidacy), so exclude them from composites.
+      const notFullBand = r.width <= vw * 0.94;
+      const substance = mediaFrac > 0.12 || (bgContrast > 24 && chrome);
+      const lowText = txt.frac < 0.45 && txt.leaves <= 60;
+      const goodAspect = aspect > 0.25 && aspect < 6;
+      // LAYOUT-CONTAINER guard: a grid/flex row of ≥2 sizeable children is a LAYOUT, not one mockup — skip it so
+      // each child is evaluated/emitted on its own (Linear's 5 feature mocks, clerk's bento cells). Without this
+      // the whole row collapses into a single unwirable crop.
+      const disp = cs.display;
+      const isFlexGrid = disp === 'flex' || disp === 'grid' || disp === 'inline-flex' || disp === 'inline-grid';
+      // A layout ROW (descend to children) only if ≥2 children are each SUBSTANTIVE on their own — they carry
+      // media, OR they are contrasting panels with chrome (rounded/shadow/border). The hero app-UI's children
+      // (bare side/main divs, no media, no chrome) do NOT qualify, so the app-UI is emitted as ONE mockup; a row
+      // of feature cards DOES qualify, so each card emits separately.
+      let substantiveKids = 0;
+      if (isFlexGrid) for (const k of el.children) {
+        const kr = k.getBoundingClientRect(); if (kr.width * kr.height < MINAREA) continue;
+        const kcs = getComputedStyle(k);
+        const kMedia = k.querySelector('img,picture,video,canvas,svg') && mediaArea(k).area > kr.width * kr.height * 0.05;
+        const kPanel = (colorDist(parseRGB(kcs.backgroundColor), band) > 24) && (parseFloat(kcs.borderRadius) >= 6 || (kcs.boxShadow && kcs.boxShadow !== 'none'));
+        if (kMedia || kPanel) substantiveKids++;
+      }
+      const isLayoutRow = isFlexGrid && substantiveKids >= 2;
+      if (!isLayoutRow && area > PAGE_AREA * 0.05 && area < PAGE_AREA * 0.9 && notFullBand && substance && lowText && goodAspect) {
+        // confidence blends the signals (more media / more contrast / less text → higher)
+        let conf = 0.4 + Math.min(0.3, mediaFrac) + Math.min(0.2, bgContrast / 255) + (chrome ? 0.1 : 0) - Math.min(0.25, txt.frac);
+        conf = Math.max(0.3, Math.min(0.9, conf));
+        const cls = media.n > 0 ? 'ui-mock' : (bgContrast > 24 && chrome ? 'ui-panel' : 'decorative');
+        add(el, r, cls, conf, { kind: 'composite', mediaFrac: +mediaFrac.toFixed(2), textFrac: +txt.frac.toFixed(2), textLeaves: txt.leaves, bgContrast, chrome, aspect: +aspect.toFixed(2), areaFrac: +(area / PAGE_AREA).toFixed(3) });
+      }
+    }
+    cands.sort((a, b) => a.box.y - b.box.y || a.box.x - b.box.x);
+    return { crops: cands, pageArea: PAGE_AREA };
+  }, opts);
+}
+
 // ── asset download (once, union across widths). Browser-context request = browser UA + cookies. ──────────────
 const EXT_BY_TYPE = { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'image/gif': '.gif', 'image/avif': '.avif', 'image/svg+xml': '.svg', 'image/x-icon': '.ico', 'video/mp4': '.mp4' };
 const sha = (s) => crypto.createHash('sha1').update(s).digest('hex').slice(0, 10);
@@ -527,7 +686,8 @@ const assetEntries = new Map();     // dedupe key -> first-seen entry (url or ma
 const assetOccurrences = new Map(); // dedupe key -> [{ width, locator, box, natural }]
 const styleByLocator = {};          // locator -> { perWidth: { [w]: facts } }
 let domWritten = false;             // GAP 3 — width at which source.html/outline.txt were written (false until)
-let cropManifest = null;            // GAP 1 — crops-manifest payload (from the canonical width)
+let cropManifest = null;            // GAP 1 — crops-manifest payload (written after the loop)
+const cropAcc = new Map();          // GAP 1 — locator -> { id, classification, confidence, perWidth box, files }
 
 for (const w of WIDTHS) {
   const ctx = await browser.newContext({ viewport: { width: w, height: 900 }, reducedMotion: 'reduce', deviceScaleFactor: 1 });
@@ -590,12 +750,42 @@ for (const w of WIDTHS) {
       return { ...sec, crop: rel, cropClamped: ch < sec.h };
     });
 
+    // GAP 1: region-raster crops — classify raster-worthy subtrees and crop each from THIS width's shot. Keyed
+    // by locator so a region's box is tracked across widths (crops-manifest.perWidth). Emitted per width so the
+    // author wires a width-correct image. The crop PNG is the literal pixels of the region (ready to upload).
+    let cropCount = 0;
+    if (!NO_CROPS) {
+      try {
+        const cc = await extractCropCandidates(page, { maxPx: MAX_PX, cropCap: CROP_CAP, minArea: 80 * 80 });
+        for (const cand of cc.crops) {
+          const b = cand.box;
+          const cx = Math.max(0, Math.min(b.x, png.width - 1));
+          const cw = Math.max(1, Math.min(b.w, png.width - cx));
+          const cy = Math.max(0, Math.min(b.y, png.height - 1));
+          const ch = Math.max(1, Math.min(b.h, SECTION_CROP_MAX_H, png.height - cy));
+          if (cw < 16 || ch < 16) continue;
+          const id = `c${sha(cand.locator)}`;
+          const rel = `crops/${id}-w${w}.png`;
+          fs.writeFileSync(path.join(OUT, rel), PNG.sync.write(cropPng(png, cx, cy, cw, ch)));
+          if (!cropAcc.has(cand.locator)) {
+            cropAcc.set(cand.locator, { id, locator: cand.locator, tag: cand.tag, classification: cand.classification, confidence: cand.confidence, signals: cand.signals, perWidth: {}, files: {} });
+          }
+          const rec = cropAcc.get(cand.locator);
+          rec.perWidth[w] = { x: cx, y: cy, w: cw, h: ch, clamped: ch < b.h };
+          rec.files[w] = rel;
+          // keep the highest-confidence classification seen across widths
+          if (cand.confidence > rec.confidence) { rec.confidence = cand.confidence; rec.classification = cand.classification; rec.signals = cand.signals; }
+          cropCount++;
+        }
+      } catch (e) { console.error(`[w${w}] crop extraction failed: ${String(e.message).slice(0, 120)}`); }
+    }
+
     perWidth[w] = {
       shot: shotRel, pageH: facts.pageH, sections,
       state: { overlays: [...overlays1, ...overlays2], freeze, dedupedText: dedupe },
-      stats: { styleElements: facts.styles.length, inaccessibleSheets: facts.inaccessibleSheets, truncated: facts.truncated },
+      stats: { styleElements: facts.styles.length, inaccessibleSheets: facts.inaccessibleSheets, truncated: facts.truncated, crops: cropCount },
     };
-    console.log(`[w${w}] shot ${png.width}x${png.height}, ${sections.length} sections, ${facts.styles.length} style els, ${facts.assets.length} asset refs, overlays ${overlays1.length + overlays2.length}, frozen ${freeze.finished + freeze.pausedInfinite} anims, deduped ${dedupe.length} text pairs`);
+    console.log(`[w${w}] shot ${png.width}x${png.height}, ${sections.length} sections, ${facts.styles.length} style els, ${facts.assets.length} asset refs, ${cropCount} crops, overlays ${overlays1.length + overlays2.length}, frozen ${freeze.finished + freeze.pausedInfinite} anims, deduped ${dedupe.length} text pairs`);
   } catch (e) {
     perWidth[w] = { error: String(e.message || e).slice(0, 300) };
     console.error(`[w${w}] FAILED: ${perWidth[w].error}`);
@@ -645,6 +835,32 @@ const assets = orderedEntries.map(([key, entry]) => {
     occurrences: assetOccurrences.get(key) || [],
   };
 });
+
+// GAP 1: write crops-manifest.json — one entry per raster region, with per-width boxes + crop files + a
+// suggestedWidth (the widest captured box, what you'd upload). Deterministic order: by y then x at the widest
+// width. Author wires each `ui-screenshot`/`ui-mock`/`bg-image`/`media` crop as an image widget; `illustration`/
+// `decorative` as decorative imagery; consumers may threshold on `confidence`.
+if (!NO_CROPS) {
+  const widest = WIDTHS.slice().sort((a, b) => b - a);
+  const crops = [...cropAcc.values()].map((rec) => {
+    const wAtWidest = widest.find((w) => rec.perWidth[w]) || WIDTHS[0];
+    const b = rec.perWidth[wAtWidest] || { w: 0 };
+    return {
+      id: rec.id, classification: rec.classification, confidence: rec.confidence,
+      tag: rec.tag, locator: rec.locator, signals: rec.signals,
+      suggestedWidth: b.w, primaryWidth: wAtWidest,
+      filename: rec.files[wAtWidest] || Object.values(rec.files)[0] || null,
+      perWidth: rec.perWidth, files: rec.files,
+    };
+  }).sort((a, b) => {
+    const wa = a.perWidth[a.primaryWidth] || { y: 0, x: 0 }, wb = b.perWidth[b.primaryWidth] || { y: 0, x: 0 };
+    return (wa.y - wb.y) || (wa.x - wb.x);
+  });
+  const byClass = {};
+  for (const c of crops) byClass[c.classification] = (byClass[c.classification] || 0) + 1;
+  cropManifest = { source: SOURCE, widths: WIDTHS, count: crops.length, byClassification: byClass, crops };
+  fs.writeFileSync(path.join(OUT, 'crops-manifest.json'), JSON.stringify(cropManifest, null, 1));
+}
 
 const manifest = {
   source: SOURCE, widths: WIDTHS, maxPx: MAX_PX,
