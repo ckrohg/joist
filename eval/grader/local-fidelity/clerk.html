@@ -68,6 +68,7 @@ a{color:inherit;text-decoration:none}
 .logos-inner{display:flex;align-items:stretch;max-width:1216px;margin:0 auto;height:127px}
 .logos-lead{flex:0 0 315px;display:flex;align-items:center;font-size:15px;line-height:24px;font-weight:450;color:#131316}
 .logos-lead p{max-width:240px}
+.logos-grid{flex:1;display:flex;align-items:stretch}
 .logos-cell{flex:1;display:flex;align-items:center;justify-content:center;border-left:1px solid rgba(19,19,22,.07)}
 .logos-last{border-right:1px solid rgba(19,19,22,.07)}
 .logos-cell img{width:144px;height:32px}
@@ -213,35 +214,72 @@ a{color:inherit;text-decoration:none}
   .comp-collage{max-width:calc(100% - 392px);height:auto}
   .bill-app{max-width:calc(100% - 326px)}
 }
-@media (max-width:1024px){
-  .fw-cells-top span{width:150px}
-  .fw-cell{width:150px;padding:48px 23px}
+@media (max-width:1280px){
+  /* auth bento: source reflows 3-col -> 2-col by 1250 (cards regroup; our DOM keeps
+     col1+col2 as the two columns and lays col3 as a full-width triple row below) */
+  .auth-row{flex-wrap:wrap}
+  .auth-col{flex:1 1 42%}
+  .auth-col-c{flex:1 1 100%;flex-direction:row}
+  .auth-col-c .acard{flex:1 1 0}
+  .acard-sm,.acard-tall,.acard-wide,.acard-nrw{height:auto}
+  .acard img{width:auto;max-width:100%;align-self:center}
+  .acard-toptxt img{margin-top:16px}
+  /* b2b: source reflows 3-col -> 2x2 (auto-join+invitations top, roles+org-ui bottom) */
+  .b2b-row{flex-wrap:wrap}
+  .b2b-col{order:-1;flex:1 1 100%;flex-direction:row;height:auto}
+  .b2b-ca,.b2b-cb{flex:1 1 0}
+  .b2b-ca img,.b2b-cb img{width:auto;max-width:100%;align-self:center}
+  .b2b-c1{flex:1 1 42%}
+  /* frameworks: source cells shrink to ~155px by 1250 */
+  .fw-cells-top span{width:160px}
+  .fw-cell{width:160px;padding:48px 28px}
 }
 @media (max-width:900px){
   .hero-art{display:none}
-  .hdr-nav{display:none}
   .hero-mid h1{font-size:48px;line-height:54px}
-  .logos-inner{flex-wrap:wrap;height:auto;padding:24px 0}
-  .logos-lead{flex:1 1 100%;justify-content:center;padding:0 24px 16px}
-  .logos-cell{flex:1 1 40%;border-left:0;padding:12px 0}
-  .logos-last{border-right:0}
-  .comp-row{flex-direction:column;padding:0 24px}
-  .comp-left{flex:0 0 auto;padding-top:64px}
-  .comp-collage{max-width:100%;height:auto;margin:32px auto 0}
-  .auth-row{flex-direction:column}
-  .auth-row2{flex-direction:column}
-  .acard-sm,.acard-tall,.acard-wide,.acard-nrw{height:auto}
-  .acard-toptxt img{margin-top:16px}
-  .b2b-row{flex-direction:column}
-  .b2b-c1{height:auto}
+  /* header: source keeps full nav at 768 — tighten gaps so nothing wraps */
+  .hdr-logo{margin-right:10px}
+  .hdr-item{padding:6px 6px}
+  .hdr-right{gap:10px}
+  .hdr-bar{padding:0 10px 0 14px}
+  /* logos: source keeps lead text left + 2x2 logo grid right at 768 */
+  .logos-inner{height:auto}
+  .logos-lead{flex:0 0 240px;padding:16px 24px}
+  .logos-grid{flex-wrap:wrap}
+  .logos-cell{flex:1 1 40%;padding:22px 0}
+  /* components: source keeps accordion + collage side by side at 768 */
+  .comp-row{padding:0 0 0 16px}
+  .comp-left{flex:0 0 300px;padding-top:64px}
+  .comp-collage{max-width:calc(100% - 316px);height:auto}
   .bill-row{flex-direction:column}
   .bill-text{flex:0 0 auto;padding-top:0}
   .bill-app{max-width:100%;height:auto;margin:40px auto 0}
   .fw-row{flex-direction:column;gap:80px}
+  .fw-cells-top span{width:235px}
+  .fw-cell{width:235px;padding:48px 44px}
   .testi-row{flex-direction:column;height:auto}
   .testi-intro{flex:0 0 auto;padding:0 8px 40px}
   .testi-col{flex:0 0 auto;margin-right:0;margin-bottom:18px}
   .testi-colb{padding-top:0}
+  /* footer: source keeps all 5 link columns in one row at 768 */
+  .foot-brand{flex:0 0 120px}
+}
+@media (max-width:640px){
+  .hdr-nav{display:none}
+  .logos-lead{flex:1 1 100%;justify-content:center;padding:16px 24px 8px}
+  .comp-row{flex-direction:column;padding:0 24px}
+  .comp-left{flex:0 0 auto}
+  .comp-collage{max-width:100%;margin:32px auto 0}
+  .auth-col{flex:1 1 100%}
+  .auth-col-c{flex-direction:column}
+  .auth-col-c .acard{flex:0 0 auto}
+  .auth-row2{flex-direction:column}
+  .b2b-col{flex-direction:column}
+  .b2b-ca,.b2b-cb{flex:0 0 auto}
+  .b2b-c1{flex:1 1 100%;height:auto}
+  .b2b-dash{min-height:160px}
+  .fw-cells-top span{width:118px}
+  .fw-cell{width:118px;padding:36px 24px}
   .foot-cols{flex-wrap:wrap}
   .foot-brand{flex:1 1 100%;padding-bottom:24px}
   .foot-col{flex:1 1 33%}
@@ -307,10 +345,12 @@ a{color:inherit;text-decoration:none}
 <section class="logos">
   <div class="logos-inner">
     <div class="logos-lead"><p>Trusted by fast-growing companies around the world.</p></div>
-    <div class="logos-cell"><img src="assets/logo-davidai.svg" alt="David AI"></div>
-    <div class="logos-cell"><img src="assets/logo-openrouter.svg" alt="OpenRouter"></div>
-    <div class="logos-cell"><img src="assets/logo-samaya.svg" alt="Samaya"></div>
-    <div class="logos-cell logos-last"><img src="assets/logo-cartesia.svg" alt="Cartesia"></div>
+    <div class="logos-grid">
+      <div class="logos-cell"><img src="assets/logo-davidai.svg" alt="David AI"></div>
+      <div class="logos-cell"><img src="assets/logo-openrouter.svg" alt="OpenRouter"></div>
+      <div class="logos-cell"><img src="assets/logo-samaya.svg" alt="Samaya"></div>
+      <div class="logos-cell logos-last"><img src="assets/logo-cartesia.svg" alt="Cartesia"></div>
+    </div>
   </div>
 </section>
 
@@ -383,7 +423,7 @@ a{color:inherit;text-decoration:none}
         <p>Dramatically reduce fraudulent sign-ups with built-in, continually updated machine learning.</p>
       </div>
     </div>
-    <div class="auth-col">
+    <div class="auth-col auth-col-c">
       <div class="acard acard-sm">
         <img src="assets/crop-auth-otp.png" alt="One-time passcode input">
         <h3>Email and SMS one-time passcodes</h3>
