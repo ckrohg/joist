@@ -190,6 +190,9 @@ final class Bootstrap
             \Joist\REST\ElementsController::class,
             \Joist\REST\KitController::class,
             \Joist\REST\TemplatesController::class,
+            // §8d basics: header/footer Theme Builder documents + display
+            // conditions + Pro conditions-cache rebuild (the e0d7228 fix).
+            \Joist\REST\SitePartsController::class,
             \Joist\REST\MediaController::class,
             \Joist\REST\MenusController::class,
             \Joist\REST\PluginsController::class,
