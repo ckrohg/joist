@@ -5103,6 +5103,44 @@
       "verdict": "VALIDATED \u2014 grid-reflow dim is reproducibly discriminating, legitimately re-enabled (GRID_W=0.20). My earlier exclusion (cbeaa6d) was correct AT THE TIME (pre-settleLazy); the hardening earned the re-enable.",
       "railWeights": "perWidth(overflow0.6+height0.4)=0.50, typo=0.30, grid=0.20 (sum 1.0); pass>=0.80",
       "safety": "page 83 untouched (re-grades identical 1.0); all scratch pages (131-148) torn down; transpile-html.mjs + shipped fixes unchanged (diff = 2 grader files only); no shared host"
+    },
+    {
+      "name": "generalization-linear-GRADED",
+      "date": "2026-06-13",
+      "kind": "FIRST generalization test \u2014 fidelity half (orchestrator-verified). Unseen site linear.app through clerk's HTML-first pipeline.",
+      "pipelineTransfer": "CLEAN \u2014 zero transpiler/render code changes; only an asset-manifest-key adaptation (linear's `linear-assets/<f>` src vs clerk's `_joist_src`). Both automated legs ran first-time. Fresh page 162; page 83 md5 identical before/after (untouched).",
+      "deterministic_responsiveRail": {
+        "score": 0.933,
+        "pass": true,
+        "orchestratorReproduced": true,
+        "perWidth": "1440 wscore1.0 hRatio0.826 / 768 wscore1.0 hRatio1.002 / 390 wscore0.6 hRatio1.59(tall stacking tax)",
+        "typo": "mono=True stuck=False",
+        "grid": 1.0
+      },
+      "pinned_visionJudge_1440": {
+        "raw": 52.8,
+        "base": 64.8,
+        "severityPenalty": 12,
+        "hRatio": 0.826,
+        "note": "RAW vision (no --structure gating). agent mechanism number.",
+        "perTile": [
+          70,
+          55,
+          58,
+          32,
+          65,
+          82,
+          62,
+          72,
+          72,
+          62,
+          72,
+          85
+        ]
+      },
+      "orchestratorInterpretation": "The 52.8 is NOT pipeline-transfer failure (LOOK-confirmed by me). It decomposes into: (1) ~17% AUTHORING whitespace/UI-mock compression (linear.html is 0.83x source height) -> de-correlates the proportional vision-judge tile bands -> false 'section offset' sev4/5 (the worst tiles, e.g. 32@y2700, compare MISMATCHED bands); (2) real AUTHORING divergences: hero h1 centered where source is left-aligned, partner-logo bar omitted by author, hero CTA authored white not purple; (3) the vision-judge's known height-drift band sensitivity. NONE are transpile loss (13/13 images render, structure faithful, responsive rail PASSES).",
+      "honestComparison": "52.8 after ONE author pass is RIGHT ON clerk's EARLY-pass trajectory (clerk's first authored renders were ~36-54 before the R2 authoring/transpile fixes lifted it 53.9->70.5->78). The gap to clerk's 78 is AUTHORING ITERATION + faithfulness, NOT a pipeline-transfer wall.",
+      "verdict": "PIPELINE GENERALIZES. Mechanically clean transfer + deterministic responsive PASS on an unseen site. One-pass fidelity on clerk's early trajectory; ceiling now gated by authoring faithfulness (improvable) + the 3 automatable capture-side cost gaps (region-raster auto-crop, SVG fix, ship source DOM)."
     }
   ],
   "phase5backlog_wave3": [
