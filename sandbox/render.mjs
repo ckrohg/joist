@@ -22,18 +22,46 @@
  *   node render.mjs --tree -            # read tree JSON from stdin
  *
  * `tree` is the Elementor `_elementor_data` array (top-level = array of containers/sections).
- * A single root node (object) is accepted and wrapped in an array.
+ * A single root node (object) is accepted and wrapped in an array. Element `id`s are
+ * stamped automatically when absent (ensureIds) — REQUIRED on the postmeta path so
+ * Elementor's per-element CSS scoping does not collapse (clerk-hero loop finding).
  *
  * Returns: { pageId, url, screenshot, styled } where `styled` is the computed-style probe
  * (null if --no-shot). Throws on any container/wp-cli failure (fail-loud).
  */
 import { execFileSync } from 'node:child_process';
 import { writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+/**
+ * Ensure every node carries a stable 7-char Elementor element `id` (mutates a copy).
+ *
+ * WHY THIS IS LOAD-BEARING (clerk-hero closed-loop finding, 2026-06-12):
+ * Elementor's CSS generator scopes each widget's per-element rules to a
+ * `.elementor-element-{id}` selector. On the DIRECT-POSTMETA write path we do NOT
+ * run Document::save(), so nothing assigns ids. With an id-less tree, `flush_css`
+ * emits BARE, un-scoped rules (e.g. plain `.elementor-button{...}`) and the LAST
+ * one written wins for ALL same-type widgets via the cascade — so e.g. a purple
+ * primary button silently collapses to a later ghost button's white, and per-
+ * container `flex-direction:column` survives on only one container (the rest fall
+ * back to Elementor's row default → layout breaks). Stamping ids here restores
+ * correct per-element scoping. The Joist REST PUT path gets ids for free from
+ * Document::save(); the raw-postmeta primitive must stamp them itself.
+ */
+export function ensureIds(tree) {
+  const rid = () => randomBytes(4).toString('hex').slice(0, 7);
+  const walk = (nodes) => nodes.map((n) => {
+    const out = { ...n, id: n.id || rid() };
+    if (Array.isArray(n.elements) && n.elements.length) out.elements = walk(n.elements);
+    return out;
+  });
+  return walk(Array.isArray(tree) ? tree : [tree]);
+}
 
 // --- Sandbox topology (matches docker-compose.yml) ---------------------------
 export const PORT = Number(process.env.JOIST_LOCAL_PORT || 8001);
@@ -55,7 +83,9 @@ function compose(args, opts = {}) {
  * @returns {{pageId:number, url:string}}
  */
 export function injectTree(tree, { slug = 'joist-render', page = null, title = 'Joist Render' } = {}) {
-  const arr = Array.isArray(tree) ? tree : [tree];
+  // Stamp element ids BEFORE write — without them Elementor's CSS scoping collapses
+  // (see ensureIds). This is the canonical correctness fix for the raw-postmeta path.
+  const arr = ensureIds(tree);
   // hand the JSON to the container as a mounted file (command-arg JSON is fragile w/ quotes/unicode)
   const work = mkdtempSync(join(tmpdir(), 'joist-render-'));
   const localFile = join(work, 'tree.json');

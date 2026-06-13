@@ -1,0 +1,24 @@
+{
+  "html": "/tmp/elementor-loop/hero-section.html",
+  "authoringWidth": 1440,
+  "dryRun": true,
+  "counts": {
+    "container": 4,
+    "heading": 1,
+    "text-editor": 1,
+    "button": 2,
+    "image": 0,
+    "html": 0
+  },
+  "pain": [],
+  "policy": [
+    "P1 button icon: \"Build with agents\" → selected_icon fas fa-caret-down (right)"
+  ],
+  "template": "elementor_canvas",
+  "siteParts": [],
+  "validation": {
+    "localErrors": [],
+    "server": null
+  },
+  "treeSha1": "aba1f80c9c709e1fdde69a7b274338106640b132"
+}
