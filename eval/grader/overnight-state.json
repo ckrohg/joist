@@ -4978,6 +4978,28 @@
         "reproTest": "node transpile-html.mjs (dry-run, --no-site-parts, enriched manifest) emits widget counts button:4 image:43 == live page-83 census. Deterministic source path reproduces the fix; the stale tree was a dump-ordering artifact, NOT a hand-patch.",
         "alsoFixed": "transpile-html.mjs:937 default --base georges232.sg-host.com -> http://localhost:8001 (NO-shared-host rail; must-fix #2)."
       }
+    },
+    {
+      "name": "vision-judge-pinned-source-blessed",
+      "date": "2026-06-12",
+      "kind": "grader-honesty (measurement-validity correction, NOT a clone change)",
+      "feature": "vision-judge.mjs --pinned-source cap:<dir> \u2014 grade clone vs the FROZEN capture it was built from, instead of re-navigating drifting live clerk.com. Opt-in; live path unchanged when not used. commits 8236914 + a1f4fa3.",
+      "commitsBlessed": "8236914,a1f4fa3 on main",
+      "mechanism": {
+        "goodClone_page83_vs_frozen_1440": 77.5,
+        "liveSource_baseline_1440": 70.5,
+        "liveDriftDeflation": "+7.0 (the live marquee-phase + dynamic dark divider the clone cant/shouldnt chase; clone pixels UNCHANGED between 70.5 and 77.5 \u2014 only the measurement target changed)",
+        "banding": "pinned-proportional (flat PNG has no DOM anchors); EXACT at capture width 1440 (hRatio 0.998); would drift at widths where src/clone heights diverge"
+      },
+      "falsifier": {
+        "method": "orchestrator-built broken clone (white serif text, no images, missing sections) on scratch :8124, judged vs SAME frozen cap source @1440 \u2014 INDEPENDENTLY RE-EXECUTED by orchestrator (not the builder)",
+        "broken_vs_frozen": 0,
+        "good_vs_frozen": 77.5,
+        "gap": "77.5 -> 0",
+        "verdict": "PASS \u2014 pinning removes live-drift deflation WITHOUT hiding genuine defects (broken clone still 0, hRatio 0.118 auto-veto)"
+      },
+      "orchestratorBless": "LOOKED at pinned tiles 01/02 myself: same content, same theme (dark auth dark both sides, white components white both sides), no phantom live divider. Falsifier re-executed independently = PASS. Number blessed as honest mechanism output ~77.5 (single-run, +/- ~9pt judge noise).",
+      "default": "pinned mode OFF by default; live-anchor path remains primary for responsive widths"
     }
   ],
   "phase5backlog_wave3": [
