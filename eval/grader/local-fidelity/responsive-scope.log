@@ -1,0 +1,755 @@
+=== responsive-scope started Sat Jun 13 00:20:42 PDT 2026 ===
+--- frozen capture manifest ---
+total 11584
+drwxr-xr-x@  6 ckrohg  wheel      192 Jun 11 20:52 .
+drwxr-xr-x@ 13 ckrohg  wheel      416 Jun 11 20:58 ..
+-rw-r--r--@  1 ckrohg  wheel  1620000 Jun 11 20:51 w1250.png
+-rw-r--r--@  1 ckrohg  wheel  1745050 Jun 11 20:51 w1440.png
+-rw-r--r--@  1 ckrohg  wheel  1161163 Jun 11 20:52 w390.png
+-rw-r--r--@  1 ckrohg  wheel  1396659 Jun 11 20:52 w768.png
+--- manifest.json ---
+{
+ "source": "https://clerk.com",
+ "widths": [
+  1440,
+  1250,
+  768,
+  390
+ ],
+ "maxPx": 30000,
+ "perWidth": {
+  "390": {
+   "shot": "shots/w390.png",
+   "pageH": 14321,
+   "sections": [
+    {
+     "x": 0,
+     "y": 0,
+     "w": 390,
+     "h": 14321,
+     "locator": "body>div:nth-of-type(2)",
+     "crop": "sections/w390-s0.png",
+     "cropClamped": true
+    },
+    {
+     "x": 0,
+     "y": 90,
+     "w": 390,
+     "h": 13268,
+     "locator": "main#main",
+     "crop": "sections/w390-s1.png",
+     "cropClamped": true
+    },
+    {
+     "x": 0,
+     "y": 170,
+     "w": 390,
+     "h": 360,
+     "locator": "main#main>div:nth-of-type(1)>div:nth-of-type(3)",
+     "crop": "sections/w390-s2.png",
+     "cropClamped": false
+    },
+    {
+     "x": 0,
+     "y": 610,
+     "w": 390,
+     "h": 268,
+     "locator": "main#main>div:nth-of-type(2)",
+     "crop": "sections/w390-s3.png",
+     "cropClamped": false
+    },
+    {
+     "x": 0,
+     "y": 722,
+     "w": 390,
+     "h": 155,
+     "locator": "main#main>div:nth-of-type(2)>div>div>ul",
+     "crop": "sections/w390-s4.png",
+     "cropClamped": false
+    },
+    {
+     "x": 0,
+     "y": 878,
+     "w": 390,
+     "h": 1504,
+     "locator": "main#main>div:nth-of-type(3)",
+     "crop": "sections/w390-s5.png",
+     "cropClamped": false
+    },
+    {
+     "x": 0,
+     "y": 958,
+     "w": 390,
+     "h": 1296,
+     "locator": "div#components>div",
+     "crop": "sections/w390-s6.png",
+     "cropClamped": false
+    },
+    {
+     "x": -224,
+     "y": 1229,
+     "w": 838,
+     "h": 611,
+     "locator": "div#components>div>div>div:nth-of-type(3)>div>div",
+     "crop": "sections/w390-s7.png",
+     "cropClamped": false
+    },
+    {
+     "x": 0,
+     "y": 1709,
+     "w": 390,
+     "h": 2640,
+     "locator": "main#main>div:nth-of-type(4)>div:nth-of-type(3)",
+     "crop": "sections/w390-s8.png",
+     "cropClamped": false
+    },
+    {
+     "x": 24,
+     "y": 1838,
+     "w": 342,
+     "h": 416,
+     "locator": "div#components>div>div>div:nth-of-type(2)",
+     "crop": "sections/w390-s9.png",
+     "cropClamped": false
+    },
+    {
+     "x": 34,
+     "y": 1941,
+     "w": 332,
+     "h": 180,
+     "locator": "div#react-aria-_R_chinpfiv9febdbH2_>div>div>ul",
+     "crop": "sections/w390-s10.png",
+     "cropClamped": false
+    },
+    {
+     "x": 24,
+     "y": 2188,
+     "w": 342,
+     "h": 208,
+     "locator": "div#react-aria-_R_khinpfiv9febdbH2_>div>div",
+     "crop": "sections/w390-s11.png",
+     "cropClamped": false
+    },
+    {
+     "x": 0,
+     "y": 2290,
+     "w": 874,
+     "h": 991,
+     "locator": "main#main>div:nth-of-type(4)>div:nth-of-type(2)>img",
+     "crop": "sections/w390-s12.png",
+     "cropClamped": false
+    },
+    {
+     "x": 0,
+     "y": 2382,
+     "w": 390,
+     "h": 4681,
+     "locator": "main#main>div:nth-of-type(4)",
+     "crop": "sections/w390-s13.png",
+     "cropClamped": false
+    },
+    {
+     "x": 0,
+     "y": 2510,
+     "w": 390,
+     "h": 4381,
+     "locator": "main#main>div:nth-of-type(4)>div:nth-of-type(4)",
+     "crop": "sections/w390-s14.png",
+     "cropClamped": false
+    },
+    {
+     "x": 24,
+     "y": 2827,
+     "w": 342,
+     "h": 4064,
+     "locator": "main#main>div:nth-of-type(4)>div:nth-of-type(4)>div:nth-of-type(2)",
+     "crop": "sections/w390-s15.png",
+     "cropClamped": false
+    },
+    {
+     "x": 24,
+     "y": 3115,
+     "w": 342,
+     "h": 568,
+     "locator": "main#main>div:nth-of-type(4)>div:nth-of-type(4)>div:nth-of-type(2)>div:nth-of-type(1)>div:nth-of-type(2)",
+     "crop": "sections/w390-s16.png",
+     "cropClamped": false
+    },
+    {
+     "x": 24,
+     "y": 3251,
+     "w": 342,
+     "h": 432,
+     "locator": "main#main>div:nth-of-type(4)>div:nth-of-type(4)>div:nth-of-type(2)>div:nth-of-type(1)>div:nth-of-type(2)>div:nth-of-type(2)",
+     "crop": "sections/w390-s17.png",
+     "cropClamped": false
+    },
+    {
+     "x": 24,
+     "y": 3691,
+     "w": 342,
+     "h": 280,
+     "locator": "main#main>div:nth-of-type(4)>div:nth-of-type(4)>div:nth-of-type(2)>div:nth-of-type(1)>d=== capturing clone @768 ===
+{"headingText":"More than authentication,Complete User Management","headingColor":"rgb(19, 19, 22)","headingFontSize":"64px","buttonText":"Start building","buttonBg":"rgb(255, 255, 255)","buttonColor":"rgb(19, 19, 22)","buttonRadius":"6px","containerBg":"rgb(247, 247, 248)","elementorCssLinks":11}
+=== capturing clone @390 ===
+{"headingText":"More than authentication,Complete User Management","headingColor":"rgb(19, 19, 22)","headingFontSize":"64px","buttonText":"Start building","buttonBg":"rgb(255, 255, 255)","buttonColor":"rgb(19, 19, 22)","buttonRadius":"6px","containerBg":"rgb(247, 247, 248)","elementorCssLinks":11}
+--- clone image dimensions ---
+node:internal/modules/cjs/loader:1522
+  throw err;
+  ^
+
+Error: Cannot find module '/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader/node_modules/sharp'
+Require stack:
+- /Users/ckrohg/Documents/Claude/tenet-elementor/[eval]
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1519:15)
+    at wrapResolveFilename (node:internal/modules/cjs/loader:1073:27)
+    at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1097:10)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1124:12)
+    at Module._load (node:internal/modules/cjs/loader:1296:5)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.require (node:internal/modules/cjs/loader:1619:12)
+    at require (node:internal/modules/helpers:191:16)
+    at [eval]:1:56
+    at runScriptInThisContext (node:internal/vm:219:10) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [ '/Users/ckrohg/Documents/Claude/tenet-elementor/[eval]' ]
+}
+
+Node.js v26.3.0
+node:internal/modules/cjs/loader:1522
+  throw err;
+  ^
+
+Error: Cannot find module '/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader/node_modules/sharp'
+Require stack:
+- /Users/ckrohg/Documents/Claude/tenet-elementor/[eval]
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1519:15)
+    at wrapResolveFilename (node:internal/modules/cjs/loader:1073:27)
+    at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1097:10)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1124:12)
+    at Module._load (node:internal/modules/cjs/loader:1296:5)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.require (node:internal/modules/cjs/loader:1619:12)
+    at require (node:internal/modules/helpers:191:16)
+    at [eval]:1:56
+    at runScriptInThisContext (node:internal/vm:219:10) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [ '/Users/ckrohg/Documents/Claude/tenet-elementor/[eval]' ]
+}
+
+Node.js v26.3.0
+--- source dims ---
+node:internal/modules/cjs/loader:1522
+  throw err;
+  ^
+
+Error: Cannot find module '/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader/node_modules/sharp'
+Require stack:
+- /Users/ckrohg/Documents/Claude/tenet-elementor/[eval]
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1519:15)
+    at wrapResolveFilename (node:internal/modules/cjs/loader:1073:27)
+    at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1097:10)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1124:12)
+    at Module._load (node:internal/modules/cjs/loader:1296:5)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.require (node:internal/modules/cjs/loader:1619:12)
+    at require (node:internal/modules/helpers:191:16)
+    at [eval]:1:13
+    at runScriptInThisContext (node:internal/vm:219:10) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [ '/Users/ckrohg/Documents/Claude/tenet-elementor/[eval]' ]
+}
+
+Node.js v26.3.0
+node:internal/modules/cjs/loader:1522
+  throw err;
+  ^
+
+Error: Cannot find module '/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader/node_modules/sharp'
+Require stack:
+- /Users/ckrohg/Documents/Claude/tenet-elementor/[eval]
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1519:15)
+    at wrapResolveFilename (node:internal/modules/cjs/loader:1073:27)
+    at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1097:10)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1124:12)
+    at Module._load (node:internal/modules/cjs/loader:1296:5)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.require (node:internal/modules/cjs/loader:1619:12)
+    at require (node:internal/modules/helpers:191:16)
+    at [eval]:1:13
+    at runScriptInThisContext (node:internal/vm:219:10) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [ '/Users/ckrohg/Documents/Claude/tenet-elementor/[eval]' ]
+}
+
+Node.js v26.3.0
+--- dims via sips ---
+/tmp/clone-768.png: 770x9134
+/tmp/clone-390.png: 459x14574
+/tmp/local-fidelity/cap/shots/w768.png: 768x10113
+/tmp/local-fidelity/cap/shots/w390.png: 390x14321
+
+--- hRatio (clone H / source H) ---
+@768: source pageH=10113
+@390: source pageH=14321
+--- hRatios ---
+@768: cloneH=9134 srcH=10113 hRatio=0.903 | cloneRenderedWidth=770px (viewport=768) overflowX=YES +2px
+@390: cloneH=14574 srcH=14321 hRatio=1.018 | cloneRenderedWidth=459px (viewport=390) overflowX=YES +69px
+node:internal/modules/package_json_reader:301
+  throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+        ^
+
+Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'playwright' imported from /private/tmp/probe-overflow.mjs
+    at Object.getPackageJSONURL (node:internal/modules/package_json_reader:301:9)
+    at packageResolve (node:internal/modules/esm/resolve:768:81)
+    at moduleResolve (node:internal/modules/esm/resolve:859:18)
+    at defaultResolve (node:internal/modules/esm/resolve:992:11)
+    at #cachedDefaultResolve (node:internal/modules/esm/loader:704:20)
+    at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:724:38)
+    at ModuleLoader.resolveSync (node:internal/modules/esm/loader:762:56)
+    at #resolve (node:internal/modules/esm/loader:686:17)
+    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:606:35)
+    at ModuleJob.syncLink (node:internal/modules/esm/module_job:163:33) {
+  code: 'ERR_MODULE_NOT_FOUND'
+}
+
+Node.js v26.3.0
+{
+ "width": 768,
+ "viewport": 768,
+ "scrollW": 770,
+ "clientW": 768,
+ "bodyScrollW": 770,
+ "widest": []
+}
+{
+ "width": 390,
+ "viewport": 390,
+ "scrollW": 459,
+ "clientW": 390,
+ "bodyScrollW": 459,
+ "widest": [
+  {
+   "tag": "BR",
+   "cls": "",
+   "right": 459,
+   "w": 0
+  }
+ ]
+}
+[]
+[]
+=== grep transpile-html.mjs for responsive control keys ===
+33: *       W <= 767           → native *_mobile controls (+ custom_css @media only for unmapped declarations)
+34: *       767 < W <= 1024    → native *_tablet controls (+ custom_css @media only for unmapped declarations)
+35: *       W > 1024 (custom)  → BOTH the native *_tablet controls AND a scoped per-element custom_css
+42: *     Mapped responsive controls: flex-direction, align-items, justify-content, padding (containers);
+44: *     hide_tablet/hide_mobile. Everything else rides the custom_css channel verbatim.
+51: *     margin auto both sides) becomes content_width:'boxed' with boxed_width = max-width − horizontal padding.
+321:      if (CSS_MATH.test(d['min-height'])) out.min_height = { unit: 'px', size: mathFrozen(d['min-height'], n.rect.h, 'min-height', n) };
+322:      else out.min_height = { unit: 'px', size: px(d['min-height']) };
+324:    if (d.height && /px$/.test(d.height) && !CSS_MATH.test(d.height)) out.min_height = { unit: 'px', size: px(d.height) };
+325:    else if (d.height && CSS_MATH.test(d.height)) out.min_height = { unit: 'px', size: mathFrozen(d.height, n.rect.h, 'height', n) };
+341:  // P3: responsive controls + scoped custom_css channel.
+347:      const sfx = m.w <= 767 ? '_mobile' : '_tablet';
+363:          if (sfx === '_mobile') settings.hide_mobile = 'hidden-phone'; else settings.hide_tablet = 'hidden-tablet';
+374:        // custom breakpoint: native tablet controls above + exact-width scoped css with ALL declarations
+376:        policy(`P3 breakpoint: @media (max-width:${m.w}px) on <${n.tag}${n.cls ? ` class="${n.cls}"` : ''}> → tablet controls (<=1024) + scoped custom_css at ${m.w}px (Elementor breakpoints: tablet<=1024, mobile<=767)`);
+379:        policy(`P3 breakpoint: @media (max-width:${m.w}px) unmapped declarations [${Object.keys(unmapped).join(', ')}] on <${n.tag}${n.cls ? ` class="${n.cls}"` : ''}> → scoped custom_css`);
+396:      const sfx = ia.w <= 767 ? '_mobile' : '_tablet';
+403:    const s = n.s; const out = { content_width: 'full', padding: dims(0, 0, 0, 0) };
+407:    if (s['flex-wrap'] === 'wrap') out.flex_wrap = 'wrap';
+465:      set._element_width = 'auto';
+466:      if (/display:inline-block/.test(inner)) { set._element_width = 'initial'; set._element_custom_width = { unit: 'px', size: n.rect.w }; }
+582:    // image_size:full and pin the box on the WRAPPER via the native _element_custom_width control
+593:    if (isSvg && w) { set._element_width = 'initial'; set._element_custom_width = { unit: 'px', size: w }; }
+594:    else if (parent && parent.s && parent.s.display.includes('flex') && parent.s['flex-direction'] === 'row') set._element_width = 'auto';
+607:        if (n.rect.w <= 2) { st.width = { unit: 'px', size: 1 }; st.min_height = { unit: 'px', size: n.rect.h }; }
+645:      settings.content_width = 'boxed';
+667:    // _element_width:'auto' — an explicit width control is the only reliable shrink lever). The
+690:    // the framework section by ~290px. Pin the CONTAINER min_height (a control that reliably flushes
+691:    // to per-element CSS) to the children's declared cell height. Only when the row has no min_height
+693:    if (!settings.min_height) {
+697:        settings.min_height = { unit: 'px', size: cellHs[0] };
+805:const DIMS_KEYS = /^(padding|margin|_margin|_padding|border_radius|border_width|text_padding)(_tablet|_mobile)?$/;
+806:const SIZE_KEYS = /^(width|min_height|icon_indent|_element_custom_width|_element_custom_height|boxed_width)(_tablet|_mobile)?$/;
+876:    partRoot.settings.content_width = 'full';
+884:  root.settings.content_width = 'full';
+
+=== count of _tablet/_mobile emissions ===
+9
+=== clerk.html @media count ===
+   1 @media (max-width:1280px)
+   1 @media (max-width:1340px)
+   1 @media (max-width:480px)
+   1 @media (max-width:640px)
+   1 @media (max-width:900px)
+
+=== flex-wrap / grid-template / minmax / fluid units ===
+flex-wrap:wrap occurrences: 4
+grid-template-columns: 0
+minmax(: 0
+percent widths (width:..%): 9
+vw units: 0
+fixed px widths (width:NNNpx): 45
+max-width: 32
+   38064 clerk.html
+=== media query bodies (clerk.html) ===
+--- [1] @media (max-width:1340px) ---
+.hero-art{width:145px}
+  .comp-row{padding-left:16px}
+  .comp-collage{max-width:calc(100% - 392px);height:auto}
+  .bill-app{max-width:calc(100% - 326px)}
+
+--- [2] @media (max-width:1280px) ---
+/* auth bento: source reflows 3-col -> 2-col by 1250 (cards regroup; our DOM keeps
+     col1+col2 as the two columns and lays col3 as a full-width triple row below) */
+  .auth-row{flex-wrap:wrap}
+  .auth-col{flex:1 1 42%}
+  .auth-col-c{flex:1 1 100%;flex-direction:row}
+  .auth-col-c .acard{flex:1 1 0}
+  .acard-sm,.acard-tall,.acard-wide,.acard-nrw{height:auto}
+  .acard img{width:auto;max-width:100%;align-self:center}
+  .acard-toptxt img{margin-top:16px}
+  /* b2b: source reflows 3-col -> 2x2 (aut
+
+--- [3] @media (max-width:900px) ---
+.hero-art{display:none}
+  .hero-mid h1{font-size:48px;line-height:54px}
+  /* header: source keeps full nav at 768 — tighten gaps so nothing wraps */
+  .hdr-logo{margin-right:10px}
+  .hdr-item{padding:6px 6px}
+  .hdr-right{gap:10px}
+  .hdr-bar{padding:0 10px 0 14px}
+  /* logos: source keeps lead text left + 2x2 logo grid right at 768 */
+  .logos-inner{height:auto}
+  .logos-lead{flex:0 0 240px;padding:16px 24px}
+  .logos-grid{flex-wrap:wrap}
+  .logos-cell{flex:1 1 40%;padding:22px 0}
+  /* componen
+
+--- [4] @media (max-width:640px) ---
+.hdr-nav{display:none}
+  .logos-lead{flex:1 1 100%;justify-content:center;padding:16px 24px 8px}
+  .comp-row{flex-direction:column;padding:0 24px}
+  .comp-left{flex:0 0 auto}
+  .comp-collage{max-width:100%;margin:32px auto 0}
+  .auth-col{flex:1 1 100%}
+  .auth-col-c{flex-direction:column}
+  .auth-col-c .acard{flex:0 0 auto}
+  .auth-row2{flex-direction:column}
+  .b2b-col{flex-direction:column}
+  .b2b-ca,.b2b-cb{flex:0 0 auto}
+  .b2b-c1{flex:1 1 100%;height:auto}
+  .b2b-dash{min-height:160px}
+  .f
+
+--- [5] @media (max-width:480px) ---
+.hero-mid h1{font-size:32px;line-height:38px}
+  .hero{height:auto;padding-bottom:64px}
+  .hero-sub{font-size:16px;line-height:24px}
+  .hero-ctas{flex-direction:column}
+  .foot-col{flex:1 1 100%}
+
+=== how is n.media populated? ===
+33: *       W <= 767           → native *_mobile controls (+ custom_css @media only for unmapped declarations)
+34: *       767 < W <= 1024    → native *_tablet controls (+ custom_css @media only for unmapped declarations)
+36: *                            `@media (max-width:Wpx){ selector{...} }` carrying ALL declarations, so the
+132:          const cond = rule.conditionText || rule.media?.mediaText || '';
+135:            if (/min-width/.test(cond)) notes.push(`min-width media query skipped (desktop-first contract): @media ${cond}`);
+223:          declared: _mdecl, media: mediaOf(el), s: mediaS,
+231:          declared: _mdecl, media: mediaOf(el), s: mediaS,
+258:        declared: declared(el), media: mediaOf(el),
+346:    for (const m of n.media || []) {
+375:        cssBlocks.push(`@media (max-width:${m.w}px){selector{${declCss(m.decls)}}}`);
+376:        policy(`P3 breakpoint: @media (max-width:${m.w}px) on <${n.tag}${n.cls ? ` class="${n.cls}"` : ''}> → tablet controls (<=1024) + scoped custom_css at ${m.w}px (Elementor breakpoints: tablet<=1024, mobile<=767)`);
+378:        cssBlocks.push(`@media (max-width:${m.w}px){selector{${declCss(unmapped)}}}`);
+379:        policy(`P3 breakpoint: @media (max-width:${m.w}px) unmapped declarations [${Object.keys(unmapped).join(', ')}] on <${n.tag}${n.cls ? ` class="${n.cls}"` : ''}> → scoped custom_css`);
+388:    for (const m of n.media || []) {
+398:      if (ia.w > 1024) settings.custom_css = (settings.custom_css ? settings.custom_css + '\n' : '') + `@media (max-width:${ia.w}px){selector{text-align:${ia.align} !important}}`;
+618:        const child = textEditor({ ...n, declared: {}, media: [], s: { ...n.s, 'margin-top': '0px' } }, n, childInherit);
+
+=== is font-size in MEDIA_MAPPED? (NO per line 342-343). heading_size_tablet/mobile emission? ===
+152:    const INLINE_PROPS = ['color', 'font-size', 'font-weight', 'letter-spacing', 'margin-left', 'margin-right', 'vertical-align'];
+269:        'border-radius', 'color', 'font-size', 'font-weight', 'line-height', 'letter-spacing', 'text-align']) {
+300:    o.typography_font_size = { unit: 'px', size: pxf(s['font-size']) };
+507:    const fs_ = pxf(n.s['font-size']);
+=== mediaOf definition ===
+126:    const mediaOf = (el) => {
+223:          declared: _mdecl, media: mediaOf(el), s: mediaS,
+231:          declared: _mdecl, media: mediaOf(el), s: mediaS,
+258:        declared: declared(el), media: mediaOf(el),
+    const declared = (el) => {
+      const out = {};
+      for (const sheet of document.styleSheets) {
+        let rules; try { rules = sheet.cssRules; } catch { continue; }
+        for (const rule of rules) {
+          if (rule.type === 1) {
+            let hit = false; try { hit = el.matches(rule.selectorText); } catch {}
+            if (!hit) continue;
+            for (const p of ['width', 'max-width', 'height', 'min-height', 'margin-top', 'margin-bottom', 'margin-left', 'margin-right',
+              'padding-left', 'padding-right', 'min-height']) {
+              const v = rule.style.getPropertyValue(p); if (v) out[p] = v;
+            }
+          }
+        }
+      }
+      return out;
+    };
+    // P3: full media-rule capture — every (max-width: Npx) declaration block that matches this element.
+    const mediaOf = (el) => {
+      const out = [];
+      for (const sheet of document.styleSheets) {
+        let rules; try { rules = sheet.cssRules; } catch { continue; }
+        for (const rule of rules) {
+          if (rule.type !== 4) continue;
+          const cond = rule.conditionText || rule.media?.mediaText || '';
+          const m = /max-width:\s*([\d.]+)px/.exec(cond);
+          if (!m) {
+            if (/min-width/.test(cond)) notes.push(`min-width media query skipped (desktop-first contract): @media ${cond}`);
+            continue;
+          }
+          const w = Math.round(+m[1]);
+          for (const r of rule.cssRules) {
+            if (r.type !== 1) continue;
+            let hit = false; try { hit = el.matches(r.selectorText); } catch {}
+            if (!hit) continue;
+            const decls = {};
+            for (let i = 0; i < r.style.length; i++) { const p = r.style[i]; decls[p] = r.style.getPropertyValue(p); }
+            const ex = out.find((o) => o.w === w);
+{
+ "headings": [
+  {
+   "txt": "More than authentication,Complete User M",
+   "fs": "64px",
+   "lh": "72px"
+  },
+  {
+   "txt": "Everything you need for authentication",
+   "fs": "32px",
+   "lh": "40px"
+  },
+  {
+   "txt": "Multifactor Authentication",
+   "fs": "13.5px",
+   "lh": "24px"
+  },
+  {
+   "txt": "Fraud and Abuse Prevention",
+   "fs": "13.5px",
+   "lh": "24px"
+  },
+  {
+   "txt": "Advanced security",
+   "fs": "13.5px",
+   "lh": "24px"
+  },
+  {
+   "txt": "Session Management",
+   "fs": "13.5px",
+   "lh": "24px"
+  }
+ ],
+ "mqCount": 0,
+ "has480": false,
+ "has640": false,
+ "has900": false,
+ "has767": false,
+ "has1024": false
+}
+=== how is transpile-html.mjs invoked / what does it output ===
+73:export const ROW_CHILD_BUFFER_PX = 12; // P4: e-con row-child px pin buffer (spike-proven)
+76:export const ICON_GLYPHS = {
+102:export async function extract(htmlFile, width) {
+284:export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {}) {
+716:export function splitSiteParts(specTree) {
+737:export function loadManifest(file) {
+750:export async function uploadMedia(file, { base, b64, cache }) {
+764:  fs.writeFileSync(cache.file, JSON.stringify(cache.data, null, 2));
+769:export async function resolveAssets(specTree, manifest, { dryRun, base, b64, outDir }) {
+795:      fs.writeFileSync(svgFile, n.svg);
+808:export function validateTree(elements, errs = [], pathStr = 'root') {
+845:export async function serverValidate(root, { base, b64 }) {
+865:export async function transpile({ html, width = 1440, assets, outDir, dryRun, base, b64, siteParts: sitePartsEnabled = true }) {
+892:  fs.writeFileSync(path.join(outDir, 'tree.json'), treeJson);
+894:  if (siteParts.length) fs.writeFileSync(path.join(outDir, 'site-parts.json'), sitePartsJson);
+903:  fs.writeFileSync(path.join(outDir, 'report.json'), JSON.stringify(report, null, 2));
+907:export async function putPage(root, { base, b64, pageId, create, title, siteParts = [], template = 'elementor_canvas' }) {
+952:const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+954:  const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i >= 0 && process.argv[i + 1] !== undefined ? process.argv[i + 1] : d; };
+955:  const has = (k) => process.argv.includes('--' + k);
+  if (!dryRun && !b64) { console.error('need JOIST_AUTH_B64 (or --dry-run)'); process.exit(2); }
+  const outDir = arg('out', '/tmp/htmlfirst-v1/' + path.basename(html).replace(/\.html?$/, ''));
+  (async () => {
+    const { root, siteParts, template, report, mapper } = await transpile({ html, width: +arg('width', 1440), assets: arg('assets'), outDir, dryRun, base, b64, siteParts: !has('no-site-parts') });
+    console.log('widget counts:', JSON.stringify(mapper.counts));
+    console.log('tree sha1:', report.treeSha1, '→', path.join(outDir, 'tree.json'));
+    if (siteParts.length) console.log('site parts:', siteParts.map((p) => p.type).join(', '), '→', path.join(outDir, 'site-parts.json'), `(page template: ${template})`);
+    if (report.validation.localErrors.length) {
+      console.error('LOCAL VALIDATION FAILED:'); report.validation.localErrors.forEach((e) => console.error(' -', e));
+      process.exit(1);
+    }
+    console.log('local validation: OK');
+    if (!dryRun && !has('no-server-validate')) {
+      const sv = await serverValidate(root, { base, b64 });
+      for (const p of siteParts) {
+        const psv = await serverValidate(p.root, { base, b64 });
+        sv.checked += psv.checked; sv.errors.push(...psv.errors.map((e) => ({ ...e, sitePart: p.type })));
+      }
+      report.validation.server = sv;
+      fs.writeFileSync(path.join(outDir, 'report.json'), JSON.stringify(report, null, 2));
+      if (sv.errors.length) {
+        console.error(`SERVER VALIDATION FAILED (${sv.errors.length}/${sv.checked} signatures):`);
+        sv.errors.forEach((e) => console.error(' -', e.widget, JSON.stringify(e.errors).slice(0, 300)));
+        process.exit(1);
+      }
+      console.log(`server validation: OK (${sv.checked} unique widget signatures)`);
+    }
+    if (mapper.POLICY.length) { console.log('POLICY:'); mapper.POLICY.forEach((p) => console.log(' -', p)); }
+    if (mapper.PAIN.length) { console.log('PAIN:'); mapper.PAIN.forEach((p) => console.log(' -', p)); }
+    if (dryRun) { console.log('dry-run: no PUT'); return; }
+    const pageId = arg('page');
+    if (!pageId && !has('create')) { console.log('no --page/--create: transpile-only'); return; }
+    const res = await putPage(root, { base, b64, pageId, create: has('create'), title: arg('title'), siteParts, template });
+    report.put = res;
+    fs.writeFileSync(path.join(outDir, 'report.json'), JSON.stringify(report, null, 2));
+    console.log('PUT', res.putStatus, 'meta', res.metaStatus, 'template', res.template);
+    for (const p of res.siteParts || []) console.log(`SITE PART ${p.type}: id ${p.id} hash ${p.hash} (render check required)`);
+    console.log('URL:', res.url);
+  })().catch((e) => { console.error('FATAL:', e.message); process.exit(1); });
+}
+=== dry-run transpile clerk.html @1440 (no PUT, page 83 untouched) ===
+ - P6 image "assets/crop-auth-passwords.png": no assets-manifest entry — hot-linking original src (capture-assets should supply this file)
+ - P6 image "assets/crop-auth-apikeys.png": no assets-manifest entry — hot-linking original src (capture-assets should supply this file)
+ - P6 image "assets/crop-auth-mcp.png": no assets-manifest entry — hot-linking original src (capture-assets should supply this file)
+ - P6 image "assets/wedge-auth-bot.png": no assets-manifest entry — hot-linking original src (capture-assets should supply this file)
+ - P6 image "assets/b2b-roles.png": no assets-manifest entry — hot-linking original src (capture-assets should supply this file)
+ - P6 image "assets/b2b-autojoin.png": no assets-manifest entry — hot-linking original src (capture-assets should supply this file)
+ - P6 image "assets/b2b-invite.png": no assets-manifest entry — hot-linking original src (capture-assets should supply this file)
+ - P6 image "assets/billing-app.png": no assets-manifest entry — hot-linking original src (capture-assets should supply this file)
+ - P6 image "assets/wedge-bill-bot.png": no assets-manifest entry — hot-linking original src (capture-assets should supply this file)
+ - P6 image "assets/fw-nextjs.svg": no assets-manifest entry — hot-linking original src (capture-assets should supply this file)
+ - P6 image "assets/fw-react.svg": no assets-manifest entry — hot-linking original src (capture-assets should supply this file)
+ - P6 image "assets/fw-expo.svg": no assets-manifest entry — hot-linking original src (capture-assets should supply this file)
+ - P6 image "assets/fw-reactrouter.svg": no assets-manifest entry — hot-linking original src (capture-assets should supply this file)
+ - P6 image "assets/fw-tanstack.svg": no assets-manifest entry — hot-linking original src (capture-assets should supply this file)
+ - P6 image "assets/fw-astro.svg": no assets-manifest entry — hot-linking original src (capture-assets should supply this file)
+ - P6 image "assets/int-supabase.svg": no assets-manifest entry — hot-linking original src (capture-assets should supply this file)
+ - P6 image "assets/int-convex.svg": no assets-manifest entry — hot-linking original src (capture-assets should supply this file)
+ - P6 image "assets/int-vercel.svg": no assets-manifest entry — hot-linking original src (capture-assets should supply this file)
+ - P6 image "assets/wedge-fw-bot.png": no assets-manifest entry — hot-linking original src (capture-assets should supply this file)
+ - P6 image "assets/ava-patrick.png": no assets-manifest entry — hot-linking original src (capture-assets should supply this file)
+ - P6 image "assets/ta-webdevcody.png": no assets-manifest entry — hot-linking original src (capture-assets should supply this file)
+ - P6 image "assets/ta-johnennis.png": no assets-manifest entry — hot-linking original src (capture-assets should supply this file)
+ - P6 image "assets/ta-rsolticzki.png": no assets-manifest entry — hot-linking original src (capture-assets should supply this file)
+ - P6 image "assets/ta-climstefan.png": no assets-manifest entry — hot-linking original src (capture-assets should supply this file)
+dry-run: no PUT
+
+=== responsive keys in produced tree.json ===
+_tablet keys:    5 "flex_direction_tablet"    2 "hide_tablet"   10 "padding_tablet"   11 "width_tablet" 
+_mobile keys:    5 "flex_direction_mobile"    1 "flex_justify_content_mobile"    3 "padding_mobile"    9 "width_mobile" 
+hide_tablet/hide_mobile: 2
+flex_direction_*: 10
+custom_css blocks: 66
+custom_css with @media: 100
+tree.json size:   253513 bytes
+=== existing build artifacts / report for page 83 ===
+--- look for render-clerk-fullpage driver to see how page 83 gets built ---
+--- does render-clerk-fullpage pass --width 1440 and re-PUT? grep ---
+=== find render drivers + clerk-fullpage refs ===
+-rw-------     1 ckrohg  staff     2028 Jun 12 19:42 _render-shot 2.mjs
+-rw-r--r--@    1 ckrohg  staff     2028 Jun 12 23:30 _render-shot.mjs
+-rw-r--r--@    1 ckrohg  staff    10218 Jun 10 16:38 builder-visual-fidelity.workflow 2.js
+-rw-r--r--@    1 ckrohg  staff    10218 Jun 12 23:30 builder-visual-fidelity.workflow 3.js
+-rw-r--r--@    1 ckrohg  staff    10218 Jun  7 22:28 builder-visual-fidelity.workflow.js
+-rw-r--r--@    1 ckrohg  staff     9009 Jun 10 16:38 colwidth-fidelity.workflow 2.js
+-rw-r--r--@    1 ckrohg  staff     9009 Jun 12 23:30 colwidth-fidelity.workflow 3.js
+-rw-------     1 ckrohg  staff     9009 Jun 10 16:13 colwidth-fidelity.workflow 4.js
+-rw-r--r--@    1 ckrohg  staff     9009 Jun  7 22:28 colwidth-fidelity.workflow.js
+-rw-r--r--@    1 ckrohg  staff     1461 Jun 10 16:38 crop-local 2.mjs
+-rw-r--r--@    1 ckrohg  staff     1461 Jun 12 23:30 crop-local 3.mjs
+-rw-------     1 ckrohg  staff     1461 Jun 10 16:13 crop-local 4.mjs
+-rw-r--r--@    1 ckrohg  staff     1461 Jun  7 22:28 crop-local.mjs
+-rw-r--r--@    1 ckrohg  staff     5376 Jun 10 16:38 fidelity-grade 2.mjs
+-rw-r--r--@    1 ckrohg  staff     5376 Jun 12 23:30 fidelity-grade 3.mjs
+-rw-------     1 ckrohg  staff     5376 Jun 10 16:13 fidelity-grade 4.mjs
+-rw-r--r--@    1 ckrohg  staff     5376 Jun  7 22:28 fidelity-grade.mjs
+-rw-r--r--@    1 ckrohg  staff     4030 Jun 10 16:38 headless-fidelity-diagnose.workflow 2.js
+-rw-r--r--@    1 ckrohg  staff     4030 Jun 12 23:30 headless-fidelity-diagnose.workflow 3.js
+-rw-------     1 ckrohg  staff     4030 Jun 10 16:13 headless-fidelity-diagnose.workflow 4.js
+-rw-r--r--@    1 ckrohg  staff     4030 Jun  7 22:28 headless-fidelity-diagnose.workflow.js
+-rw-r--r--@    1 ckrohg  staff     8448 Jun 10 16:39 linkcols-fidelity.workflow 2.js
+-rw-r--r--@    1 ckrohg  staff     8448 Jun 12 23:30 linkcols-fidelity.workflow 3.js
+-rw-------     1 ckrohg  staff     8448 Jun 10 16:13 linkcols-fidelity.workflow 4.js
+-rw-r--r--@    1 ckrohg  staff     8448 Jun  7 22:28 linkcols-fidelity.workflow.js
+drwxr-xr-x@    9 ckrohg  staff      288 Jun 12 23:35 local-fidelity
+-rw-r--r--@    1 ckrohg  staff     6465 Jun 10 16:39 probe-render 2.mjs
+-rw-r--r--@    1 ckrohg  staff     6465 Jun  7 22:28 probe-render.mjs
+-rw-r--r--@    1 ckrohg  staff   237047 Jun 10 16:39 sec-local-8 2.png
+-rw-r--r--@    1 ckrohg  staff   237047 Jun  7 22:28 sec-local-8.png
+-rw-r--r--@    1 ckrohg  staff    33324 Jun 10 16:39 sec-local-logos 2.png
+-rw-r--r--@    1 ckrohg  staff    33324 Jun 12 23:30 sec-local-logos 3.png
+-rw-------     1 ckrohg  staff    33324 Jun 10 16:13 sec-local-logos 4.png
+-rw-r--r--@    1 ckrohg  staff    33324 Jun  7 22:28 sec-local-logos.png
+/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader/overnight-state.json
+/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader/.tenet/map-events 2.jsonl
+/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader/.tenet/map-events 3.jsonl
+/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader/node_modules/playwright-core/lib/vite/traceViewer/sw.bundle.js
+/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader/.tenet/map-events.jsonl
+/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader/.tenet/map-events 4.jsonl
+=== last page-83 build events ===
+=== git log for P3 responsive in transpile-html.mjs ===
+1a4426f fix(transpile): center column-flex children that lost their parent centering
+3473a70 fix(eval-integrity): R2 evidence bundle now reproduces judged state
+7a1ce45 feat(transpile): hero CTA styling + bento imagery + height-compression pass [sandbox re-render]
+22eac5d feat(transpile): real imagery + section-order fix for full-page Elementor [sandbox re-render]
+f04404b feat(htmlfirst): transpile-html v1 — pain-list hardening + assets manifest + schema validation
+f04404b feat(htmlfirst): transpile-html v1 — pain-list hardening + assets manifest + schema validation
+{
+ "totalCssLen": 389613,
+ "anyMediaMaxWidth": 47,
+ "elementorResponsiveLinks": [
+  "post-4.css?ver=1781334645",
+  "post-83.css?ver=1781334645"
+ ],
+ "postCssLink": [
+  "http://localhost:8001/wp-content/uploads/elementor/css/post-83.css?ver=1781334645"
+ ],
+ "hasCustomCssSelector": true,
+ "edit_mode": null
+}
+{
+ "heroFs": "64px",
+ "heroTxt": "More than authentication,Compl",
+ "mediaBreakpoints": [
+  "62",
+  "66",
+  "144",
+  "192",
+  "479",
+  "500",
+  "575",
+  "576",
+  "600",
+  "767",
+  "800",
+  "991",
+  "992",
+  "1024",
+  "1140",
+  "99999"
+ ],
+ "fontSizeInMedia": false,
+ "width_mobileCssPresent": true
+}
+{
+ "customCssBreakpoints480": false,
+ "customCssBreakpoints640": false,
+ "customCssBreakpoints900": false,
+ "nonNativeBreakpoints": [
+  "max-width: 99999px",
+  "max-width: 144px",
+  "max-width: 192px"
+ ]
+}
+=== scope analysis complete Sat Jun 13 00:26:11 PDT 2026 ===
