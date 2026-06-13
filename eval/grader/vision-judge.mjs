@@ -11,7 +11,20 @@
  * missing phone mockup, ~1000px overflow). A vision judge over side-by-side tiles is human-aligned BY
  * CONSTRUCTION and localizes defects per tile + width. Calibration ground truth #1 = that QA session.
  *
+ * PINNED SOURCE (VJ-SRCPIN 2026-06-12, OPT-IN; live path unchanged): when the clone is built from a FROZEN
+ *   capture, re-navigating the live source every judge run grades the clone against a DRIFTING target (clerk
+ *   marquee phase + live dark section-divider = pure live-drift sev4/5 noise). Pass --pinned-source <file.png|
+ *   cap:dir> (or point --source at a .png / cap:dir / dir) to load a pre-captured FROZEN full-page PNG as the
+ *   SOURCE side instead of navigating; the clone side stays a LIVE capture. A flat PNG has NO DOM text anchors
+ *   so band-anchored alignment is impossible → HONEST proportional banding (clone band = source band * cloneH/
+ *   srcH), tiles labeled align:'pinned-proportional', perWidth.align.mode='pinned-proportional'. The frozen
+ *   PNG's intrinsic pixel height IS its true height (cap w1440 = 1440x7616, manifest pageH 7616 → exact). OFF
+ *   by default (reversibility = not passing the flag / not pointing --source at a png|cap: spec). Falsifier
+ *   (2026-06-12): good clone (page 83) vs frozen clerk = 77.5; deliberately-broken clone (no images/wrong bg/
+ *   dropped dark section) vs the SAME frozen source = 0 (raw mean 6.3). Pinning removes live-drift deflation
+ *   WITHOUT hiding genuine defects.
  * Usage:
+ *   node vision-judge.mjs --source <url|file.png|cap:dir> --clone <url> [--pinned-source <file.png|cap:dir>]
  *   node vision-judge.mjs --source <url> --clone <url> [--widths 1440,1100] [--out dir] [--tileh 900]
  *                         [--runs 1] [--jobs 3] [--model sonnet] [--budget 10] [--max-tiles 40]
  *                         [--manifest-only] [--gating] [--structure <grade-structure results.json>]
