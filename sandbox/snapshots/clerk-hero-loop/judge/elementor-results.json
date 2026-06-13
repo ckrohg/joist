@@ -1,0 +1,136 @@
+{
+  "source": "http://localhost:8777/source.html",
+  "clone": "http://localhost:8001/joist-clerk-hero-fixed/",
+  "widths": [
+    1440
+  ],
+  "runsPerTile": 3,
+  "gating": true,
+  "model": "claude-sonnet-4-6",
+  "publishedScore": null,
+  "veto": null,
+  "pageScore": 82,
+  "baseScore": 82,
+  "severityPenalty": 0,
+  "perWidth": {
+    "1440": {
+      "srcHeight": 900,
+      "cloneHeight": 900,
+      "hRatio": 1,
+      "align": {
+        "mode": "proportional-fallback",
+        "anchorPairs": 0
+      },
+      "pageScore": 82,
+      "base": 82,
+      "penalty": 0,
+      "judged": 1,
+      "skipped": 0
+    }
+  },
+  "tilesJudged": 1,
+  "tilesSkipped": 0,
+  "costUsd": 0.13,
+  "wallSec": 105,
+  "defects": [
+    {
+      "desc": "Hero heading font-size appears slightly reduced on the RIGHT — 'More than authentication, Complete User Management' is noticeably smaller than the LEFT at the same viewport width",
+      "severity": 3,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 0,
+      "yRange": [
+        0,
+        900
+      ],
+      "aboveFold": true,
+      "tileScore": 82
+    },
+    {
+      "desc": "Overall hero section vertical padding/height is compressed on the RIGHT, leaving substantially more dark-gray dead space below the CTA buttons before the page ends",
+      "severity": 2,
+      "category": "layout-broken",
+      "width": 1440,
+      "tile": 0,
+      "yRange": [
+        0,
+        900
+      ],
+      "aboveFold": true,
+      "tileScore": 82
+    },
+    {
+      "desc": "Body/subheading paragraph text below the main heading appears slightly smaller and tighter on the RIGHT",
+      "severity": 1,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 0,
+      "yRange": [
+        0,
+        900
+      ],
+      "aboveFold": true,
+      "tileScore": 82
+    },
+    {
+      "desc": "CTA button 'Start building for free' appears marginally narrower/shorter on the RIGHT, though color and label are correct",
+      "severity": 1,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 0,
+      "yRange": [
+        0,
+        900
+      ],
+      "aboveFold": true,
+      "tileScore": 82
+    }
+  ],
+  "tiles": [
+    {
+      "idx": 0,
+      "width": 1440,
+      "yRange": [
+        0,
+        900
+      ],
+      "cloneYRange": [
+        0,
+        900
+      ],
+      "aboveFold": true,
+      "align": "proportional",
+      "judged": true,
+      "score": 82,
+      "scores": [
+        85,
+        82,
+        82
+      ],
+      "defects": [
+        {
+          "desc": "Hero heading font-size appears slightly reduced on the RIGHT — 'More than authentication, Complete User Management' is noticeably smaller than the LEFT at the same viewport width",
+          "severity": 3,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Overall hero section vertical padding/height is compressed on the RIGHT, leaving substantially more dark-gray dead space below the CTA buttons before the page ends",
+          "severity": 2,
+          "category": "layout-broken"
+        },
+        {
+          "desc": "Body/subheading paragraph text below the main heading appears slightly smaller and tighter on the RIGHT",
+          "severity": 1,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "CTA button 'Start building for free' appears marginally narrower/shorter on the RIGHT, though color and label are correct",
+          "severity": 1,
+          "category": "wrong-style"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "/tmp/vj-elementor/w1440-tile-00.png"
+    }
+  ]
+}
