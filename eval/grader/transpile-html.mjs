@@ -783,6 +783,131 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
   return { mapNode, counts, PAIN, POLICY };
 }
 
+// ── vertical-rhythm normalizer (post-transpile) ─────────────────────────────────────────────────────────────
+/**
+ * @purpose Fix accumulating whitespace compression (e.g. linear-v2 hRatio 0.83): a vision-authored page often
+ * sets section bottom-padding to 0 (`padding:140px 48px 0`) and under-sizes internal heading-block gaps, so each
+ * full-width section renders ~150-220px SHORTER than the matched source band and the deficit accumulates down the
+ * page. This deterministic pass matches each top-level authored section to its SOURCE content band (DP sequence
+ * alignment on fractional y-position + relative height — robust to the count mismatch caused by absent/duplicate
+ * source bands such as a sticky-nav artifact or an un-segmented figure row) and, for a confidently-matched section
+ * that renders SHORTER than its source band, tops up the section's BOTTOM padding by the residual. Bottom-padding
+ * (not min_height) keeps the recovered slack as authored-looking inter-section rhythm BELOW the content instead of
+ * a top-clustered void. It is match-gated and growth-only: a section with no confident source match, or already at
+ * or above its source height, is left untouched — so a page that is already ~1:1 (clerk, hRatio 0.998) is a no-op.
+ * Horizontal layout, reflow, responsive controls and editability are untouched (only the bottom `padding` value of
+ * matched sections changes). Source padding is NOT read (style-facts carries none); the target height is DERIVED
+ * from the source band geometry (manifest.perWidth[width].sections box heights). Reversible: TRANSPILE_NO_RHYTHM=1.
+ */
+const RHYTHM_MIN_DEFICIT = 20;     // ignore sub-20px residuals (rounding / grader noise)
+const RHYTHM_MAX_GROW_FRAC = 0.6;  // never grow a section by more than 60% of its own height (bad-match guard)
+const RHYTHM_MAX_GROW_PX = 700;    // hard per-section growth ceiling (bad-match guard)
+
+// Derive a clean top-to-bottom sequence of source CONTENT bands from the (noisy, hierarchical, sometimes
+// overlapping) capture section list. Drops the page-wrapper bands (h ~= pageH) and tiny slivers; covers the page
+// with non-overlapping bands at the dominant content-column width (and full-width header/footer), preferring the
+// finer band on overlap so a nested child section isn't swallowed by its parent.
+export function deriveSourceBands(sections, pageH) {
+  if (!Array.isArray(sections) || !pageH) return [];
+  const cand = sections.filter((s) => s && s.h >= 60 && s.h < pageH * 0.92 && s.w > 0);
+  if (!cand.length) return [];
+  const wc = {}; cand.forEach((s) => { wc[s.w] = (wc[s.w] || 0) + 1; });
+  const widths = Object.entries(wc).sort((a, b) => b[1] - a[1]).map((e) => +e[0]);
+  const domW = widths[0];
+  const maxW = Math.max(...widths);
+  const cover = (bands) => {
+    const sorted = [...bands].sort((a, b) => a.y - b.y || a.h - b.h); // tie → finer (smaller h) first
+    const picked = []; let cursor = -1e9;
+    for (const b of sorted) { if (b.y >= cursor - 12) { picked.push({ y: b.y, h: b.h }); cursor = b.y + b.h; } }
+    return picked;
+  };
+  const setA = cand.filter((s) => s.w === domW || (s.x === 0 && s.w >= domW));      // content column + full-width
+  const setB = cand.filter((s) => s.x === 0 && s.w >= maxW * 0.9);                   // full-width bands only
+  const cA = cover(setA); const cB = cover(setB);
+  return cA.length >= cB.length ? cA : cB; // the finer cover (more bands) carries more rhythm signal
+}
+
+// Needleman-Wunsch global alignment of authored sections A[] → source bands B[] (each carries {y,h}). Diagonal
+// = a match scored by closeness in fractional center AND in relative height; gaps (skip an authored section, or a
+// source band) cost a fixed penalty so absent/extra bands on either side are skipped rather than force-matched.
+// Returns match[i] = source-band index for authored section i, or -1 (unmatched).
+export function alignSections(A, B, authPageH, srcPageH) {
+  const n = A.length; const m = B.length;
+  if (!n || !m || !authPageH || !srcPageH) return new Array(n).fill(-1);
+  const aC = A.map((a) => (a.y + a.h / 2) / authPageH); const bC = B.map((b) => (b.y + b.h / 2) / srcPageH);
+  const aH = A.map((a) => a.h / authPageH); const bH = B.map((b) => b.h / srcPageH);
+  const GAP = -0.35;
+  const sim = (i, j) => (0.25 - Math.abs(aC[i] - bC[j])) * 2 + (0.15 - Math.abs(aH[i] - bH[j])) * 2;
+  const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  const bt = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(''));
+  for (let i = 1; i <= n; i++) { dp[i][0] = dp[i - 1][0] + GAP; bt[i][0] = 'U'; }
+  for (let j = 1; j <= m; j++) { dp[0][j] = dp[0][j - 1] + GAP; bt[0][j] = 'L'; }
+  for (let i = 1; i <= n; i++) for (let j = 1; j <= m; j++) {
+    const diag = dp[i - 1][j - 1] + sim(i - 1, j - 1);
+    const up = dp[i - 1][j] + GAP; const left = dp[i][j - 1] + GAP;
+    let best = diag; let c = 'D';
+    if (up > best) { best = up; c = 'U'; }
+    if (left > best) { best = left; c = 'L'; }
+    dp[i][j] = best; bt[i][j] = c;
+  }
+  const match = new Array(n).fill(-1); let i = n; let j = m;
+  while (i > 0 || j > 0) {
+    const c = bt[i][j];
+    if (c === 'D') { match[i - 1] = j - 1; i--; j--; }
+    else if (c === 'U') { i--; }
+    else { j--; }
+  }
+  return match;
+}
+
+/**
+ * Apply the rhythm pass IN PLACE on the Elementor root. `specTree` is the post-site-part-split spec tree whose
+ * top-level children correspond 1:1 (same order) to root.elements (top-level sections). `capManifest` is the
+ * parsed source capture manifest. `width` selects the perWidth band set. Returns a report (per-section diffs +
+ * totals). Mutating only `settings.padding.bottom` of matched-short sections — no other control is touched.
+ */
+export function applyRhythm(root, specTree, capManifest, { width = 1440 } = {}) {
+  const report = { applied: false, reason: null, sections: [], recoveredPx: 0 };
+  if (process.env.TRANSPILE_NO_RHYTHM) { report.reason = 'disabled (TRANSPILE_NO_RHYTHM)'; return report; }
+  const pw = capManifest && capManifest.perWidth && (capManifest.perWidth[String(width)] || capManifest.perWidth[width]);
+  if (!pw || !Array.isArray(pw.sections)) { report.reason = 'no source bands (manifest.perWidth[width].sections missing)'; return report; }
+  const srcPageH = pw.pageH || (pw.sections[0] && pw.sections[0].h) || 0;
+  const bands = deriveSourceBands(pw.sections, srcPageH);
+  if (bands.length < 2) { report.reason = `too few derived source bands (${bands.length})`; return report; }
+  const kids = specTree.children || [];
+  const sections = root.elements || [];
+  if (kids.length !== sections.length) { report.reason = `spec/tree section count mismatch (${kids.length} vs ${sections.length})`; return report; }
+  const authPageH = Math.max(...kids.map((k) => k.rect.y + k.rect.h), 1);
+  const A = kids.map((k) => ({ y: k.rect.y, h: k.rect.h }));
+  const match = alignSections(A, bands, authPageH, srcPageH);
+  for (let i = 0; i < sections.length; i++) {
+    const mi = match[i]; const src = mi >= 0 ? bands[mi] : null;
+    const authH = A[i].h;
+    let addB = 0;
+    if (src) {
+      const deficit = src.h - authH;
+      if (deficit > RHYTHM_MIN_DEFICIT) addB = Math.min(deficit, Math.round(authH * RHYTHM_MAX_GROW_FRAC), RHYTHM_MAX_GROW_PX);
+    }
+    const el = sections[i];
+    const cls = (kids[i] && kids[i].cls) ? ` .${String(kids[i].cls).split(/\s+/)[0]}` : '';
+    const rec = { idx: i, tag: kids[i] && kids[i].tag, cls: (kids[i] && kids[i].cls) || '', authH, srcH: src ? src.h : null, addBottomPad: addB };
+    if (addB > 0 && el && el.settings) {
+      const p = el.settings.padding;
+      const top = p ? p.top : '0'; const right = p ? p.right : '0'; const left = p ? p.left : '0';
+      const curB = p ? (parseInt(p.bottom, 10) || 0) : 0;
+      el.settings.padding = dims(parseInt(top, 10) || 0, parseInt(right, 10) || 0, curB + addB, parseInt(left, 10) || 0);
+      report.recoveredPx += addB;
+      rec.newBottomPad = curB + addB;
+    }
+    report.sections.push(rec);
+  }
+  report.applied = report.recoveredPx > 0;
+  report.authPageH = authPageH; report.srcPageH = srcPageH; report.bands = bands.length;
+  report.ratioBefore = +(authPageH / srcPageH).toFixed(4);
+  report.ratioAfter = +((authPageH + report.recoveredPx) / srcPageH).toFixed(4);
+  return report;
+}
+
 // ── site-part landmark split (§8d basics: header/footer become Pro Theme Builder documents) ────────────────
 /**
  * Detach <header>/<footer> landmark sections (and a top-level <nav> when no <header> exists) from the spec
@@ -940,7 +1065,7 @@ export async function serverValidate(root, { base, b64 }) {
 }
 
 // ── orchestration ───────────────────────────────────────────────────────────────────────────────────────────
-export async function transpile({ html, width = 1440, assets, outDir, dryRun, base, b64, siteParts: sitePartsEnabled = true }) {
+export async function transpile({ html, width = 1440, assets, outDir, dryRun, base, b64, siteParts: sitePartsEnabled = true, cap = null }) {
   fs.mkdirSync(outDir, { recursive: true });
   const spec = await extract(html, width);
   const manifest = loadManifest(assets);
@@ -960,6 +1085,22 @@ export async function transpile({ html, width = 1440, assets, outDir, dryRun, ba
   if (siteParts.length) mapper.POLICY.push(`P7 site-part: page template elementor_canvas → elementor_header_footer (Canvas suppresses Theme Builder parts)`);
   const root = mapper.mapNode(spec.tree, null, []);
   root.settings.content_width = 'full';
+  // VERTICAL-RHYTHM NORMALIZER (post-transpile): pin matched-short top-level sections to their source band
+  // height via a bottom-padding top-up. Reversible (TRANSPILE_NO_RHYTHM=1); no-op without a --cap manifest or
+  // when the page is already ~1:1. spec.tree here is post-site-part-split → 1:1 with root.elements.
+  let rhythm = { applied: false, reason: 'no --cap manifest' };
+  if (cap) {
+    let capManifest = null;
+    try {
+      const capPath = fs.statSync(cap).isDirectory() ? path.join(cap, 'manifest.json') : cap;
+      capManifest = JSON.parse(fs.readFileSync(capPath, 'utf8'));
+    } catch (e) { rhythm = { applied: false, reason: `cap manifest unreadable: ${e.message.slice(0, 80)}` }; }
+    if (capManifest) {
+      rhythm = applyRhythm(root, spec.tree, capManifest, { width });
+      if (rhythm.applied) mapper.POLICY.push(`RHYTHM: pinned ${rhythm.sections.filter((s) => s.addBottomPad > 0).length} short section(s) to source band height (+${rhythm.recoveredPx}px bottom-pad total; ratio ${rhythm.ratioBefore}→${rhythm.ratioAfter}; ${rhythm.bands} source bands)`);
+      else mapper.POLICY.push(`RHYTHM: no-op (${rhythm.reason || 'no short matched sections'})`);
+    }
+  }
   for (const note of new Set([...spec.notes, ...notes])) {
     if (/min-width/.test(note)) { if (!mapper.PAIN.includes(note)) mapper.PAIN.push(note); }
     else if (!mapper.POLICY.includes(note)) mapper.POLICY.push(note);
@@ -976,10 +1117,11 @@ export async function transpile({ html, width = 1440, assets, outDir, dryRun, ba
     template,
     siteParts: siteParts.map((p) => ({ type: p.type, sha1: sha1(JSON.stringify(p.root)) })),
     validation: { localErrors, server: null },
+    rhythm,
     treeSha1: sha1(treeJson),
   };
   fs.writeFileSync(path.join(outDir, 'report.json'), JSON.stringify(report, null, 2));
-  return { root, siteParts, template, report, mapper };
+  return { root, siteParts, template, report, mapper, rhythm };
 }
 
 export async function putPage(root, { base, b64, pageId, create, title, siteParts = [], template = 'elementor_canvas' }) {
@@ -1032,7 +1174,7 @@ if (isMain) {
   const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i >= 0 && process.argv[i + 1] !== undefined ? process.argv[i + 1] : d; };
   const has = (k) => process.argv.includes('--' + k);
   const html = arg('html');
-  if (!html) { console.error('usage: transpile-html.mjs --html <file> [--width 1440] [--assets m.json] [--out dir] [--dry-run] [--page id | --create] [--title t] [--no-server-validate] [--no-site-parts]'); process.exit(2); }
+  if (!html) { console.error('usage: transpile-html.mjs --html <file> [--width 1440] [--assets m.json] [--cap <capture dir|manifest.json>] [--out dir] [--dry-run] [--page id | --create] [--title t] [--no-server-validate] [--no-site-parts]'); process.exit(2); }
   const dryRun = has('dry-run');
   // Default to the LOCAL Docker sandbox — the shared host is paused and must never be the
   // implicit target (eval-integrity "NO shared host" rail). Override with --base / JOIST_BASE.
@@ -1041,8 +1183,9 @@ if (isMain) {
   if (!dryRun && !b64) { console.error('need JOIST_AUTH_B64 (or --dry-run)'); process.exit(2); }
   const outDir = arg('out', '/tmp/htmlfirst-v1/' + path.basename(html).replace(/\.html?$/, ''));
   (async () => {
-    const { root, siteParts, template, report, mapper } = await transpile({ html, width: +arg('width', 1440), assets: arg('assets'), outDir, dryRun, base, b64, siteParts: !has('no-site-parts') });
+    const { root, siteParts, template, report, mapper, rhythm } = await transpile({ html, width: +arg('width', 1440), assets: arg('assets'), cap: arg('cap'), outDir, dryRun, base, b64, siteParts: !has('no-site-parts') });
     console.log('widget counts:', JSON.stringify(mapper.counts));
+    if (rhythm) console.log('rhythm:', rhythm.applied ? `+${rhythm.recoveredPx}px (ratio ${rhythm.ratioBefore}→${rhythm.ratioAfter}, ${rhythm.sections.filter((s) => s.addBottomPad > 0).length} sections)` : `no-op (${rhythm.reason})`);
     console.log('tree sha1:', report.treeSha1, '→', path.join(outDir, 'tree.json'));
     if (siteParts.length) console.log('site parts:', siteParts.map((p) => p.type).join(', '), '→', path.join(outDir, 'site-parts.json'), `(page template: ${template})`);
     if (report.validation.localErrors.length) {
