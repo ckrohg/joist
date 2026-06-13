@@ -121,6 +121,68 @@ LOOK + DOM probe: announce top=0, nav (Products) top=51 → announce ABOVE nav, 
   composed (pre-id, deterministic) tree `sha1 41e65ef1b02b1a76f8f4cce6c6647bcdcd9a063d`.
 - Reproduce: `node sandbox/render-clerk-fullpage.mjs --page 83` (omit `--no-upload` to re-import).
 
+## 6. HERO-CTA + BENTO-IMAGERY + HEIGHT-COMPRESSION pass (2026-06-12, three levers)
+
+Three located full-page fidelity levers fixed; re-rendered to page 83. Combined hRatio
+0.894 → **0.9988** (the page now renders virtually 1:1 in height; per-band drift ≤ 2%).
+
+### LEVER 1 — Hero CTA ghost → FIXED (native styled buttons)
+The hero primary CTA "Start building for free" rendered as an unstyled ghost-white box (its
+purple #6c47ff fill dropped). ROOT CAUSE: the button detector gated on `border-radius >= 10`,
+but clerk's CTAs use `--radius:6px` (`.btn-purple`/`.btn-white`/`.hdr-start`) so they failed the
+gate, fell through to **text-editor**, and text-editor emits no background → ghost. FIX
+(`transpile-html.mjs`): replaced the radius gate with a TRUE CTA-pill detector — an `<a>`/`<button>`
+that is (filled OR bordered) AND (h-padded OR fixed-pill-height-with-radius). Leading/trailing
+`<svg>` chevrons captured as native button icon parts (`partsOf` → `svgicon` → `fa-angle-*`).
+Transparent padding-less links (`.hdr-item` nav, `.hdr-signin`) correctly stay text.
+- Census: **button 1 → 4** (hero purple + hero white + nav start + testi). text-editor 112→109.
+- LOOK + DOM probe @1440: "Start building for free" bg `rgb(108,71,255)`; "Build with agents" +
+  nav "Start building" white pills with chevron/arrow icons; "Sign in" correctly text. 0 ghosts.
+
+### LEVER 2 — B2B bento + billing mockups dark/empty → FIXED (16/16 mockup crops show content)
+The B2B bento and subscription-billing UI-mockup card images rendered as ~18px slivers in empty
+dark blocks. ROOT CAUSE: card images (`b2b-roles`/`b2b-autojoin`/`b2b-invite`/`crop-auth-*`) sit in
+`width:100%` cells with NO declared height; at headless capture they hadn't decoded so `rect.h`
+was the collapsed ~18px alt-line → `image_custom_dimension:{h:18}` → Elementor cropped an 18px
+thumbnail. FIX: thread the REAL attachment width/height (WP media meta) through the enriched
+manifest (`render-clerk-fullpage.mjs`) → `resolveAssets` → `imageWidget`, and derive the box from
+the **asset's true aspect ratio** (authoritative over a collapsed capture rect). The WP attachments
+were already correct (397×400/397×160/397×175); only the tree's custom-dimension was wrong.
+- DOM probe @1440: `b2b-roles` 398×401 (was 398×18), `b2b-autojoin` 397×160, `b2b-invite` 397×175
+  (now a unique attachment, no longer sharing autojoin's hash), `crop-auth-apikeys`/`-mcp` real.
+  16/16 mockup crops show real content. LOOK-confirmed (avatars+role-chips, auto-join, invite,
+  org-UI, "Tailor made pricing from Acme" billing app).
+
+### LEVER 3 — Height-compression (hRatio 0.889 → 0.9988) → FIXED (clean, generalizable)
+DIAGNOSIS (per-band landmark deltas @1440): compression was NOT uniform CSS-math freeze — it was
+concentrated in three bands, each a specific transpile bug:
+- **Framework grid (0.698):** `.fw-cell{height:139px}` SVG cells collapsed to ~42px (Elementor
+  won't grow a vector to a fixed cell). FIX: a flex row whose children are all same-declared-height
+  `<img>`/`<svg>` cells pins the CONTAINER `min_height` (a control that reliably flushes) to the
+  cell height. (Image-widget `_element_custom_height` does NOT flush — verified, reverted.)
+- **Billing→fw (−118px):** `.bill-wedge{margin-top:118px}` lost because IMG nodes carried `s:{}`,
+  so `widgetCommon`'s margin emit never fired. FIX: capture an EXPLICIT px `margin-top` into media
+  nodes' `s` (declared-gated so `margin:auto` used-values are never baked).
+- **Auth bento (−211px):** the P5 boxed-wrapper remap hardcoded `padding:dims(0,padR,0,padL)`,
+  zeroing `.auth-row2{padding-bottom:151px}` and dropping `.auth-row{margin-top:64px}`. FIX:
+  preserve vertical padding (top/bottom) + an explicit top margin in the boxed remap.
+
+Result per-band ratios @1440: hero 1.000 · logos 1.015 · comp 0.988 · **auth 1.006** · billing
+1.012 · **fw 1.000** · testi 0.982. Cumulative drift at "Trusted around the world" −706px → **−1px**.
+
+### Final state (re-rendered page 83, 2026-06-12)
+- **288 nodes, 0 missing ids, 288 unique ids** (id-stamping intact). Suisse webfont intact.
+- Native census: container 99 · **text-editor 109** · image 43 · heading 22 · html 11 · **button 4**.
+- **Raster/image channel: 43 image widgets = 16 mockup crops (region-raster, images-OK) + 4 wedges
+  + 2 hero-art + 21 logos/icons/avatars. 0 text rasterized** — all 131 text widgets native.
+- Editable: `_elementor_edit_mode=builder`, `elementor_canvas`, Elementor 3.28.4; tree decodes to
+  288 native widgets/containers (genuinely Elementor, not a flattened raster).
+- Self-test `_transpile-selftest.mjs`: **42 passed, 0 failed** (determinism byte-identical).
+- **hRatio @1440 = 0.9988** (was 0.894 at start of this pass).
+- As-stored (id-stamped) tree `sha256 8fe52e0c05a51d3e6e6cca94500d1b59627e76e3cec34fb29815cba421f1a9a6`;
+  composed (pre-id) tree `sha256 3d65f90f83781cf0820430028cfd060e4f9e273677047184d96c0169c25c81cc`.
+- Reproduce: `node sandbox/render-clerk-fullpage.mjs --page 83 --no-upload`.
+
 ## Artifacts
 
 - Rendered page: `http://localhost:8001/?page_id=83` (→ `/clerk-fullpage/`)

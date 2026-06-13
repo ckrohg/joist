@@ -60,9 +60,13 @@ async function main() {
     uploaded = uploadAssetsLocal(CAP_MANIFEST, uploadedPath);
     console.log(`[assets] imported ${uploaded.length} attachments (ids ${uploaded[0].id}…${uploaded[uploaded.length - 1].id})`);
   }
-  // Enriched manifest: src → {url,id}. loadManifest accepts the object form.
+  // Enriched manifest: src → {url,id,width,height}. loadManifest accepts the object form.
+  // width/height are the REAL attachment dims (from WP media meta) — the transpiler uses them to
+  // derive each image widget's box height from the asset's true aspect ratio. Without this, a
+  // bento card image whose <img> hadn't decoded at capture time reports a collapsed rect height
+  // (~18px alt-line) → image_custom_dimension:{h:18} → Elementor crops an 18px sliver (empty card).
   const enriched = {};
-  for (const r of uploaded) enriched[r.src] = { url: r.url, id: r.id };
+  for (const r of uploaded) enriched[r.src] = { url: r.url, id: r.id, width: r.width, height: r.height };
   const enrichedPath = '/tmp/clerk-enriched-manifest.json';
   writeFileSync(enrichedPath, JSON.stringify(enriched, null, 2));
 
