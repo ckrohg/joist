@@ -934,7 +934,9 @@ if (isMain) {
   const html = arg('html');
   if (!html) { console.error('usage: transpile-html.mjs --html <file> [--width 1440] [--assets m.json] [--out dir] [--dry-run] [--page id | --create] [--title t] [--no-server-validate] [--no-site-parts]'); process.exit(2); }
   const dryRun = has('dry-run');
-  const base = arg('base', process.env.JOIST_BASE || 'https://georges232.sg-host.com');
+  // Default to the LOCAL Docker sandbox — the shared host is paused and must never be the
+  // implicit target (eval-integrity "NO shared host" rail). Override with --base / JOIST_BASE.
+  const base = arg('base', process.env.JOIST_BASE || 'http://localhost:8001');
   const b64 = process.env.JOIST_AUTH_B64;
   if (!dryRun && !b64) { console.error('need JOIST_AUTH_B64 (or --dry-run)'); process.exit(2); }
   const outDir = arg('out', '/tmp/htmlfirst-v1/' + path.basename(html).replace(/\.html?$/, ''));
