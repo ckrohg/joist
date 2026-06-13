@@ -395,6 +395,71 @@ async function extractFacts(page, opts) {
       }
       out.styles.push(facts);
     });
+
+    // ── GAP 3: rendered DOM + a copy-paste section outline (only on the canonical width — O.emitDom) ──────────
+    // source.html = the POST-JS, state-pinned DOM so the author copies real text instead of transcribing pixels.
+    // outline.txt = section-banded text structure: per band, headings (indented by level) + button/link CTAs +
+    // a few representative paragraph lines. Built from the SAME band heuristic as the section map so the outline
+    // lines up 1:1 with sections/w<W>-s<i>.png. Best-effort & defensive — never throws out of the evaluate.
+    if (O.emitDom) {
+      try {
+        out.domHtml = '<!doctype html>\n' + document.documentElement.outerHTML;
+      } catch { out.domHtml = ''; }
+      try {
+        const txt = (el) => (el.textContent || '').replace(/\s+/g, ' ').trim();
+        const visible = (el) => { const r = el.getBoundingClientRect(); const cs = getComputedStyle(el);
+          return r.width > 1 && r.height > 1 && cs.display !== 'none' && cs.visibility !== 'hidden' && parseFloat(cs.opacity) > 0.01; };
+        const lines = [];
+        lines.push(`# OUTLINE — ${location.href}`);
+        lines.push(`# rendered @ ${vw}px · ${out.sections.length} sections · author copy-paste source (text is post-JS)`);
+        lines.push('');
+        // section bands already computed in out.sections (sorted by y). Bucket headings/CTAs/paras into bands.
+        const bands = out.sections.length
+          ? out.sections.map((s) => ({ y0: s.y, y1: s.y + s.h, locator: s.locator, items: [] }))
+          : [{ y0: 0, y1: Infinity, locator: 'body', items: [] }];
+        const seenText = new Set();
+        const place = (kind, level, text, y) => {
+          if (!text || seenText.has(kind + '|' + text)) return;
+          seenText.add(kind + '|' + text);
+          // assign to the LAST band whose y0 <= y (bands sorted asc); fall back to band 0
+          let bi = 0; for (let k = 0; k < bands.length; k++) { if (y >= bands[k].y0 - 4) bi = k; else break; }
+          bands[bi].items.push({ kind, level, text: text.slice(0, 400), y });
+        };
+        // headings
+        for (const h of document.querySelectorAll('h1,h2,h3,h4,h5,h6')) {
+          if (!visible(h)) continue; const t = txt(h); if (!t) continue;
+          place('h', parseInt(h.tagName[1], 10), t, h.getBoundingClientRect().top + scrollY);
+        }
+        // CTAs — buttons + button-styled links (short text)
+        for (const b of document.querySelectorAll('button,a[role=button],[class*=btn i],[class*=button i],a.cta,input[type=submit]')) {
+          if (!visible(b)) continue; const t = txt(b) || b.value || ''; if (!t || t.length > 60) continue;
+          place('cta', 0, t, b.getBoundingClientRect().top + scrollY);
+        }
+        // representative paragraph / lead text — only sizeable standalone text blocks, capped per page
+        let paraCount = 0;
+        for (const p of document.querySelectorAll('p,li,blockquote,figcaption,[class*=lead i],[class*=subtitle i]')) {
+          if (paraCount > 220) break;
+          if (!visible(p)) continue;
+          // skip containers whose text is just their child headings/buttons (already captured)
+          if (p.querySelector('h1,h2,h3,h4,h5,h6,button')) continue;
+          const t = txt(p); if (t.length < 12 || t.length > 600) continue;
+          place('p', 0, t, p.getBoundingClientRect().top + scrollY);
+          paraCount++;
+        }
+        bands.forEach((band, i) => {
+          band.items.sort((a, b) => a.y - b.y);
+          if (!band.items.length) return;
+          lines.push(`## SECTION ${i}  [y ${Math.round(band.y0)}–${Math.round(band.y1)}]  <${band.locator}>`);
+          for (const it of band.items) {
+            if (it.kind === 'h') lines.push(`${'  '.repeat(Math.max(0, it.level - 1))}H${it.level}: ${it.text}`);
+            else if (it.kind === 'cta') lines.push(`    [CTA] ${it.text}`);
+            else lines.push(`    · ${it.text}`);
+          }
+          lines.push('');
+        });
+        out.outline = lines.join('\n');
+      } catch (e) { out.outline = `# OUTLINE generation degraded: ${String(e && e.message).slice(0, 120)}\n`; }
+    }
     return out;
   }, opts);
 }
@@ -461,6 +526,8 @@ const perWidth = {};
 const assetEntries = new Map();     // dedupe key -> first-seen entry (url or markup)
 const assetOccurrences = new Map(); // dedupe key -> [{ width, locator, box, natural }]
 const styleByLocator = {};          // locator -> { perWidth: { [w]: facts } }
+let domWritten = false;             // GAP 3 — width at which source.html/outline.txt were written (false until)
+let cropManifest = null;            // GAP 1 — crops-manifest payload (from the canonical width)
 
 for (const w of WIDTHS) {
   const ctx = await browser.newContext({ viewport: { width: w, height: 900 }, reducedMotion: 'reduce', deviceScaleFactor: 1 });
@@ -479,7 +546,20 @@ for (const w of WIDTHS) {
     const shotRel = `shots/w${w}.png`;
     fs.writeFileSync(path.join(OUT, shotRel), shotBuf);
 
-    const facts = await extractFacts(page, { maxPx: MAX_PX, elCap: EL_CAP, ruleElCap: RULE_EL_CAP, perElRuleCap: PER_EL_RULE_CAP, mediaRuleCap: MEDIA_RULE_CAP, assetCap: ASSET_CAP, noSvgFix: NO_SVGFIX, emitCrops: !NO_CROPS, cropCap: CROP_CAP });
+    const wantDom = !NO_DOM && !domWritten;   // GAP 3 — extract rendered DOM + outline on the FIRST good width
+    const facts = await extractFacts(page, { maxPx: MAX_PX, elCap: EL_CAP, ruleElCap: RULE_EL_CAP, perElRuleCap: PER_EL_RULE_CAP, mediaRuleCap: MEDIA_RULE_CAP, assetCap: ASSET_CAP, noSvgFix: NO_SVGFIX, emitCrops: !NO_CROPS, cropCap: CROP_CAP, emitDom: wantDom });
+
+    // GAP 3: persist source.html + outline.txt from the first width that yielded them. Written here (not at the
+    // end) so a later-width crash can't lose them — the prior "missing for linear, present for clerk" failure.
+    if (wantDom && (facts.domHtml || facts.outline)) {
+      try {
+        if (facts.domHtml) fs.writeFileSync(path.join(OUT, 'source.html'), facts.domHtml);
+        fs.writeFileSync(path.join(OUT, 'outline.txt'), facts.outline || `# OUTLINE — ${SOURCE}\n# (no section text extracted)\n`);
+        domWritten = w;
+        console.log(`[w${w}] wrote source.html (${(facts.domHtml || '').length} chars) + outline.txt (${(facts.outline || '').split('\n').length} lines)`);
+      } catch (e) { console.error(`[w${w}] DOM/outline write failed: ${String(e.message).slice(0, 120)}`); }
+    }
+    delete facts.domHtml; delete facts.outline; // keep them out of the per-width manifest blob
 
     // fold assets into the cross-width dedupe maps
     for (const a of facts.assets) {
@@ -529,6 +609,20 @@ const orderedEntries = [...assetEntries.entries()].sort((a, b) => a[0] < b[0] ? 
 const downloads = await downloadAssets(browser, orderedEntries);
 await browser.close();
 
+// GAP 3 safety net: if EVERY width failed before the DOM step, still leave non-empty source.html + outline.txt
+// (consumers/validators must never find them missing). Built from whatever section data the manifest holds.
+if (!NO_DOM && domWritten === false) {
+  const anyW = WIDTHS.find((w) => perWidth[w] && perWidth[w].sections);
+  const secs = anyW ? perWidth[anyW].sections : [];
+  const stub = [`# OUTLINE — ${SOURCE}`, `# DEGRADED: rendered-DOM extraction did not run on any width (capture errors).`,
+    `# ${secs.length} section bands detected; section crops exist under sections/.`, '',
+    ...secs.map((s, i) => `## SECTION ${i}  [y ${s.y}–${s.y + s.h}]  <${s.locator}>`)].join('\n') + '\n';
+  try { fs.writeFileSync(path.join(OUT, 'outline.txt'), stub); } catch {}
+  try { fs.writeFileSync(path.join(OUT, 'source.html'),
+    `<!doctype html><!-- DEGRADED: source DOM not captured (all widths errored); see manifest.perWidth[*].error -->\n<html><head><title>${SOURCE}</title></head><body></body></html>\n`); } catch {}
+  console.error('GAP3 fallback: wrote DEGRADED source.html + outline.txt (no width yielded a rendered DOM)');
+}
+
 // media-query diffs between adjacent widths — the responsive channel consumers care about
 for (const rec of Object.values(styleByLocator)) {
   const ws = WIDTHS.filter((w) => rec.perWidth[w]);
@@ -556,11 +650,18 @@ const manifest = {
   source: SOURCE, widths: WIDTHS, maxPx: MAX_PX,
   perWidth, assets,
   styleFacts: 'style-facts.json',
+  // GAP 3 — always present (real or degraded stub); domWidth = width the rendered DOM came from (false if stub)
+  sourceHtml: NO_DOM ? null : 'source.html',
+  outline: NO_DOM ? null : 'outline.txt',
+  domWidth: domWritten,
+  // GAP 1 — region-raster crops (null when CAPTURE_NO_CROPS=1)
+  crops: NO_CROPS ? null : 'crops-manifest.json',
   stats: {
     assetsTotal: assets.length,
     assetsDownloaded: assets.filter((a) => a.file).length,
     assetsFailed: assets.filter((a) => a.error).length,
     styleLocators: Object.keys(styleByLocator).length,
+    crops: cropManifest ? cropManifest.crops.length : 0,
   },
 };
 fs.writeFileSync(path.join(OUT, 'manifest.json'), JSON.stringify(manifest, null, 1));
