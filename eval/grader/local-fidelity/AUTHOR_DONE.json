@@ -1,0 +1,95 @@
+{
+ "artifact": "clerk.html",
+ "hash": "a6f68a86e742954571334407ecb8c76db79eac8928e9d38faa1fb51d5b3c3a24",
+ "source": "https://clerk.com (captured 2026-06-09, /tmp/local-fidelity/cap)",
+ "contract": "knowledge/AUTHORING_CONTRACT.md (P2, atlas-constrained)",
+ "pageHeights": {
+  "1440": 7614,
+  "sourcce1440": 7616,
+  "1250": 7495,
+  "source1250": 8552,
+  "768": 15632,
+  "source768": 10113
+ },
+ "sections": [
+  {
+   "id": "s1-announce+header",
+   "how": "native; header in-flow (source floats it)",
+   "exemplar": null
+  },
+  {
+   "id": "s2-hero",
+   "how": "native text/CTAs + region-raster art slices (hero-art-left/right.png)",
+   "exemplar": null
+  },
+  {
+   "id": "s3-logo-wall",
+   "how": "native cells + real captured logo SVGs (marquee frozen)",
+   "exemplar": null
+  },
+  {
+   "id": "s4-components",
+   "how": "native left col + glyph accordion; right collage+modal = region-raster (comp-collage.png)",
+   "exemplar": null
+  },
+  {
+   "id": "s5-auth-bento",
+   "how": "native 9+2 card bento (flex, no grid) + per-card raster visuals + wedge raster strips",
+   "exemplar": null
+  },
+  {
+   "id": "s6-b2b",
+   "how": "folded falsifier sec-01 (head) + sec-02 (cards), with-arm rhythm; neutral boxes upgraded to region-raster visuals",
+   "exemplar": "falsifier/with/sec-01,sec-02"
+  },
+  {
+   "id": "s7-billing",
+   "how": "folded sec-03 text-col skeleton; app window = region-raster (billing-app.png)",
+   "exemplar": "falsifier/with/sec-03"
+  },
+  {
+   "id": "s8-frameworks-integrations",
+   "how": "folded sec-04 dual-half skeleton; glyphs upgraded to real outline SVG assets in bordered img-cells",
+   "exemplar": "falsifier/with/sec-04"
+  },
+  {
+   "id": "s9-testimonials",
+   "how": "folded sec-05 wall skeleton; real transcribed tweets, raster avatars/author rows, 584px overflow-cut wall",
+   "exemplar": "falsifier/with/sec-05"
+  },
+  {
+   "id": "s10-footer",
+   "how": "folded sec-06 skeleton; real clerk lockup + raster social strip; legal row aligned to source",
+   "exemplar": "falsifier/with/sec-06"
+  }
+ ],
+ "lintSummary": {
+  "tool": "eval/grader/atlas/lint-authoring.mjs --html",
+  "clean": true,
+  "constructs": 288,
+  "cleanConstructs": 288,
+  "pctClean": 100.0,
+  "violations": 0,
+  "warnings": {
+   "W-FONT": 133,
+   "W-CSSMATH": 2,
+   "W-ALT": 6,
+   "W-SQUARE-BTN": 1
+  },
+  "warningNotes": "W-FONT = real captured Suisse Intl kept deliberately (fidelity over kit fonts); W-CSSMATH = 2 calc() in <=1340 media block (frozen at authoring width per contract); W-ALT = decorative wedge/art imgs with alt=''; W-SQUARE-BTN = .hdr-start 6px radius kept to match source (maps to text-editor not button widget)"
+ },
+ "knownDeltas": [
+  "header in normal flow, not floated over hero (V-POSITION; residual custom_css) - hero art starts below header band",
+  "hero circuit art = static raster slices; no parallax/animation; cropped via object-fit <=1340, hidden <=900 (V-BGIMAGE/V-ANIM; residual region-raster+gsap)",
+  "components right side (ghost collage + sign-up modal + cursor) = one region-raster; modal not native text (modal = atlas GAP)",
+  "dark-band radial glow + circuit backdrop behind auth heading dropped - flat #131316 (V-BGIMAGE/V-POSITION)",
+  "auth shead/grid sit ~6-8px high vs source inside the dark band (band edges exact)",
+  "logo-wall vertical marquee frozen at captured row of 4 logos (V-ANIM; residual custom_css marquee)",
+  "b2b roles/auto-join/invitations + billing app window = region-raster mock-UIs (incl. captured mouse cursor baked in source shot); org-UI pill mark simplified to dark dot",
+  "frameworks faint dashed grid extensions/corner crosses simplified to one dashed top row; icon hover color-reveal dropped",
+  "testimonial wall bottom cards hard-cut by overflow (source uses gradient fade mask); quote-mark glyph approximated with ldquo pair; tweet author rows are raster crops",
+  "footer social icons = single raster strip",
+  "wedge transition strips are width-scaled rasters at non-1440 widths (slight squash)",
+  "responsive: desktop-pinned - 1250 renders desktop boxes (7495 vs source 8552); 768 single-col stack blows up vertically (15632 vs source 10113); all hover/scroll motion absent by contract"
+ ]
+}

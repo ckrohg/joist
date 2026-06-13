@@ -1,0 +1,614 @@
+<!doctype html>
+<!-- @purpose Local static reproduction of https://clerk.com (captured 2026-06-09), authored section-by-section from /tmp/local-fidelity/cap artifacts under the P2 authoring contract (knowledge/AUTHORING_CONTRACT.md): flex-only layout, <=4 container nesting, kebab classes, no absolute/grid/gradient/script; banned constructs ride the region-raster channel as in-flow <img> crops (hero art, components collage, wedge transitions, card mock-UIs, tweet author rows). No WordPress. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clerk | Authentication and User Management</title>
+<style>
+/* ============ fonts (real Suisse Intl subsets pulled from clerk.com) ============ */
+@font-face{font-family:'Suisse';src:url('fonts/SuisseIntl_Regular.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Suisse';src:url('fonts/SuisseIntl_Book.woff2') format('woff2');font-weight:450;font-style:normal;font-display:swap}
+@font-face{font-family:'Suisse';src:url('fonts/SuisseIntl_Medium.woff2') format('woff2');font-weight:500;font-style:normal;font-display:swap}
+@font-face{font-family:'Suisse';src:url('fonts/SuisseIntl_SemiBold.woff2') format('woff2');font-weight:600;font-style:normal;font-display:swap}
+@font-face{font-family:'Suisse';src:url('fonts/SuisseIntl_Bold.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}
+
+/* ============ reset + tokens ============ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f7f7f8;
+  --ink:#131316;
+  --muted:#5e5f6e;
+  --purple:#6c47ff;
+  --white:#fff;
+  --radius:6px;
+}
+html{font-size:16px;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+body{font-family:'Suisse',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg);font-weight:400}
+img{display:block;max-width:100%}
+a{color:inherit;text-decoration:none}
+
+/* ============ s1: announcement bar ============ */
+.annc{display:flex;align-items:center;justify-content:center;gap:16px;height:40px;background:#131316;color:#fff;font-size:13px;font-weight:500}
+.annc-sep{display:block;width:1px;height:16px;background:rgba(255,255,255,.25)}
+.annc-more{display:flex;align-items:center;gap:6px;color:#fff}
+.annc-more svg{opacity:.9}
+
+/* ============ s1: header (in flow; source floats it over the hero — residual: custom_css) ============ */
+.hdr{padding:8px 16px 0;background:var(--bg)}
+.hdr-bar{display:flex;align-items:center;max-width:1228px;margin:0 auto;height:42px;padding:0 16px 0 20px;background:rgba(248,248,248,.92);border-radius:12px;
+  box-shadow:rgba(255,255,255,.9) 0 0 0 .5px inset, rgba(19,19,22,.1) 0 0 0 .5px, rgba(19,19,22,.06) 0 2px 6px -1px}
+.hdr-logo{display:flex;align-items:center;margin-right:28px}
+.hdr-logo img{width:62px;height:18px}
+.hdr-nav{display:flex;align-items:center;gap:4px;flex:1}
+.hdr-item{display:flex;align-items:center;gap:5px;padding:6px 10px;font-size:13.5px;font-weight:500;color:#131316;border-radius:8px}
+.hdr-item svg{opacity:.55}
+.hdr-right{display:flex;align-items:center;gap:18px;margin-left:auto}
+.hdr-signin{font-size:13.5px;font-weight:500;color:#131316}
+.hdr-start{display:flex;align-items:center;gap:7px;height:30px;padding:0 12px;font-size:13px;font-weight:500;color:#131316;background:#fff;border-radius:var(--radius);
+  box-shadow:rgba(19,19,22,.12) 0 0 0 1px, rgba(19,19,22,.08) 0 1px 2px}
+.hdr-start svg{opacity:.6}
+
+/* ============ s2: hero (circuit art = region-raster slices, in flow) ============ */
+.hero{display:flex;align-items:flex-start;justify-content:space-between;background:var(--bg);height:534px;overflow:hidden}
+.hero-art{flex:0 0 auto;width:272px;height:534px;object-fit:cover}
+.hero-art-l{object-position:right top}
+.hero-art-r{object-position:left top}
+.hero-mid{flex:1;padding-top:128px;text-align:center}
+.hero-mid h1{font-size:64px;line-height:72px;font-weight:700;letter-spacing:-.025em;color:#131316;max-width:896px;margin:0 auto}
+.hero-sub{font-size:18px;line-height:28px;font-weight:400;color:var(--muted);max-width:672px;margin:16px auto 0}
+.hero-ctas{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:32px}
+.btn{display:flex;align-items:center;gap:7px;height:30px;padding:0 12px;border-radius:var(--radius);font-size:13px;font-weight:500}
+.btn-purple{background:var(--purple);color:#fff;box-shadow:rgba(19,19,22,.18) 0 0 0 1px, rgba(108,71,255,.5) 0 2px 6px -1px}
+.btn-white{background:#fff;color:#131316;box-shadow:rgba(19,19,22,.12) 0 0 0 1px, rgba(19,19,22,.08) 0 1px 2px}
+.btn-white svg{opacity:.6}
+
+/* ============ s3: logo wall ============ */
+.logos{background:#fff;border-top:1px solid rgba(19,19,22,.05);border-bottom:1px solid rgba(19,19,22,.05)}
+.logos-inner{display:flex;align-items:stretch;max-width:1216px;margin:0 auto;height:127px}
+.logos-lead{flex:0 0 315px;display:flex;align-items:center;font-size:15px;line-height:24px;font-weight:450;color:#131316}
+.logos-lead p{max-width:240px}
+.logos-cell{flex:1;display:flex;align-items:center;justify-content:center;border-left:1px solid rgba(19,19,22,.07)}
+.logos-last{border-right:1px solid rgba(19,19,22,.07)}
+.logos-cell img{width:144px;height:32px}
+
+/* ============ s4: Clerk Components (left text+accordion native, right = region-raster collage incl. sign-up modal) ============ */
+.mono{font-family:'JetBrains Mono',ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,monospace}
+.comp{background:#fff;overflow:hidden}
+.comp-row{display:flex;align-items:flex-start;justify-content:space-between;padding-left:112px}
+.comp-left{flex:0 0 376px;padding-top:140px}
+.comp-collage{flex:0 0 auto;width:952px;height:1029px}
+.comp-eyebrow{font-size:13px;font-weight:500;color:var(--purple);letter-spacing:.01em}
+.comp-h{font-size:32px;line-height:40px;font-weight:600;letter-spacing:-.02em;color:#131316;margin-top:16px}
+.comp-p{font-size:15px;line-height:24px;color:var(--muted);margin-top:16px}
+.comp-link{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500;color:#131316;margin-top:24px;margin-bottom:24px}
+.comp-link svg{opacity:.7}
+.comp-head{display:flex;align-items:center;gap:14px;padding:20px 2px;border-top:1px solid rgba(19,19,22,.08)}
+.comp-head-label{font-size:13px;font-weight:500;letter-spacing:.12em;color:#131316;text-transform:uppercase}
+.comp-dot{display:block;width:10px;height:10px;border-radius:50%;background:var(--purple)}
+.comp-dot-off{background:transparent;border:1px solid rgba(19,19,22,.35)}
+.comp-chev{margin-left:auto;font-size:12px;color:#131316;opacity:.6}
+.comp-last{border-bottom:1px solid rgba(19,19,22,.08)}
+.comp-desc{font-size:13px;line-height:21px;color:var(--muted);padding:0 0 4px 26px}
+.comp-codes{display:block;font-size:13px;font-weight:500;color:#131316;padding:9px 0 9px 26px;letter-spacing:.02em}
+.comp-code-on{color:var(--purple)}
+.comp-codes-end{margin-bottom:20px}
+
+/* ============ s5: dark auth bento (wedge transitions = region-raster strips) ============ */
+.wedge{display:block;width:100%;height:44px}
+.auth{background:#131316;color:#fff;padding:0}
+.auth-pad{height:128px;background:#131316}
+.shead{text-align:center;background:#131316}
+.shead-eyebrow{font-size:13px;font-weight:500;color:#a8a2ff}
+.shead-h{font-size:32px;line-height:40px;font-weight:600;letter-spacing:-.015em;color:#fff;margin-top:8px}
+.shead-sub{font-size:15px;line-height:24px;color:#9d9ea7;margin-top:10px}
+.shead-btn{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:26px;font-size:13px;font-weight:500;color:#fff}
+.shead-btn svg{opacity:.7}
+.auth-row{display:flex;gap:8px;max-width:1216px;margin:64px auto 0;padding:0 16px}
+.auth-col{flex:1;display:flex;flex-direction:column;gap:8px}
+.acard{background:#212126;border-radius:16px;overflow:hidden;display:flex;flex-direction:column;align-items:stretch}
+.acard-sm{height:260px}
+.acard-tall{height:528px}
+.acard img{width:100%;flex:0 0 auto}
+.acard h3{font-size:13.5px;line-height:24px;font-weight:500;color:#fff;margin:12px 24px 0}
+.acard p{font-size:13.5px;line-height:20px;color:#9d9ea7;margin:4px 24px 24px}
+.acard-toptxt h3{margin:24px 24px 0}
+.acard-toptxt img{margin-top:auto}
+.auth-row2{display:flex;gap:8px;max-width:1216px;margin:8px auto 0;padding:0 16px 151px}
+.acard-wide{flex:808;height:281px}
+.acard-nrw{flex:400;height:281px}
+
+/* ============ s6: B2B (#b2b-saas) ============ */
+.b2b{background:var(--bg);padding:128px 16px 0}
+.b2b-head{max-width:1216px;margin:0 auto}
+.b2b-eyebrow{font-size:13px;font-weight:500;color:var(--purple)}
+.b2b-head h2{font-size:36px;line-height:44px;font-weight:600;letter-spacing:-.02em;color:#131316;margin-top:20px}
+.b2b-sub{font-size:15px;line-height:24px;color:var(--muted);max-width:450px;margin-top:16px}
+.b2b-link{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500;color:#131316;margin-top:27px}
+.b2b-link svg{opacity:.7}
+.b2b-row{display:flex;gap:8px;max-width:1216px;margin:48px auto 0}
+.bcard{background:#fff;border:1px solid rgba(19,19,22,.06);border-radius:16px;box-shadow:rgba(19,19,22,.04) 0 2px 6px -1px;overflow:hidden;display:flex;flex-direction:column}
+.b2b-c1{flex:1;height:528px}
+.b2b-col{flex:1;display:flex;flex-direction:column;gap:8px;height:528px}
+.b2b-ca{flex:0 0 261px;overflow:hidden}
+.b2b-cb{flex:1;overflow:hidden}
+.bcard h3{font-size:14px;line-height:24px;font-weight:600;color:#131316;margin:20px 24px 0}
+.bcard p{font-size:13.5px;line-height:21px;color:var(--muted);margin:6px 24px 20px}
+.b2b-c1 img{width:100%;margin-top:auto}
+.b2b-ca img,.b2b-cb img{width:100%}
+.b2b-ca h3,.b2b-cb h3{margin-top:14px}
+.b2b-pill{display:flex;align-items:center;gap:8px;margin:22px auto 0;background:#fff;border:1px solid rgba(19,19,22,.12);border-radius:999px;padding:7px 14px;box-shadow:rgba(19,19,22,.05) 0 1px 2px}
+.b2b-pill-mark{display:block;width:16px;height:16px;border-radius:50%;background:#131316}
+.b2b-pill-name{font-size:12.5px;font-weight:600;color:#131316}
+.b2b-pill-chev{font-size:9px;color:#9a9aa2}
+.b2b-dash{margin:20px 24px 24px;flex:1;border:1px dashed rgba(19,19,22,.15);border-radius:12px;background:#fbfbfc}
+
+/* ============ s7: Billing ============ */
+.billing{background:var(--bg);padding:128px 0 0}
+.bill-row{display:flex;align-items:flex-start;max-width:1280px;margin:0 auto;padding:0 16px}
+.bill-text{flex:0 0 310px;padding-top:96px}
+.bill-eyebrow{font-size:13px;font-weight:500;color:var(--purple)}
+.bill-text h2{font-size:28px;line-height:36px;font-weight:600;letter-spacing:-.02em;margin-top:14px}
+.bill-p{font-size:14px;line-height:22px;color:var(--muted);margin-top:14px}
+.bill-check{display:flex;align-items:center;gap:10px;font-size:14px;color:#131316;margin-top:11px}
+.bill-check-first{margin-top:16px}
+.bill-tick{display:block;font-size:11px;color:#9a9aa2;border:1px solid rgba(19,19,22,.18);border-radius:50%;width:18px;height:18px;text-align:center;line-height:16px}
+.bill-link{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500;color:#131316;margin-top:26px}
+.bill-link svg{opacity:.7}
+.bill-app{flex:0 0 auto;width:792px;height:606px;margin-left:auto;margin-top:-6px}
+.bill-wedge{margin-top:118px}
+
+/* ============ s8: Frameworks + Integrations (dark) ============ */
+.fw{background:#131316;color:#fff;padding:0}
+.fw-row{display:flex;gap:0;max-width:1280px;margin:0 auto;padding:128px 16px 0}
+.fw-half{flex:1;display:flex;flex-direction:column;align-items:center;text-align:center}
+.fw-eyebrow-c{font-size:13px;font-weight:500;color:#22d3ee}
+.fw-eyebrow-v{font-size:13px;font-weight:500;color:#a8a2ff}
+.fw-half h2{font-size:36px;line-height:42px;font-weight:600;letter-spacing:-.02em;color:#fff;margin-top:16px}
+.fw-half-p{font-size:15px;line-height:24px;color:#9d9ea7;max-width:470px;margin-top:14px}
+.fw-link{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500;color:#fff;margin-top:24px}
+.fw-link svg{opacity:.7}
+.fw-cells{display:flex}
+.fw-cells-top{margin-top:34px}
+.fw-cells-top span{display:block;width:192px;height:50px;border:1px dashed rgba(255,255,255,.07);margin-right:-1px;margin-bottom:-1px}
+.fw-cell{display:block;width:192px;height:139px;padding:48px 44px;border:1px solid rgba(255,255,255,.1);margin-right:-1px;margin-bottom:-1px}
+.fw-pad{height:128px;background:#131316}
+
+/* ============ s9: Testimonials ============ */
+.testi{background:var(--bg);padding:112px 0 128px}
+.testi-row{display:flex;max-width:1232px;margin:0 auto;padding:0 8px;height:584px;overflow:hidden}
+.testi-intro{flex:0 0 465px;padding:0 67px 0 8px}
+.testi-intro h2{font-size:31px;line-height:38px;font-weight:700;letter-spacing:-.02em;color:#131316}
+.testi-intro-p{font-size:17px;line-height:26px;color:var(--muted);margin-top:16px;max-width:400px}
+.testi-cta{display:flex;width:188px;align-items:center;justify-content:center;height:34px;margin-top:24px;border-radius:17px;background:var(--purple);color:#fff;font-size:13.5px;font-weight:500;box-shadow:rgba(108,71,255,.5) 0 2px 6px -1px}
+.testi-qmark{font-size:64px;line-height:28px;letter-spacing:-.08em;color:#dcdce0;margin-top:160px;font-weight:700}
+.testi-quote{font-size:14.5px;line-height:21.5px;color:#131316;margin-top:14px;max-width:380px}
+.testi-author{display:flex;align-items:center;gap:12px;margin-top:20px}
+.testi-author img{width:37px;height:37px;border-radius:10px}
+.testi-author p{font-size:13.5px;line-height:19px}
+.testi-col{flex:0 0 365px;display:flex;flex-direction:column;gap:18px;margin-right:18px}
+.testi-colb{flex:0 0 368px;margin-right:0;padding-top:15px}
+.tcard{background:#fff;border:1px solid rgba(19,19,22,.05);border-radius:12px;box-shadow:rgba(19,19,22,.05) 0 2px 8px -2px;padding:20px 24px 24px;flex:0 0 auto}
+.tcard p{font-size:14px;line-height:21px;color:#131316;margin-top:14px}
+.tcard .tgray{color:#9d9ea7}
+.tcard .tfirst{margin-top:0}
+.tcard img{margin-top:16px}
+
+/* ============ s10: footer ============ */
+.foot{background:var(--bg);padding:8px 16px 60px}
+.foot-cols{display:flex;max-width:1216px;margin:0 auto}
+.foot-brand{flex:0 0 306px;padding-top:14px}
+.foot-brand img{width:66px;height:20px}
+.foot-col{flex:1;display:flex;flex-direction:column}
+.foot-h{font-size:13px;line-height:20px;font-weight:400;color:#8e8e96;padding:8px 0 10px}
+.foot-col a{display:block;font-size:13.5px;line-height:20px;color:#131316;padding:4px 0}
+.foot-legal{display:flex;justify-content:space-between;align-items:center;max-width:1216px;margin:27px auto 0;padding-top:30px;border-top:1px solid rgba(19,19,22,.08)}
+.foot-copy{font-size:13.5px;color:var(--muted)}
+.foot-social{width:190px;height:36px;margin-right:-12px}
+
+/* ============ responsive (desktop-first, max-width only) ============ */
+@media (max-width:1340px){
+  .hero-art{width:145px}
+  .comp-row{padding-left:16px}
+  .comp-collage{max-width:calc(100% - 392px);height:auto}
+  .bill-app{max-width:calc(100% - 326px)}
+}
+@media (max-width:1024px){
+  .fw-cells-top span{width:150px}
+  .fw-cell{width:150px;padding:48px 23px}
+}
+@media (max-width:900px){
+  .hero-art{display:none}
+  .hdr-nav{display:none}
+  .hero-mid h1{font-size:48px;line-height:54px}
+  .logos-inner{flex-wrap:wrap;height:auto;padding:24px 0}
+  .logos-lead{flex:1 1 100%;justify-content:center;padding:0 24px 16px}
+  .logos-cell{flex:1 1 40%;border-left:0;padding:12px 0}
+  .logos-last{border-right:0}
+  .comp-row{flex-direction:column;padding:0 24px}
+  .comp-left{flex:0 0 auto;padding-top:64px}
+  .comp-collage{max-width:100%;height:auto;margin:32px auto 0}
+  .auth-row{flex-direction:column}
+  .auth-row2{flex-direction:column}
+  .acard-sm,.acard-tall,.acard-wide,.acard-nrw{height:auto}
+  .acard-toptxt img{margin-top:16px}
+  .b2b-row{flex-direction:column}
+  .b2b-c1{height:auto}
+  .bill-row{flex-direction:column}
+  .bill-text{flex:0 0 auto;padding-top:0}
+  .bill-app{max-width:100%;height:auto;margin:40px auto 0}
+  .fw-row{flex-direction:column;gap:80px}
+  .testi-row{flex-direction:column;height:auto}
+  .testi-intro{flex:0 0 auto;padding:0 8px 40px}
+  .testi-col{flex:0 0 auto;margin-right:0;margin-bottom:18px}
+  .testi-colb{padding-top:0}
+  .foot-cols{flex-wrap:wrap}
+  .foot-brand{flex:1 1 100%;padding-bottom:24px}
+  .foot-col{flex:1 1 33%}
+}
+@media (max-width:480px){
+  .hero-mid h1{font-size:32px;line-height:38px}
+  .hero{height:auto;padding-bottom:64px}
+  .hero-sub{font-size:16px;line-height:24px}
+  .hero-ctas{flex-direction:column}
+  .foot-col{flex:1 1 100%}
+}
+</style>
+</head>
+<body>
+
+<!-- ================= s1: announcement + header ================= -->
+<a class="annc" href="#">
+  <span>Clerk raises $50m Series C</span>
+  <span class="annc-sep"></span>
+  <span class="annc-more"><span>Learn more</span>
+    <svg width="7" height="10" viewBox="0 0 7 10" fill="none"><path d="M1 1l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </span>
+</a>
+
+<header class="hdr">
+  <div class="hdr-bar">
+    <a class="hdr-logo" href="#"><img src="assets/inline-b7a3f65713.svg" alt="Clerk"></a>
+    <nav class="hdr-nav">
+      <a class="hdr-item" href="#"><span>Products</span>
+        <svg width="9" height="6" viewBox="0 0 9 6" fill="none"><path d="M1 1l3.5 3.5L8 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      <a class="hdr-item" href="#"><span>Docs</span>
+        <svg width="9" height="6" viewBox="0 0 9 6" fill="none"><path d="M1 1l3.5 3.5L8 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      <a class="hdr-item" href="#"><span>Changelog</span>
+        <svg width="9" height="6" viewBox="0 0 9 6" fill="none"><path d="M1 1l3.5 3.5L8 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      <a class="hdr-item" href="#"><span>Company</span>
+        <svg width="9" height="6" viewBox="0 0 9 6" fill="none"><path d="M1 1l3.5 3.5L8 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      <a class="hdr-item" href="#"><span>Pricing</span></a>
+    </nav>
+    <div class="hdr-right">
+      <a class="hdr-signin" href="#">Sign in</a>
+      <a class="hdr-start" href="#"><span>Start building</span>
+        <svg width="7" height="10" viewBox="0 0 7 10" fill="none"><path d="M1 1l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    </div>
+  </div>
+</header>
+
+<!-- ================= s2: hero (art = region-raster slices) ================= -->
+<section class="hero">
+  <img class="hero-art hero-art-l" src="assets/hero-art-left.png" alt="">
+  <div class="hero-mid">
+    <h1>More than authentication,<br>Complete User Management</h1>
+    <p class="hero-sub">Need more than sign-in? Clerk gives you full stack auth and user management — so you can launch faster, scale easier, and stay focused on building your business</p>
+    <div class="hero-ctas">
+      <a class="btn btn-purple" href="#">Start building for free</a>
+      <a class="btn btn-white" href="#"><span>Build with agents</span>
+        <svg width="9" height="6" viewBox="0 0 9 6" fill="none"><path d="M1 1l3.5 3.5L8 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    </div>
+  </div>
+  <img class="hero-art hero-art-r" src="assets/hero-art-right.png" alt="">
+</section>
+
+<!-- ================= s3: logo wall (vertical marquee frozen at captured row) ================= -->
+<section class="logos">
+  <div class="logos-inner">
+    <div class="logos-lead"><p>Trusted by fast-growing companies around the world.</p></div>
+    <div class="logos-cell"><img src="assets/logo-davidai.svg" alt="David AI"></div>
+    <div class="logos-cell"><img src="assets/logo-openrouter.svg" alt="OpenRouter"></div>
+    <div class="logos-cell"><img src="assets/logo-samaya.svg" alt="Samaya"></div>
+    <div class="logos-cell logos-last"><img src="assets/logo-cartesia.svg" alt="Cartesia"></div>
+  </div>
+</section>
+
+<!-- ================= s4: Clerk Components (left native, right collage = region-raster incl. modal) ================= -->
+<section class="comp" id="components">
+  <div class="comp-row">
+    <div class="comp-left">
+      <p class="comp-eyebrow">Clerk Components</p>
+      <p class="comp-h">Pixel-perfect UIs,<br>embedded in minutes</p>
+      <p class="comp-p">Drop-in UI components for authentication, profile management, organization management, and billing. Match to your brand with any CSS library, then deploy to your own domain.</p>
+      <a class="comp-link" href="#"><span>Explore all components</span>
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M3 1l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      <div class="comp-head"><span class="comp-dot"></span><span class="comp-head-label">User Authentication</span><span class="comp-chev">&#8963;</span></div>
+      <p class="comp-desc">Add user <span class="mono" style="font-size:12px;font-weight:600;color:#131316">&lt;SignUp/&gt;</span> and <span class="mono" style="font-size:12px;font-weight:600;color:#131316">&lt;SignIn/&gt;</span>, provide account access through a dropdown menu, and manage profile and security settings.</p>
+      <a class="comp-codes comp-code-on mono" href="#">&lt;SignUp /&gt;</a>
+      <a class="comp-codes mono" href="#">&lt;SignIn /&gt;</a>
+      <a class="comp-codes mono" href="#">&lt;UserButton /&gt;</a>
+      <a class="comp-codes mono" href="#">&lt;UserProfile /&gt;</a>
+      <a class="comp-codes comp-codes-end mono" href="#">&lt;Waitlist /&gt;</a>
+      <div class="comp-head"><span class="comp-dot comp-dot-off"></span><span class="comp-head-label">B2B Authentication</span><span class="comp-chev">&#8964;</span></div>
+      <div class="comp-head comp-last"><span class="comp-dot comp-dot-off"></span><span class="comp-head-label">Billing</span><span class="comp-chev">&#8964;</span></div>
+    </div>
+    <img class="comp-collage" src="assets/comp-collage.png" alt="Clerk component gallery with sign-up modal">
+  </div>
+</section>
+
+<!-- ================= s5: dark auth bento ================= -->
+<section class="auth">
+  <img class="wedge" src="assets/wedge-auth-top.png" alt="">
+  <div class="auth-pad"></div>
+  <div class="shead">
+    <p class="shead-eyebrow">User authentication</p>
+    <h2 class="shead-h">Everything you need for authentication</h2>
+    <p class="shead-sub">Ever feel like <span style="color:#e3e3e8">authentication requirements change</span> with the season?<br><span style="color:#e3e3e8">Clerk keeps up with the latest trends and security</span> best practices.</p>
+    <a class="shead-btn" href="#"><span>Explore user authentication</span>
+      <svg width="7" height="10" viewBox="0 0 7 10" fill="none"><path d="M1 1l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+  </div>
+  <div class="auth-row">
+    <div class="auth-col">
+      <div class="acard acard-sm">
+        <img src="assets/crop-auth-mfa.png" alt="Multifactor settings UI">
+        <h3>Multifactor Authentication</h3>
+        <p>Each user's self-serve multifactor settings are enforced automatically during sign-in.</p>
+      </div>
+      <div class="acard acard-tall acard-toptxt">
+        <h3>Fraud and Abuse Prevention</h3>
+        <p>Reduce fraudulent sign-ups and free trial abuse by blocking high-risk disposable email domains and restricting the use of email subaddresses with the &ldquo;+&rdquo; separator.</p>
+        <img src="assets/crop-auth-fraud.png" alt="Fraud detection feed">
+      </div>
+      <div class="acard acard-sm">
+        <img src="assets/crop-auth-advsec.png" alt="Compliance badges">
+        <h3>Advanced security</h3>
+        <p>Clerk is SOC 2 type 2 compliant and CCPA compliant. We conduct regular third-party audits and penetration tests.</p>
+      </div>
+    </div>
+    <div class="auth-col">
+      <div class="acard acard-tall acard-toptxt">
+        <h3>Session Management</h3>
+        <p>Clerk manages the full session lifecycle, including critical security functionality like active device monitoring and session revocation.</p>
+        <img src="assets/crop-auth-session.png" alt="Active devices UI">
+      </div>
+      <div class="acard acard-sm">
+        <img src="assets/crop-auth-social.png" alt="Social sign-on providers">
+        <h3>Social Sign-On</h3>
+        <p>Add high-conversion Social Sign-on (SSO) to your application in minutes. 20+ options and growing.</p>
+      </div>
+      <div class="acard acard-sm">
+        <img src="assets/crop-auth-botdet.png" alt="Bot detection visual">
+        <h3>Bot Detection</h3>
+        <p>Dramatically reduce fraudulent sign-ups with built-in, continually updated machine learning.</p>
+      </div>
+    </div>
+    <div class="auth-col">
+      <div class="acard acard-sm">
+        <img src="assets/crop-auth-otp.png" alt="One-time passcode input">
+        <h3>Email and SMS one-time passcodes</h3>
+        <p>Fast and reliable one-time passcode delivery with built-in brute force prevention.</p>
+      </div>
+      <div class="acard acard-tall acard-toptxt">
+        <h3>Magic Links</h3>
+        <p>Improve sign-up conversion rates and filter out spam/fraud with Magic Links.</p>
+        <img src="assets/crop-auth-magic.png" alt="Magic link email">
+      </div>
+      <div class="acard acard-sm">
+        <img src="assets/crop-auth-passwords.png" alt="Password strength UI">
+        <h3>Passwords</h3>
+        <p>Simple and secure password authentication, complete with breach detection and recovery options.</p>
+      </div>
+    </div>
+  </div>
+  <div class="auth-row2">
+    <div class="acard acard-wide acard-toptxt">
+      <h3>API Keys</h3>
+      <p>Give every user secure, production-ready API keys without building any of the underlying boilerplate code or UI.</p>
+      <img src="assets/crop-auth-apikeys.png" alt="API key manager">
+    </div>
+    <div class="acard acard-nrw acard-toptxt">
+      <h3>MCP Server</h3>
+      <p>Add secure, consent-driven access to your app with Clerk's MCP Server, all backed by Clerk's authentication and authorization.</p>
+      <img src="assets/crop-auth-mcp.png" alt="MCP consent dialog">
+    </div>
+  </div>
+  <img class="wedge" src="assets/wedge-auth-bot.png" alt="">
+</section>
+
+<!-- ================= s6: B2B authentication ================= -->
+<section class="b2b" id="b2b-saas">
+  <div class="b2b-head">
+    <p class="b2b-eyebrow">B2B Authentication</p>
+    <h2>The easy solution to multi-tenancy</h2>
+    <p class="b2b-sub">Clerk has all the features you need to onboard and manage the users and organizations of your multi-tenant SaaS application.</p>
+    <a class="b2b-link" href="#"><span>Explore B2B features</span>
+      <svg width="7" height="10" viewBox="0 0 7 10" fill="none"><path d="M1 1l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+  </div>
+  <div class="b2b-row">
+    <div class="bcard b2b-c1">
+      <h3>Custom roles and permissions</h3>
+      <p>Powerful primitives to fully customize your app's authorization story.</p>
+      <img src="assets/b2b-roles.png" alt="Member avatars with role chips">
+    </div>
+    <div class="b2b-col">
+      <div class="bcard b2b-ca">
+        <img src="assets/b2b-autojoin.png" alt="Auto-join flow">
+        <h3>Auto-join</h3>
+        <p>Let your users discover and join organizations based on their email domain.</p>
+      </div>
+      <div class="bcard b2b-cb">
+        <img src="assets/b2b-invite.png" alt="Invite this person">
+        <h3>Invitations</h3>
+        <p>Fuel your application's growth by making it simple for your customers to invite their team.</p>
+      </div>
+    </div>
+    <div class="bcard b2b-c1">
+      <h3>Organization UI Components</h3>
+      <p>Clerk's UI components add turn-key simplicity to complex Organization management tasks.</p>
+      <div class="b2b-pill"><span class="b2b-pill-mark"></span><span class="b2b-pill-name">Clerk</span><span class="b2b-pill-chev">&#9662;</span></div>
+      <div class="b2b-dash"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= s7: Billing (app window = region-raster) ================= -->
+<section class="billing">
+  <div class="bill-row">
+    <div class="bill-text">
+      <p class="bill-eyebrow">Billing</p>
+      <h2>Subscription billing, without the headache</h2>
+      <p class="bill-p">Add subscriptions to your B2C or B2B application without having to write payment code, custom UI, or wrangle webhooks. Just drop in React components and start earning recurring revenue.</p>
+      <p class="bill-p">Here&rsquo;s what you can do out of the box:</p>
+      <p class="bill-check bill-check-first"><span class="bill-tick">&#10003;</span><span>Define and manage plans</span></p>
+      <p class="bill-check"><span class="bill-tick">&#10003;</span><span>Unify user and subscription data</span></p>
+      <p class="bill-check"><span class="bill-tick">&#10003;</span><span>Gate access to content</span></p>
+      <a class="bill-link" href="#"><span>Explore Billing features</span>
+        <svg width="7" height="10" viewBox="0 0 7 10" fill="none"><path d="M1 1l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    </div>
+    <img class="bill-app" src="assets/billing-app.png" alt="Acme pricing app with checkout">
+  </div>
+  <img class="wedge bill-wedge" src="assets/wedge-bill-bot.png" alt="">
+</section>
+
+<!-- ================= s8: Frameworks + Integrations (dark) ================= -->
+<section class="fw">
+  <div class="fw-row">
+    <div class="fw-half">
+      <p class="fw-eyebrow-c">Frameworks</p>
+      <h2>Build with SDKs for<br>modern frameworks</h2>
+      <p class="fw-half-p">Clerk keeps developer experience front-and-center by providing helpful SDKs for most modern frameworks on web and mobile.</p>
+      <a class="fw-link" href="#"><span>All frameworks</span>
+        <svg width="7" height="10" viewBox="0 0 7 10" fill="none"><path d="M1 1l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      <div class="fw-cells fw-cells-top"><span></span><span></span><span></span></div>
+      <div class="fw-cells">
+        <img class="fw-cell" src="assets/fw-nextjs.svg" alt="Next.js">
+        <img class="fw-cell" src="assets/fw-react.svg" alt="React">
+        <img class="fw-cell" src="assets/fw-expo.svg" alt="Expo">
+      </div>
+      <div class="fw-cells">
+        <img class="fw-cell" src="assets/fw-reactrouter.svg" alt="React Router">
+        <img class="fw-cell" src="assets/fw-tanstack.svg" alt="TanStack React Start">
+        <img class="fw-cell" src="assets/fw-astro.svg" alt="Astro">
+      </div>
+    </div>
+    <div class="fw-half">
+      <p class="fw-eyebrow-v">Integrations</p>
+      <h2>Integrate with<br>the tools you love</h2>
+      <p class="fw-half-p">Leverage Clerk as the source of truth for your user data and integrate with the tools that you already depend on.</p>
+      <a class="fw-link" href="#"><span>All integrations</span>
+        <svg width="7" height="10" viewBox="0 0 7 10" fill="none"><path d="M1 1l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      <div class="fw-cells fw-cells-top"><span></span><span></span><span></span></div>
+      <div class="fw-cells">
+        <img class="fw-cell" src="assets/int-supabase.svg" alt="Supabase">
+        <img class="fw-cell" src="assets/int-convex.svg" alt="Convex">
+        <img class="fw-cell" src="assets/int-vercel.svg" alt="Vercel">
+      </div>
+    </div>
+  </div>
+  <div class="fw-pad"></div>
+  <img class="wedge" src="assets/wedge-fw-bot.png" alt="">
+</section>
+
+<!-- ================= s9: testimonials ================= -->
+<section class="testi">
+  <div class="testi-row">
+    <div class="testi-intro">
+      <h2>Trusted around the world</h2>
+      <p class="testi-intro-p">Join the customers and champions who trust Clerk. Free for your first 50,000 monthly retained users and 100 monthly retained orgs.</p>
+      <a class="testi-cta" href="#">Start building for free</a>
+      <p class="testi-qmark">&ldquo;&ldquo;</p>
+      <p class="testi-quote">We're big admirers of what the @clerk team are building and looking forward to working more closely with them.</p>
+      <div class="testi-author">
+        <img src="assets/ava-patrick.png" alt="Patrick Collison">
+        <p><span style="font-weight:600">Patrick Collison</span><br><span style="color:#9a9aa2;font-size:12.5px">Stripe, CEO</span></p>
+      </div>
+    </div>
+    <div class="testi-col">
+      <div class="tcard">
+        <p class="tgray tfirst">This is why I like using an auth service like Clerk.</p>
+        <p>I rolled my own auth and this is the amount of code I needed just to setup 2 OAuth providers, magic link, credential login, account joining. I haven't even added forgot password flow yet, and my code is probably filled with vulnerabilities.</p>
+        <p>btw, you don't need to remind me that Laravel has all of this out of the box, we all know already.</p>
+        <img src="assets/ta-webdevcody.png" alt="WebDevCody @webdevcody">
+      </div>
+      <div class="tcard">
+        <p class="tfirst">The @clerk CLI is really good</p>
+        <p>Authentication used to be such a nightmare, but the CLI makes things very easy</p>
+        <img src="assets/ta-johnennis.png" alt="John Ennis @johnennis">
+      </div>
+      <div class="tcard">
+        <p class="tgray tfirst">Setting up authentication has always been a pain, even with agentic coding (plz never ask your agent to spin up custom auth for production)</p>
+      </div>
+    </div>
+    <div class="testi-col testi-colb">
+      <div class="tcard">
+        <p class="tgray tfirst">I implemented authentication in my starter app using Clerk's custom flow setup, and it's been great having full flexibility over how users sign in and register. The video walks through a demo app built using my boilerplate template.</p>
+        <img src="assets/ta-rsolticzki.png" alt="ronald solticzki @RSolticzki">
+      </div>
+      <div class="tcard">
+        <p class="tfirst">I've used supabase auth, firebase auth and clerk.</p>
+        <p>Had the most difficulties with clerk, but once I get into it it works great. Using Clerk only now</p>
+        <img src="assets/ta-climstefan.png" alt="Clim Stefan @climstefan">
+      </div>
+      <div class="tcard">
+        <p class="tfirst">Best auth solution for startups?</p>
+        <p>1) Clerk<br>2) Firebase Auth<br>3) Supabase<br>4) Custom auth (&#128128;)</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= s10: footer ================= -->
+<footer class="foot">
+  <div class="foot-cols">
+    <div class="foot-brand"><img src="assets/inline-b7a3f65713.svg" alt="Clerk"></div>
+    <div class="foot-col">
+      <p class="foot-h">Product</p>
+      <a href="#">Authentication</a>
+      <a href="#">B2B Authentication</a>
+      <a href="#">Billing</a>
+      <a href="#">CLI</a>
+    </div>
+    <div class="foot-col">
+      <p class="foot-h">SDKs</p>
+      <a href="#">React</a>
+      <a href="#">Next.js</a>
+      <a href="#">Expo</a>
+      <a href="#">View all</a>
+    </div>
+    <div class="foot-col">
+      <p class="foot-h">Resources</p>
+      <a href="#">Documentation</a>
+      <a href="#">Changelog</a>
+      <a href="#">Glossary</a>
+      <a href="#">Feature requests</a>
+      <a href="#">Startups</a>
+      <a href="#">Students</a>
+      <a href="#">LLM Leaderboard</a>
+    </div>
+    <div class="foot-col">
+      <p class="foot-h">Company</p>
+      <a href="#">About</a>
+      <a href="#">Careers</a>
+      <a href="#">Blog</a>
+      <a href="#">Contact</a>
+      <a href="#">Brand assets</a>
+    </div>
+    <div class="foot-col">
+      <p class="foot-h">Legal</p>
+      <a href="#">Terms and conditions</a>
+      <a href="#">Privacy policy</a>
+      <a href="#">Website terms of use</a>
+      <a href="#">Legal Resources</a>
+      <a href="#">Do not sell/share my info</a>
+      <a href="#">Cookie manager</a>
+    </div>
+  </div>
+  <div class="foot-legal">
+    <p class="foot-copy">&copy; 2026 Clerk, Inc.</p>
+    <img class="foot-social" src="assets/footer-social.png" alt="Clerk on X, LinkedIn, Discord, GitHub, YouTube">
+  </div>
+</footer>
+
+</body>
+</html>
