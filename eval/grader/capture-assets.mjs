@@ -49,11 +49,16 @@ const PER_EL_RULE_CAP = 24;                               // matched media rules
 const MEDIA_RULE_CAP = 3000;                              // matching @media style rules collected per width
 const ASSET_CAP = 400;                                    // unique asset URLs per page
 const SECTION_CROP_MAX_H = 6000;                          // px — clamp absurdly tall band crops
+const CROP_CAP = parseInt(flag('crop-cap', '120'), 10);   // GAP 1 — region-raster candidate crops per width
+// ── reversibility flags (env, default OFF = upgrades ON). Each isolates one GAP so a regression is one toggle. ─
+const NO_SVGFIX = process.env.CAPTURE_NO_SVGFIX === '1';  // GAP 2 — fall back to raw <svg>.outerHTML
+const NO_DOM    = process.env.CAPTURE_NO_DOM === '1';     // GAP 3 — skip outline.txt + source.html
+const NO_CROPS  = process.env.CAPTURE_NO_CROPS === '1';   // GAP 1 — skip crops/ + crops-manifest.json
 if (!SOURCE || !OUT) {
   console.error('usage: node capture-assets.mjs --source <url> --out <dir> [--widths 1440,1100,768] [--max-px 20000]');
   process.exit(2);
 }
-for (const d of ['', 'shots', 'sections', 'assets']) fs.mkdirSync(path.join(OUT, d), { recursive: true });
+for (const d of ['', 'shots', 'sections', 'assets', ...(NO_CROPS ? [] : ['crops'])]) fs.mkdirSync(path.join(OUT, d), { recursive: true });
 
 // ── settleLazy (inlined from grade-vision-tiles.mjs:102, KEPT pattern — see header for why not imported) ─────
 async function settleLazy(page) {
@@ -216,6 +221,69 @@ async function extractFacts(page, opts) {
     const out = { pageH: Math.round(document.body.scrollHeight), sections: [], assets: [], styles: [], inaccessibleSheets: 0, truncated: {} };
     const vw = window.innerWidth;
 
+    // ── GAP 2 serializer: turn a LIVE inline <svg> into a self-contained, correctly-colored .svg string ──────
+    // Inline SVGs in an HTML document inherit two things the standalone file loses: (1) the xmlns namespace
+    // (implicit under the HTML parser, REQUIRED for a .svg loaded via <img>/file://), and (2) `currentColor`
+    // plus unset fill/stroke which resolve against the CSS-cascade `color` of the live element — gone once the
+    // node leaves the page. We clone the subtree, then walk original↔clone in lockstep and BAKE the computed
+    // paint onto every clone node so the file renders the color a human saw. Conservative: only overwrite paint
+    // that was currentColor / inherit / unset (where the value truly came from the cascade); explicit colors and
+    // url(#gradient)/none paints are left untouched. Geometry/transforms/defs are preserved verbatim by clone.
+    const serializeStandaloneSvg = (svg) => {
+      try {
+        const SVGNS = 'http://www.w3.org/2000/svg', XLINKNS = 'http://www.w3.org/1999/xlink';
+        const clone = svg.cloneNode(true);
+        // Only the paint channels a node ACTUALLY uses get baked. fill/stroke apply to shapes & text; the gradient
+        // /filter color props are restricted to their own element types so we never spray junk attrs everywhere.
+        const PAINT_FOR = (tag) => {
+          const t = tag.toLowerCase();
+          if (t === 'stop') return ['stop-color', 'stroke'];
+          if (t === 'feflood' || t === 'fedropshadow') return ['flood-color'];
+          if (t === 'fediffuselighting' || t === 'fespecularlighting') return ['lighting-color'];
+          // shapes/text/groups: fill + stroke (these inherit and/or honor currentColor)
+          return ['fill', 'stroke'];
+        };
+        const origNodes = [svg, ...svg.querySelectorAll('*')];
+        const cloneNodes = [clone, ...clone.querySelectorAll('*')];
+        const n = Math.min(origNodes.length, cloneNodes.length);
+        for (let i = 0; i < n; i++) {
+          const o = origNodes[i], c = cloneNodes[i];
+          if (!(o instanceof Element)) continue;
+          let ocs; try { ocs = getComputedStyle(o); } catch { ocs = null; }
+          if (!ocs) continue;
+          const computedColor = ocs.color; // the resolved value `currentColor` references
+          for (const prop of PAINT_FOR(o.tagName)) {
+            const styleVal = (o.style && o.style.getPropertyValue(prop)) || '';
+            const attrVal = o.getAttribute(prop) || '';
+            const authored = (styleVal || attrVal).trim().toLowerCase();
+            // Resolve ONLY when the painted result rides the cascade: explicit currentColor / inherit, OR no value
+            // authored anywhere up this clone's own subtree (a parent's currentColor inherits in). If the author
+            // wrote a concrete color or url()/none, leave it — the clone already carries it verbatim.
+            const cascade = authored === 'currentcolor' || authored === 'inherit'
+              || (authored === '' && !c.closest(`[${prop}]`));
+            if (!cascade) continue;
+            const computed = (ocs.getPropertyValue(prop) || '').trim();
+            if (/^url\(/i.test(computed) || computed === 'none') continue; // gradient/pattern/no-paint → don't touch
+            // prefer the prop's own resolved paint; fall back to element color (covers currentColor)
+            let resolved = computed && computed !== 'currentcolor' ? computed : computedColor;
+            if (!resolved || resolved === 'rgba(0, 0, 0, 0)' || resolved === 'transparent') continue;
+            // skip writing a redundant default-black fill (initial fill is already black in any renderer)
+            if (authored === '' && prop === 'fill' && /^rgb\(0,\s*0,\s*0\)$/.test(resolved)) continue;
+            try { c.setAttribute(prop, resolved); } catch {}
+          }
+        }
+        // ensure namespaces on the ROOT (clone is the svg element itself)
+        if (clone.namespaceURI === SVGNS || clone.tagName.toLowerCase() === 'svg') {
+          if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', SVGNS);
+          // xlink only when referenced (older href syntax) — invalid-but-harmless otherwise, so gate it
+          if (/xlink:/i.test(svg.outerHTML) && !clone.getAttribute('xmlns:xlink')) clone.setAttribute('xmlns:xlink', XLINKNS);
+        }
+        let str = new XMLSerializer().serializeToString(clone);
+        if (!/^<\?xml/.test(str)) str = '<?xml version="1.0" encoding="UTF-8"?>\n' + str;
+        return str;
+      } catch { return svg.outerHTML; }
+    };
+
     // SECTION MAP — full-width band heuristic, same shape as grade-sections.mjs:1057
     { const seenBy = [];
       for (const e of document.querySelectorAll('body *')) {
@@ -245,8 +313,12 @@ async function extractFacts(page, opts) {
           if (url) push({ kind: 'img', url, locator: cssPath(el), box: box(r), natural: { w: el.naturalWidth, h: el.naturalHeight } });
         } else if (tag === 'svg' || tag === 'SVG') {
           if (!el.parentElement || !el.parentElement.closest('svg')) {
-            const markup = el.outerHTML;
-            if (markup.length <= 300000) push({ kind: 'inline-svg', markup, locator: cssPath(el), box: box(r), natural: null });
+            // GAP 2 (reversible: CAPTURE_NO_SVGFIX): serialize a STANDALONE-valid SVG —
+            //   (a) re-add xmlns (+ xmlns:xlink when xlink: is used) so the saved .svg loads as an <img>,
+            //   (b) resolve currentColor + INHERITED fill/stroke to the element's COMPUTED paint at capture
+            //       time so the file isn't invisible black-on-dark. Falls back to raw outerHTML on any error.
+            const markup = O.noSvgFix ? el.outerHTML : serializeStandaloneSvg(el);
+            if (markup && markup.length <= 300000) push({ kind: 'inline-svg', markup, locator: cssPath(el), box: box(r), natural: null });
           }
         } else if (tag === 'VIDEO') {
           if (el.poster) push({ kind: 'poster', url: el.poster, locator: cssPath(el), box: box(r), natural: null });
@@ -407,7 +479,7 @@ for (const w of WIDTHS) {
     const shotRel = `shots/w${w}.png`;
     fs.writeFileSync(path.join(OUT, shotRel), shotBuf);
 
-    const facts = await extractFacts(page, { maxPx: MAX_PX, elCap: EL_CAP, ruleElCap: RULE_EL_CAP, perElRuleCap: PER_EL_RULE_CAP, mediaRuleCap: MEDIA_RULE_CAP, assetCap: ASSET_CAP });
+    const facts = await extractFacts(page, { maxPx: MAX_PX, elCap: EL_CAP, ruleElCap: RULE_EL_CAP, perElRuleCap: PER_EL_RULE_CAP, mediaRuleCap: MEDIA_RULE_CAP, assetCap: ASSET_CAP, noSvgFix: NO_SVGFIX, emitCrops: !NO_CROPS, cropCap: CROP_CAP });
 
     // fold assets into the cross-width dedupe maps
     for (const a of facts.assets) {
