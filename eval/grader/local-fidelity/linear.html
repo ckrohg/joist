@@ -1,0 +1,439 @@
+<!doctype html>
+<!-- @purpose Local static reproduction of https://linear.app (captured 2026-06-13), authored
+section-by-section from /tmp/genz/linear/cap artifacts under the P2 authoring contract
+(knowledge/AUTHORING_CONTRACT.md): flex-only layout, <=4 container nesting, kebab classes, no
+absolute/grid/gradient/script. Linear is dark (#08090a). Complex product-UI screenshots ride the
+region-raster channel as in-flow <img> crops (hero app, the 5 feature UI mocks, FIG line-art
+illustrations); all text/headings/buttons/nav/footer are native. No WordPress. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Linear – The product development system for teams and agents</title>
+<style>
+/* ============ reset + tokens ============ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#08090a;
+  --ink:#f7f8f8;        /* white text */
+  --mut:#8a8f98;        /* grey muted */
+  --lite:#d0d6e0;       /* light grey */
+  --dim:#62666d;        /* dim grey labels */
+  --line:#1c1d1f;       /* hairline border */
+  --accent:#e6f652;     /* chartreuse */
+}
+html{font-size:16px;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+body{font-family:'Inter Variable','Inter',-apple-system,'SF Pro Display','Segoe UI',Roboto,'Helvetica Neue',sans-serif;color:var(--ink);background:var(--bg);font-weight:400;line-height:1.5}
+img{display:block;max-width:100%}
+a{color:inherit;text-decoration:none}
+.mono{font-family:'JetBrains Mono',ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,monospace}
+
+/* ============ header / nav ============ */
+.hdr{display:flex;align-items:center;justify-content:space-between;height:64px;padding:0 24px;background:var(--bg);border-bottom:1px solid var(--line)}
+.hdr-left{display:flex;align-items:center;gap:28px}
+.hdr-logo{display:flex;align-items:center}
+.hdr-logo img{height:21px;width:auto}
+.hdr-nav{display:flex;align-items:center;gap:22px}
+.hdr-nav a{font-size:13px;font-weight:510;color:var(--lite)}
+.hdr-right{display:flex;align-items:center;gap:18px}
+.hdr-right a{font-size:13px;font-weight:510;color:var(--lite)}
+.hdr-cta{display:flex;align-items:center;height:32px;padding:0 14px;background:var(--ink);color:#08090a !important;border-radius:8px;font-size:13px;font-weight:510}
+
+/* ============ hero ============ */
+.hero{display:flex;flex-direction:column;align-items:center;text-align:center;padding:96px 24px 0}
+.hero h1{font-size:64px;line-height:1.05;font-weight:510;letter-spacing:-.02em;color:var(--ink);max-width:900px}
+.hero-sub{font-size:18px;line-height:1.5;color:var(--mut);margin-top:24px;max-width:560px}
+.hero-ctas{display:flex;align-items:center;gap:12px;margin-top:32px}
+.btn-w{display:flex;align-items:center;height:36px;padding:0 16px;background:var(--ink);color:#08090a !important;border-radius:8px;font-size:14px;font-weight:510}
+.btn-g{display:flex;align-items:center;height:36px;padding:0 16px;background:#1a1b1d;color:var(--ink);border-radius:8px;font-size:14px;font-weight:510}
+.hero-ui-wrap{width:100%;max-width:1344px;margin:56px auto 0;border-radius:12px;overflow:hidden;border:1px solid var(--line)}
+.hero-ui-wrap img{width:100%}
+
+/* ============ intro statement (s4) ============ */
+.intro{max-width:1344px;margin:0 auto;padding:120px 48px 64px}
+.intro h2{font-size:48px;line-height:1.2;font-weight:510;letter-spacing:-.02em;color:var(--mut);max-width:1250px}
+.intro h2 .lead{color:var(--ink)}
+
+/* ============ FIG triptych (s5) ============ */
+.fig-row{display:flex;gap:0;max-width:1344px;margin:0 auto;padding:0 48px 96px}
+.fig-col{flex:1;display:flex;flex-direction:column;padding-right:32px}
+.fig-label{font-size:12px;font-weight:400;letter-spacing:.06em;color:var(--dim)}
+.fig-illo{width:100%;height:340px;object-fit:contain;object-position:center;margin:8px 0 24px}
+.fig-col h3{font-size:16px;font-weight:510;color:var(--ink)}
+.fig-col p{font-size:15px;line-height:1.5;color:var(--mut);margin-top:8px;max-width:280px}
+
+/* ============ feature section (s6/9/13/18/22) ============ */
+.feat{max-width:1344px;margin:0 auto;padding:96px 48px 0}
+.feat-head{display:flex;align-items:flex-start;gap:48px}
+.feat-head-l{flex:0 0 540px}
+.feat-head-l h2{font-size:48px;line-height:1.1;font-weight:510;letter-spacing:-.02em;color:var(--ink)}
+.feat-head-r{flex:1;padding-top:6px}
+.feat-head-r p{font-size:18px;line-height:1.45;color:var(--mut);max-width:430px}
+.feat-tag{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:510;color:var(--lite);margin-top:24px}
+.feat-tag .num{color:var(--dim)}
+.feat-tag .arr{color:var(--mut)}
+.feat-ui{width:100%;margin:48px 0 0;border-radius:12px;overflow:hidden}
+.feat-ui img{width:100%}
+.feat-index{display:flex;gap:64px;max-width:680px;margin:32px auto 0;padding:0;justify-content:center}
+.feat-index-col{display:flex;flex-direction:column;gap:8px}
+.feat-index-col a{display:flex;gap:10px;font-size:13px;color:var(--mut)}
+.feat-index-col a .num{color:var(--dim)}
+
+/* ============ changelog (s25) ============ */
+.chg{max-width:1344px;margin:0 auto;padding:128px 48px 0}
+.chg h2{font-size:48px;line-height:1.1;font-weight:510;letter-spacing:-.02em;color:var(--ink)}
+.chg-line{display:flex;align-items:center;height:1px;background:var(--line);margin:48px 0 0;position:relative}
+.chg-row{display:flex;gap:24px;margin-top:24px}
+.chg-card{flex:1;display:flex;flex-direction:column}
+.chg-dot{width:10px;height:10px;border-radius:50%;background:#3a3b3d}
+.chg-dot-on{background:#e5484d}
+.chg-card h3{font-size:15px;font-weight:510;color:var(--ink);margin-top:64px}
+.chg-card p{font-size:15px;line-height:1.4;color:var(--mut);margin-top:12px}
+.chg-card .date{font-size:12px;letter-spacing:.04em;color:var(--dim);margin-top:24px}
+.chg-all{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:510;color:var(--lite);margin-top:48px}
+
+/* ============ customers (s28) ============ */
+.cust{max-width:1344px;margin:0 auto;padding:128px 48px 0}
+.cust-row{display:flex;gap:20px}
+.cust-card{flex:1;display:flex;flex-direction:column;border-radius:20px;padding:36px;min-height:476px}
+.cust-lav{background:#dde3f6}
+.cust-yel{background:var(--accent)}
+.cust-card .q{font-size:24px;line-height:1.25;font-weight:400;color:#101014;letter-spacing:-.01em;max-width:420px}
+.cust-author{display:flex;align-items:center;gap:14px;margin-top:auto}
+.cust-author img{width:40px;height:40px;border-radius:50%}
+.cust-author .nm{font-size:14px;font-weight:590;color:#101014}
+.cust-author .rl{font-size:13px;color:#3a3d44}
+.cust-caption{display:flex;align-items:center;justify-content:space-between;margin-top:24px}
+.cust-caption p{font-size:13px;color:var(--mut)}
+.cust-caption a{font-size:13px;color:var(--lite)}
+
+/* ============ final CTA (s29) ============ */
+.cta{display:flex;flex-direction:column;align-items:center;text-align:center;padding:128px 24px 128px}
+.cta h2{font-size:64px;line-height:1.05;font-weight:510;letter-spacing:-.02em;color:var(--ink);max-width:760px}
+.cta-btns{display:flex;align-items:center;gap:12px;margin-top:40px}
+
+/* ============ footer (s30) ============ */
+.foot{padding:64px 48px 80px;border-top:1px solid var(--line)}
+.foot-cols{display:flex;max-width:1344px;margin:0 auto}
+.foot-brand{flex:0 0 280px}
+.foot-brand img{width:28px;height:28px}
+.foot-col{flex:1;display:flex;flex-direction:column;gap:14px}
+.foot-col .h{font-size:14px;font-weight:510;color:var(--ink);margin-bottom:4px}
+.foot-col a{font-size:14px;color:var(--mut)}
+.foot-legal{display:flex;gap:24px;max-width:1344px;margin:64px auto 0;padding-left:280px}
+.foot-legal a{font-size:13px;color:var(--dim)}
+
+/* ============ responsive (desktop-first; linear reflows to 1-col stacks at narrow widths) ============ */
+@media (max-width:1024px){
+  .hero h1{font-size:52px}
+  .intro{padding:96px 32px 48px}
+  .intro h2{font-size:38px}
+  .fig-row{flex-direction:column;gap:48px;padding:0 32px 72px}
+  .fig-col{padding-right:0;align-items:center;text-align:center}
+  .fig-col p{margin-left:auto;margin-right:auto}
+  .feat{padding:72px 32px 0}
+  .feat-head{flex-direction:column;gap:20px}
+  .feat-head-l{flex:0 0 auto}
+  .feat-head-l h2{font-size:38px}
+  .feat-index{flex-wrap:wrap;gap:32px;justify-content:flex-start}
+  .chg{padding:96px 32px 0}
+  .chg h2{font-size:38px}
+  .chg-row{flex-wrap:wrap}
+  .chg-card{flex:1 1 45%}
+  .cust{padding:96px 32px 0}
+  .cust-row{flex-direction:column}
+  .foot{padding:48px 32px 64px}
+  .foot-brand{flex:0 0 auto;margin-bottom:32px}
+  .foot-cols{flex-wrap:wrap}
+  .foot-col{flex:1 1 30%;margin-bottom:24px}
+  .foot-legal{padding-left:0}
+}
+@media (max-width:600px){
+  .hdr-nav{display:none}
+  .hdr-right a:first-child{display:none}
+  .hero{padding:64px 20px 0}
+  .hero h1{font-size:36px}
+  .hero-sub{font-size:16px}
+  .intro{padding:64px 20px 40px}
+  .intro h2{font-size:28px}
+  .fig-row{padding:0 20px 56px}
+  .feat{padding:56px 20px 0}
+  .feat-head-l h2{font-size:30px}
+  .feat-head-r p{font-size:16px}
+  .feat-index{flex-direction:column;gap:20px}
+  .chg{padding:72px 20px 0}
+  .chg h2{font-size:30px}
+  .chg-card{flex:1 1 100%}
+  .cust{padding:72px 20px 0}
+  .cust-card{padding:24px;min-height:auto}
+  .cust-card .q{font-size:20px}
+  .cta{padding:80px 20px}
+  .cta h2{font-size:34px}
+  .cta-btns{flex-direction:column}
+  .foot-cols{flex-direction:column}
+  .foot-col{flex:1 1 100%}
+  .foot-brand{flex:1 1 100%}
+}
+</style>
+</head>
+<body>
+
+<!-- ================= header ================= -->
+<header class="hdr">
+  <div class="hdr-left">
+    <a class="hdr-logo" href="#"><img src="linear-assets/logo-wordmark.svg" alt="Linear"></a>
+    <nav class="hdr-nav">
+      <a href="#">Product</a>
+      <a href="#">Resources</a>
+      <a href="#">Pricing</a>
+      <a href="#">Customers</a>
+      <a href="#">Now</a>
+      <a href="#">Contact</a>
+    </nav>
+  </div>
+  <div class="hdr-right">
+    <a href="#">Log in</a>
+    <a class="hdr-cta" href="#">Sign up</a>
+  </div>
+</header>
+
+<!-- ================= hero ================= -->
+<section class="hero">
+  <h1>The product development<br>system for teams and agents</h1>
+  <p class="hero-sub">Purpose-built for planning and building products. Designed for the AI era.</p>
+  <div class="hero-ctas">
+    <a class="btn-w" href="#">Start building</a>
+    <a class="btn-g" href="#">Coding Sessions</a>
+  </div>
+  <div class="hero-ui-wrap"><img src="linear-assets/hero-ui.png" alt="Linear app showing an issue, activity feed and agent sidebar"></div>
+</section>
+
+<!-- ================= intro statement (s4) ================= -->
+<section class="intro">
+  <h2><span class="lead">A new species of product tool.</span> Purpose-built for modern teams with AI workflows at its core, Linear sets a new standard for planning and building products.</h2>
+</section>
+
+<!-- ================= FIG triptych (s5) ================= -->
+<section class="fig-row">
+  <div class="fig-col">
+    <span class="fig-label">FIG 0.2</span>
+    <img class="fig-illo" src="linear-assets/fig-illo-1.png" alt="">
+    <h3>Built for purpose</h3>
+    <p>Linear is shaped by the practices and principles of world-class product teams.</p>
+  </div>
+  <div class="fig-col">
+    <span class="fig-label">FIG 0.3</span>
+    <img class="fig-illo" src="linear-assets/fig-illo-2.png" alt="">
+    <h3>Powered by AI agents</h3>
+    <p>Designed for workflows shared by humans and agents. From drafting PRDs to pushing PRs.</p>
+  </div>
+  <div class="fig-col">
+    <span class="fig-label">FIG 0.4</span>
+    <img class="fig-illo" src="linear-assets/fig-illo-3.png" alt="">
+    <h3>Designed for speed</h3>
+    <p>Reduces noise and restores momentum to help teams ship with high velocity and focus.</p>
+  </div>
+</section>
+
+<!-- ================= feature 1 (s6) ================= -->
+<section class="feat">
+  <div class="feat-head">
+    <div class="feat-head-l"><h2>Make product<br>operations self-driving</h2></div>
+    <div class="feat-head-r">
+      <p>Turn conversations and customer feedback into actionable issues that are routed, labeled, and prioritized for the right team.</p>
+      <a class="feat-tag" href="#"><span class="num">1.0</span><span>Intake</span><span class="arr">&rarr;</span></a>
+    </div>
+  </div>
+  <div class="feat-ui"><img src="linear-assets/ui-sec1.png" alt="Linear intake: feedback thread and triaged issue board"></div>
+  <div class="feat-index">
+    <div class="feat-index-col">
+      <a href="#"><span class="num">1.1</span><span>Linear Agent</span></a>
+      <a href="#"><span class="num">1.3</span><span>Customer Requests</span></a>
+    </div>
+    <div class="feat-index-col">
+      <a href="#"><span class="num">1.2</span><span>Triage</span></a>
+      <a href="#"><span class="num">1.4</span><span>Linear Asks</span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ================= feature 2 (s9) ================= -->
+<section class="feat">
+  <div class="feat-head">
+    <div class="feat-head-l"><h2>Define the<br>product direction</h2></div>
+    <div class="feat-head-r">
+      <p>Plan and navigate from idea to launch. Align your team with product initiatives, strategic roadmaps, and clear, up-to-date PRDs.</p>
+      <a class="feat-tag" href="#"><span class="num">2.0</span><span>Plan</span><span class="arr">&rarr;</span></a>
+    </div>
+  </div>
+  <div class="feat-ui"><img src="linear-assets/ui-sec2.png" alt="Linear planning: initiatives list and roadmap timeline"></div>
+  <div class="feat-index">
+    <div class="feat-index-col">
+      <a href="#"><span class="num">2.1</span><span>Projects</span></a>
+      <a href="#"><span class="num">2.3</span><span>Initiatives</span></a>
+    </div>
+    <div class="feat-index-col">
+      <a href="#"><span class="num">2.2</span><span>Documents</span></a>
+      <a href="#"><span class="num">2.4</span><span>Visual planning</span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ================= feature 3 (s13) ================= -->
+<section class="feat">
+  <div class="feat-head">
+    <div class="feat-head-l"><h2>Move work forward<br>across teams and agents</h2></div>
+    <div class="feat-head-r">
+      <p>Build and deploy AI agents that work alongside your team. Work on complex tasks together or delegate entire issues end-to-end.</p>
+      <a class="feat-tag" href="#"><span class="num">3.0</span><span>Build</span><span class="arr">&rarr;</span></a>
+    </div>
+  </div>
+  <div class="feat-ui"><img src="linear-assets/ui-sec3.png" alt="Linear build: Codex agent thread with an assign-to menu"></div>
+  <div class="feat-index">
+    <div class="feat-index-col">
+      <a href="#"><span class="num">3.1</span><span>Issues</span></a>
+      <a href="#"><span class="num">3.3</span><span>Linear MCP</span></a>
+      <a href="#"><span class="num">3.5</span><span>Cycles</span></a>
+    </div>
+    <div class="feat-index-col">
+      <a href="#"><span class="num">3.2</span><span>Agents</span></a>
+      <a href="#"><span class="num">3.4</span><span>Git automations</span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ================= feature 4 (s18) ================= -->
+<section class="feat">
+  <div class="feat-head">
+    <div class="feat-head-l"><h2>Review PRs and<br>agent output</h2></div>
+    <div class="feat-head-r">
+      <p>Understand code changes at a glance with structural diffs for human and agent output. Review, discuss, and merge &mdash; all within Linear.</p>
+      <a class="feat-tag" href="#"><span class="num">4.0</span><span>Diffs</span><span class="arr">&rarr;</span></a>
+    </div>
+  </div>
+  <div class="feat-ui"><img src="linear-assets/ui-sec4.png" alt="Linear diffs: side-by-side code review of agent output"></div>
+</section>
+
+<!-- ================= feature 5 (s22) ================= -->
+<section class="feat">
+  <div class="feat-head">
+    <div class="feat-head-l"><h2>Understand<br>progress at scale</h2></div>
+    <div class="feat-head-r">
+      <p>Take the guesswork out of product development with project updates, analytics, and dashboards that surface what needs your attention.</p>
+      <a class="feat-tag" href="#"><span class="num">5.0</span><span>Monitor</span><span class="arr">&rarr;</span></a>
+    </div>
+  </div>
+  <div class="feat-ui"><img src="linear-assets/ui-sec5.png" alt="Linear monitor: weekly pulse panel and cycle analytics chart"></div>
+  <div class="feat-index">
+    <div class="feat-index-col">
+      <a href="#"><span class="num">5.1</span><span>Pulse</span></a>
+      <a href="#"><span class="num">5.3</span><span>Dashboards</span></a>
+    </div>
+    <div class="feat-index-col">
+      <a href="#"><span class="num">5.2</span><span>Insights</span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ================= changelog (s25) ================= -->
+<section class="chg">
+  <h2>Changelog</h2>
+  <div class="chg-line"></div>
+  <div class="chg-row">
+    <div class="chg-card">
+      <span class="chg-dot chg-dot-on"></span>
+      <h3>Coding sessions in Linear</h3>
+      <p>Earlier this year, we launched Linear Agent, giving teams a new way to pla&hellip;</p>
+      <span class="date">JUN 10, 2026</span>
+    </div>
+    <div class="chg-card">
+      <span class="chg-dot"></span>
+      <h3>Team documents</h3>
+      <p>Important team context doesn't always belong in a specific issue, project, or&hellip;</p>
+      <span class="date">JUN 3, 2026</span>
+    </div>
+    <div class="chg-card">
+      <span class="chg-dot"></span>
+      <h3>Linear Diffs</h3>
+      <p>Agents generate large volumes of code, but individuals are still&hellip;</p>
+      <span class="date">MAY 27, 2026</span>
+    </div>
+    <div class="chg-card">
+      <span class="chg-dot"></span>
+      <h3>Project Slack channels</h3>
+      <p>Project teams often use a Slack channel to discuss and share feedba&hellip;</p>
+      <span class="date">MAY 21, 2026</span>
+    </div>
+  </div>
+  <a class="chg-all" href="#"><span>View all</span><span>&rarr;</span></a>
+</section>
+
+<!-- ================= customers (s28) ================= -->
+<section class="cust">
+  <div class="cust-row">
+    <div class="cust-card cust-lav">
+      <p class="q">&ldquo;You just have to use it and you will see, you will just feel it.&rdquo;</p>
+      <div class="cust-author">
+        <img src="linear-assets/ava-openai.png" alt="">
+        <div><div class="nm">Gabriel Peal</div><div class="rl">OpenAI</div></div>
+      </div>
+    </div>
+    <div class="cust-card cust-yel">
+      <p class="q">&ldquo;Our speed is intense and Linear helps us be action biased.&rdquo;</p>
+      <div class="cust-author">
+        <img src="linear-assets/ava-ramp.png" alt="">
+        <div><div class="nm">Nik Koblov</div><div class="rl">Head of Engineering, Ramp</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="cust-caption">
+    <p>Linear powers over <span style="color:#f7f8f8;font-weight:510">33,000</span> product teams. From ambitious startups to major enterprises.</p>
+    <a href="#">Customer stories &rarr;</a>
+  </div>
+</section>
+
+<!-- ================= final CTA (s29) ================= -->
+<section class="cta">
+  <h2>Built for the future.<br>Available today.</h2>
+  <div class="cta-btns">
+    <a class="btn-w" href="#">Get started</a>
+    <a class="btn-g" href="#">Contact sales</a>
+  </div>
+</section>
+
+<!-- ================= footer (s30) ================= -->
+<footer class="foot">
+  <div class="foot-cols">
+    <div class="foot-brand"><img src="linear-assets/logo.svg" alt="Linear"></div>
+    <div class="foot-col">
+      <span class="h">Product</span>
+      <a href="#">Intake</a><a href="#">Plan</a><a href="#">Build</a><a href="#">Diffs</a>
+      <a href="#">Monitor</a><a href="#">Pricing</a><a href="#">Security</a>
+    </div>
+    <div class="foot-col">
+      <span class="h">Features</span>
+      <a href="#">Asks</a><a href="#">Agents</a><a href="#">Coding Sessions</a><a href="#">Customer Requests</a>
+      <a href="#">Insights</a><a href="#">Mobile</a><a href="#">Integrations</a><a href="#">Changelog</a>
+    </div>
+    <div class="foot-col">
+      <span class="h">Company</span>
+      <a href="#">About</a><a href="#">Customers</a><a href="#">Careers</a><a href="#">Blog</a>
+      <a href="#">Method</a><a href="#">Quality</a><a href="#">Brand</a>
+    </div>
+    <div class="foot-col">
+      <span class="h">Resources</span>
+      <a href="#">Switch</a><a href="#">Download</a><a href="#">Documentation</a><a href="#">Developers</a>
+      <a href="#">Status</a><a href="#">Enterprise</a><a href="#">Startups</a>
+    </div>
+    <div class="foot-col">
+      <span class="h">Connect</span>
+      <a href="#">Contact us</a><a href="#">Community</a><a href="#">X (Twitter)</a><a href="#">GitHub</a><a href="#">YouTube</a>
+    </div>
+  </div>
+  <div class="foot-legal">
+    <a href="#">Privacy</a><a href="#">Terms</a><a href="#">DPA</a><a href="#">AUP</a>
+  </div>
+</footer>
+
+</body>
+</html>
