@@ -1,0 +1,52 @@
+{
+  "id": "spike-clerk-hero",
+  "constructIds": [
+    "hero-stack",
+    "heading",
+    "body-text",
+    "button-cta"
+  ],
+  "visualDescriptor": {
+    "structuralSignature": "flex-col",
+    "palette": [
+      "#f8f8f9",
+      "#131316",
+      "#6c47ff"
+    ],
+    "densityTags": [
+      "light-bg",
+      "sparse",
+      "muted",
+      "banner"
+    ]
+  },
+  "renderPng": "renders/spike-clerk-hero.png",
+  "renderSize": {
+    "w": 1440,
+    "h": 535
+  },
+  "authoredHtml": "html/spike-clerk-hero.html",
+  "elementorJson": null,
+  "provenance": "spike",
+  "verification": {
+    "status": "judged",
+    "evidence": [
+      "/tmp/vj-htmlfirst/results.json (VOLATILE /tmp)",
+      "/tmp/vj-htmlfirst/manifest.json tiles w1440-00..04 (VOLATILE)",
+      "knowledge/EMBODIMENT_APPROACH.md §4.2 (commit fbfddda)",
+      "eval/grader/atlas/spike-lint-report.json"
+    ],
+    "notes": "Verbatim spike hero section."
+  },
+  "lint": {
+    "clean": true,
+    "violations": [],
+    "warnings": []
+  },
+  "source": {
+    "site": "clerk.com",
+    "crop": "/tmp/htmlfirst/c-hero.png",
+    "width": 1440
+  },
+  "hash": "sha256:9ffa2c229cb82a8ddea520cfe3c846a2e947a12462b875c61aef2887bd1e4908"
+}

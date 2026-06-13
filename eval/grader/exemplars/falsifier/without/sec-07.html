@@ -1,0 +1,70 @@
+<!doctype html>
+<!-- @purpose P3 falsifier sec-07 WITHOUT-exemplars arm — tailwindcss.com sponsors band (crop band-src1000-y1400): "Supported by the best." headline + mono class chip + copy + dark pill CTA, then a 2-col hairline logo wall. Authored from the crop under the contract, no library context; sponsor logos as text wordmarks. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>sec-07 without</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #ffffff; color: #0a0f1a;
+    font-family: ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  a { text-decoration: none; color: inherit; }
+  .sponsors-head { padding: 12px 32px 0; border-bottom: 1px solid #f0f0f2; }
+  .sponsors-head h2 { font-size: 38px; line-height: 44px; font-weight: 800; letter-spacing: -1px; }
+  .classchip { display: inline-flex; margin-top: 14px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: #6b7280; }
+  .sponsors-head p { margin-top: 12px; max-width: 700px; font-size: 16px; line-height: 26px; color: #374151; }
+  .sponsor-cta { display: inline-flex; align-items: center; gap: 8px; margin: 28px 0 36px; height: 38px; padding: 0 16px;
+    border-radius: 999px; background: #0a0f1a; color: #ffffff; font-size: 13.5px; font-weight: 600; }
+  .sponsor-cta .arr { font-size: 12px; }
+  .wall { display: flex; flex-direction: column; }
+  .wrow { display: flex; border-bottom: 1px solid #f0f0f2; }
+  .wcell { flex: 1; height: 118px; display: flex; align-items: center; justify-content: center;
+    border-right: 1px solid #f0f0f2; font-size: 26px; font-weight: 800; letter-spacing: -0.5px; color: #0a0f1a; }
+  .wcell:last-child { border-right: none; }
+  .wcell .mk { margin-right: 10px; font-size: 22px; }
+  .wcell.serif { font-family: Georgia, "Times New Roman", serif; font-weight: 600; }
+  .wcell.outline { color: #ffffff; text-shadow: 0 0 0 #0a0f1a; -webkit-text-stroke: 2px #0a0f1a; }
+</style>
+</head>
+<body>
+<section class="sponsors">
+  <div class="sponsors-head">
+    <h2>Supported by the best.</h2>
+    <span class="classchip">text-base text-gray-950</span>
+    <p>Tailwind is supported by incredible partners and sponsors who make it possible for a team of talented designers and engineers to maintain the framework full-time.</p>
+    <a class="sponsor-cta" href="#">Become a sponsor <span class="arr">&#8594;</span></a>
+  </div>
+  <div class="wall">
+    <div class="wrow">
+      <span class="wcell serif">imagekit.io</span>
+      <span class="wcell"><span class="mk">&#128717;</span>shopify</span>
+    </div>
+    <div class="wrow">
+      <span class="wcell"><span class="mk">&#9698;</span>CURSOR</span>
+      <span class="wcell outline">KIRO</span>
+    </div>
+    <div class="wrow">
+      <span class="wcell"><span class="mk">&#8776;</span>Postmark</span>
+      <span class="wcell"><span class="mk">&#10084;</span>Lovable</span>
+    </div>
+    <div class="wrow">
+      <span class="wcell"><span class="mk">&#9678;</span>clerk</span>
+      <span class="wcell">MUX</span>
+    </div>
+    <div class="wrow">
+      <span class="wcell"><span class="mk">&#9679;</span>CodeRabbit</span>
+      <span class="wcell"><span class="mk">W</span>Webflow</span>
+    </div>
+    <div class="wrow">
+      <span class="wcell"><span class="mk">&#9650;</span>Vercel</span>
+      <span class="wcell"><span class="mk">&#9635;</span>Unblocked</span>
+    </div>
+    <div class="wrow">
+      <span class="wcell serif"><span class="mk">&#9998;</span>Sanity</span>
+      <span class="wcell"><span class="mk">&#9881;</span>Railway</span>
+    </div>
+  </div>
+</section>
+</body>
+</html>

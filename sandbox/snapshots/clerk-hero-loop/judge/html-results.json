@@ -1,0 +1,82 @@
+{
+  "source": "http://localhost:8777/source.html",
+  "clone": "http://localhost:8777/html-render.html",
+  "widths": [
+    1440
+  ],
+  "runsPerTile": 3,
+  "gating": true,
+  "model": "claude-sonnet-4-6",
+  "publishedScore": null,
+  "veto": null,
+  "pageScore": 88,
+  "baseScore": 88,
+  "severityPenalty": 0,
+  "perWidth": {
+    "1440": {
+      "srcHeight": 900,
+      "cloneHeight": 900,
+      "hRatio": 1,
+      "align": {
+        "mode": "proportional-fallback",
+        "anchorPairs": 0
+      },
+      "pageScore": 88,
+      "base": 88,
+      "penalty": 0,
+      "judged": 1,
+      "skipped": 0
+    }
+  },
+  "tilesJudged": 1,
+  "tilesSkipped": 0,
+  "costUsd": 0.11,
+  "wallSec": 72,
+  "defects": [
+    {
+      "desc": "\"Build with agents\" button is missing the dropdown chevron/arrow visible on the original",
+      "severity": 2,
+      "category": "missing-content",
+      "width": 1440,
+      "tile": 0,
+      "yRange": [
+        0,
+        900
+      ],
+      "aboveFold": true,
+      "tileScore": 88
+    }
+  ],
+  "tiles": [
+    {
+      "idx": 0,
+      "width": 1440,
+      "yRange": [
+        0,
+        900
+      ],
+      "cloneYRange": [
+        0,
+        900
+      ],
+      "aboveFold": true,
+      "align": "proportional",
+      "judged": true,
+      "score": 88,
+      "scores": [
+        88,
+        72,
+        88
+      ],
+      "defects": [
+        {
+          "desc": "\"Build with agents\" button is missing the dropdown chevron/arrow visible on the original",
+          "severity": 2,
+          "category": "missing-content"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "/tmp/vj-html/w1440-tile-00.png"
+    }
+  ]
+}

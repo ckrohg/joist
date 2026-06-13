@@ -1,0 +1,97 @@
+[capture] 1440px source...
+[pin] https://clerk.com @1440: overlays 1, anims finished 4 / snapped 2, rotators pinned 17, videos 0
+[capture] 1440px clone...
+[tile] 1440px srcH=7616 clnH=6876 hRatio=0.903
+[align] 1440px band-anchored: 80 anchors, 20 src bands -> 14 matched / 4 interp / 2 clone-missing / 0 clone-extra
+[align] 1440px missing-band arbitration: 0 blank->deterministic, 2 content->judged
+[capture] 1250px source...
+[pin] https://clerk.com @1250: overlays 1, anims finished 2 / snapped 2, rotators pinned 17, videos 0
+[capture] 1250px clone...
+[tile] 1250px srcH=8552 clnH=6648 hRatio=0.777
+[align] 1250px band-anchored: 67 anchors, 8 src bands -> 7 matched / 0 interp / 1 clone-missing / 0 clone-extra
+[align] 1250px missing-band arbitration: 0 blank->deterministic, 1 content->judged
+[manifest] 32 tiles -> sandbox/snapshots/clerk-fullpage/judge/manifest.json
+[judge] 32 tiles x 3 run(s), 3 parallel, model=sonnet, budget $10
+[judge] tile 1440/01 score=68 defects=1 | spent $0.33
+[judge] tile 1440/02 score=32 defects=3 | spent $0.42
+[judge] tile 1440/00 score=38 defects=6 | spent $0.55
+[judge] tile 1440/03 score=28 defects=4 | spent $0.85
+[judge] tile 1440/04 score=75 defects=3 | spent $0.89
+[judge] tile 1440/06 score=72 defects=2 | spent $1.14
+[judge] tile 1440/07 score=82 defects=2 | spent $1.30
+[judge] tile 1440/05 score=58 defects=5 | spent $1.36
+[judge] tile 1440/09 score=82 defects=3 | spent $1.62
+[judge] tile 1440/11 score=72 defects=2 | spent $1.79
+[judge] tile 1440/10 score=58 defects=4 | spent $1.83
+[judge] tile 1440/08 score=63 defects=7 | spent $1.91
+[judge] tile 1440/14 score=100 defects=0 | spent $2.23
+[judge] tile 1440/12 score=72 defects=3 | spent $2.41
+[judge] tile 1440/13 score=72 defects=5 | spent $2.59
+[judge] tile 1440/16 score=30 defects=1 | spent $2.61
+[judge] tile 1440/15 score=82 defects=4 | spent $2.74
+[judge] tile 1440/17 score=55 defects=4 | spent $3.06
+[judge] tile 1440/19 score=80 defects=3 | spent $3.09
+[judge] tile 1440/18 score=68 defects=5 | spent $3.22
+[judge] tile 1440/20 score=82 defects=2 | spent $3.35
+[judge] tile 1250/00 score=52 defects=9 | spent $3.62
+[judge] tile 1250/02 score=18 defects=6 | spent $3.85
+[judge] tile 1250/01 score=40 defects=6 | spent $3.97
+[judge] tile 1250/03 score=35 defects=6 | spent $4.02
+[judge] tile 1250/04 score=32 defects=8 | spent $4.49
+[judge] tile 1250/05 score=58 defects=5 | spent $4.54
+[judge] tile 1250/06 score=32 defects=7 | spent $4.59
+[judge] tile 1250/08 score=62 defects=4 | spent $5.01
+[judge] tile 1250/07 score=63 defects=5 | spent $5.06
+[judge] tile 1250/09 score=66 defects=6 | spent $5.12
+[judge] tile 1250/10 score=68 defects=4 | spent $5.30
+[veto] WARNING: no --structure <grade-structure results.json> given — pageScore is RAW vision; publishedScore=null (NOT publishable for gating: a full-page-raster clone could max raw vision).
+{
+  "publishedScore": null,
+  "veto": null,
+  "pageScore": 20.7,
+  "baseScore": 55.7,
+  "severityPenalty": 35,
+  "perWidth": {
+    "1250": {
+      "pageScore": 12.3,
+      "base": 47.3,
+      "penalty": 35,
+      "hRatio": 0.777,
+      "judged": 11,
+      "skipped": 0
+    },
+    "1440": {
+      "pageScore": 41.7,
+      "base": 59.7,
+      "penalty": 18,
+      "hRatio": 0.903,
+      "judged": 21,
+      "skipped": 0
+    }
+  },
+  "model": "claude-sonnet-4-6",
+  "runsPerTile": 3,
+  "gating": true,
+  "costUsd": 5.3,
+  "wallSec": 1180,
+  "tilesJudged": 32,
+  "tilesSkipped": 0,
+  "topDefects": [
+    "[sev5|wrong-style|1440px y753] Section background is solid white/light gray in clone; source has a deep black/dark background for this entire band — the most visually dominant property is wrong",
+    "[sev5|layout-broken|1250px y1237] Bottom ~60% of right side is solid black void — large swath of page content completely absent",
+    "[sev5|layout-broken|1250px y2810] Card grid layout is broken: LEFT shows a 2-column card grid with large dark rounded cards; RIGHT collapses into a single-column or misaligned list, destroying the grid structure",
+    "[sev4|wrong-style|1440px y753] Overall contrast inverted — source text appears light-on-dark; clone renders dark-on-light — making the right side look like a completely different design",
+    "[sev4|wrong-style|1440px y624] All four company logos are wrong: clone shows 'David AI', 'OpenRouter', 'şamaya', 'Cartesia' instead of original 'inngest', 'durable', 'upstash', 'Consensus'",
+    "[sev4|layout-broken|1440px y0] Announcement banner and nav bar are stacked in reversed order: clone shows nav bar first (top), then announcement bar below it; source shows announcement bar first, then nav below",
+    "[sev4|layout-broken|1250px y737] Hero heading, body text, and CTA are left-aligned in rebuild vs center-aligned in original",
+    "[sev4|layout-broken|1250px y737] Rebuild renders a two-column layout (text-left / sign-up card-right) whereas original is a single centered-column block",
+    "[sev4|chrome-missing|1250px y0] Nav bar: 'Sign in' and 'Start building' CTA buttons missing from clone",
+    "[sev4|wrong-style|1250px y0] Hero CTA buttons: 'Start building for free' (purple filled) and 'Build with agents →' (ghost/text) are unstyled plain text links in clone — no button styling, no purple background",
+    "[sev4|wrong-style|1250px y0] Trust bar logos (G2 Crowd Stars, Braintrust, Happttel, Consensus on left) replaced with completely different logos (David AI, OpenRouter, Samaya, Cartesia) on right",
+    "[sev4|missing-content|1440px y218] Primary CTA button ('Start building for free') missing entirely — only the ghost/text 'Build with agents →' link is present on the right"
+  ],
+  "out": {
+    "manifest": "sandbox/snapshots/clerk-fullpage/judge/manifest.json",
+    "results": "sandbox/snapshots/clerk-fullpage/judge/results.json"
+  }
+}

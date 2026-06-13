@@ -1,0 +1,61 @@
+{
+  "writtenAt": "2026-06-05T22:23:23.320Z",
+  "benchMean": {
+    "composite": 0.779,
+    "visual": 0.674,
+    "editability": 0.993,
+    "structural": 1,
+    "responsive": 0.578,
+    "coverage": 0.612
+  },
+  "perBlock": {
+    "hero": {
+      "composite": 0.742,
+      "visual": 0.607,
+      "editability": 1,
+      "structural": 1,
+      "responsive": 0.5186,
+      "coverage": 0.3225
+    },
+    "card-grid": {
+      "composite": 0.797,
+      "visual": 0.625,
+      "editability": 1,
+      "structural": 1,
+      "responsive": 0.7127,
+      "coverage": 0.3772
+    },
+    "nav": {
+      "composite": 0.81,
+      "visual": 0.766,
+      "editability": 1,
+      "structural": 1,
+      "responsive": 0.5661,
+      "coverage": 0.7505
+    },
+    "pricing": {
+      "composite": 0.73,
+      "visual": 0.6,
+      "editability": 0.955,
+      "structural": 1,
+      "responsive": 0.5163,
+      "coverage": 0.3212
+    },
+    "feature-image": {
+      "composite": 0.858,
+      "visual": 0.881,
+      "editability": 1,
+      "structural": 1,
+      "responsive": 0.5995,
+      "coverage": 0.9998
+    },
+    "footer": {
+      "composite": 0.738,
+      "visual": 0.568,
+      "editability": 1,
+      "structural": 1,
+      "responsive": 0.5563,
+      "coverage": 0.8986
+    }
+  }
+}

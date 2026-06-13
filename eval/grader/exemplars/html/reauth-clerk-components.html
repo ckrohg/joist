@@ -1,0 +1,68 @@
+<!doctype html>
+<!-- @purpose Exemplar reauth-clerk-components — split text+card section re-authored under the atlas contract (P2 gate (b), eval/grader/atlas/reauth-hero.html): FLATTENED to container depth <=4 by merging wrap+row into one boxed .comp-row. Pixel-parity proven vs the judged spike (99.82% @1440 / 100% @1100). The lint-clean fix for spike-clerk-components' V-NEST. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>exemplar: components split (contract re-author)</title>
+<style>
+  :root { --ink: #131316; --muted: #5e5f6e; --purple: #6c47ff; --bg: #f8f8f9; --line: #ececef; --line2: #f3f3f3; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--ink);
+    font-family: ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  a { text-decoration: none; color: inherit; }
+  .components { background: #fff; padding-top: 144px; padding-bottom: 40px; }
+  .comp-row { max-width: 1280px; margin: 0 auto; padding: 0 32px;
+    display: flex; flex-wrap: wrap; align-items: flex-start; }
+  .comp-text { flex: 0 1 auto; width: 46.7%; max-width: 560px; }
+  .eyebrow { color: var(--purple); font-size: 14px; font-weight: 600; }
+  .comp-text h2 { margin-top: 22px; font-size: 38px; line-height: 46px; font-weight: 700; letter-spacing: -0.8px; }
+  .comp-text p { margin-top: 22px; max-width: 490px; font-size: 16px; line-height: 26px; color: var(--muted); }
+  .explore { display: inline-flex; align-items: center; gap: 24px; margin-top: 30px;
+    font-size: 14px; font-weight: 700; }
+  .explore .arr { font-size: 10px; }
+  .authcard { width: 360px; margin-left: auto; margin-right: 160px; margin-top: 40px;
+    background: #fff; border: 1px solid var(--line); border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.07); padding: 22px 24px 36px; text-align: center; }
+  .authcard .appicon { width: 48px; height: 48px; border-radius: 13px; background: #131316;
+    margin: 0 auto; display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 24px; line-height: 1; }
+  .authcard h3 { margin-top: 30px; font-size: 20px; font-weight: 700; }
+  .authcard .welcome { margin-top: 9px; font-size: 13.5px; color: #74747e; }
+  .authcard .oauth { margin-top: 24px; display: flex; flex-direction: column; gap: 12px; }
+  .oauthbtn { display: flex; align-items: center; justify-content: center; gap: 10px; height: 38px;
+    background: #fff; border: 1px solid #e6e6e9; border-radius: 999px;
+    font-size: 14px; font-weight: 500; color: var(--ink); }
+  .oauthbtn .gicon { font-weight: 700; font-size: 15px; color: #4285f4; }
+  .oauthbtn .ghicon { width: 16px; height: 16px; border-radius: 50%; background: #131316; }
+  @media (max-width: 1180px) {
+    .comp-row { flex-direction: column; align-items: center; }
+    .comp-text { text-align: center; width: auto; }
+    .comp-text p { margin-left: auto; margin-right: auto; }
+    .authcard { margin: 56px auto 0; }
+  }
+</style>
+</head>
+<body>
+<section class="components">
+  <div class="comp-row">
+    <div class="comp-text">
+      <div class="eyebrow">Clerk Components</div>
+      <h2>Pixel-perfect UIs,<br>embedded in minutes</h2>
+      <p>Drop-in UI components for authentication, profile management, organization management,
+        and billing. Match to your brand with any CSS library, then deploy to your own domain.</p>
+      <a class="explore" href="#">Explore all components <span class="arr">&#9656;</span></a>
+    </div>
+    <div class="authcard">
+      <div class="appicon">&#10033;</div>
+      <h3>Create your account</h3>
+      <p class="welcome">Welcome! Please fill in the details to get started.</p>
+      <div class="oauth">
+        <a class="oauthbtn" href="#"><span class="gicon">G</span>Continue with Google</a>
+        <a class="oauthbtn" href="#"><span class="ghicon"></span>Continue with GitHub</a>
+      </div>
+    </div>
+  </div>
+</section>
+</body>
+</html>

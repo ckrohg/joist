@@ -1,0 +1,30 @@
+<!doctype html>
+<!-- @purpose Exemplar lf-clerk-darkcard — one dark bento feature card (image-top + title + copy) from the local-fidelity clerk partial (/tmp/local-fidelity/clerk.html s5 .acard), verified by LOOK against /tmp/local-fidelity/cap crops only (no judge run). Card CSS+markup verbatim (BEM "__" -> "-" rename only); the GRID parent is GAP-banned (V-GRID), so the card sits in a minimal dark flex wrapper authored for this exemplar — the card, not the wrapper, is the pattern. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>exemplar: dark feature card (local-fidelity)</title>
+<style>
+@font-face{font-family:'Suisse';src:url('fonts/SuisseIntl_Regular.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Suisse';src:url('fonts/SuisseIntl_Medium.woff2') format('woff2');font-weight:500;font-style:normal;font-display:swap}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Suisse',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;color:#fff;background:#131316;font-weight:400;-webkit-font-smoothing:antialiased}
+img{display:block;max-width:100%}
+.stage{display:flex;justify-content:center;padding:48px;background:#131316}
+.acard{width:400px;background:#212126;border-radius:16px;overflow:hidden;display:flex;flex-direction:column}
+.acard-img{width:100%;flex:0 0 auto}
+.acard-txt{padding:12px 24px 24px}
+.acard h3{font-size:13.5px;line-height:24px;font-weight:500;color:#fff}
+.acard p{font-size:13.5px;line-height:20px;color:#9d9ea7;margin-top:4px}
+</style>
+</head>
+<body>
+<section class="stage">
+  <div class="acard">
+    <img class="acard-img" src="assets/auth-mfa.png" alt="Multifactor authentication UI">
+    <div class="acard-txt"><h3>Multifactor Authentication</h3>
+      <p>Each user's self-serve multifactor settings are enforced automatically during sign-in.</p></div>
+  </div>
+</section>
+</body>
+</html>

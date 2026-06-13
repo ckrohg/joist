@@ -1,0 +1,66 @@
+<!doctype html>
+<!-- @purpose P3 falsifier sec-04 WITHOUT-exemplars arm — clerk.com dark dual feature section (crop w1440-s17): two half columns, each eyebrow + white h2 + gray copy + bold link, hairline icon-cell grid below. Authored from the crop under the contract, no library context. Brand icons approximated as outline glyphs. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>sec-04 without</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #131316; color: #ffffff;
+    font-family: ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  a { text-decoration: none; color: inherit; }
+  .duo { display: flex; gap: 64px; }
+  .half { flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center; }
+  .eyebrow-c { font-size: 13px; font-weight: 500; color: #38bdf8; }
+  .eyebrow-p { font-size: 13px; font-weight: 500; color: #a78bfa; }
+  .half h2 { margin-top: 22px; font-size: 34px; line-height: 40px; font-weight: 700; color: #ffffff; }
+  .half p { margin-top: 22px; max-width: 460px; font-size: 15px; line-height: 24px; color: #9d9ea7; }
+  .alllink { display: inline-flex; align-items: center; gap: 14px; margin-top: 32px; font-size: 13px; font-weight: 700; color: #ffffff; }
+  .alllink .arr { font-size: 10px; color: #9d9ea7; }
+  .grid { margin-top: 44px; display: flex; flex-direction: column; width: 100%; }
+  .grow { display: flex; }
+  .gcell { flex: 1; height: 140px; border: 1px solid #26262b; display: flex; align-items: center; justify-content: center; margin: -0.5px; }
+  .gtop { height: 50px; border-bottom: none; }
+  .glyph { width: 40px; height: 40px; border: 1.5px solid #6e6e78; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; color: #8e8e96; }
+  .glyph.tri { border-radius: 4px; }
+</style>
+</head>
+<body>
+<section class="duo">
+  <div class="half">
+    <div class="eyebrow-c">Frameworks</div>
+    <h2>Build with SDKs for<br>modern frameworks</h2>
+    <p>Clerk keeps developer experience front-and-center by providing helpful SDKs for most modern frameworks on web and mobile.</p>
+    <a class="alllink" href="#">All frameworks <span class="arr">&#9656;</span></a>
+    <div class="grid">
+      <div class="grow"><span class="gcell gtop"></span><span class="gcell gtop"></span><span class="gcell gtop"></span></div>
+      <div class="grow">
+        <span class="gcell"><span class="glyph">N</span></span>
+        <span class="gcell"><span class="glyph">&#9883;</span></span>
+        <span class="gcell"><span class="glyph tri">&#9650;</span></span>
+      </div>
+      <div class="grow">
+        <span class="gcell"><span class="glyph">&#9737;</span></span>
+        <span class="gcell"><span class="glyph">&#127965;</span></span>
+        <span class="gcell"><span class="glyph tri">A</span></span>
+      </div>
+    </div>
+  </div>
+  <div class="half">
+    <div class="eyebrow-p">Integrations</div>
+    <h2>Integrate with<br>the tools you love</h2>
+    <p>Leverage Clerk as the source of truth for your user data and integrate with the tools that you already depend on.</p>
+    <a class="alllink" href="#">All integrations <span class="arr">&#9656;</span></a>
+    <div class="grid">
+      <div class="grow"><span class="gcell gtop"></span><span class="gcell gtop"></span><span class="gcell gtop"></span></div>
+      <div class="grow">
+        <span class="gcell"><span class="glyph">&#9889;</span></span>
+        <span class="gcell"><span class="glyph">&#10042;</span></span>
+        <span class="gcell"><span class="glyph tri">&#9651;</span></span>
+      </div>
+    </div>
+  </div>
+</section>
+</body>
+</html>

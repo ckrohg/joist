@@ -1,0 +1,50 @@
+{
+  "id": "syn-footer-columns",
+  "constructIds": [
+    "footer-columns",
+    "nav-links",
+    "body-text",
+    "divider"
+  ],
+  "visualDescriptor": {
+    "structuralSignature": "flex-row",
+    "palette": [
+      "#101013",
+      "#28282d",
+      "#8c8c94"
+    ],
+    "densityTags": [
+      "dark-bg",
+      "sparse",
+      "muted",
+      "wide-band"
+    ]
+  },
+  "renderPng": "renders/syn-footer-columns.png",
+  "renderSize": {
+    "w": 1440,
+    "h": 328
+  },
+  "authoredHtml": "html/syn-footer-columns.html",
+  "elementorJson": null,
+  "provenance": "synthetic",
+  "verification": {
+    "status": "lint-clean-rendered",
+    "evidence": [
+      "records/syn-footer-columns.json lint block",
+      "renders/syn-footer-columns.png (LOOK sanity)"
+    ],
+    "notes": "Synthetic coverage sample (P3 backfill): lint-clean + rendered; NO fidelity claim (no source ground truth)."
+  },
+  "lint": {
+    "clean": true,
+    "violations": [],
+    "warnings": []
+  },
+  "source": {
+    "site": "",
+    "crop": "",
+    "width": 1440
+  },
+  "hash": "sha256:43c1a1b42eaf3b66a0bdb666d2ae87d1b2eedd12a5fd109b0fdb4ee791797752"
+}

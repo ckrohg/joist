@@ -1,0 +1,50 @@
+{
+  "id": "syn-inline-styled",
+  "constructIds": [
+    "inline-styled-text",
+    "heading",
+    "body-text",
+    "section-stack"
+  ],
+  "visualDescriptor": {
+    "structuralSignature": "flex-col",
+    "palette": [
+      "#0b0b0e",
+      "#f3f3f4",
+      "#a78bfa"
+    ],
+    "densityTags": [
+      "dark-bg",
+      "sparse",
+      "muted",
+      "banner"
+    ]
+  },
+  "renderPng": "renders/syn-inline-styled.png",
+  "renderSize": {
+    "w": 1440,
+    "h": 422
+  },
+  "authoredHtml": "html/syn-inline-styled.html",
+  "elementorJson": null,
+  "provenance": "synthetic",
+  "verification": {
+    "status": "lint-clean-rendered",
+    "evidence": [
+      "records/syn-inline-styled.json lint block",
+      "renders/syn-inline-styled.png (LOOK sanity)"
+    ],
+    "notes": "Synthetic coverage sample (P3 backfill): lint-clean + rendered; NO fidelity claim (no source ground truth)."
+  },
+  "lint": {
+    "clean": true,
+    "violations": [],
+    "warnings": []
+  },
+  "source": {
+    "site": "",
+    "crop": "",
+    "width": 1440
+  },
+  "hash": "sha256:87b17b961d993ea51c64253bcf308827206868b670c836f6da74d2eaf7f865b8"
+}

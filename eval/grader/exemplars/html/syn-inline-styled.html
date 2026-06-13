@@ -1,0 +1,23 @@
+<!doctype html>
+<!-- @purpose Exemplar syn-inline-styled — SYNTHETIC coverage sample for the inline-styled-text construct (histogram count 10, uncovered by backfill). Authored per the contract: mixed paint/weight via styled <span> ONLY (no strong/em — V-INLINE-TAG; no gradient clip — V-GRADIENT-TEXT). Solid accent paint. Lint-clean required; no fidelity claim. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>exemplar: inline-styled text (synthetic)</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0b0b0e; color: #f4f4f5;
+    font-family: ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  .statement { padding: 110px 24px; display: flex; flex-direction: column; align-items: center; gap: 22px; text-align: center; }
+  .statement h2 { max-width: 880px; font-size: 52px; line-height: 62px; font-weight: 700; letter-spacing: -1px; color: #f4f4f5; }
+  .statement p { max-width: 640px; font-size: 17px; line-height: 27px; color: #9b9ba4; }
+</style>
+</head>
+<body>
+<section class="statement">
+  <h2>Ship <span style="color:#22d3ee">faster</span>, break <span style="color:#a78bfa">nothing</span>, sleep <span style="font-weight:400;color:#71717a">better</span>.</h2>
+  <p>Deploys go out in <span style="color:#e4e4e7;font-weight:600">under 40 seconds</span>, every change is previewed, and rollbacks are <span style="color:#22d3ee">one click</span> — not one incident call.</p>
+</section>
+</body>
+</html>

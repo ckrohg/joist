@@ -1,0 +1,50 @@
+{
+  "id": "syn-badge-pills",
+  "constructIds": [
+    "badge-pill",
+    "heading",
+    "body-text",
+    "section-stack"
+  ],
+  "visualDescriptor": {
+    "structuralSignature": "flex-col",
+    "palette": [
+      "#ffffff",
+      "#111114",
+      "#6a6b72"
+    ],
+    "densityTags": [
+      "light-bg",
+      "sparse",
+      "muted",
+      "wide-band"
+    ]
+  },
+  "renderPng": "renders/syn-badge-pills.png",
+  "renderSize": {
+    "w": 1440,
+    "h": 336
+  },
+  "authoredHtml": "html/syn-badge-pills.html",
+  "elementorJson": null,
+  "provenance": "synthetic",
+  "verification": {
+    "status": "lint-clean-rendered",
+    "evidence": [
+      "records/syn-badge-pills.json lint block",
+      "renders/syn-badge-pills.png (LOOK sanity)"
+    ],
+    "notes": "Synthetic coverage sample (P3 backfill): lint-clean + rendered; NO fidelity claim (no source ground truth)."
+  },
+  "lint": {
+    "clean": true,
+    "violations": [],
+    "warnings": []
+  },
+  "source": {
+    "site": "",
+    "crop": "",
+    "width": 1440
+  },
+  "hash": "sha256:d113ad40379c32b8a07951ec9694df354f7af2d8acefa42116aeb28bc7b59779"
+}

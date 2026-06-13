@@ -1,0 +1,57 @@
+{
+  "id": "lf-clerk-logos",
+  "constructIds": [
+    "logo-band",
+    "logo",
+    "image",
+    "body-text"
+  ],
+  "visualDescriptor": {
+    "structuralSignature": "flex-row",
+    "palette": [
+      "#fcfcfc",
+      "#101012",
+      "#cfcfd0"
+    ],
+    "densityTags": [
+      "light-bg",
+      "sparse",
+      "muted",
+      "wide-band"
+    ]
+  },
+  "renderPng": "renders/lf-clerk-logos.png",
+  "renderSize": {
+    "w": 1440,
+    "h": 200
+  },
+  "authoredHtml": "html/lf-clerk-logos.html",
+  "elementorJson": null,
+  "provenance": "re-author",
+  "verification": {
+    "status": "look-only",
+    "evidence": [
+      "/tmp/local-fidelity/clerk.html s3 (VOLATILE)",
+      "/tmp/local-fidelity/cap/_look-partner.png (VOLATILE)"
+    ],
+    "notes": "Local-fidelity partial, LOOK-verified only. Real svg brand assets (copied + sanitized filenames); BEM rename for the linter."
+  },
+  "lint": {
+    "clean": true,
+    "violations": [],
+    "warnings": [
+      {
+        "construct": "body-text",
+        "rule": "W-FONT",
+        "element": "<p> \"Trusted by fast-growing compan\"",
+        "note": "font \"suisse\" not a system/kit family"
+      }
+    ]
+  },
+  "source": {
+    "site": "clerk.com",
+    "crop": "/tmp/local-fidelity/cap/sections/w1440-s3.png",
+    "width": 1440
+  },
+  "hash": "sha256:a420a23348ec500a2bc3a2fbd57fb9b7f5e41d6025bd0162a5cc13b689851bac"
+}

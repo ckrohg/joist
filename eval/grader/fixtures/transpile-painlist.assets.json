@@ -1,0 +1,7 @@
+{
+  "note": "assets manifest for transpile-painlist.html (capture-assets format). swatch.png: local file, uploaded when live / pending in dry-run. already-hosted.png: pre-uploaded entry used as-is, no upload.",
+  "assets": [
+    { "src": "swatch.png", "file": "assets/swatch.png" },
+    { "src": "already-hosted.png", "url": "https://georges232.sg-host.com/wp-content/uploads/fixture/already-hosted.png", "id": 424242 }
+  ]
+}

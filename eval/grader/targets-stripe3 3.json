@@ -1,0 +1,5 @@
+[
+  { "name": "section_a", "scrollY": 1500, "clip": { "x": 0, "y": 110, "width": 1440, "height": 640 } },
+  { "name": "section_b", "scrollY": 2900, "clip": { "x": 0, "y": 110, "width": 1440, "height": 640 } },
+  { "name": "section_c", "scrollY": 4300, "clip": { "x": 0, "y": 110, "width": 1440, "height": 640 } }
+]

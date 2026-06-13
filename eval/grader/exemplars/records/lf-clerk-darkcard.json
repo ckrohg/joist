@@ -1,0 +1,63 @@
+{
+  "id": "lf-clerk-darkcard",
+  "constructIds": [
+    "card",
+    "image",
+    "heading",
+    "body-text"
+  ],
+  "visualDescriptor": {
+    "structuralSignature": "flex-col",
+    "palette": [
+      "#212126",
+      "#131316",
+      "#1e1e22"
+    ],
+    "densityTags": [
+      "dark-bg",
+      "sparse",
+      "muted",
+      "banner"
+    ]
+  },
+  "renderPng": "renders/lf-clerk-darkcard.png",
+  "renderSize": {
+    "w": 496,
+    "h": 352
+  },
+  "authoredHtml": "html/lf-clerk-darkcard.html",
+  "elementorJson": null,
+  "provenance": "re-author",
+  "verification": {
+    "status": "look-only",
+    "evidence": [
+      "/tmp/local-fidelity/clerk.html s5 .acard (VOLATILE)",
+      "/tmp/local-fidelity/work/card-fraud.png sibling-card LOOK set (VOLATILE)"
+    ],
+    "notes": "Card verbatim from the local-fidelity dark bento (LOOK-verified); minimal dark flex wrapper authored for standalone render (grid parent is GAP-banned)."
+  },
+  "lint": {
+    "clean": true,
+    "violations": [],
+    "warnings": [
+      {
+        "construct": "heading",
+        "rule": "W-FONT",
+        "element": "<h3> \"Multifactor Authentication\"",
+        "note": "font \"suisse\" not a system/kit family"
+      },
+      {
+        "construct": "body-text",
+        "rule": "W-FONT",
+        "element": "<p> \"Each user's self-serve multifa\"",
+        "note": "font \"suisse\" not a system/kit family"
+      }
+    ]
+  },
+  "source": {
+    "site": "clerk.com",
+    "crop": "/tmp/local-fidelity/cap/sections/w1440-s9.png",
+    "width": 496
+  },
+  "hash": "sha256:f1ce16cc5c35bd5e7b8ddaceccc8b9df6b52f8df717eb4134410ff11004929f2"
+}

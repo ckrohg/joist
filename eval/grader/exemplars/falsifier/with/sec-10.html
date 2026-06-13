@@ -1,0 +1,87 @@
+<!doctype html>
+<!-- @purpose P3 falsifier sec-10 WITH-exemplars arm — tailwindcss.com transitions/logical-properties band (crop band-src1000-y8400), authored WITH retrieved context [lf-clerk-darkcard, syn-code-panel, reauth-clerk-components]: syn-code-panel codebox conventions for the markup panel (#0d1117 + #1f242c border + GitHub-dark tokens + <br> discipline), darkcard h3 13.5/24 + muted-p rhythm for card heads, 16px-radius card chrome family. Avatars as neutral circles. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>sec-10 with</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --ink: #0a0f1a; --muted: #6b7280; --line: #ececf0; }
+  body { background: #f6f7f9; color: var(--ink);
+    font-family: ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  .stack { display: flex; flex-wrap: wrap; gap: 14px; padding: 14px; }
+  .panel { flex: 1 1 100%; background: #ffffff; border: 1px solid var(--line); border-radius: 16px; padding: 24px; }
+  .erow { display: flex; align-items: center; gap: 18px; padding: 12px 0; }
+  .ethumb { width: 40px; height: 40px; border: 1px solid #e2e2e6; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 18px; }
+  .ename { font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: #374151; width: 90px; }
+  .etrack { flex: 1; height: 1px; background: #e5e7eb; }
+  .eknob { width: 26px; height: 26px; border-radius: 8px; }
+  .k-cyan { background: #22d3ee; } .k-purple { background: #a855f7; } .k-pink { background: #ec4899; } .k-violet { background: #8b5cf6; }
+  .half { flex: 1 1 440px; display: flex; flex-direction: column; gap: 14px; }
+  .fhead { background: #ffffff; border: 1px solid var(--line); border-radius: 16px; padding: 20px; display: flex; gap: 14px; align-items: flex-start; }
+  .fic { width: 40px; height: 28px; border: 1.5px solid #cbd5e1; border-radius: 6px; flex: 0 0 auto; }
+  .fhead h3 { font-size: 13.5px; line-height: 24px; font-weight: 700; }
+  .fhead p { margin-top: 2px; font-size: 12px; line-height: 18px; color: var(--muted); }
+  .people { background: #fbfbfc; border: 1px solid var(--line); border-radius: 16px; padding: 14px; flex: 1; }
+  .dirlabel { font-family: ui-monospace, Menlo, monospace; font-size: 10px; color: #9ca3af; }
+  .prow { display: flex; align-items: center; gap: 10px; background: #ffffff; border: 1px solid #f0f0f2; border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
+  .prow.rtl { flex-direction: row-reverse; text-align: right; }
+  .pava { width: 30px; height: 30px; border-radius: 50%; background: #c9c2bb; flex: 0 0 auto; }
+  .pava.pink { background: #e8b4c8; } .pava.blue { background: #a8c0d8; }
+  .pname { font-size: 11px; font-weight: 600; }
+  .prole { font-size: 10px; color: #6b7280; }
+  .mcode { background: #0d1117; border: 1px solid #1f242c; border-radius: 12px; padding: 16px 18px; font-family: ui-monospace, Menlo, monospace; font-size: 10.5px; line-height: 18px; color: #c9d1d9; flex: 1; }
+</style>
+</head>
+<body>
+<section class="stack">
+  <div class="panel">
+    <div class="erow"><span class="ethumb">&#9585;</span><span class="ename">linear</span><span class="etrack"></span><span class="eknob k-cyan"></span></div>
+    <div class="erow"><span class="ethumb">&#9586;</span><span class="ename">ease-out</span><span class="etrack"></span><span class="eknob k-purple"></span></div>
+    <div class="erow"><span class="ethumb">&#9587;</span><span class="ename">ease-in-out</span><span class="etrack"></span><span class="eknob k-pink"></span></div>
+    <div class="erow"><span class="ethumb">&#9585;</span><span class="ename">ease-in</span><span class="etrack"></span><span class="eknob k-violet"></span></div>
+  </div>
+    <div class="half">
+      <div class="fhead">
+        <span class="fic"></span>
+        <span>
+          <h3>Logical properties</h3>
+          <p>Supporting multiple language text directions is no longer a nightmare.</p>
+        </span>
+      </div>
+      <div class="people">
+        <span class="dirlabel">ltr</span>
+        <div class="prow"><span class="pava"></span><span><span class="pname">Will Winton</span><br><span class="prole">Director of Operations</span></span></div>
+        <div class="prow"><span class="pava pink"></span><span><span class="pname">Kristin Yardly</span><br><span class="prole">Marketing Coordinator</span></span></div>
+        <div class="prow"><span class="pava blue"></span><span><span class="pname">Emanual Cuccittini</span><br><span class="prole">Staff Engineer</span></span></div>
+        <div class="prow rtl"><span class="pava"></span><span><span class="pname">&#1587;&#1575;&#1585;&#1577; &#1571;&#1581;&#1605;&#1583;</span><br><span class="prole">&#1605;&#1583;&#1610;&#1585;&#1577; &#1605;&#1588;&#1575;&#1585;&#1610;&#1593;</span></span></div>
+      </div>
+    </div>
+    <div class="half">
+      <div class="fhead">
+        <span class="fic"></span>
+        <span>
+          <h3>Container queries</h3>
+          <p>Tag an element as a container to let children adapt to changes in its size.</p>
+        </span>
+      </div>
+      <pre class="mcode"><span style="color:#8b949e"> 1</span> &lt;<span style="color:#ff7b72">div</span> <span style="color:#79c0ff">class</span>=<span style="color:#a5d6ff">"@container"</span>&gt;<br><span style="color:#8b949e"> 2</span>   &lt;<span style="color:#ff7b72">div</span> <span style="color:#79c0ff">class</span>=<span style="color:#a5d6ff">"grid grid-cols-1 @sm:grid-cols-2"</span>&gt;<br><span style="color:#8b949e"> 3</span>     &lt;<span style="color:#ff7b72">img</span><br><span style="color:#8b949e"> 4</span>       <span style="color:#79c0ff">src</span>=<span style="color:#a5d6ff">"/img/photo-1.jpg"</span><br><span style="color:#8b949e"> 5</span>       <span style="color:#79c0ff">class</span>=<span style="color:#a5d6ff">"aspect-square @sm:aspect-3/2 object-cover"</span><br><span style="color:#8b949e"> 6</span>     /&gt;<br><span style="color:#8b949e"> 7</span>     &lt;<span style="color:#ff7b72">img</span><br><span style="color:#8b949e"> 8</span>       <span style="color:#79c0ff">src</span>=<span style="color:#a5d6ff">"/img/photo-2.jpg"</span><br><span style="color:#8b949e"> 9</span>       <span style="color:#79c0ff">class</span>=<span style="color:#a5d6ff">"aspect-square @sm:aspect-3/2 object-cover"</span><br><span style="color:#8b949e">10</span>     /&gt;<br><span style="color:#8b949e">11</span>   &lt;/<span style="color:#ff7b72">div</span>&gt;<br><span style="color:#8b949e">12</span> &lt;/<span style="color:#ff7b72">div</span>&gt;</pre>
+    </div>
+    <div class="fhead" style="flex:1">
+      <span class="fic"></span>
+      <span>
+        <h3>Gradients</h3>
+        <p>No need to remember that complicated gradient syntax — create silky-smooth gradients with just a few utility classes.</p>
+      </span>
+    </div>
+    <div class="fhead" style="flex:1">
+      <span class="fic"></span>
+      <span>
+        <h3>3D transforms</h3>
+        <p>Sometimes two dimensions aren't enough. Scale, rotate, and translate any element in 3D space to add a touch of depth.</p>
+      </span>
+    </div>
+</section>
+</body>
+</html>

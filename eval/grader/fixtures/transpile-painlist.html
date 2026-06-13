@@ -1,0 +1,104 @@
+<!doctype html>
+<!-- @purpose Synthetic fixture for _transpile-selftest.mjs: one construct per spike pain-list item
+     (P1 button icons, P2 CSS math, P3 breakpoint policy, P4 row-child px pin, P5 margin-auto, P6 imagery). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>transpile pain-list fixture</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #ffffff; color: #131316; font-family: "Helvetica Neue", Arial, sans-serif; }
+
+  /* P5: boxed wrapper (max-width + margin auto both sides) */
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
+
+  /* P2: CSS math frozen to computed px at authoring width */
+  .mathy { min-height: clamp(112px, 9vw, 130px); padding-left: max(68px, calc(50% - 608px));
+           display: flex; align-items: center; background: #f8f8f9; }
+
+  /* P1: buttons with icon spans */
+  .ctas { display: flex; gap: 14px; padding: 24px 0; }
+  .btn { display: inline-flex; align-items: center; gap: 10px; height: 36px; padding: 0 18px;
+         border-radius: 999px; font-size: 14px; font-weight: 600; background: #6c47ff; color: #fff; }
+  .btn .arr { font-size: 10px; }
+  .btn-ghost { background: #fff; color: #131316; border: 1px solid #e3e3e6; }
+  .gbtn { display: inline-flex; align-items: center; gap: 10px; height: 36px; padding: 0 18px;
+          border-radius: 999px; font-size: 14px; background: #fff; border: 1px solid #e6e6e9; color: #131316; }
+  .gbtn .gicon { font-weight: 700; color: #4285f4; }
+  .cbtn { display: inline-flex; align-items: center; gap: 10px; height: 36px; padding: 0 18px;
+          border-radius: 999px; font-size: 14px; background: #fff; border: 1px solid #e6e6e9; color: #131316; }
+  .cbtn .circ { width: 16px; height: 16px; border-radius: 50%; background: #131316; }
+
+  /* P4: row children with no declared width */
+  .row2 { display: flex; align-items: flex-start; }
+  .panel { padding: 12px; }
+
+  /* P5: margin-left:auto pushes trailing group right */
+  .bar { display: flex; align-items: center; padding: 8px 0; }
+  .pushed { margin-left: auto; }
+
+  /* P5: margin auto both sides in a column parent */
+  .stack { display: flex; flex-direction: column; padding: 16px 0; }
+  .centered { width: 300px; margin-left: auto; margin-right: auto; background: #f3f3f3; padding: 8px;
+              border: 1px solid #ececef; border-radius: 8px; }
+
+  /* P3: custom breakpoint (>1024) → tablet controls + scoped custom_css */
+  @media (max-width: 1180px) {
+    .row2 { flex-direction: column; align-items: center; }
+    .textcol { text-align: center; }
+  }
+  /* P3: standard tablet breakpoint → native controls only for mapped declarations */
+  @media (max-width: 1024px) {
+    .bar { justify-content: center; }
+  }
+  /* P3: mobile breakpoint with display:none → hide_mobile */
+  @media (max-width: 600px) {
+    .pushed { display: none; }
+  }
+  /* P3: min-width queries are out of contract → PAIN */
+  @media (min-width: 1600px) {
+    .wrap { max-width: 1400px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="mathy"><div class="wrap"><p>Math section: clamp + max(calc) frozen at the authoring width.</p></div></div>
+
+<section>
+  <div class="wrap">
+    <div class="ctas">
+      <a class="btn" href="#">Start building <span class="arr">&#9656;</span></a>
+      <a class="btn btn-ghost" href="#"><span class="arr">&#10003;</span> Leading icon</a>
+      <a class="gbtn" href="#"><span class="gicon">G</span>Continue with Google</a>
+      <a class="cbtn" href="#"><span class="circ"></span>Continue with GitHub</a>
+    </div>
+
+    <div class="row2">
+      <div class="textcol">
+        <h2>Two column row</h2>
+        <p>Left text column with no declared width: the transpiler must pin px + buffer.</p>
+      </div>
+      <div class="panel">
+        <p>Right panel, also unsized.</p>
+      </div>
+    </div>
+
+    <div class="bar">
+      <span>Brand</span>
+      <a class="pushed" href="#">Sign in</a>
+    </div>
+
+    <div class="stack">
+      <div class="centered"><p>Centered card via margin auto.</p></div>
+    </div>
+
+    <p>Manifest image: <img src="swatch.png" alt="swatch" width="48" height="48"></p>
+    <p>Preuploaded image: <img src="already-hosted.png" alt="hosted" width="32" height="32"></p>
+    <p>Unmanifested image: <img src="missing-asset.png" alt="missing" width="24" height="24"></p>
+    <svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><circle cx="20" cy="20" r="18" fill="#6c47ff"/></svg>
+  </div>
+</section>
+
+</body>
+</html>

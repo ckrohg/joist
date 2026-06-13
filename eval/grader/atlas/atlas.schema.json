@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "joist://atlas/atlas.schema.json",
+  "title": "Joist Elementor Capability Atlas (v0)",
+  "description": "@purpose Machine-checked schema for the Elementor capability atlas (EMBODIMENT_APPROACH.md move (a), P1 WP-free half). One record per construct (pre-registered unit: EMBODIMENT_APPROACH.md §4.1, commit 440bb78). Cells start status=assumed; P5 probes flip them to verified/gap with measured deltas. The atlas is the load-bearing input to the P2 authoring contract/linter and the (d) residual policy.",
+  "type": "object",
+  "required": ["atlasVersion", "unit", "environment", "constructs"],
+  "properties": {
+    "atlasVersion": { "type": "string" },
+    "generated": { "type": "string", "format": "date-time" },
+    "unit": {
+      "type": "string",
+      "description": "Reference to the pre-registered construct unit (doc section + locking commit)."
+    },
+    "environment": {
+      "type": "object",
+      "description": "Atlas verdicts are versioned per environment (C §5.2); 'unprobed' until P5 runs against a live stack.",
+      "required": ["elementorVersion", "theme", "kitHash"],
+      "properties": {
+        "elementorVersion": { "type": "string" },
+        "elementorPro": { "type": ["string", "boolean"] },
+        "theme": { "type": "string" },
+        "plugins": { "type": "array", "items": { "type": "string" } },
+        "kitHash": { "type": "string" }
+      }
+    },
+    "constructs": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/construct" } }
+  },
+  "$defs": {
+    "construct": {
+      "type": "object",
+      "required": ["id", "keyTriple", "histogram", "authoringContract", "elementorTarget", "expressibility", "probe", "residualChannelDefault", "provenance"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+        "aliases": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Named heads (nav-row, hero-stack, …) are aliases for key-triples per §4.1; aliases may grow, the triple definition may not."
+        },
+        "keyTriple": {
+          "type": "object",
+          "description": "§4.1 construct identity. Patterns may use '*' where the construct spans several concrete values of one axis.",
+          "required": ["structuralSignature", "contentClasses", "propertyClasses"],
+          "properties": {
+            "structuralSignature": { "type": "string" },
+            "contentClasses": { "type": "string", "description": "presence-bucketed multiset, e.g. 'heading:1,body-text:many,button-cta:1' or 'leaf:<class>'" },
+            "propertyClasses": { "type": "string", "description": "e.g. 'bg:flat,bs:no,rad:rounded,dyn:static'" }
+          }
+        },
+        "histogram": {
+          "type": "object",
+          "required": ["count"],
+          "properties": {
+            "count": { "type": "integer", "minimum": 0, "description": "Occurrences under the pre-registered unit (histogram.json). 0 = not detectable in static capture or absent; see notes." },
+            "sites": { "type": "integer", "minimum": 0 },
+            "note": { "type": "string" }
+          }
+        },
+        "authoringContract": {
+          "type": "object",
+          "description": "What the vision-author may emit for this construct (P2 contract = atlas-expressible only). Surface syntax is HTML-shaped; every construct must map to a transpile rule.",
+          "required": ["snippet"],
+          "properties": {
+            "snippet": { "type": "string", "description": "Minimal HTML-shaped authoring example." },
+            "constraints": { "type": "array", "items": { "type": "string" }, "description": "Lint rules the conformance linter enforces for this construct." }
+          }
+        },
+        "elementorTarget": {
+          "type": "object",
+          "description": "The native shape this construct transpiles to.",
+          "required": ["shape"],
+          "properties": {
+            "shape": { "type": "string", "description": "Tree sketch, e.g. 'container(flex-col) > heading + text-editor + button'." },
+            "widgetTypes": { "type": "array", "items": { "type": "string" } },
+            "keySettings": { "type": "object", "additionalProperties": true, "description": "Load-bearing setting keys with verified spellings (e.g. container 'padding' vs widget '_padding')." }
+          }
+        },
+        "expressibility": {
+          "type": "object",
+          "required": ["status", "strategy"],
+          "properties": {
+            "status": {
+              "enum": ["verified", "assumed", "gap"],
+              "description": "verified = P5 probe passed on this environment; assumed = seeded from docs/memories, pending probe; gap = known inexpressible at this strategy without escalation."
+            },
+            "strategy": {
+              "enum": ["native", "widget-composition", "inline-style", "custom_css", "html-widget", "gsap", "region-raster"],
+              "description": "Primary expression strategy on the C §6 channel ladder (editability order)."
+            },
+            "ceiling": { "type": "string", "description": "Honest expected fidelity ceiling, from the capability matrix." },
+            "proRequired": { "type": "boolean" },
+            "notes": { "type": "string" }
+          }
+        },
+        "probe": {
+          "type": "object",
+          "description": "P5 render-verification spec: AUTHOR column (save-survival) + RENDER column (frontend vs ground truth), MIDI-style two verdicts.",
+          "required": ["author", "render", "assert"],
+          "properties": {
+            "author": { "type": "string", "description": "What to PUT (widget/settings sketch); AUTHOR passes iff Document::save() + kses + V4 normalization round-trips byte-stably (lenient hash)." },
+            "render": { "type": "string", "description": "What to screenshot/measure on the frontend." },
+            "assert": { "type": "array", "items": { "type": "string" }, "description": "Pass conditions; DEGRADED = pass-with-measured-Δ." }
+          }
+        },
+        "residualChannelDefault": {
+          "enum": ["none", "inline-style", "custom_css", "html-widget", "gsap", "region-raster"],
+          "description": "Default escalation channel when native projection error exceeds threshold (move d). Every escalation is ledgered."
+        },
+        "knownGaps": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Sub-features already known (from docs/memories) to exceed the primary strategy — candidates for 'gap' status after P5 confirms."
+        },
+        "provenance": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" },
+          "description": "Where the seed knowledge came from (knowledge/ docs, transpiler, memories). 'assumed-pending-probe' cells cite docs, never probes."
+        }
+      }
+    }
+  }
+}
