@@ -5092,6 +5092,17 @@
       "action": "GRID_W 0.20->0 (grid computed+reported best-effort, EXCLUDED from score). Rewrote _gridreflow-selftest.mjs as a self-contained rail-discrimination falsifier (builds its own RED, asserts GREEN-pass/RED-fail via the PROVEN dims overflow+typo, tears down). Now reliably PASSES: GREEN 1.0 vs RED 0.56, RED fails via typo-stuck (deterministic).",
       "railValidatedDiscrimination": "GREEN(page83) 1.0 PASS vs RED(pre-fix) ~0.53-0.56 FAIL \u2014 carried by falsifier-proven dims: horizontal-overflow (RED +69px@390) + typography-stuck (RED hero 64px all widths) + height-sanity. These I reproduced independently across multiple runs.",
       "openItem": "re-enable grid scoring once scratch-RED render reliably settles lazy card images (settleLazy pattern). Page 83 untouched throughout; no scratch pages leaked."
+    },
+    {
+      "name": "responsive-rail-grid-REENABLED-blessed",
+      "date": "2026-06-13",
+      "commit": "89e5235 on main (settleLazy capture hardening \u2192 GRID_W 0\u21920.20)",
+      "kind": "eval-integrity (re-enable after honest exclusion) \u2014 orchestrator independently reproduced 3/3",
+      "fix": "rail probeWidth now runs bounded idempotent settleLazy() (scroll full page \u2192 wait <img> complete+decode \u2192 return to top BEFORE rect read; reversible RAIL_NO_SETTLE=1), making card measurement invariant to capture timing. This fixes the cold-scratch-RED abstention I observed last tick (cards unpainted at rect-read \u2192 boxes collapse < GRID_MIN_BOX \u2192 grid abstains).",
+      "orchestratorReExec": "ran the self-contained selftest 3\u00d7 independently; EVERY run: fresh cold RED (pages 146/147/148) grid APPLICABLE (no abstention), gridScore GREEN 1.0 vs RED 0.655 (stable 0.345 margin), retain768 GREEN 0.571 < RED 0.857, RED also fails via typo-stuck. 3/3 PASS + agent's 10 cold runs = 13 cold-RED reproductions, zero abstentions.",
+      "verdict": "VALIDATED \u2014 grid-reflow dim is reproducibly discriminating, legitimately re-enabled (GRID_W=0.20). My earlier exclusion (cbeaa6d) was correct AT THE TIME (pre-settleLazy); the hardening earned the re-enable.",
+      "railWeights": "perWidth(overflow0.6+height0.4)=0.50, typo=0.30, grid=0.20 (sum 1.0); pass>=0.80",
+      "safety": "page 83 untouched (re-grades identical 1.0); all scratch pages (131-148) torn down; transpile-html.mjs + shipped fixes unchanged (diff = 2 grader files only); no shared host"
     }
   ],
   "phase5backlog_wave3": [
