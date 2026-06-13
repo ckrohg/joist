@@ -69,10 +69,57 @@ Combined full-page tree (as rendered) — **292 nodes, every element id-stamped 
 - **>1024 custom breakpoints ride `custom_css`.** Native Elementor breakpoints are tablet≤1024
   / mobile≤767; clerk's 1280/1340/900/640 queries land via scoped per-element `@media`
   `custom_css` (Pro selector channel) rather than native responsive controls.
-- **Images served from a static uploads dir, not the WP media library.** For this render the
-  42 assets were copied to `wp-content/uploads/clerk-assets/` and the image-widget URLs
-  rewritten to that path (no auth/mime friction; svg serves fine). The transpiler's own
-  non-dry-run path would instead upload to WP media via Joist REST.
+- ~~**Images served from a static uploads dir, not the WP media library.**~~ **RESOLVED
+  2026-06-12** — the 42 assets are now imported as REAL WP media attachments (ids 84–126,
+  with width/height metadata) via `upload-assets-local.mjs` (`media_handle_sideload`, svg mime
+  allowed for the local sandbox). Image widgets carry `image.id` + the captured pixel box.
+
+## 5. IMAGERY + SECTION-ORDER fix (2026-06-12)
+
+Two located full-page bugs fixed; re-rendered to page 83.
+
+### (A) Imagery rendered as placeholder boxes → FIXED (43/43 real images)
+Root cause was a chain: (1) image widgets pointed at bare static URLs with NO WP attachment
+id; (2) Elementor 3.28's image widget has no standalone width/height control (only
+`image_size` + `image_custom_dimension`, which needs an attachment to size) — the transpiler's
+old `width:{unit,size}` was silently dropped; (3) so far-below-the-fold `loading="lazy"`
+images reserved no box, collapsed to height:0, never entered the lazy IntersectionObserver,
+never decoded → 29/43 painted as empty grey boxes. Fixes:
+- **`eval/grader/transpile-html.mjs` imageWidget** (~L496–547): emit `image_size:'custom'` +
+  `image_custom_dimension:{width,height}` from the captured box (raster); for SVG attachments
+  (vector — Elementor skips the dimension CSS) keep `image_size:'full'` and pin the box on the
+  wrapper via the native `_element_custom_width` control. Capture now also records
+  `attrH/natW/natH` (~L202) for the aspect derivation.
+- **`sandbox/upload-assets-local.mjs`** (NEW asset-upload helper): import the 42 captured
+  assets into WP media → ids + dimensions; idempotent (re-uses by `_joist_src` meta).
+- **`sandbox/snapshots/clerk-fullpage/joist-eager-images.mu-plugin.php`** (NEW, local sandbox,
+  analogous to the Suisse font mu-plugin): `wp_lazy_loading_enabled => false` so every image
+  decodes regardless of viewport — a headless full-page screenshot never scroll-triggers lazy
+  loads. Copy lives in the container at `mu-plugins/joist-eager-images.php`.
+
+LOOK + DOM probe (page 83 @1440): `brokenCount 0`, `zeroRenderCount 0`, all 43 image widgets
+`naturalWidth>0` + `rect.w/h>0`. 43/43 image.url point at the local WP media library;
+43/43 attachment-backed; 0 placeholders.
+
+### (B) Announcement bar below nav (order inverted) → FIXED
+Source `<body>` order is `<a class="annc">` (the "Clerk raises $50m Series C" bar) FIRST, then
+`<header class="hdr">`. `splitSiteParts()` detached `<header>` and the ad-hoc full-page
+recompose prepended it at the very top — above the announcement bar — so nav rendered ABOVE
+announce. Fix: the full-page driver runs `transpile({ siteParts:false })` so the header stays
+INLINE at its true DOM position; announcement-above-nav then holds by construction (the Theme
+Builder site-part split is still the default for the production/per-page path — only the single
+full-page sandbox render opts out). Driver: **`sandbox/render-clerk-fullpage.mjs`** (NEW).
+LOOK + DOM probe: announce top=0, nav (Products) top=51 → announce ABOVE nav, `orderCorrect:true`.
+
+### Final state (re-rendered)
+- 292 nodes, 0 missing ids (id-stamping intact). Suisse webfont intact.
+- Native census UNCHANGED: container 101 · text-editor 112 · image 43 · heading 22 · html 13 ·
+  button 1. **0 raster fallbacks** — still entirely native widgets.
+- Self-test `_transpile-selftest.mjs`: **42 passed, 0 failed** (updated the P6 sizing assertion
+  to the custom-dimension contract; hero icon-button count now walks site parts too).
+- As-stored (id-stamped) tree `sha256 e6c1c8af54686e6ca23fc64d3501d39097fbba688448713eab01fcdf7c6968df`;
+  composed (pre-id, deterministic) tree `sha1 41e65ef1b02b1a76f8f4cce6c6647bcdcd9a063d`.
+- Reproduce: `node sandbox/render-clerk-fullpage.mjs --page 83` (omit `--no-upload` to re-import).
 
 ## Artifacts
 

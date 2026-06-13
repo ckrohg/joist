@@ -200,6 +200,8 @@ export async function extract(htmlFile, width) {
           tag: 'img', cls: el.className || '', isLeaf: true, text: null,
           src: el.getAttribute('src') || '', resolvedSrc: el.currentSrc || el.src || '', alt: el.alt || '',
           attrW: parseInt(el.getAttribute('width'), 10) || 0,
+          attrH: parseInt(el.getAttribute('height'), 10) || 0,
+          natW: el.naturalWidth || 0, natH: el.naturalHeight || 0,
           rect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) },
           declared: declared(el), media: mediaOf(el), s: {},
         };
@@ -508,13 +510,40 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
     if (asset && asset.url) { url = asset.url; id = asset.id; }
     else if (asset && asset.pendingFile) { url = pathToFileURL(asset.pendingFile).href; policy(`P6 image ${key}: dry-run — upload pending for ${asset.pendingFile}`); }
     else { url = n.resolvedSrc || n.src; pain(`P6 image "${n.src}": no assets-manifest entry — hot-linking original src (capture-assets should supply this file)`); }
+    // SIZING (P6, 2026-06-12 fix): Elementor 3.28's image widget has NO standalone `width`/
+    // `height`/`space` control — only `image_size` + `image_custom_dimension`. The old
+    // `width:{unit,size}` was silently dropped, leaving image_size:'full' → CSS-only sizing.
+    // Far-down lazy images then collapsed to height:0 (no intrinsic aspect to reserve a box,
+    // never entered the lazy intersection → naturalWidth stayed 0 → invisible "placeholder
+    // boxes"). Emit image_size:'custom' + explicit pixel width/height from the captured
+    // rendered box so Elementor stamps width=/height= on the <img>, reserving the box AND
+    // giving the browser intrinsic dimensions that trigger decode. Width prefers a declared
+    // px width, else the rendered/attr width; height is derived from the captured aspect
+    // ratio (natural box) so it survives even when the source set only a width.
+    const decW = (n.declared && /px$/.test(n.declared.width || '') && !CSS_MATH.test(n.declared.width)) ? px(n.declared.width) : 0;
+    const w = decW || n.attrW || n.rect.w || n.natW || 0;
+    const aspect = (n.natW && n.natH) ? (n.natH / n.natW)
+      : (n.rect && n.rect.w && n.rect.h) ? (n.rect.h / n.rect.w)
+      : (n.attrW && n.attrH) ? (n.attrH / n.attrW) : 0;
+    const h = n.attrH || (n.rect && n.rect.h) || (aspect && w ? Math.round(w * aspect) : 0);
+    // SIZING. Raster: image_size:custom + image_custom_dimension reserves the captured box
+    // (Elementor emits `img{width:Npx;height:Npx}` to per-element CSS) — fixes the lazy-collapse
+    // placeholder-box bug. SVG (vector attachment): Elementor SKIPS the dimension CSS for
+    // image_size:custom (no raster thumbnail to resolve), so a custom SVG whose viewBox differs
+    // from the captured box collapses to 0×0 once its wrapper goes width:auto. For SVGs we keep
+    // image_size:full and pin the box on the WRAPPER via the native _element_custom_width control
+    // (reliably flushed to per-element CSS — unlike Pro custom_css, which this stack doesn't emit)
+    // so the vector scales to the captured width preserving its aspect.
+    const isSvg = /\.svg(\?|$)/i.test(String(url));
     const set = {
       image: { url, ...(id ? { id } : {}) },
-      image_size: 'full',
-      width: { unit: 'px', size: (n.declared && /px$/.test(n.declared.width || '') && !CSS_MATH.test(n.declared.width)) ? px(n.declared.width) : (n.attrW || n.rect.w) },
+      ...((w && h && !isSvg)
+        ? { image_size: 'custom', image_custom_dimension: { width: String(w), height: String(h) } }
+        : { image_size: 'full' }),
       ...widgetCommon(n),
     };
-    if (parent && parent.s && parent.s.display.includes('flex') && parent.s['flex-direction'] === 'row') set._element_width = 'auto';
+    if (isSvg && w) { set._element_width = 'initial'; set._element_custom_width = { unit: 'px', size: w }; }
+    else if (parent && parent.s && parent.s.display.includes('flex') && parent.s['flex-direction'] === 'row') set._element_width = 'auto';
     applyMedia(n, set, 'align');
     return { elType: 'widget', widgetType: 'image', settings: set };
   }
@@ -579,6 +608,34 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
   }
 
   return { mapNode, counts, PAIN, POLICY };
+}
+
+// ── site-part landmark split (§8d basics: header/footer become Pro Theme Builder documents) ────────────────
+/**
+ * Detach <header>/<footer> landmark sections (and a top-level <nav> when no <header> exists) from the spec
+ * tree so they can be authored as SITE PARTS (POST /joist/v1/site-parts → Pro Theme Builder documents with
+ * per-page display conditions) instead of being baked into the page tree. Landmarks are sought DOM-order,
+ * depth <= 2 under <body> (direct children + one wrapper level). MUTATES specTree (removes the found nodes).
+ * Returns [{ type: 'header'|'footer', node, tag, cls }] — empty when the page has no chrome landmarks.
+ */
+export function splitSiteParts(specTree) {
+  const seek = (pred) => {
+    let hit = null;
+    (function walk(n, depth, parent) {
+      if (hit) return;
+      if (depth > 0 && pred(n)) { hit = { node: n, parent }; return; }
+      if (depth >= 2) return;
+      for (const c of n.children || []) { walk(c, depth + 1, n); if (hit) return; }
+    })(specTree, 0, null);
+    return hit;
+  };
+  const detach = ({ node, parent }) => { parent.children = parent.children.filter((c) => c !== node); };
+  const parts = [];
+  const header = seek((n) => n.tag === 'header') || seek((n) => n.tag === 'nav');
+  if (header) { detach(header); parts.push({ type: 'header', node: header.node, tag: header.node.tag, cls: String(header.node.cls || '') }); }
+  const footer = seek((n) => n.tag === 'footer'); // sought AFTER the header detach so a nested node can't double-claim
+  if (footer) { detach(footer); parts.push({ type: 'footer', node: footer.node, tag: footer.node.tag, cls: String(footer.node.cls || '') }); }
+  return parts;
 }
 
 // ── asset manifest resolution + WP media upload (P6) ───────────────────────────────────────────────────────
@@ -707,12 +764,24 @@ export async function serverValidate(root, { base, b64 }) {
 }
 
 // ── orchestration ───────────────────────────────────────────────────────────────────────────────────────────
-export async function transpile({ html, width = 1440, assets, outDir, dryRun, base, b64 }) {
+export async function transpile({ html, width = 1440, assets, outDir, dryRun, base, b64, siteParts: sitePartsEnabled = true }) {
   fs.mkdirSync(outDir, { recursive: true });
   const spec = await extract(html, width);
   const manifest = loadManifest(assets);
+  // resolveAssets walks the FULL tree (header logos resolve too) — split AFTER.
   const { assetMap, notes } = await resolveAssets(spec.tree, manifest, { dryRun, base, b64, outDir });
   const mapper = makeMapper({ assetMap, authoringWidth: width });
+  // §8d: landmark chrome → site parts (Theme Builder documents), page tree stays content-only.
+  const partNodes = sitePartsEnabled ? splitSiteParts(spec.tree) : [];
+  const siteParts = partNodes.map(({ type, node, tag, cls }) => {
+    const partRoot = mapper.mapNode(node, null, []);
+    partRoot.settings.content_width = 'full';
+    mapper.POLICY.push(`P7 site-part: <${tag}${cls ? ` class="${cls}"` : ''}> extracted as ${type} site part (Pro Theme Builder document; page goes content-only)`);
+    return { type, root: partRoot };
+  });
+  // Canvas suppresses Pro theme headers/footers — flip to Full Width when chrome was extracted.
+  const template = siteParts.length ? 'elementor_header_footer' : 'elementor_canvas';
+  if (siteParts.length) mapper.POLICY.push(`P7 site-part: page template elementor_canvas → elementor_header_footer (Canvas suppresses Theme Builder parts)`);
   const root = mapper.mapNode(spec.tree, null, []);
   root.settings.content_width = 'full';
   for (const note of new Set([...spec.notes, ...notes])) {
@@ -720,19 +789,24 @@ export async function transpile({ html, width = 1440, assets, outDir, dryRun, ba
     else if (!mapper.POLICY.includes(note)) mapper.POLICY.push(note);
   }
   const localErrors = validateTree([root]);
+  for (const p of siteParts) validateTree([p.root], localErrors, `site-part:${p.type}`);
   const treeJson = JSON.stringify([root], null, 2);
   fs.writeFileSync(path.join(outDir, 'tree.json'), treeJson);
+  const sitePartsJson = JSON.stringify(siteParts, null, 2);
+  if (siteParts.length) fs.writeFileSync(path.join(outDir, 'site-parts.json'), sitePartsJson);
   const report = {
     html: path.resolve(html), authoringWidth: width, dryRun: !!dryRun,
     counts: mapper.counts, pain: mapper.PAIN, policy: mapper.POLICY,
+    template,
+    siteParts: siteParts.map((p) => ({ type: p.type, sha1: sha1(JSON.stringify(p.root)) })),
     validation: { localErrors, server: null },
     treeSha1: sha1(treeJson),
   };
   fs.writeFileSync(path.join(outDir, 'report.json'), JSON.stringify(report, null, 2));
-  return { root, report, mapper };
+  return { root, siteParts, template, report, mapper };
 }
 
-export async function putPage(root, { base, b64, pageId, create, title }) {
+export async function putPage(root, { base, b64, pageId, create, title, siteParts = [], template = 'elementor_canvas' }) {
   const auth = { Authorization: 'Basic ' + b64, 'Content-Type': 'application/json' };
   if (!pageId && create) {
     const cr = await fetch(`${base}/wp-json/wp/v2/pages`, { method: 'POST', headers: auth, body: JSON.stringify({ title: title || 'html-first transpile', status: 'publish' }) });
@@ -753,8 +827,27 @@ export async function putPage(root, { base, b64, pageId, create, title }) {
     await new Promise((res) => setTimeout(res, 400));
   }
   if (r.status >= 300) throw new Error(`PUT failed ${r.status}: ${txt.slice(0, 200)}`);
-  const mr = await fetch(`${base}/wp-json/wp/v2/pages/${pageId}`, { method: 'POST', headers: auth, body: JSON.stringify({ status: 'publish', template: 'elementor_canvas', meta: { _elementor_edit_mode: 'builder', _wp_page_template: 'elementor_canvas' } }) });
-  return { pageId, putStatus: r.status, metaStatus: mr.status, url: `${base}/?page_id=${pageId}` };
+  // §8d: chrome landmarks → Theme Builder site parts, display-conditioned to THIS page only
+  // (include/singular/page/<id>) so a transpiled header can never leak onto unrelated pages.
+  const partResults = [];
+  for (const part of siteParts) {
+    const pr = await fetch(`${base}/wp-json/joist/v1/site-parts`, {
+      method: 'POST', headers,
+      body: JSON.stringify({
+        type: part.type,
+        elements: [part.root],
+        conditions: [`include/singular/page/${pageId}`],
+        title: `${title || 'transpile'} — ${part.type} (page ${pageId})`,
+        intent: 'html-first transpile site part',
+      }),
+    });
+    const ptxt = await pr.text();
+    if (pr.status >= 300) throw new Error(`site-part POST (${part.type}) failed ${pr.status}: ${ptxt.slice(0, 300)}`);
+    let pj = {}; try { pj = JSON.parse(ptxt); } catch {}
+    partResults.push({ type: part.type, id: pj.id, hash: pj.hash, conditions: pj.conditions, render_check_required: pj.render_check_required !== false });
+  }
+  const mr = await fetch(`${base}/wp-json/wp/v2/pages/${pageId}`, { method: 'POST', headers: auth, body: JSON.stringify({ status: 'publish', template, meta: { _elementor_edit_mode: 'builder', _wp_page_template: template } }) });
+  return { pageId, putStatus: r.status, metaStatus: mr.status, template, siteParts: partResults, url: `${base}/?page_id=${pageId}` };
 }
 
 // ── CLI ─────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -763,16 +856,17 @@ if (isMain) {
   const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i >= 0 && process.argv[i + 1] !== undefined ? process.argv[i + 1] : d; };
   const has = (k) => process.argv.includes('--' + k);
   const html = arg('html');
-  if (!html) { console.error('usage: transpile-html.mjs --html <file> [--width 1440] [--assets m.json] [--out dir] [--dry-run] [--page id | --create] [--title t] [--no-server-validate]'); process.exit(2); }
+  if (!html) { console.error('usage: transpile-html.mjs --html <file> [--width 1440] [--assets m.json] [--out dir] [--dry-run] [--page id | --create] [--title t] [--no-server-validate] [--no-site-parts]'); process.exit(2); }
   const dryRun = has('dry-run');
   const base = arg('base', process.env.JOIST_BASE || 'https://georges232.sg-host.com');
   const b64 = process.env.JOIST_AUTH_B64;
   if (!dryRun && !b64) { console.error('need JOIST_AUTH_B64 (or --dry-run)'); process.exit(2); }
   const outDir = arg('out', '/tmp/htmlfirst-v1/' + path.basename(html).replace(/\.html?$/, ''));
   (async () => {
-    const { root, report, mapper } = await transpile({ html, width: +arg('width', 1440), assets: arg('assets'), outDir, dryRun, base, b64 });
+    const { root, siteParts, template, report, mapper } = await transpile({ html, width: +arg('width', 1440), assets: arg('assets'), outDir, dryRun, base, b64, siteParts: !has('no-site-parts') });
     console.log('widget counts:', JSON.stringify(mapper.counts));
     console.log('tree sha1:', report.treeSha1, '→', path.join(outDir, 'tree.json'));
+    if (siteParts.length) console.log('site parts:', siteParts.map((p) => p.type).join(', '), '→', path.join(outDir, 'site-parts.json'), `(page template: ${template})`);
     if (report.validation.localErrors.length) {
       console.error('LOCAL VALIDATION FAILED:'); report.validation.localErrors.forEach((e) => console.error(' -', e));
       process.exit(1);
@@ -780,6 +874,10 @@ if (isMain) {
     console.log('local validation: OK');
     if (!dryRun && !has('no-server-validate')) {
       const sv = await serverValidate(root, { base, b64 });
+      for (const p of siteParts) {
+        const psv = await serverValidate(p.root, { base, b64 });
+        sv.checked += psv.checked; sv.errors.push(...psv.errors.map((e) => ({ ...e, sitePart: p.type })));
+      }
       report.validation.server = sv;
       fs.writeFileSync(path.join(outDir, 'report.json'), JSON.stringify(report, null, 2));
       if (sv.errors.length) {
@@ -794,10 +892,11 @@ if (isMain) {
     if (dryRun) { console.log('dry-run: no PUT'); return; }
     const pageId = arg('page');
     if (!pageId && !has('create')) { console.log('no --page/--create: transpile-only'); return; }
-    const res = await putPage(root, { base, b64, pageId, create: has('create'), title: arg('title') });
+    const res = await putPage(root, { base, b64, pageId, create: has('create'), title: arg('title'), siteParts, template });
     report.put = res;
     fs.writeFileSync(path.join(outDir, 'report.json'), JSON.stringify(report, null, 2));
-    console.log('PUT', res.putStatus, 'meta', res.metaStatus);
+    console.log('PUT', res.putStatus, 'meta', res.metaStatus, 'template', res.template);
+    for (const p of res.siteParts || []) console.log(`SITE PART ${p.type}: id ${p.id} hash ${p.hash} (render check required)`);
     console.log('URL:', res.url);
   })().catch((e) => { console.error('FATAL:', e.message); process.exit(1); });
 }

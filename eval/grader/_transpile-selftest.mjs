@@ -36,9 +36,14 @@ const run = (html, out, assets) => {
   const args = [path.join(dir, 'transpile-html.mjs'), '--html', path.join(dir, html), '--dry-run', '--out', out];
   if (assets) args.push('--assets', path.join(dir, assets));
   execFileSync('node', args, { stdio: 'pipe' });
+  // site-parts.json is written only when chrome landmarks (<header>/<footer>) are extracted;
+  // its part roots hold widgets (e.g. a header CTA button) that live OUTSIDE the main tree.
+  let siteParts = [];
+  try { siteParts = JSON.parse(fs.readFileSync(path.join(out, 'site-parts.json'), 'utf8')); } catch { /* none */ }
   return {
     tree: JSON.parse(fs.readFileSync(path.join(out, 'tree.json'), 'utf8')),
     report: JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8')),
+    siteParts,
   };
 };
 const flat = (tree) => { const out = []; (function w(e) { for (const el of e) { out.push(el); w(el.elements || []); } })(tree); return out; };
@@ -111,7 +116,10 @@ const { tree, report } = run('fixtures/transpile-painlist.html', outA, 'fixtures
   check('P6 pre-uploaded manifest entry used verbatim (url+id, no upload)', hosted && hosted.settings.image.id === 424242);
   const pending = imgs.find((i) => /swatch\.png$/.test(i.settings.image.url));
   check('P6 local manifest file → dry-run pending (file:// + policy)', pending && pending.settings.image.url.startsWith('file://') && report.policy.some((p) => /upload pending/.test(p)));
-  check('P6 image width from attr/declared (48px)', pending && pending.settings.image_size === 'full' && pending.settings.width?.size === 48);
+  // SIZING (2026-06-12): image widgets reserve the captured box via image_size:custom +
+  // image_custom_dimension (Elementor 3.28 has no standalone width/height control; the old
+  // `width:{}` was silently dropped, leaving far-down lazy images to collapse to 0×0).
+  check('P6 image custom dimension from attr/declared (48×48)', pending && pending.settings.image_size === 'custom' && pending.settings.image_custom_dimension?.width === '48' && pending.settings.image_custom_dimension?.height === '48');
   check('P6 unmanifested img → hotlink + PAIN', imgs.some((i) => /missing-asset/.test(i.settings.image.url)) && report.pain.some((p) => /P6 image "missing-asset.png"/.test(p)));
   const html = widgets(tree, 'html');
   check('P6 inline svg → html-widget fallback (dry-run)', html.length === 1 && /^<svg /.test(html[0].settings.html) && report.policy.some((p) => /P6 inline svg .*html-widget fallback/.test(p)));
@@ -139,9 +147,13 @@ const { tree, report } = run('fixtures/transpile-painlist.html', outA, 'fixtures
 // clerk-hero spike regression (the PROVEN page-24647 lineage)
 console.log('— clerk-hero spike fixture (dry-run regression) —');
 {
-  const { tree: hero, report: heroReport } = run('fixtures/clerk-hero-spike.html', outHero);
+  const { tree: hero, report: heroReport, siteParts: heroParts } = run('fixtures/clerk-hero-spike.html', outHero);
   check('hero: spike widget counts preserved (28/3/20/5 native)', JSON.stringify(heroReport.counts) === JSON.stringify({ container: 28, heading: 3, 'text-editor': 20, button: 5, image: 0, html: 0 }), JSON.stringify(heroReport.counts));
-  const iconButtons = widgets(hero, 'button').filter((b) => b.settings.selected_icon);
+  // Count icon buttons across the page tree AND any extracted site parts: the site-part split
+  // (default-on) lifts the <header> CTA "Start building" into a header part, so an icon-button
+  // assertion that only walked the main tree under-counts (the button still gained its icon).
+  const heroAll = [hero, ...heroParts.map((p) => [p.root])];
+  const iconButtons = heroAll.flatMap((t) => widgets(t, 'button')).filter((b) => b.settings.selected_icon);
   check('hero: >=3 buttons gained native icons (was 5x flatten PAIN)', iconButtons.length >= 3, `found ${iconButtons.length}`);
   check('hero: no arrow/chevron flatten PAIN remains', !heroReport.pain.some((p) => /flattened to plain text/.test(p)));
   const compRow = flat(hero).filter((e) => e.elType === 'container').find((c) => c.settings.flex_direction_tablet === 'column' && c.settings.flex_align_items_tablet === 'center');
