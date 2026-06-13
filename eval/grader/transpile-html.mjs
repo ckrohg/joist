@@ -304,6 +304,39 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
     return o;
   }
 
+  // MOVE 1 — NATIVE responsive typography. Elementor's custom_css @media channel is STRIPPED on
+  // the Hello+free atomic stack, so a font-size step authored in a source `@media (max-width:Npx)`
+  // is silently lost (hero h1 stayed 64px at every width). Resolve the source font-size (and the
+  // matching line-height) at the TABLET representative width (768) and MOBILE representative width
+  // (390) by replaying the desktop-first cascade over n.media, then emit NATIVE
+  // typography_font_size_tablet / _mobile (+ line-height) controls — which demonstrably survive.
+  // Cascade rule: a `@media (max-width:Mpx)` block applies at target width T iff T <= M; among the
+  // applicable blocks the most-specific (smallest M) wins (last-wins in source order). n.media is
+  // sorted descending by .w, so the smallest applicable M is the LAST match.
+  const TYPO_BP = [{ sfx: '_tablet', target: 768 }, { sfx: '_mobile', target: 390 }];
+  function resolveMediaProp(media, prop, target) {
+    let val; // most-specific applicable wins → smallest m.w >= target
+    let bestW = Infinity;
+    for (const m of media || []) {
+      if (target <= m.w && m.decls[prop] !== undefined && m.w <= bestW) { val = m.decls[prop]; bestW = m.w; }
+    }
+    return val;
+  }
+  function responsiveTypo(n, set) {
+    if (process.env.RESPONSIVE_NO_NATIVE_FONTSIZE) return;
+    let any = false;
+    for (const { sfx, target } of TYPO_BP) {
+      const fs = resolveMediaProp(n.media, 'font-size', target);
+      if (fs && /px$/.test(fs) && !CSS_MATH.test(fs)) {
+        set['typography_font_size' + sfx] = { unit: 'px', size: pxf(fs) };
+        const lh = resolveMediaProp(n.media, 'line-height', target);
+        if (lh && /px$/.test(lh) && !CSS_MATH.test(lh)) set['typography_line_height' + sfx] = { unit: 'px', size: pxf(lh) };
+        any = true;
+      }
+    }
+    if (any) policy(`MOVE1 native responsive font-size on <${n.tag}${n.cls ? ` class="${n.cls}"` : ''}>: ${TYPO_BP.map(({ sfx }) => sfx.slice(1) + '=' + (set['typography_font_size' + sfx] ? set['typography_font_size' + sfx].size + 'px' : '—')).join(' ')} (native control, not custom_css)`);
+  }
+
   // P2: declared CSS-math lengths freeze to the computed px at the authoring width.
   function mathFrozen(decl, computedPx, what, n) {
     policy(`P2 computed-value: ${what} "${decl}" → ${computedPx}px (computed at ${authoringWidth}px authoring width; Elementor controls cannot express CSS math) on <${n.tag}${n.cls ? ` class="${n.cls}"` : ''}>`);
@@ -341,6 +374,19 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
   // P3: responsive controls + scoped custom_css channel.
   const MEDIA_MAPPED = new Set(['flex-direction', 'align-items', 'justify-content', 'text-align', 'width', 'display',
     'padding-top', 'padding-right', 'padding-bottom', 'padding-left']);
+  // MOVE 2 — parse a CSS `flex` shorthand's basis (3rd token) or a bare `flex-basis`. Source bento
+  // grids carry their reflow as flex-basis% (e.g. `flex:1 1 42%`, `flex:1 1 100%`) inside a media
+  // block; map that % to a native width_tablet/_mobile percent so the grid lands as a real 2-col
+  // (or 2x2) at the breakpoint instead of a 1-col-at-50%-width column with a blank right half.
+  const flexBasisPct = (decls) => {
+    let b = decls['flex-basis'];
+    if (b === undefined && decls['flex']) {
+      // `flex: <grow> <shrink> <basis>` — basis is the token carrying a unit (or 'auto').
+      const toks = String(decls['flex']).trim().split(/\s+/);
+      b = toks.find((t) => /%$|px$|auto/.test(t)) || (toks.length === 3 ? toks[2] : undefined);
+    }
+    return b;
+  };
   function applyMedia(n, settings, kind /* 'container' | text widget align key | null */) {
     const cssBlocks = [];
     for (const m of n.media || []) {
@@ -354,6 +400,20 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
           else if (p === 'align-items') { settings['flex_align_items' + sfx] = v; mapped = true; }
           else if (p === 'justify-content') { settings['flex_justify_content' + sfx] = v; mapped = true; }
           else if (/^padding-(top|right|bottom|left)$/.test(p) && /px$/.test(v) && !CSS_MATH.test(v)) { padSides[p.slice(8)] = px(v); mapped = true; }
+          else if ((p === 'flex-wrap') && !process.env.RESPONSIVE_NO_NATIVE_GRID) {
+            // native breakpoint flex-wrap so a grid actually wraps to a 2-col/2x2 at this width
+            settings['flex_wrap' + sfx] = v === 'wrap' ? 'wrap' : 'nowrap'; mapped = true;
+          }
+          else if ((p === 'flex-basis' || p === 'flex') && !process.env.RESPONSIVE_NO_NATIVE_GRID) {
+            const b = flexBasisPct(m.decls);
+            if (b !== undefined && /%$/.test(b)) {
+              settings['width' + sfx] = { unit: '%', size: +b.replace('%', '') }; mapped = true;
+              policy(`MOVE2 native grid regroup on <${n.tag}${n.cls ? ` class="${n.cls}"` : ''}>: flex-basis ${b} → width${sfx}:${+b.replace('%', '')}% (native, not custom_css)`);
+            }
+            // bare `flex-basis:auto/0px` → let the native flex sizing handle it (no width override);
+            // mark mapped so it does not also ride the custom_css channel.
+            if (b !== undefined && /(auto|^0px$)/.test(b)) mapped = true;
+          }
         } else if (kind && p === 'text-align' && ALIGN[v]) { settings[kind + sfx] = ALIGN[v]; mapped = true; }
         if (p === 'width') {
           if (/%$/.test(v)) { settings['width' + sfx] = { unit: '%', size: +v.replace('%', '') }; mapped = true; }
@@ -396,6 +456,20 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
       const sfx = ia.w <= 767 ? '_mobile' : '_tablet';
       if (settings[alignKey + sfx] === undefined) settings[alignKey + sfx] = ia.align;
       if (ia.w > 1024) settings.custom_css = (settings.custom_css ? settings.custom_css + '\n' : '') + `@media (max-width:${ia.w}px){selector{text-align:${ia.align} !important}}`;
+    }
+  }
+
+  // MOVE 3 — @390 mobile gutter. Fixed px `width` pins (P4 row-child / P4b column-center) are
+  // load-bearing at DESKTOP but survive untouched into the mobile breakpoint, leaving the content
+  // box ~459px wide on a 390 viewport (a +69px dead right-edge gutter). When a container carries a
+  // fixed px width pin and the source itself did NOT pin a mobile width (no width_mobile already set
+  // by MOVE 2 from a source flex-basis), clear the pin at the mobile breakpoint by emitting
+  // width_mobile:100% so content fills edge-to-edge at 390. Desktop (and tablet) keep the px pin —
+  // the override is scoped to _mobile only, so the 1440 layout is untouched.
+  function mobileFullWidth(settings) {
+    if (process.env.RESPONSIVE_NO_MOBILE_FULLWIDTH) return;
+    if (settings.width && settings.width.unit === 'px' && settings.width_mobile === undefined) {
+      settings.width_mobile = { unit: '%', size: 100 };
     }
   }
 
@@ -465,6 +539,7 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
       set._element_width = 'auto';
       if (/display:inline-block/.test(inner)) { set._element_width = 'initial'; set._element_custom_width = { unit: 'px', size: n.rect.w }; }
     }
+    responsiveTypo(n, set);
     applyMedia(n, set, 'align');
     applyInheritedAlign(set, 'align', inherit);
     return { elType: 'widget', widgetType: 'text-editor', settings: set };
@@ -528,6 +603,7 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
       if (gap) set.icon_indent = { unit: 'px', size: gap };
     }
     if (parent && parent.s['flex-direction'] === 'column' && n.rect.w > 250) set.align = 'justify';
+    responsiveTypo(n, set);
     applyMedia(n, set, null);
     return { elType: 'widget', widgetType: 'button', settings: set };
   }
@@ -625,6 +701,7 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
           align: ALIGN[n.s['text-align']] || 'left',
           title_color: hex(n.s.color) || '#131316', ...typo(n.s), ...widgetCommon(n),
         };
+        responsiveTypo(n, set);
         applyMedia(n, set, 'align');
         applyInheritedAlign(set, 'align', inherit);
         return { elType: 'widget', widgetType: 'heading', settings: set };
@@ -699,6 +776,7 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
       }
     }
     applyMedia(n, settings, 'container');
+    mobileFullWidth(settings);
     return { elType: 'container', settings, elements: (n.children || []).map((c) => mapNode(c, n, childInherit)) };
   }
 
