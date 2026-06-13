@@ -60,15 +60,22 @@ const HRATIO_HI = 1.25;       // above ⇒ clone too tall (broken reflow) — fl
 const TYPO_MIN_TEXT_LEN = 4;  // ignore tiny labels when picking the page's "hero" max heading
 const TYPO_MONO_SLACK = 1.0;  // px; 768 must be >= 390 within this slack; 1440 must be > 768 by > this
 const TYPO_STUCK_TOL = 2.0;   // px; if max-heading changes <= this across the full 1440→390 sweep ⇒ STUCK ⇒ fail
-const GRID_MIN_KIDS = 3;      // a "card row" needs >=3 sibling boxes to count
-const GRID_MIN_BOX = 40;      // px; ignore boxes smaller than this in either dim
-const GRID_BAND_PX = 40;      // px; rows whose tops fall in the same /GRID_BAND_PX bucket are one visual row
-const GRID_COL_BUCKET = 60;   // px; x-centers bucketed to /GRID_COL_BUCKET to count distinct columns
+const GRID_MIN_BOX = 40;      // px; ignore card boxes smaller than this in either dim
+const GRID_BAND_PX = 24;      // px; sibling boxes whose tops share a /GRID_BAND_PX bucket are one visual card row
+const GRID_WTOL = 0.18;       // frac; cards in a row must be within this width-similarity to count as a real grid
+const GRID_NARROW_FRAC = 0.30;// frac of viewport; a card <= this in a >=3-col row is a "narrow multi-up" (un-reflowed) cell
+// Grid-reflow scoring: a reflowing grid SHEDS narrow-multi-up rows and WIDENS its cards as the
+// viewport narrows. We compare the WIDEST width (authoring, where pre/post fix are identical) to
+// each narrower width. retain = narrowMulti3up[narrow]/narrowMulti3up[wide] — LOWER = more reflow.
+const GRID_RETAIN_GOOD = 0.65;// retain <= this ⇒ full reflow credit (GREEN ~0.57); RED ~0.86 lands below
+const GRID_RETAIN_BAD = 0.95; // retain >= this ⇒ no reflow credit (grid stayed dense/squished)
+const GRID_W = 0.20;          // weight of the grid-reflow dim in the final score (page-level, like typo)
 const PAST_VP_SLACK = 8;      // px; widget right edge beyond innerWidth+slack ⇒ counts as past-viewport
 // Score weights (per-width, the two discriminating per-width dims). Typo folded in page-level.
 const OVERFLOW_W = 0.6;
 const HEIGHT_W = 0.4;
-const TYPO_PAGE_W = 0.35;     // typo is a page-level gate; final = (1-TYPO_PAGE_W)*meanPerWidth + TYPO_PAGE_W*typoScore
+const TYPO_PAGE_W = 0.30;     // typo is a page-level gate (was 0.35; trimmed to make room for grid)
+// final = (1-TYPO_PAGE_W-GRID_W)*meanPerWidth + TYPO_PAGE_W*typoScore + GRID_W*gridReflowScore
 const PASS_THRESHOLD = 0.80;
 
 const arg = (n, d = null) => { const i = process.argv.indexOf('--' + n); return i > -1 && process.argv[i + 1] && !process.argv[i + 1].startsWith('--') ? process.argv[i + 1] : (i > -1 && (d === true) ? true : d); };
@@ -84,29 +91,51 @@ function pageProbe() {
     const t = (h.textContent || '').trim();
     if (fs > maxPx && t.length > 3) { maxPx = fs; maxTxt = t.slice(0, 48); }
   }
-  // grid: cluster sibling-box rows into columns
-  const conts = [...document.querySelectorAll('.elementor-element, .e-con, .elementor-widget-wrap')];
-  const rowCols = [];
-  for (const c of conts) {
+  // ── GRID PROFILE (per width) ────────────────────────────────────────────────
+  // The OLD probe collapsed grid to a binary "multiColRows" (cols>=2) count, which does
+  // NOT discriminate a reflow: a 4-up grid that stays 4-up-but-squished (no reflow) and a
+  // 4-up grid that reflowed to 2-up are BOTH "multi-col" → identical reading (validated:
+  // pre/post native-grid fix both read multiColRows=5 @768). The native-grid fix is a
+  // change in COLUMN COUNT (4→2) and CARD-WIDTH-FRACTION (0.25→0.47 of viewport), so the
+  // discriminating signal is the *card row profile*, not a multi-col tally.
+  //
+  // METHOD: find every "card row" = a y-banded group of >=2 EQUAL-WIDTH (within GRID_WTOL)
+  // sibling boxes (a real card grid, not a logo+text or image+copy split). For each row
+  // record cols and the median card width AS A FRACTION OF THE VIEWPORT. Two page-level
+  // aggregates drive the reflow score (compared across widths in gradeGridReflow):
+  //   narrowMulti3up = # card rows with >=3 cols AND each card <= GRID_NARROW_FRAC of vp
+  //                    (a dense, un-reflowed multi-up grid lives here; when it reflows to
+  //                    2-up at half width its cards leave this bucket).
+  //   medCardFrac    = median card-width-fraction over all multi-col rows (GROWS on reflow).
+  const iw = window.innerWidth;
+  const cardRows = [];
+  const seenRow = new Set();
+  for (const c of document.querySelectorAll('.e-con, .e-con-inner, .elementor-widget-wrap, .elementor-element')) {
     const kids = [...c.children].filter((k) => {
       const r = k.getBoundingClientRect(); return r.width > 40 && r.height > 40;
     });
-    if (kids.length < 3) continue;
+    if (kids.length < 2) continue;
     const rects = kids.map((k) => k.getBoundingClientRect());
     const byBand = {};
-    rects.forEach((r) => {
-      const band = Math.round(r.top / 40);
-      (byBand[band] = byBand[band] || []).push(Math.round((r.left + r.right) / 2));
-    });
-    let maxCols = 0;
+    rects.forEach((r) => { const band = Math.round(r.top / 24); (byBand[band] = byBand[band] || []).push(r); });
     for (const band in byBand) {
-      const xs = [...new Set(byBand[band].map((x) => Math.round(x / 60)))];
-      if (xs.length > maxCols) maxCols = xs.length;
+      const row = byBand[band];
+      if (row.length < 2) continue;
+      const ws = row.map((r) => r.width).sort((a, z) => a - z);
+      const med = ws[Math.floor(ws.length / 2)];
+      const eq = row.filter((r) => Math.abs(r.width - med) / med <= 0.18); // GRID_WTOL: ~equal-width cards
+      if (eq.length < 2) continue;
+      const key = Math.round(eq[0].top / 8) + '|' + eq.length + '|' + Math.round(med); // de-dup nested re-counts
+      if (seenRow.has(key)) continue; seenRow.add(key);
+      cardRows.push({ cols: eq.length, frac: +(med / iw).toFixed(3) });
     }
-    rowCols.push(maxCols);
   }
+  const multiRows = cardRows.filter((r) => r.cols >= 2);
+  const narrowMulti3up = cardRows.filter((r) => r.cols >= 3 && r.frac <= 0.30).length; // GRID_NARROW_FRAC=0.30
+  const medCardFrac = multiRows.length
+    ? +multiRows.map((r) => r.frac).sort((a, z) => a - z)[Math.floor(multiRows.length / 2)].toFixed(3) : 0;
+  const maxCols = cardRows.length ? Math.max(...cardRows.map((r) => r.cols)) : 0;
   // past-viewport widgets
-  const iw = window.innerWidth;
   let pastVp = 0;
   for (const w of document.querySelectorAll('.elementor-widget')) {
     const r = w.getBoundingClientRect();
@@ -119,10 +148,11 @@ function pageProbe() {
     maxHeadingPx: maxPx,
     maxHeadingTxt: maxTxt,
     grid: {
-      candidateRows: rowCols.length,
-      multiColRows: rowCols.filter((c) => c >= 2).length,
-      singleColRows: rowCols.filter((c) => c < 2).length,
-      maxColAny: rowCols.length ? Math.max(...rowCols) : 0,
+      cardRowCount: cardRows.length,
+      multiColRows: multiRows.length,
+      narrowMulti3up,
+      medCardFrac,
+      maxColAny: maxCols,
     },
     pastVp,
   };
@@ -156,10 +186,60 @@ function gradePerWidth(probe, capH) {
   return {
     gutter, overflowOK, hRatio, heightOK,
     maxHeadingPx: probe.maxHeadingPx, maxHeadingTxt: probe.maxHeadingTxt,
-    gridCols: probe.grid.maxColAny, gridMultiColRows: probe.grid.multiColRows,
+    gridMaxCols: probe.grid.maxColAny, gridMultiColRows: probe.grid.multiColRows,
+    gridNarrow3up: probe.grid.narrowMulti3up, gridMedCardFrac: probe.grid.medCardFrac,
     pastVp: probe.pastVp, fails,
     perWidthScore: +(OVERFLOW_W * (overflowOK ? 1 : 0) + HEIGHT_W * (heightOK ? 1 : 0)).toFixed(3),
   };
+}
+
+// Page-level GRID-REFLOW gate (now SCORE-WEIGHTED — see GRID_W). Compares the WIDEST width
+// (authoring width, where pre/post native-grid fix are byte-identical) against each narrower
+// width. A correctly-reflowing page SHEDS its narrow-multi-up card rows (a dense 4-up grid
+// becomes 2-up → its cards leave the >=3-col, <=30%-vp "narrow" bucket) AND its median card
+// width-fraction GROWS. A stuck/un-reflowed grid keeps the dense rows squished (narrowMulti3up
+// barely drops; medCardFrac barely grows). VALIDATED discriminating @768 on this page:
+//   GREEN(fixed): narrow3up 7→4 (retain 0.57), medCardFrac 0.154→0.287 (+0.133)
+//   RED(pre-fix): narrow3up 7→6 (retain 0.86), medCardFrac 0.154→0.250 (+0.096)
+// Score = best (lowest-retain) reflow observed across the narrower widths, mapped through
+// [GRID_RETAIN_BAD..GRID_RETAIN_GOOD]→[0..1]. If the page has no narrow-multi-up grid at the
+// widest width (nothing to reflow), the dim ABSTAINS (returns {applicable:false}) and is dropped
+// from the score rather than penalizing a page that legitimately has no multi-up grids.
+function gradeGridReflow(byWidth, widths) {
+  const sorted = [...widths].sort((a, b) => b - a); // descending; sorted[0] = widest (authoring)
+  const wide = byWidth[sorted[0]];
+  const wideNarrow = wide ? wide.gridNarrow3up : 0;
+  const perWidth = sorted.map((w) => ({
+    w,
+    narrow3up: byWidth[w] ? byWidth[w].gridNarrow3up : 0,
+    medCardFrac: byWidth[w] ? byWidth[w].gridMedCardFrac : 0,
+    maxCols: byWidth[w] ? byWidth[w].gridMaxCols : 0,
+  }));
+  if (wideNarrow < 1) {
+    return { applicable: false, perWidth, score: null, note: 'no narrow-multi-up grid at widest width — nothing to reflow; dim abstains' };
+  }
+  // For each narrower width, retain ratio (lower=better) and frac-growth (higher=better). We
+  // score the reflow PER STEP and AVERAGE, NOT just take the best (narrowest) step. WHY: at the
+  // narrowest width (390) essentially EVERY page fully stacks (narrow3up→0, retain→0), so a
+  // best-of-steps would hand full credit to a page that stayed dense at 768 and only collapsed at
+  // 390 — exactly the RED (un-reflowed) failure mode. Averaging makes the 768 keystone step (where
+  // the native-grid fix actually shows) count toward the dim, so the dim itself discriminates.
+  let anyNarrower = false, sumStep = 0, nStep = 0, bestRetain = 1;
+  const reflow = [];
+  for (let i = 1; i < sorted.length; i++) {
+    const w = sorted[i];
+    if (!byWidth[w]) continue;
+    anyNarrower = true;
+    const retain = +(byWidth[w].gridNarrow3up / wideNarrow).toFixed(3);
+    const fracGrow = +((byWidth[w].gridMedCardFrac || 0) - (wide.gridMedCardFrac || 0)).toFixed(3);
+    const stepScore = +Math.max(0, Math.min(1, (GRID_RETAIN_BAD - retain) / (GRID_RETAIN_BAD - GRID_RETAIN_GOOD))).toFixed(3);
+    reflow.push({ w, retain, fracGrow, stepScore });
+    sumStep += stepScore; nStep++;
+    if (retain < bestRetain) bestRetain = retain;
+  }
+  if (!anyNarrower) return { applicable: false, perWidth, score: null, note: 'only one width probed' };
+  const score = +(sumStep / nStep).toFixed(3); // mean per-step reflow credit
+  return { applicable: true, wideNarrow, bestRetain, perWidth, reflow, score };
 }
 
 // Page-level typography gate: max-heading must shrink monotonic-ish as width shrinks.
@@ -206,6 +286,7 @@ async function main() {
   }
 
   const typo = gradeTypography(byWidth, widths);
+  const grid = gradeGridReflow(byWidth, widths);
 
   // Fold typo into each width's fail list for a complete per-width breakdown view.
   for (const w of widths) {
@@ -216,7 +297,12 @@ async function main() {
   }
 
   const meanPerWidth = widths.reduce((s, w) => s + (byWidth[w] ? byWidth[w].perWidthScore : 0), 0) / widths.length;
-  const score = +((1 - TYPO_PAGE_W) * meanPerWidth + TYPO_PAGE_W * typo.score).toFixed(3);
+  // Grid abstains (applicable:false) on pages with no narrow-multi-up grid to reflow — when it
+  // does, its weight reverts to the per-width portion so we never penalize an absent grid.
+  const gridApplies = grid.applicable && grid.score != null;
+  const gridW = gridApplies ? GRID_W : 0;
+  const perWidthW = 1 - TYPO_PAGE_W - gridW;
+  const score = +(perWidthW * meanPerWidth + TYPO_PAGE_W * typo.score + gridW * (gridApplies ? grid.score : 0)).toFixed(3);
 
   const anyHardOverflow = widths.some((w) => byWidth[w] && !byWidth[w].overflowOK);
   const pass = score >= PASS_THRESHOLD && !anyHardOverflow && typo.typoOK;
@@ -225,13 +311,16 @@ async function main() {
     label, url, widths,
     byWidth,
     typography: typo,
-    weights: { OVERFLOW_W, HEIGHT_W, TYPO_PAGE_W, PASS_THRESHOLD },
-    thresholds: { OVERFLOW_SLACK, HRATIO_LO, HRATIO_HI, TYPO_STUCK_TOL, TYPO_MONO_SLACK },
+    gridReflow: grid,
+    weights: { OVERFLOW_W, HEIGHT_W, TYPO_PAGE_W, GRID_W: gridW, perWidthW: +perWidthW.toFixed(3), PASS_THRESHOLD },
+    thresholds: { OVERFLOW_SLACK, HRATIO_LO, HRATIO_HI, TYPO_STUCK_TOL, TYPO_MONO_SLACK, GRID_RETAIN_GOOD, GRID_RETAIN_BAD, GRID_NARROW_FRAC },
     score,
     pass,
     notes: [
-      'grid-reflow (gridCols/gridMultiColRows) is REPORTED best-effort, NOT score-weighted — it does not discriminate the native-grid fix on this page (validated).',
-      'dims weighted into score: overflow(0.6/width), height(0.4/width), typography(page-level gate, 0.35).',
+      gridApplies
+        ? `grid-reflow IS score-weighted (${GRID_W}): equal-width card-row profiler measures narrow-multi-up shedding + card-frac growth from the widest width. bestRetain=${grid.bestRetain} → gridScore=${grid.score}.`
+        : 'grid-reflow ABSTAINS (no narrow-multi-up grid to reflow at the widest width) — weight reverts to the per-width dims.',
+      `dims weighted into score: per-width overflow(${OVERFLOW_W})+height(${HEIGHT_W}) at weight ${(+perWidthW.toFixed(3))}, typography(page gate, ${TYPO_PAGE_W}), grid-reflow(page gate, ${gridW}).`,
     ],
   };
 
@@ -246,9 +335,14 @@ async function main() {
   for (const w of widths) {
     const b = byWidth[w];
     if (!b) continue;
-    console.log(`  ${w}px  gutter=${b.gutter}  hRatio=${b.hRatio}(cap ${b.capH})  maxHeading=${b.maxHeadingPx}px  gridCols=${b.gridCols}  pastVp=${b.pastVp}  fails=[${b.fails.join(', ')}]  w-score=${b.perWidthScore}`);
+    console.log(`  ${w}px  gutter=${b.gutter}  hRatio=${b.hRatio}(cap ${b.capH})  maxHeading=${b.maxHeadingPx}px  gridMaxCols=${b.gridMaxCols} narrow3up=${b.gridNarrow3up} medCardFrac=${b.gridMedCardFrac}  pastVp=${b.pastVp}  fails=[${b.fails.join(', ')}]  w-score=${b.perWidthScore}`);
   }
   console.log(`  TYPO  ${typo.px.map((p) => `${p.w}:${p.px}px`).join(' → ')}  span=${typo.span}  mono=${typo.mono}  stuck=${typo.stuck}  typoOK=${typo.typoOK}`);
+  if (grid.applicable) {
+    console.log(`  GRID  wideNarrow3up=${grid.wideNarrow}  ${grid.reflow.map((r) => `${r.w}:retain=${r.retain}/fracGrow=${r.fracGrow}`).join('  ')}  bestRetain=${grid.bestRetain}  gridScore=${grid.score}`);
+  } else {
+    console.log(`  GRID  ABSTAINS (${grid.note})`);
+  }
   console.log(`  SCORE=${score}  PASS=${pass}`);
   console.log(JSON.stringify(result));
 }
