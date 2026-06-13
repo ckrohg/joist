@@ -5141,6 +5141,24 @@
       "orchestratorInterpretation": "The 52.8 is NOT pipeline-transfer failure (LOOK-confirmed by me). It decomposes into: (1) ~17% AUTHORING whitespace/UI-mock compression (linear.html is 0.83x source height) -> de-correlates the proportional vision-judge tile bands -> false 'section offset' sev4/5 (the worst tiles, e.g. 32@y2700, compare MISMATCHED bands); (2) real AUTHORING divergences: hero h1 centered where source is left-aligned, partner-logo bar omitted by author, hero CTA authored white not purple; (3) the vision-judge's known height-drift band sensitivity. NONE are transpile loss (13/13 images render, structure faithful, responsive rail PASSES).",
       "honestComparison": "52.8 after ONE author pass is RIGHT ON clerk's EARLY-pass trajectory (clerk's first authored renders were ~36-54 before the R2 authoring/transpile fixes lifted it 53.9->70.5->78). The gap to clerk's 78 is AUTHORING ITERATION + faithfulness, NOT a pipeline-transfer wall.",
       "verdict": "PIPELINE GENERALIZES. Mechanically clean transfer + deterministic responsive PASS on an unseen site. One-pass fidelity on clerk's early trajectory; ceiling now gated by authoring faithfulness (improvable) + the 3 automatable capture-side cost gaps (region-raster auto-crop, SVG fix, ship source DOM)."
+    },
+    {
+      "name": "linear-reauthor-capture-upgrade-ROI",
+      "date": "2026-06-13",
+      "kind": "Phase B \u2014 re-author linear from UPGRADED capture, measure authoring-cost drop + fidelity lift (orchestrator-verified)",
+      "authoringCostDrop": "LOOK-iterations 16 -> 4 (~75% cut), artifact-verified (the 3 affordances demonstrably absent in pass-1). source.html copy-paste = highest value (cut labor AND fixed 2 real pass-1 fabrications: centered-hero->left, invented-CTA->faithful chip). crops-manifest = largest raw-labor cut (~40%->~0 for 6 rasters) but FRAGILE/distribution-contingent (~20% garbage on cheap slivers; labels unreliable; confidence weak \u2014 garbage-tell = small areaFrac+odd aspect). valid SVGs = cleanest (xmlns 6/118 missing -> 0/119) but currentColor only half-fixed (16/119 still broken).",
+      "fidelity": {
+        "pinned_v2": 51.4,
+        "pinned_v1": 52.8,
+        "delta": "-1.4 = within +/-0.08 noise = TIE",
+        "rail_v2": 0.933,
+        "rail_v1": 0.933,
+        "orchestratorReproduced": true,
+        "note": "NUMBER flat; CORRECTNESS genuinely up (2 fabrications fixed) but invisible to the coarse pinned grader (consistent with grader_overstates_top_end). 17% whitespace compression (8922 vs 10810) inherited from pass-1 authoring persists."
+      },
+      "verdict": "Capture upgrade = clean win on AUTHORING EFFICIENCY (~75% iteration cut) + modest CORRECTNESS win, NEAR-ZERO on the FIDELITY CEILING. Buys faster more-accurate authoring; does NOT move the 1:1 wall. Ship the affordances (reversible flags already). KEY INSIGHT: the ~17% whitespace compression that deflates the pinned-judge is an AUTHORING artifact -> source-projection (reads real computed geometry) would avoid it, so the spike could fix BOTH cost AND ceiling.",
+      "integrity": "page 83 md5 unchanged; fresh page 182; rail reproduced 0.933; no shared host.",
+      "envFriction": "local Joist PUT now 422-rejects settings._element_custom_width on image widgets (didn't fire pass-1/page162); agent wrote tree direct to postmeta + hand-stamped 211 ids as workaround (plugin dir read-only in-container). Plugin schema divergence \u2014 track."
     }
   ],
   "phase5backlog_wave3": [
