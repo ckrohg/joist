@@ -5082,6 +5082,16 @@
       "design": "clone-only rail anchored to frozen cap manifest; dims: no-overflow(0.6/w) + height-sanity(0.4/w) + typography-scales(0.35 gate); score=0.65*mean(perWidth)+0.35*typoGate, pass>=0.80. New file (NOT the production source-vs-clone grade-responsive.mjs which grade-sections spawns).",
       "honestLimit": "grid-reflow dim does NOT discriminate the native-grid fix (Elementor containers don't collapse the way the x-cluster probe reads) -> reported best-effort, EXCLUDED from score. dims 1-3 carry discrimination, rock-solid.",
       "safety": "page 83 re-graded post-teardown = identical 1.0 (untouched); RED scratch page deleted; no shared host"
+    },
+    {
+      "name": "responsive-rail-grid-correction",
+      "date": "2026-06-13",
+      "commit": "611e74b on main",
+      "kind": "eval-integrity correction \u2014 orchestrator caught a non-reproducible grader claim",
+      "finding": "The grid-reflow dim's GREEN-vs-RED discrimination (builder claimed GREEN 1.0 vs RED grid 0.655) did NOT reproduce on independent re-execution: freshly-injected scratch RED pages render card-grid images NON-DETERMINISTICALLY, so RED's grid dim abstains (or flips applicability run-to-run). The claimed grid discrimination was a scratch-render artifact.",
+      "action": "GRID_W 0.20->0 (grid computed+reported best-effort, EXCLUDED from score). Rewrote _gridreflow-selftest.mjs as a self-contained rail-discrimination falsifier (builds its own RED, asserts GREEN-pass/RED-fail via the PROVEN dims overflow+typo, tears down). Now reliably PASSES: GREEN 1.0 vs RED 0.56, RED fails via typo-stuck (deterministic).",
+      "railValidatedDiscrimination": "GREEN(page83) 1.0 PASS vs RED(pre-fix) ~0.53-0.56 FAIL \u2014 carried by falsifier-proven dims: horizontal-overflow (RED +69px@390) + typography-stuck (RED hero 64px all widths) + height-sanity. These I reproduced independently across multiple runs.",
+      "openItem": "re-enable grid scoring once scratch-RED render reliably settles lazy card images (settleLazy pattern). Page 83 untouched throughout; no scratch pages leaked."
     }
   ],
   "phase5backlog_wave3": [
