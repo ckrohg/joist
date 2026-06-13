@@ -113,7 +113,7 @@ export async function extract(htmlFile, width) {
           if (rule.type === 1) {
             let hit = false; try { hit = el.matches(rule.selectorText); } catch {}
             if (!hit) continue;
-            for (const p of ['width', 'max-width', 'height', 'min-height', 'margin-left', 'margin-right',
+            for (const p of ['width', 'max-width', 'height', 'min-height', 'margin-top', 'margin-bottom', 'margin-left', 'margin-right',
               'padding-left', 'padding-right', 'min-height']) {
               const v = rule.style.getPropertyValue(p); if (v) out[p] = v;
             }
@@ -179,6 +179,15 @@ export async function extract(htmlFile, width) {
       const parts = [];
       for (const n of el.childNodes) {
         if (n.nodeType === 3) { if (n.textContent.trim()) parts.push({ t: 'text', text: n.textContent }); }
+        else if (n.nodeType === 1 && (n.tagName === 'svg' || n.tagName === 'SVG')) {
+          // Leading/trailing chevron/arrow inside a CTA pill → icon part. Infer direction from
+          // the path 'd' so buttonContent can pick a fa-* glyph even with no unicode text node.
+          const d = (n.querySelector('path') ? n.querySelector('path').getAttribute('d') || '' : '');
+          let dir = 'right';
+          if (/l-?\d.*-?\d.*l/i.test(d) && /M\s*1\s*1l3\.?5?\s*3/i.test(d)) dir = 'down'; // 9x6 chevron-down
+          else if (/M\s*1\s*1l4\s*4/i.test(d)) dir = 'right'; // 7x10 arrow-right
+          parts.push({ t: 'svgicon', dir, text: '' });
+        }
         else if (n.nodeType === 1 && n.tagName !== 'BR') {
           const c = getComputedStyle(n);
           const w = parseFloat(c.width) || 0;
@@ -195,6 +204,14 @@ export async function extract(htmlFile, width) {
     const ser = (el) => {
       const cs = getComputedStyle(el);
       const r = el.getBoundingClientRect();
+      // Capture the layout margin-top for media nodes so widgetCommon can preserve it — without
+      // this an <img>'s s:{} dropped e.g. .bill-wedge{margin-top:118px}, losing ~118px of vertical
+      // rhythm and under-heighting the section (LEVER 3, 2026-06-12). Only forward an EXPLICIT px
+      // margin (declared), never an `auto`-resolved used-value (e.g. .acard img{margin-top:auto},
+      // which positions but must not be baked as a fixed gap).
+      const _mdecl = declared(el);
+      const mediaS = {};
+      if (/px$/.test(_mdecl['margin-top'] || '')) mediaS['margin-top'] = cs.marginTop;
       if (el.tagName === 'IMG') {
         return {
           tag: 'img', cls: el.className || '', isLeaf: true, text: null,
@@ -203,7 +220,7 @@ export async function extract(htmlFile, width) {
           attrH: parseInt(el.getAttribute('height'), 10) || 0,
           natW: el.naturalWidth || 0, natH: el.naturalHeight || 0,
           rect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) },
-          declared: declared(el), media: mediaOf(el), s: {},
+          declared: _mdecl, media: mediaOf(el), s: mediaS,
         };
       }
       if (el.tagName.toLowerCase() === 'svg') {
@@ -211,15 +228,32 @@ export async function extract(htmlFile, width) {
           tag: 'svg', cls: (el.getAttribute('class') || ''), isLeaf: true, text: null,
           svg: el.outerHTML.replace(/\s+/g, ' ').trim(),
           rect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) },
-          declared: declared(el), media: mediaOf(el), s: {},
+          declared: _mdecl, media: mediaOf(el), s: mediaS,
         };
       }
       const kids = [...el.children];
-      const isBtnish = el.tagName === 'A' && parseFloat(cs.borderRadius) >= 10;
+      // CTA-pill detector (2026-06-12, hero-CTA-ghost fix): a button is an <a>/<button> that
+      // (a) is solidly filled (non-transparent bg) OR has a visible border, AND (b) is a pill
+      // (horizontal padding > 0 OR a fixed pill height with a rounded radius). This is the TRUE
+      // discriminator — the old `border-radius >= 10` gate missed clerk's 6px-radius CTAs
+      // (.btn-purple/.btn-white/.hdr-start) so they fell through to text-editor and DROPPED their
+      // purple/white fill (ghost). Transparent, padding-less links (.hdr-item nav, .hdr-signin)
+      // are NOT pills and stay text/heading. A pill's leading/trailing <svg> chevron is captured
+      // as an icon-part (see partsOf), so SVG children no longer force it into a container.
+      const _bg = cs.backgroundColor && cs.backgroundColor !== 'rgba(0, 0, 0, 0)';
+      const _bord = ['borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth'].some((p) => parseFloat(cs[p]) > 0);
+      const _hpad = parseFloat(cs.paddingLeft) > 0 || parseFloat(cs.paddingRight) > 0;
+      const _pill = (parseFloat(cs.height) > 0 && parseFloat(cs.borderRadius) >= 4);
+      const isBtnish = ['A', 'BUTTON'].includes(el.tagName) && el.textContent.trim() !== ''
+        && (_bg || _bord) && (_hpad || _pill);
       const boxKid = kids.some((k) => { const c = getComputedStyle(k).backgroundColor; return c && c !== 'rgba(0, 0, 0, 0)' && k.textContent.trim() === ''; });
-      const isLeaf = kids.length === 0 || (kids.every((k) => ['SPAN', 'BR'].includes(k.tagName)) && (!boxKid || isBtnish));
+      // A button-pill stays a LEAF even with <svg> chevron children (its parts feed the native icon).
+      const isLeaf = kids.length === 0
+        || (kids.every((k) => ['SPAN', 'BR'].includes(k.tagName)) && (!boxKid || isBtnish))
+        || (isBtnish && kids.every((k) => ['SPAN', 'BR', 'SVG', 'svg'].includes(k.tagName)));
       const node = {
         tag: el.tagName.toLowerCase(), cls: el.className || '', isLeaf,
+        isBtn: isBtnish && isLeaf, // CTA pill the mapper should emit as a native button widget
         rect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) },
         declared: declared(el), media: mediaOf(el),
         text: isLeaf ? leafHTML(el) : null,
@@ -439,8 +473,11 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
   // P1: split a button's child parts into (icon, icon position, plain text).
   function buttonContent(n) {
     const parts = (n.parts || []).slice();
+    const SVG_DIR_GLYPH = { right: 'fa-angle-right', down: 'fa-angle-down', left: 'fa-angle-left', up: 'fa-angle-up' };
     const glyphOf = (p) => {
-      if (!p || p.t !== 'span') return null;
+      if (!p) return null;
+      if (p.t === 'svgicon') return SVG_DIR_GLYPH[p.dir] || 'fa-angle-right'; // captured chevron/arrow <svg>
+      if (p.t !== 'span') return null;
       const g = p.text.trim();
       if (g.length === 1 && ICON_GLYPHS[g]) return ICON_GLYPHS[g];
       if (p.empty && p.bg && p.round) return 'fa-circle'; // empty round bg-box (e.g. brand circle)
@@ -452,6 +489,7 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
     else if (glyphOf(first)) { icon = glyphOf(first); iconAlign = 'left'; parts.shift(); }
     let text = '';
     for (const p of parts) {
+      if (p.t === 'svgicon') continue; // any leftover svg-icon part carries no text
       if (p.t === 'text') text += (text && !/\s$/.test(text) && !/^\s/.test(p.text) ? ' ' : '') + p.text;
       else {
         text += (text && !/\s$/.test(text) ? ' ' : '') + p.text;
@@ -521,11 +559,21 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
     // px width, else the rendered/attr width; height is derived from the captured aspect
     // ratio (natural box) so it survives even when the source set only a width.
     const decW = (n.declared && /px$/.test(n.declared.width || '') && !CSS_MATH.test(n.declared.width)) ? px(n.declared.width) : 0;
-    const w = decW || n.attrW || n.rect.w || n.natW || 0;
-    const aspect = (n.natW && n.natH) ? (n.natH / n.natW)
-      : (n.rect && n.rect.w && n.rect.h) ? (n.rect.h / n.rect.w)
-      : (n.attrW && n.attrH) ? (n.attrH / n.attrW) : 0;
-    const h = n.attrH || (n.rect && n.rect.h) || (aspect && w ? Math.round(w * aspect) : 0);
+    const w = decW || n.attrW || n.rect.w || n.natW || (asset && asset.width) || 0;
+    // ASPECT AUTHORITY (2026-06-12 bento-sliver fix): a card image inside a `width:100%` cell
+    // with no declared height that hadn't decoded at capture time reports a COLLAPSED rect height
+    // (~18px alt-line). Trusting that h cropped the bento mockups to an 18px sliver → empty cards.
+    // The asset's REAL pixel dims (asset.width/height, from WP attachment meta) are authoritative
+    // for the aspect ratio — prefer them, then natural, then the captured rect, then attrs.
+    const assetAspect = (asset && asset.width && asset.height) ? (asset.height / asset.width) : 0;
+    const aspect = assetAspect
+      || ((n.natW && n.natH) ? (n.natH / n.natW)
+        : (n.rect && n.rect.w && n.rect.h) ? (n.rect.h / n.rect.w)
+          : (n.attrW && n.attrH) ? (n.attrH / n.attrW) : 0);
+    // Height from the aspect-scaled width when we have a real aspect; else fall back to captured
+    // box / attr. assetAspect wins over a collapsed rect so the box reserves the true height.
+    const h = (assetAspect && w) ? Math.round(w * aspect)
+      : n.attrH || (n.rect && n.rect.h) || (aspect && w ? Math.round(w * aspect) : 0);
     // SIZING. Raster: image_size:custom + image_custom_dimension reserves the captured box
     // (Elementor emits `img{width:Npx;height:Npx}` to per-element CSS) — fixes the lazy-collapse
     // placeholder-box bug. SVG (vector attachment): Elementor SKIPS the dimension CSS for
@@ -560,7 +608,9 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
         applyMedia(n, st, 'container');
         return { elType: 'container', settings: st, elements: [] };
       }
-      const isBtnEl = n.tag === 'a' && px(n.s['border-radius']) >= 10;
+      // CTA pill (filled/bordered + padded <a>/<button>) → native button widget so its fill survives.
+      // The capture flags it (n.isBtn); fall back to the legacy radius>=10 rule for older specs.
+      const isBtnEl = n.isBtn || (n.tag === 'a' && px(n.s['border-radius']) >= 10);
       if (isContainerish(n) && !/^h[1-6]$/.test(n.tag) && !isBtnEl) { // styled box that contains text (logo cells, app icon)
         counts.container++;
         const st = containerSettings(n);
@@ -588,10 +638,18 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
     const d = n.declared || {};
     if (d['max-width'] && /px$/.test(d['max-width']) && !CSS_MATH.test(d['max-width']) && n.autoML && n.autoMR) {
       const padL = px(n.s['padding-left']); const padR = px(n.s['padding-right']);
+      // Preserve the VERTICAL padding (top/bottom) — only the horizontal pads collapse into the
+      // boxed content width. The old `dims(0,padR,0,padL)` zeroed top/bottom, dropping e.g.
+      // .auth-row2{padding-bottom:151px} → the auth section under-heighted by ~150px (LEVER 3).
+      const padT = px(n.s['padding-top']); const padB = px(n.s['padding-bottom']);
       settings.content_width = 'boxed';
       settings.boxed_width = { unit: 'px', size: px(d['max-width']) - padL - padR };
-      settings.padding = dims(0, padR, 0, padL);
+      settings.padding = dims(padT, padR, padB, padL);
       delete settings.width; delete settings.margin;
+      // Preserve an explicit vertical (top) margin the auto horizontal-centering would otherwise
+      // drop — e.g. .auth-row{margin:64px auto 0}. Without it inter-row rhythm collapses (LEVER 3).
+      const mTop = (/px$/.test(d['margin-top'] || '') && !CSS_MATH.test(d['margin-top'] || '')) ? px(n.s['margin-top']) : 0;
+      if (mTop) settings.margin = dims(mTop, 0, 0, 0);
     }
     // P4: e-con row children default to 100% width — pin px width + buffer, never shrink.
     if (parent && parent.s && parent.s.display.includes('flex') && parent.s['flex-direction'] === 'row' && !settings.width && !settings._flex_grow) {
@@ -602,6 +660,21 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
     if ((n.children || []).some((c) => c.autoML)) {
       if (settings.flex_direction === 'row') settings.flex_justify_content = 'space-between';
       else settings.flex_align_items = 'center';
+    }
+    // FIXED-CELL-ROW HEIGHT (2026-06-12 LEVER 3, fw-grid compression): a flex row whose direct
+    // children are all <img>/<svg> cells with the SAME declared px height (e.g. .fw-cells of
+    // .fw-cell{height:139px}) must reserve that box height. Elementor's image widget won't grow a
+    // vector SVG (intrinsic ~42px) to a 139px cell — so the row collapsed to ~42px, under-heighting
+    // the framework section by ~290px. Pin the CONTAINER min_height (a control that reliably flushes
+    // to per-element CSS) to the children's declared cell height. Only when the row has no min_height
+    // of its own and every child declares the same px height.
+    if (!settings.min_height) {
+      const cells = (n.children || []).filter((c) => c.tag === 'img' || c.tag === 'svg');
+      const cellHs = cells.map((c) => (c.declared && /px$/.test(c.declared.height || '') && !CSS_MATH.test(c.declared.height) ? px(c.declared.height) : 0));
+      if (cells.length && cells.length === (n.children || []).length && cellHs.every((hh) => hh > 0 && hh === cellHs[0])) {
+        settings.min_height = { unit: 'px', size: cellHs[0] };
+        if (!settings.flex_align_items) settings.flex_align_items = 'center';
+      }
     }
     applyMedia(n, settings, 'container');
     return { elType: 'container', settings, elements: (n.children || []).map((c) => mapNode(c, n, childInherit)) };
@@ -685,9 +758,12 @@ export async function resolveAssets(specTree, manifest, { dryRun, base, b64, out
       const key = n.src || n.resolvedSrc;
       const entry = byExact.get(key) || byExact.get(n.resolvedSrc) || byBase.get(path.basename(String(key))) || null;
       if (!entry) continue; // mapper pains + hotlinks
-      if (entry.url) assetMap.set(key, { url: entry.url, id: entry.id });
-      else if (entry.file && dryRun) assetMap.set(key, { pendingFile: entry.file });
-      else if (entry.file) assetMap.set(key, await uploadMedia(entry.file, { base, b64, cache }));
+      // width/height = the asset's REAL pixel dims (when the manifest carries them) so the image
+      // widget can derive its box from the true aspect ratio instead of a collapsed capture rect.
+      const dims = (entry.width && entry.height) ? { width: +entry.width, height: +entry.height } : {};
+      if (entry.url) assetMap.set(key, { url: entry.url, id: entry.id, ...dims });
+      else if (entry.file && dryRun) assetMap.set(key, { pendingFile: entry.file, ...dims });
+      else if (entry.file) assetMap.set(key, { ...(await uploadMedia(entry.file, { base, b64, cache })), ...dims });
     } else {
       const key = 'inline-svg:' + sha1(n.svg).slice(0, 12);
       const entry = byExact.get(key) || null;
@@ -705,7 +781,7 @@ export async function resolveAssets(specTree, manifest, { dryRun, base, b64, out
 // ── local schema validation (always-on, blocks PUT) ────────────────────────────────────────────────────────
 const WIDGET_TYPES = new Set(['heading', 'text-editor', 'button', 'image', 'html', 'icon', 'divider', 'spacer']);
 const DIMS_KEYS = /^(padding|margin|_margin|_padding|border_radius|border_width|text_padding)(_tablet|_mobile)?$/;
-const SIZE_KEYS = /^(width|min_height|icon_indent|_element_custom_width|boxed_width)(_tablet|_mobile)?$/;
+const SIZE_KEYS = /^(width|min_height|icon_indent|_element_custom_width|_element_custom_height|boxed_width)(_tablet|_mobile)?$/;
 
 export function validateTree(elements, errs = [], pathStr = 'root') {
   if (!Array.isArray(elements)) { errs.push(`${pathStr}: elements is not an array`); return errs; }
