@@ -5000,6 +5000,43 @@
       },
       "orchestratorBless": "LOOKED at pinned tiles 01/02 myself: same content, same theme (dark auth dark both sides, white components white both sides), no phantom live divider. Falsifier re-executed independently = PASS. Number blessed as honest mechanism output ~77.5 (single-run, +/- ~9pt judge noise).",
       "default": "pinned mode OFF by default; live-anchor path remains primary for responsive widths"
+    },
+    {
+      "name": "genuine-tilegap-P4b-judged",
+      "date": "2026-06-13",
+      "commit": "1a4426f on main (P4b column-center shrink)",
+      "kind": "genuine clone-defect fix (CTA-link centering), pinned-judge measured",
+      "pinned": {
+        "page_1440": 78,
+        "baseline": 77.5,
+        "perTile": [
+          85,
+          81,
+          63,
+          87,
+          78,
+          78,
+          82,
+          82,
+          72
+        ],
+        "baselinePerTile": [
+          82,
+          78,
+          70,
+          74,
+          78,
+          78,
+          78,
+          78,
+          72
+        ],
+        "fixedBand_tile06": "78->82 (+4, directionally right; fix LOOK-confirmed: All frameworks/All integrations links centered under headings, match source)"
+      },
+      "orchestratorVerdict": "P4b fix CONFIRMED by eyes (tile 06 links centered = source). Page 78 vs 77.5 = +0.5 = WITHIN single-run judge noise (~9pt). Per-tile swings tile03 +13 / tile02 -7 are noise on UNCHANGED content (LOOKed: both visually identical to baseline, still match source) \u2014 NOT regression. Real correctness fix, sub-noise at page scale.",
+      "census": "button=4 image=43 total=288 HELD; selftest 42/0; load-bearing intact",
+      "honestNote": "builder correctly judged tiles 02/03/08 as judge-noise/AA NOT defects (refused to invent work); the one real defect (fw-link left-drift) was in tile06 band. 1440 fidelity now near the improvable ceiling against the frozen source \u2014 remaining per-tile gap is largely raster-AA noise, not fixable structure.",
+      "nextFrontier": "RESPONSIVE \u2014 all work is desktop-px @1440; render page-83 at 768/390 + pinned-judge vs frozen caps to scope the gap + check if transpile-html.mjs emits any _tablet/_mobile controls today"
     }
   ],
   "phase5backlog_wave3": [
