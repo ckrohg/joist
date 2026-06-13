@@ -1,0 +1,81 @@
+{
+  "source": "https://stripe.com",
+  "clone": "https://georges232.sg-host.com/stripe-clone-v3-capstone-real-assets/",
+  "rules": [
+    {
+      "kind": "layout_preference",
+      "pattern": "missing_assets",
+      "directive": "Capture+host real images/video/gradient from source; no flat fills or placeholder boxes where source has imagery.",
+      "rationale": "Auto-derived from grader defect (asset_capture, 4×): no canvas/video vs source has 1 canvas / 0 video",
+      "provenance": {
+        "source": "DefectAnalyzer",
+        "label": "stripe-v3",
+        "gap_tag": "asset_capture",
+        "grade_pct": 52,
+        "graded_at_utc": "2026-06-01T03:46:28Z"
+      },
+      "scope": "global",
+      "confidence": 0.9
+    },
+    {
+      "kind": "structural",
+      "pattern": "page_truncation",
+      "directive": "Author every top-level source section; verify clone page-height is within ~15% of source before grading.",
+      "rationale": "Auto-derived from grader defect (section_completeness, 2×): clone 2788px tall vs source 20441px",
+      "provenance": {
+        "source": "DefectAnalyzer",
+        "label": "stripe-v3",
+        "gap_tag": "section_completeness",
+        "grade_pct": 52,
+        "graded_at_utc": "2026-06-01T03:46:28Z"
+      },
+      "scope": "global",
+      "confidence": 0.9
+    },
+    {
+      "kind": "layout_preference",
+      "pattern": "typography_default_bold",
+      "directive": "Match source computed type (size/weight/family/tracking) per element; do not default headings to bold or system fonts.",
+      "rationale": "Auto-derived from grader defect (typography_match, 4×): weight 500 vs 300",
+      "provenance": {
+        "source": "DefectAnalyzer",
+        "label": "stripe-v3",
+        "gap_tag": "typography_match",
+        "grade_pct": 52,
+        "graded_at_utc": "2026-06-01T03:46:28Z"
+      },
+      "scope": "global",
+      "confidence": 0.9
+    },
+    {
+      "kind": "structural",
+      "pattern": "static_scrape_miss",
+      "directive": "Extract from rendered DOM (Playwright), not raw HTML; capture JS-loaded sections/logos/tickers.",
+      "rationale": "Auto-derived from grader defect (structure_parser, 2×): 7 headings vs 57",
+      "provenance": {
+        "source": "DefectAnalyzer",
+        "label": "stripe-v3",
+        "gap_tag": "structure_parser",
+        "grade_pct": 52,
+        "graded_at_utc": "2026-06-01T03:46:28Z"
+      },
+      "scope": "global",
+      "confidence": 0.8
+    },
+    {
+      "kind": "structural",
+      "pattern": "motion_not_reproduced",
+      "directive": "Reproduce detected source hover/scroll motion via joist-* classes; grader must verify it fires.",
+      "rationale": "Auto-derived from grader defect (motion_runtime, 1×): 1/8 clone els respond to hover vs 8/8 source els respond",
+      "provenance": {
+        "source": "DefectAnalyzer",
+        "label": "stripe-v3",
+        "gap_tag": "motion_runtime",
+        "grade_pct": 52,
+        "graded_at_utc": "2026-06-01T03:46:28Z"
+      },
+      "scope": "global",
+      "confidence": 0.6000000000000001
+    }
+  ]
+}
