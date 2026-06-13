@@ -258,3 +258,44 @@ compression at 1250 (hRatio 0.777) [transpilation-loss — the abs/desktop-only 
 ZERO new undeclared breakage; 292 native widgets, 0 raster fallback, Suisse webfont correct.
 Grader-hygiene item recurs (band-boundary transition tiles t03/t16 + height-squeeze unmatched
 tiles deflate the headline) — fold band-boundary-tile suppression into the next round.
+
+## R2 — paired measurement of the three-lever (LEVER) tree (2026-06-12)
+
+Live page 83 (`/clerk-fullpage/`) DOM-census VERIFIED before judging: **288 nodes, button 4,
+image 43, 0 broken / 0 zero-render images**, hero `Start building for free` bg `rgb(108,71,255)`
+(#6c47ff) — matches the committed tree on disk (`tree-composed.json` git-blob `b01ca0ef`).
+
+**Vision-judge `--gating` @1440** (sonnet, 3 runs/tile, boundary-guard ON) — `/tmp/vj-r2`:
+- **pageScore@1440 = 70.5** (base 74.5 − penalty 4, no veto); raw tile mean 81.14; hRatio 0.998.
+- **Baseline = 53.9** (`judge-bandalign-rejudge`, boundary-guard ON, SAME page 83 PRE-LEVER tree).
+- **Judge delta = +16.6** — > 1.6× the ~9–10pt/run judge noise floor.
+- Per-tile @1440 (idx score): 00=72 01=78 02=38 03=32 04=82 05=68 06=95 07=92 08=82 09=92
+  10=82 11=100 12=90 13=78 14=100 15=82 16=95 17=82 18=82 19=87 20=95.
+
+**Deterministic bake-off** (same side-by-side tiles, halves via split.mjs-equiv,
+`metric-bakeoff/metrics.py` fns; edge_iou = best judge proxy pooled-ρ 0.679, LPIPS perceptual;
+both guard-agnostic / pixel-only). Pre-LEVER tiles from `judge/` (cloneH 6876, hRatio 0.903)
+vs R2 `/tmp/vj-r2` (cloneH 7599, hRatio 0.998); n=21 each vs the SAME 7616px source:
+
+| metric          | pre-LEVER | R2 (LEVER) | delta     | direction          |
+|-----------------|-----------|------------|-----------|--------------------|
+| **edge_iou**    | 0.33775   | 0.36473    | **+0.027**| higher better ✓    |
+| **lpips**       | 0.32977   | 0.25196    | **−0.078**| lower better ✓     |
+| ssim            | 0.75727   | 0.81639    | +0.059    | higher better ✓    |
+| hist_sim        | 0.87227   | 0.92118    | +0.049    | higher better ✓    |
+| mean_abs_diff   | 0.14401   | 0.08402    | −0.060    | lower better ✓     |
+
+ALL 5 deterministic metrics move the right way → the +16.6 judge delta is corroborated by the
+less-noisy signals. **Caveat:** pre/R2 tile y-bands aren't byte-identical (different cloneH), so
+this is a page-level read vs the same source, not a band-locked diff.
+
+**LOOK (R2 tiles):** hero t01 — CTA ghost FIXED, `Start building for free` purple pill +
+`Build with agents` white pill render (announcement-above-nav holds). Bento t13 — B2B imagery
+FIXED, real avatar-grid / auto-join / invitations / Org-UI cards (were dark 18px slivers).
+Billing t15 — subscription pricing-card mockup FIXED, full Starter/Pro plans pixel-close.
+Residual (next levers): nav space-between spread + `PricingSign in` run-together; Org-UI card
+stray border box + faint dotted-grid bleed; one testimonial avatar missing.
+
+**Verdict:** the batch moved REAL fidelity above noise — 53.9→70.5 (+16.6) backed by 5/5
+deterministic improvements + LOOK-confirmed CTA & imagery fixes. metricsHistory:
+`elementor-fidelity-r2-judged`.
