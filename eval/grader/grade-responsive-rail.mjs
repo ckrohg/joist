@@ -69,7 +69,17 @@ const GRID_NARROW_FRAC = 0.30;// frac of viewport; a card <= this in a >=3-col r
 // each narrower width. retain = narrowMulti3up[narrow]/narrowMulti3up[wide] — LOWER = more reflow.
 const GRID_RETAIN_GOOD = 0.65;// retain <= this ⇒ full reflow credit (GREEN ~0.57); RED ~0.86 lands below
 const GRID_RETAIN_BAD = 0.95; // retain >= this ⇒ no reflow credit (grid stayed dense/squished)
-const GRID_W = 0.20;          // weight of the grid-reflow dim in the final score (page-level, like typo)
+// GRID_W reverted to 0 (2026-06-13, orchestrator integrity revert): the grid-reflow dim gives a
+// real, reproducible reflow signal on a properly-rendered page (GREEN page 83: narrow3up 7→4,
+// medCardFrac 0.154→0.287 @768), BUT it CANNOT be falsifier-validated by the scratch-RED method —
+// freshly-injected scratch pages do not render the card-grid IMAGES in time, so RED's grid dim
+// ABSTAINS (applicable=false, perWidth=[]) at every width including 1440. Two independent RED
+// repros confirmed the abstention. So the dim's discrimination is logic-sound but not empirically
+// proven; per eval-integrity we do NOT score an unvalidated dim. Grid stays COMPUTED + REPORTED as
+// best-effort. The rail's validated discrimination (GREEN 1.0 / RED ~0.53) rests on the falsifier-
+// proven dims 1-3 (overflow + height + typography). Re-enable (→0.20) once the scratch-RED render
+// reliably paints card images (settle lazy-load) so the grid falsifier reproduces.
+const GRID_W = 0;             // weight of the grid-reflow dim in the final score (excluded — see above)
 const PAST_VP_SLACK = 8;      // px; widget right edge beyond innerWidth+slack ⇒ counts as past-viewport
 // Score weights (per-width, the two discriminating per-width dims). Typo folded in page-level.
 const OVERFLOW_W = 0.6;
