@@ -1,0 +1,19 @@
+<!doctype html><meta charset=utf8><style>
+*{margin:0;box-sizing:border-box;font-family:Arial,sans-serif}
+@keyframes slide{0%{background-position:0 0}100%{background-position:200% 0}}
+@keyframes march{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+body{width:1440px}
+.hero{height:520px;background:linear-gradient(90deg,#635bff,#00d4ff,#635bff);background-size:200% 100%;animation:slide 1s linear infinite;color:#fff;padding:80px}
+.hero h1{font-size:56px}
+.spacer{height:600px;padding:40px}
+.bar{overflow:hidden;white-space:nowrap;height:80px;background:#0a2540}
+.bar .track{display:inline-block;animation:march 1.2s linear infinite;color:#fff;font-size:40px;padding-top:18px}
+.dot{width:60px;height:60px;border-radius:50%;border:8px solid #635bff;border-top-color:transparent;animation:spin .8s linear infinite;margin:40px 80px}
+a.btn{display:inline-block;margin-top:30px;padding:14px 28px;background:#fff;color:#635bff;border-radius:24px;text-decoration:none;transition:background .2s}
+a.btn:hover{background:#ffd400}
+</style><body>
+<div class="hero"><h1>Motion everywhere</h1><a class="btn" href="#">Get started</a></div>
+<div class="spacer"><div class="dot"></div><p>Mid-page content sits here between the hero and the footer marquee.</p></div>
+<div class="bar"><span class="track">Scrolling ticker • breaking news • scrolling ticker • breaking news •</span></div>
+</body>

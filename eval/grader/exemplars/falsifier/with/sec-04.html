@@ -1,0 +1,68 @@
+<!doctype html>
+<!-- @purpose P3 falsifier sec-04 WITH-exemplars arm — clerk.com dark dual feature section (crop w1440-s17), authored WITH retrieved context [reauth-clerk-components, spike-clerk-components, lf-clerk-announce]: clerk tokens + announce-bar dark #131316, components split-row skeleton (flex-wrap row of halves), eyebrow/h2/copy/.explore type ramp (h2 38/46 -0.8px, copy 16/26 muted) adapted to the dark theme. Brand icons approximated as outline glyphs. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>sec-04 with</title>
+<style>
+  :root { --ink: #131316; --muted: #9d9ea7; --purple: #6c47ff; --line: #26262b; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--ink); color: #ffffff;
+    font-family: ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  a { text-decoration: none; color: inherit; }
+  .duo-row { display: flex; flex-wrap: wrap; gap: 64px; }
+  .half { flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center; }
+  .eyebrow { font-size: 13px; font-weight: 500; }
+  .eyebrow.cyan { color: #38bdf8; }
+  .eyebrow.violet { color: #a78bfa; }
+  .half h2 { margin-top: 22px; font-size: 36px; line-height: 42px; font-weight: 700; letter-spacing: -0.8px; color: #fff; }
+  .half p { margin-top: 22px; max-width: 470px; font-size: 15px; line-height: 24px; color: var(--muted); }
+  .explore { display: inline-flex; align-items: center; gap: 14px; margin-top: 32px; font-size: 13px; font-weight: 700; color: #fff; }
+  .explore .arr { font-size: 10px; color: var(--muted); }
+  .icogrid { margin-top: 44px; display: flex; flex-direction: column; width: 100%; }
+  .icorow { display: flex; }
+  .icocell { flex: 1; height: 140px; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; margin: -0.5px; }
+  .icocell.top { height: 50px; }
+  .glyph { width: 40px; height: 40px; border: 1.5px solid #6e6e78; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; color: #8e8e96; }
+  .glyph.sq { border-radius: 4px; }
+</style>
+</head>
+<body>
+<section class="duo-row">
+  <div class="half">
+    <div class="eyebrow cyan">Frameworks</div>
+    <h2>Build with SDKs for<br>modern frameworks</h2>
+    <p>Clerk keeps developer experience front-and-center by providing helpful SDKs for most modern frameworks on web and mobile.</p>
+    <a class="explore" href="#">All frameworks <span class="arr">&#9656;</span></a>
+    <div class="icogrid">
+      <div class="icorow"><span class="icocell top"></span><span class="icocell top"></span><span class="icocell top"></span></div>
+      <div class="icorow">
+        <span class="icocell"><span class="glyph">N</span></span>
+        <span class="icocell"><span class="glyph">&#9883;</span></span>
+        <span class="icocell"><span class="glyph sq">&#9650;</span></span>
+      </div>
+      <div class="icorow">
+        <span class="icocell"><span class="glyph">&#9737;</span></span>
+        <span class="icocell"><span class="glyph">&#127965;</span></span>
+        <span class="icocell"><span class="glyph sq">A</span></span>
+      </div>
+    </div>
+  </div>
+  <div class="half">
+    <div class="eyebrow violet">Integrations</div>
+    <h2>Integrate with<br>the tools you love</h2>
+    <p>Leverage Clerk as the source of truth for your user data and integrate with the tools that you already depend on.</p>
+    <a class="explore" href="#">All integrations <span class="arr">&#9656;</span></a>
+    <div class="icogrid">
+      <div class="icorow"><span class="icocell top"></span><span class="icocell top"></span><span class="icocell top"></span></div>
+      <div class="icorow">
+        <span class="icocell"><span class="glyph">&#9889;</span></span>
+        <span class="icocell"><span class="glyph">&#10042;</span></span>
+        <span class="icocell"><span class="glyph sq">&#9651;</span></span>
+      </div>
+    </div>
+  </div>
+</section>
+</body>
+</html>

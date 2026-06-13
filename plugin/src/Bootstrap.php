@@ -190,6 +190,9 @@ final class Bootstrap
             \Joist\REST\ElementsController::class,
             \Joist\REST\KitController::class,
             \Joist\REST\TemplatesController::class,
+            // §8d basics: header/footer Theme Builder documents + display
+            // conditions + Pro conditions-cache rebuild (the e0d7228 fix).
+            \Joist\REST\SitePartsController::class,
             \Joist\REST\MediaController::class,
             \Joist\REST\MenusController::class,
             \Joist\REST\PluginsController::class,
@@ -218,6 +221,8 @@ final class Bootstrap
             \Joist\REST\SettingsController::class,
             // v0.10: MCP server — Joist as a tool surface for Claude Code (and any MCP client).
             \Joist\REST\McpController::class,
+            // Admin-only DB hygiene: revision prune + table-size stats (DB quota relief).
+            \Joist\REST\MaintenanceController::class,
         ];
         foreach ($controllers as $c) {
             if (class_exists($c)) {

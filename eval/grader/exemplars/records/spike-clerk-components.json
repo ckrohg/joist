@@ -1,0 +1,68 @@
+{
+  "id": "spike-clerk-components",
+  "constructIds": [
+    "split-2col",
+    "card",
+    "heading",
+    "body-text",
+    "button-cta"
+  ],
+  "visualDescriptor": {
+    "structuralSignature": "flex-row",
+    "palette": [
+      "#ffffff",
+      "#131316",
+      "#cfcfd2"
+    ],
+    "densityTags": [
+      "light-bg",
+      "sparse",
+      "muted",
+      "banner"
+    ]
+  },
+  "renderPng": "renders/spike-clerk-components.png",
+  "renderSize": {
+    "w": 1440,
+    "h": 524
+  },
+  "authoredHtml": "html/spike-clerk-components.html",
+  "elementorJson": null,
+  "provenance": "spike",
+  "verification": {
+    "status": "judged",
+    "evidence": [
+      "/tmp/vj-htmlfirst/results.json (VOLATILE /tmp)",
+      "/tmp/vj-htmlfirst/manifest.json tiles w1440-00..04 (VOLATILE)",
+      "knowledge/EMBODIMENT_APPROACH.md §4.2 (commit fbfddda)",
+      "eval/grader/atlas/spike-lint-report.json"
+    ],
+    "notes": "Verbatim spike components section. KNOWN DIRTY: 1x V-NEST (.oauth depth 5) — kept as-authored for provenance; reauth-clerk-components is the lint-clean variant."
+  },
+  "lint": {
+    "clean": false,
+    "violations": [
+      {
+        "construct": "section-stack",
+        "rule": "V-NEST",
+        "element": "<div class=\"oauth\"> \"GContinue with Google Continue\"",
+        "fixHint": "flatten wrappers: ≤4 container levels per top-level section [container depth 5]",
+        "residualChannel": "none"
+      }
+    ],
+    "warnings": [
+      {
+        "construct": "button-cta",
+        "rule": "W-BTN-SPAN",
+        "element": "<a class=\"oauthbtn\"> \"GContinue with Google\"",
+        "note": "styled span \"G\" flattens to plain button text (P1)"
+      }
+    ]
+  },
+  "source": {
+    "site": "clerk.com",
+    "crop": "/tmp/htmlfirst/cmp-1440-top.png",
+    "width": 1440
+  },
+  "hash": "sha256:46928afeda7cb8ab88246ee491e513be05a062fc0914d228be0938a88e7c6f8b"
+}

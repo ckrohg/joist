@@ -1,0 +1,94 @@
+<!doctype html>
+<!-- @purpose P3 falsifier sec-06 WITH-exemplars arm — clerk.com footer (crop w1440-s20), authored WITH retrieved context [syn-footer-columns, spike-clerk-nav, lf-clerk-announce]: syn-footer-columns skeleton reused directly (foot-cols flex row, brand col + flex-col link columns of <a> leaves, foot-legal border-top split row) restyled to clerk's light theme; brand dot+wordmark from spike-clerk-nav .brand. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>sec-06 with</title>
+<style>
+  :root { --ink: #131316; --muted: #5e5f6e; --line: #e7e7ea; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #f7f7f8; color: var(--ink);
+    font-family: ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  a { text-decoration: none; color: inherit; }
+  .site-footer { padding: 0 0 36px; }
+  .foot-cols { max-width: 1216px; margin: 0 auto; display: flex; gap: 24px; }
+  .foot-brand { flex: 0 0 280px; display: flex; align-items: flex-start; gap: 8px; padding-top: 14px; }
+  .foot-brand .dot { width: 22px; height: 22px; border-radius: 50%; background: var(--ink); }
+  .foot-brand .name { font-size: 19px; font-weight: 700; letter-spacing: -0.2px; }
+  .foot-col { flex: 1; display: flex; flex-direction: column; gap: 16px; }
+  .foot-h { font-size: 13px; font-weight: 400; color: #8e8e96; }
+  .foot-links { display: flex; flex-direction: column; gap: 14px; }
+  .foot-links a { font-size: 13.5px; color: var(--ink); }
+  .foot-legal { max-width: 1216px; margin: 56px auto 0; padding-top: 26px; border-top: 1px solid var(--line);
+    display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--muted); }
+  .socials { display: flex; gap: 22px; }
+  .soc { width: 18px; height: 18px; border-radius: 4px; background: #3f3f46; }
+  .soc.round { border-radius: 50%; }
+</style>
+</head>
+<body>
+<footer class="site-footer">
+  <div class="foot-cols">
+    <div class="foot-brand"><span class="dot"></span><span class="name">clerk</span></div>
+    <div class="foot-col">
+      <div class="foot-h">Product</div>
+      <div class="foot-links">
+        <a href="#">Authentication</a>
+        <a href="#">B2B Authentication</a>
+        <a href="#">Billing</a>
+        <a href="#">CLI</a>
+      </div>
+    </div>
+    <div class="foot-col">
+      <div class="foot-h">SDKs</div>
+      <div class="foot-links">
+        <a href="#">React</a>
+        <a href="#">Next.js</a>
+        <a href="#">Expo</a>
+        <a href="#">View all</a>
+      </div>
+    </div>
+    <div class="foot-col">
+      <div class="foot-h">Resources</div>
+      <div class="foot-links">
+        <a href="#">Documentation</a>
+        <a href="#">Changelog</a>
+        <a href="#">Glossary</a>
+        <a href="#">Feature requests</a>
+        <a href="#">Startups</a>
+        <a href="#">Students</a>
+        <a href="#">LLM Leaderboard</a>
+      </div>
+    </div>
+    <div class="foot-col">
+      <div class="foot-h">Company</div>
+      <div class="foot-links">
+        <a href="#">About</a>
+        <a href="#">Careers</a>
+        <a href="#">Blog</a>
+        <a href="#">Contact</a>
+        <a href="#">Brand assets</a>
+      </div>
+    </div>
+    <div class="foot-col">
+      <div class="foot-h">Legal</div>
+      <div class="foot-links">
+        <a href="#">Terms and conditions</a>
+        <a href="#">Privacy policy</a>
+        <a href="#">Website terms of use</a>
+        <a href="#">Legal Resources</a>
+        <a href="#">Do not sell/share my info</a>
+        <a href="#">Cookie manager</a>
+      </div>
+    </div>
+  </div>
+  <div class="foot-legal">
+    <span>&copy; 2026 Clerk, Inc.</span>
+    <div class="socials">
+      <span class="soc"></span><span class="soc"></span><span class="soc round"></span><span class="soc round"></span><span class="soc"></span>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

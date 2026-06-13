@@ -1,0 +1,49 @@
+{
+  "id": "reauth-clerk-logoband",
+  "constructIds": [
+    "logo-band",
+    "body-text",
+    "divider"
+  ],
+  "visualDescriptor": {
+    "structuralSignature": "flex-row",
+    "palette": [
+      "#fcfcfd",
+      "#353538",
+      "#d1d1d2"
+    ],
+    "densityTags": [
+      "light-bg",
+      "sparse",
+      "muted",
+      "wide-band"
+    ]
+  },
+  "renderPng": "renders/reauth-clerk-logoband.png",
+  "renderSize": {
+    "w": 1440,
+    "h": 200
+  },
+  "authoredHtml": "html/reauth-clerk-logoband.html",
+  "elementorJson": null,
+  "provenance": "re-author",
+  "verification": {
+    "status": "pixel-parity",
+    "evidence": [
+      "eval/grader/atlas/reauth-lint-report.json",
+      "knowledge/EMBODIMENT_APPROACH.md §4.2 gate (b): 99.82% @1440 / 100.00% @1100 exact-pixel vs spike renders (commit fbfddda)"
+    ],
+    "notes": "P2 contract re-author: CSS math frozen to px. Pixel-parity vs the judged spike."
+  },
+  "lint": {
+    "clean": true,
+    "violations": [],
+    "warnings": []
+  },
+  "source": {
+    "site": "clerk.com",
+    "crop": "/tmp/htmlfirst/c-logos.png",
+    "width": 1440
+  },
+  "hash": "sha256:7f61082a800bedd07e11fb6fa39c92dcc9885208e72763c7796d40479cc8c4f7"
+}

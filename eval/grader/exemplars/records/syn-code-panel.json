@@ -1,0 +1,49 @@
+{
+  "id": "syn-code-panel",
+  "constructIds": [
+    "code-panel",
+    "card",
+    "divider"
+  ],
+  "visualDescriptor": {
+    "structuralSignature": "flex-col",
+    "palette": [
+      "#f5f6f8",
+      "#0d1117",
+      "#d2d3d6"
+    ],
+    "densityTags": [
+      "light-bg",
+      "dense",
+      "colorful",
+      "banner"
+    ]
+  },
+  "renderPng": "renders/syn-code-panel.png",
+  "renderSize": {
+    "w": 1440,
+    "h": 390
+  },
+  "authoredHtml": "html/syn-code-panel.html",
+  "elementorJson": null,
+  "provenance": "synthetic",
+  "verification": {
+    "status": "lint-clean-rendered",
+    "evidence": [
+      "records/syn-code-panel.json lint block",
+      "renders/syn-code-panel.png (LOOK sanity)"
+    ],
+    "notes": "Synthetic coverage sample (P3 backfill): lint-clean + rendered; NO fidelity claim (no source ground truth)."
+  },
+  "lint": {
+    "clean": true,
+    "violations": [],
+    "warnings": []
+  },
+  "source": {
+    "site": "",
+    "crop": "",
+    "width": 1440
+  },
+  "hash": "sha256:547a36647561752baaf33b0fc419467b16d2b4c0efca78ff473c876367464462"
+}

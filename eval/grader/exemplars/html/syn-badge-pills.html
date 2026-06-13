@@ -1,0 +1,33 @@
+<!doctype html>
+<!-- @purpose Exemplar syn-badge-pills — SYNTHETIC coverage sample for the badge-pill construct (histogram count 13, uncovered by backfill). Authored per the contract: inline-flow pills (bg + radius 999 + padding), never absolutely pinned. Lint-clean required; no source ground truth — no fidelity claim. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>exemplar: badge pills (synthetic)</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #ffffff; color: #111114;
+    font-family: ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  .feature-head { padding: 72px 24px 56px; display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center; }
+  .pill-new { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; border-radius: 999px; padding: 4px 12px; font-size: 13px; font-weight: 600; }
+  .feature-head h2 { font-size: 40px; line-height: 48px; font-weight: 700; letter-spacing: -0.6px; }
+  .feature-head p { max-width: 560px; font-size: 16px; line-height: 25px; color: #62636c; }
+  .pill-row { display: flex; gap: 10px; margin-top: 8px; }
+  .pill { background: #f4f4f6; color: #3f3f46; border-radius: 999px; padding: 6px 14px; font-size: 13px; font-weight: 500; }
+</style>
+</head>
+<body>
+<section class="feature-head">
+  <span class="pill-new">New in v5</span>
+  <h2>Everything ships with types</h2>
+  <p>Full TypeScript coverage across the SDK, webhooks, and the management API, with generated types on every release.</p>
+  <div class="pill-row">
+    <span class="pill">SDKs</span>
+    <span class="pill">Webhooks</span>
+    <span class="pill">Management API</span>
+    <span class="pill">CLI</span>
+  </div>
+</section>
+</body>
+</html>

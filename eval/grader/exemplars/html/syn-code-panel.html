@@ -1,0 +1,32 @@
+<!doctype html>
+<!-- @purpose Exemplar syn-code-panel — SYNTHETIC coverage sample for the code-panel construct (histogram count 39, uncovered by backfill). Authored per the contract: <pre> with <br> line breaks ONLY (V-PRE-NEWLINE discipline), inline token-color spans, no highlighter JS. Lint-clean required; no source ground truth — no fidelity claim. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>exemplar: code panel (synthetic)</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #f6f7f9; color: #111114;
+    font-family: ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  .codeband { padding: 72px 24px; display: flex; justify-content: center; }
+  .codebox { width: 720px; background: #0d1117; border: 1px solid #1f242c; border-radius: 12px; padding: 8px 0 20px; box-shadow: 0 16px 40px rgba(13,17,23,.25); }
+  .codebar { display: flex; align-items: center; gap: 8px; padding: 10px 18px 12px; }
+  .dot { width: 11px; height: 11px; border-radius: 50%; }
+  .dot-r { background: #ff5f57; } .dot-y { background: #febc2e; } .dot-g { background: #28c840; }
+  .codename { margin-left: 10px; font-size: 12px; color: #8b949e; font-family: ui-monospace, Menlo, monospace; }
+  .codebox pre { padding: 4px 22px 0; font-family: ui-monospace, Menlo, monospace; font-size: 13.5px; line-height: 22px; color: #c9d1d9; }
+</style>
+</head>
+<body>
+<section class="codeband">
+  <div class="codebox">
+    <div class="codebar">
+      <span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span>
+      <span class="codename">auth.ts</span>
+    </div>
+    <pre><span style="color:#ff7b72">import</span> { clerkMiddleware } <span style="color:#ff7b72">from</span> <span style="color:#a5d6ff">'@clerk/nextjs/server'</span>;<br><br><span style="color:#8b949e">// Protect every route by default</span><br><span style="color:#ff7b72">export default</span> <span style="color:#d2a8ff">clerkMiddleware</span>((<span style="color:#ffa657">auth</span>) =&gt; {<br>  <span style="color:#ff7b72">if</span> (!auth.userId) auth.<span style="color:#d2a8ff">redirectToSignIn</span>();<br>});<br><br><span style="color:#ff7b72">export const</span> config = { matcher: <span style="color:#a5d6ff">'/((?!_next).*)'</span> };</pre>
+  </div>
+</section>
+</body>
+</html>

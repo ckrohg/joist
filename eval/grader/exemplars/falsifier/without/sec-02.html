@@ -1,0 +1,67 @@
+<!doctype html>
+<!-- @purpose P3 falsifier sec-02 WITHOUT-exemplars arm — clerk.com organizations 3-column feature row (crop w1440-s13): roles+permissions col with avatar grid mock, auto-join/invitations stacked cards, org UI components col. Authored from the crop under the contract, no library context. Mock-UI imagery as neutral boxes. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>sec-02 without</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #f7f7f8; color: #131316;
+    font-family: ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  .org-row { display: flex; gap: 16px; }
+  .org-col { flex: 1; background: #ffffff; border: 1px solid #e9e9ec; border-radius: 12px; padding: 24px; display: flex; flex-direction: column; }
+  .org-col h3 { font-size: 14px; font-weight: 600; }
+  .org-col .desc { margin-top: 10px; font-size: 13px; line-height: 20px; color: #5e5f6e; }
+  .avgrid { margin: 28px auto 0; display: flex; flex-direction: column; gap: 10px; }
+  .avrow { display: flex; gap: 10px; justify-content: center; }
+  .av { width: 56px; height: 56px; border-radius: 10px; background: #ededf0; border: 1px solid #e2e2e6; }
+  .av.photo { background: #c9c2bb; }
+  .roles { margin-top: 28px; display: flex; gap: 14px; justify-content: center; font-size: 11px; color: #9a9aa2; }
+  .roles .on { background: #ffffff; border: 1px solid #e2e2e6; border-radius: 999px; padding: 3px 10px; color: #131316; font-weight: 500; }
+  .midcard { background: #fdfdfd; border: 1px solid #ededf0; border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+  .midcard .mock { height: 90px; background: #f3f3f6; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+  .chip { background: #ffffff; border: 1px solid #e2e2e6; border-radius: 999px; padding: 4px 12px; font-size: 11px; font-weight: 500; }
+  .chip.dark { background: #1f1f23; color: #ffffff; border-color: #1f1f23; }
+  .midcard h4 { font-size: 13px; font-weight: 600; }
+  .midcard p { font-size: 13px; line-height: 20px; color: #5e5f6e; }
+  .gap12 { display: flex; flex-direction: column; gap: 12px; flex: 1; }
+  .orgdrop { margin: 20px auto 0; display: inline-flex; align-items: center; gap: 8px; background: #ffffff; border: 1px solid #e2e2e6; border-radius: 999px; padding: 6px 14px; font-size: 12px; font-weight: 600; }
+  .dashpanel { margin-top: 20px; flex: 1; min-height: 220px; border: 1px dashed #d8d8dd; border-radius: 10px; background: #fbfbfc; }
+</style>
+</head>
+<body>
+<section class="org-row">
+  <div class="org-col">
+    <h3>Custom roles and permissions</h3>
+    <p class="desc">Powerful primitives to fully customize your app's authorization story.</p>
+    <div class="avgrid">
+      <div class="avrow"><span class="av"></span><span class="av photo"></span><span class="av"></span></div>
+      <div class="avrow"><span class="av photo"></span><span class="av"></span><span class="av photo"></span></div>
+      <div class="avrow"><span class="av"></span><span class="av photo"></span><span class="av"></span></div>
+    </div>
+    <div class="roles"><span>Product Member</span><span class="on">Administrator</span><span>Editor</span><span>QA Tester</span></div>
+  </div>
+  <div class="org-col">
+    <div class="gap12">
+      <div class="midcard">
+        <div class="mock"><span class="chip">&#9993; Auto-join</span></div>
+        <h4>Auto-join</h4>
+        <p>Let your users discover and join organizations based on their email domain.</p>
+      </div>
+      <div class="midcard">
+        <div class="mock"><span class="chip dark">&#9993; Invite this person</span></div>
+        <h4>Invitations</h4>
+        <p>Fuel your application's growth by making it simple for your customers to invite their team.</p>
+      </div>
+    </div>
+  </div>
+  <div class="org-col">
+    <h3>Organization UI Components</h3>
+    <p class="desc">Clerk's UI components add turn-key simplicity to complex Organization management tasks.</p>
+    <div class="orgdrop"><span>&#9678;</span>Clerk<span style="color:#9a9aa2;font-size:9px">&#9662;</span></div>
+    <div class="dashpanel"></div>
+  </div>
+</section>
+</body>
+</html>

@@ -1,0 +1,438 @@
+{
+  "source": "https://stripe.com",
+  "clone": "https://georges232.sg-host.com/stripe-ir-build-v4/",
+  "graded_at": "n/a",
+  "viewports": {
+    "desktop": {
+      "regions": [
+        {
+          "i": 0,
+          "ssim": 0.681,
+          "deltaE": 5.3,
+          "pixDiff": 0.202,
+          "score": 0.71,
+          "crop": "honest-ir4/desktop-region0.png"
+        },
+        {
+          "i": 1,
+          "ssim": 0.449,
+          "deltaE": 15.6,
+          "pixDiff": 0.403,
+          "score": 0.48,
+          "crop": "honest-ir4/desktop-region1.png"
+        },
+        {
+          "i": 2,
+          "ssim": 0.778,
+          "deltaE": 12.6,
+          "pixDiff": 0.183,
+          "score": 0.578,
+          "crop": "honest-ir4/desktop-region2.png"
+        },
+        {
+          "i": 3,
+          "ssim": 0.472,
+          "deltaE": 45.3,
+          "pixDiff": 0.539,
+          "score": 0,
+          "crop": "honest-ir4/desktop-region3.png"
+        },
+        {
+          "i": 4,
+          "ssim": 0.443,
+          "deltaE": 68,
+          "pixDiff": 0.883,
+          "score": 0,
+          "crop": "honest-ir4/desktop-region4.png"
+        },
+        {
+          "i": 5,
+          "ssim": 0.387,
+          "deltaE": 4.6,
+          "pixDiff": 0.372,
+          "score": 0.443,
+          "crop": "honest-ir4/desktop-region5.png"
+        },
+        {
+          "i": 6,
+          "ssim": 0.232,
+          "deltaE": 76.6,
+          "pixDiff": 0.802,
+          "score": 0,
+          "crop": "honest-ir4/desktop-region6.png"
+        },
+        {
+          "i": 7,
+          "ssim": 0.62,
+          "deltaE": 21.4,
+          "pixDiff": 0.318,
+          "score": 0.285,
+          "crop": "honest-ir4/desktop-region7.png"
+        },
+        {
+          "i": 8,
+          "ssim": 0.865,
+          "deltaE": 2.4,
+          "pixDiff": 0.031,
+          "score": 0.878,
+          "crop": "honest-ir4/desktop-region8.png"
+        },
+        {
+          "i": 9,
+          "ssim": 0.83,
+          "deltaE": 1.8,
+          "pixDiff": 0.016,
+          "score": 0.846,
+          "crop": "honest-ir4/desktop-region9.png"
+        }
+      ],
+      "gates": {
+        "gradientText": {
+          "src": 0,
+          "cln": 0,
+          "fail": false
+        },
+        "fontFamily": {
+          "src": {
+            "head": "sohne-var",
+            "body": "sohne-var"
+          },
+          "cln": {
+            "head": "cf0",
+            "body": "cf0"
+          },
+          "fail": true
+        },
+        "effects": {
+          "src": 30,
+          "cln": 0,
+          "fail": true
+        },
+        "layout": {
+          "medianIoU": 0,
+          "textMatchRate": 0.49,
+          "fail": true
+        },
+        "imagery": {
+          "src": 32,
+          "cln": 20,
+          "fail": false
+        }
+      },
+      "score": 0,
+      "visual": 0,
+      "structural": 0.25,
+      "structural_fails": [
+        "fontFamily",
+        "effects",
+        "layout"
+      ]
+    },
+    "tablet": {
+      "regions": [
+        {
+          "i": 0,
+          "ssim": 0.538,
+          "deltaE": 18.9,
+          "pixDiff": 0.343,
+          "score": 0.37,
+          "crop": "honest-ir4/tablet-region0.png"
+        },
+        {
+          "i": 1,
+          "ssim": 0.421,
+          "deltaE": 10,
+          "pixDiff": 0.355,
+          "score": 0.474,
+          "crop": "honest-ir4/tablet-region1.png"
+        },
+        {
+          "i": 2,
+          "ssim": 0.437,
+          "deltaE": 53.4,
+          "pixDiff": 0.637,
+          "score": 0,
+          "crop": "honest-ir4/tablet-region2.png"
+        },
+        {
+          "i": 3,
+          "ssim": 0.242,
+          "deltaE": 77.1,
+          "pixDiff": 0.928,
+          "score": 0,
+          "crop": "honest-ir4/tablet-region3.png"
+        },
+        {
+          "i": 4,
+          "ssim": 0.339,
+          "deltaE": 4,
+          "pixDiff": 0.299,
+          "score": 0.399,
+          "crop": "honest-ir4/tablet-region4.png"
+        },
+        {
+          "i": 5,
+          "ssim": 0.325,
+          "deltaE": 41,
+          "pixDiff": 0.475,
+          "score": 0,
+          "crop": "honest-ir4/tablet-region5.png"
+        },
+        {
+          "i": 6,
+          "ssim": 0.527,
+          "deltaE": 23.1,
+          "pixDiff": 0.363,
+          "score": 0.23,
+          "crop": "honest-ir4/tablet-region6.png"
+        },
+        {
+          "i": 7,
+          "ssim": 0.802,
+          "deltaE": 2.6,
+          "pixDiff": 0.041,
+          "score": 0.82,
+          "crop": "honest-ir4/tablet-region7.png"
+        },
+        {
+          "i": 8,
+          "ssim": 0.727,
+          "deltaE": 1.3,
+          "pixDiff": 0.021,
+          "score": 0.752,
+          "crop": "honest-ir4/tablet-region8.png"
+        }
+      ],
+      "gates": {
+        "gradientText": {
+          "src": 0,
+          "cln": 0,
+          "fail": false
+        },
+        "fontFamily": {
+          "src": {
+            "head": "sohne-var",
+            "body": "sohne-var"
+          },
+          "cln": {
+            "head": "cf0",
+            "body": "cf0"
+          },
+          "fail": true
+        },
+        "effects": {
+          "src": 28,
+          "cln": 0,
+          "fail": true
+        },
+        "layout": {
+          "medianIoU": 0,
+          "textMatchRate": 0.49,
+          "fail": true
+        },
+        "imagery": {
+          "src": 31,
+          "cln": 20,
+          "fail": false
+        }
+      },
+      "score": 0,
+      "visual": 0,
+      "structural": 0.25,
+      "structural_fails": [
+        "fontFamily",
+        "effects",
+        "layout"
+      ]
+    },
+    "mobile": {
+      "regions": [
+        {
+          "i": 0,
+          "ssim": 0.538,
+          "deltaE": 33.8,
+          "pixDiff": 0.442,
+          "score": 0,
+          "crop": "honest-ir4/mobile-region0.png"
+        },
+        {
+          "i": 1,
+          "ssim": 0.371,
+          "deltaE": 3.3,
+          "pixDiff": 0.226,
+          "score": 0.428,
+          "crop": "honest-ir4/mobile-region1.png"
+        },
+        {
+          "i": 2,
+          "ssim": 0.711,
+          "deltaE": 23.9,
+          "pixDiff": 0.366,
+          "score": 0.204,
+          "crop": "honest-ir4/mobile-region2.png"
+        },
+        {
+          "i": 3,
+          "ssim": 0.388,
+          "deltaE": 55.7,
+          "pixDiff": 0.674,
+          "score": 0,
+          "crop": "honest-ir4/mobile-region3.png"
+        },
+        {
+          "i": 4,
+          "ssim": 0.24,
+          "deltaE": 80.7,
+          "pixDiff": 0.928,
+          "score": 0,
+          "crop": "honest-ir4/mobile-region4.png"
+        },
+        {
+          "i": 5,
+          "ssim": 0.257,
+          "deltaE": 7.7,
+          "pixDiff": 0.225,
+          "score": 0.324,
+          "crop": "honest-ir4/mobile-region5.png"
+        },
+        {
+          "i": 6,
+          "ssim": 0.218,
+          "deltaE": 34.9,
+          "pixDiff": 0.461,
+          "score": 0,
+          "crop": "honest-ir4/mobile-region6.png"
+        },
+        {
+          "i": 7,
+          "ssim": 0.563,
+          "deltaE": 18.7,
+          "pixDiff": 0.32,
+          "score": 0.375,
+          "crop": "honest-ir4/mobile-region7.png"
+        },
+        {
+          "i": 8,
+          "ssim": 0.871,
+          "deltaE": 1.8,
+          "pixDiff": 0.019,
+          "score": 0.882,
+          "crop": "honest-ir4/mobile-region8.png"
+        },
+        {
+          "i": 9,
+          "ssim": 0.8,
+          "deltaE": 3.7,
+          "pixDiff": 0.016,
+          "score": 0.818,
+          "crop": "honest-ir4/mobile-region9.png"
+        }
+      ],
+      "gates": {
+        "gradientText": {
+          "src": 0,
+          "cln": 0,
+          "fail": false
+        },
+        "fontFamily": {
+          "src": {
+            "head": "sohne-var",
+            "body": "sohne-var"
+          },
+          "cln": {
+            "head": "cf0",
+            "body": "cf0"
+          },
+          "fail": true
+        },
+        "effects": {
+          "src": 28,
+          "cln": 0,
+          "fail": true
+        },
+        "layout": {
+          "medianIoU": 0,
+          "textMatchRate": 0.48,
+          "fail": true
+        },
+        "imagery": {
+          "src": 42,
+          "cln": 20,
+          "fail": true
+        }
+      },
+      "score": 0,
+      "visual": 0,
+      "structural": 0,
+      "structural_fails": [
+        "fontFamily",
+        "effects",
+        "layout",
+        "imagery"
+      ]
+    }
+  },
+  "hard_fails": [
+    "desktop:fontFamily",
+    "desktop:effects",
+    "desktop:layout",
+    "tablet:fontFamily",
+    "tablet:effects",
+    "tablet:layout",
+    "mobile:fontFamily",
+    "mobile:effects",
+    "mobile:layout",
+    "mobile:imagery"
+  ],
+  "defects": [],
+  "trustworthy": false,
+  "overall": 0,
+  "overall_pct": 0,
+  "visual_overall_pct": 0,
+  "structural_overall_pct": 0,
+  "worst_region": {
+    "viewport": "desktop",
+    "i": 3,
+    "ssim": 0.472,
+    "deltaE": 45.3,
+    "pixDiff": 0.539,
+    "score": 0,
+    "crop": "honest-ir4/desktop-region3.png"
+  },
+  "vision_review": {
+    "required": true,
+    "status": "PENDING — a vision judge must enumerate defects on the region crops before this score is trustworthy",
+    "rubric": "For each region crop (source LEFT | clone RIGHT): list EVERY concrete visible difference (missing gradient, wrong font, wrong image, missing effect, misalignment, spacing, color). Start at 100, SUBTRACT per defect, justify each point NOT subtracted. The vision score CAPS overall, never raises it.",
+    "crops": [
+      "honest-ir4/desktop-region0.png",
+      "honest-ir4/desktop-region1.png",
+      "honest-ir4/desktop-region2.png",
+      "honest-ir4/desktop-region3.png",
+      "honest-ir4/desktop-region4.png",
+      "honest-ir4/desktop-region5.png",
+      "honest-ir4/desktop-region6.png",
+      "honest-ir4/desktop-region7.png",
+      "honest-ir4/desktop-region8.png",
+      "honest-ir4/desktop-region9.png",
+      "honest-ir4/tablet-region0.png",
+      "honest-ir4/tablet-region1.png",
+      "honest-ir4/tablet-region2.png",
+      "honest-ir4/tablet-region3.png",
+      "honest-ir4/tablet-region4.png",
+      "honest-ir4/tablet-region5.png",
+      "honest-ir4/tablet-region6.png",
+      "honest-ir4/tablet-region7.png",
+      "honest-ir4/tablet-region8.png",
+      "honest-ir4/mobile-region0.png",
+      "honest-ir4/mobile-region1.png",
+      "honest-ir4/mobile-region2.png",
+      "honest-ir4/mobile-region3.png",
+      "honest-ir4/mobile-region4.png",
+      "honest-ir4/mobile-region5.png",
+      "honest-ir4/mobile-region6.png",
+      "honest-ir4/mobile-region7.png",
+      "honest-ir4/mobile-region8.png",
+      "honest-ir4/mobile-region9.png"
+    ]
+  }
+}

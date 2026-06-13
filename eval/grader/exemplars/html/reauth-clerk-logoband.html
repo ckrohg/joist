@@ -1,0 +1,41 @@
+<!doctype html>
+<!-- @purpose Exemplar reauth-clerk-logoband — logo band re-authored under the atlas contract (P2 gate (b), eval/grader/atlas/reauth-hero.html): CSS math FROZEN to computed px (1440: clamp->130, max->112; <=1180 media overrides). Pixel-parity proven vs the judged spike (99.82% @1440 / 100% @1100). 100% lint-clean variant of spike-clerk-logoband. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>exemplar: logo band (contract re-author)</title>
+<style>
+  :root { --ink: #131316; --muted: #5e5f6e; --purple: #6c47ff; --bg: #f8f8f9; --line: #ececef; --line2: #f3f3f3; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--ink);
+    font-family: ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  a { text-decoration: none; color: inherit; }
+  .logoband { background: #fff; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line2); }
+  .logoband .row { display: flex; }
+  .cell { min-height: 130px; display: flex; align-items: center; border-right: 1px solid var(--line2); }
+  .cell.label { width: 29.6%; padding-left: 112px; padding-right: 90px;
+    font-size: 14px; line-height: 25px; color: var(--ink); }
+  .cell.logo { width: 15.7%; justify-content: center; color: #36363a; font-size: 17px; font-weight: 600; }
+  .cell.logo .mk { font-weight: 700; margin-right: 9px; font-size: 15px; }
+  .cell.logo.samaya { font-size: 21px; font-weight: 500; letter-spacing: 0.5px; }
+  .cell.filler { flex: 1 1 40px; border-right: none; }
+  @media (max-width: 1180px) {
+    .cell { min-height: 112px; }
+    .cell.label { padding-left: 68px; padding-right: 40px; }
+  }
+</style>
+</head>
+<body>
+<section class="logoband">
+  <div class="row">
+    <div class="cell label">Trusted by fast-growing companies around the world.</div>
+    <div class="cell logo"><span class="mk">|||</span>David AI</div>
+    <div class="cell logo"><span class="mk">&#10094;</span>OpenRouter</div>
+    <div class="cell logo samaya">s&#803;amaya</div>
+    <div class="cell logo"><span class="mk">&#9400;</span>Consensus</div>
+    <div class="cell filler"></div>
+  </div>
+</section>
+</body>
+</html>

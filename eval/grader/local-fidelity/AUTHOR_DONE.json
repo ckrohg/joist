@@ -1,0 +1,159 @@
+{
+ "artifact": "clerk.html",
+ "hash": "9c55f07ee584fb3b012ed3dfa14989c788389e9fe46034eb93aa793b583d97d2",
+ "source": "https://clerk.com (captured 2026-06-09, /tmp/local-fidelity/cap)",
+ "contract": "knowledge/AUTHORING_CONTRACT.md (P2, atlas-constrained)",
+ "pageHeights": {
+  "1440": 7614,
+  "source1440": 7616,
+  "1250": 8298,
+  "source1250": 8552,
+  "768": 9982,
+  "source768": 10113,
+  "preResponsive1250": 7495,
+  "preResponsive768": 15632
+ },
+ "sections": [
+  {
+   "id": "s1-announce+header",
+   "how": "native; header in-flow (source floats it)",
+   "exemplar": null
+  },
+  {
+   "id": "s2-hero",
+   "how": "native text/CTAs + region-raster art slices (hero-art-left/right.png)",
+   "exemplar": null
+  },
+  {
+   "id": "s3-logo-wall",
+   "how": "native cells + real captured logo SVGs (marquee frozen)",
+   "exemplar": null
+  },
+  {
+   "id": "s4-components",
+   "how": "native left col + glyph accordion; right collage+modal = region-raster (comp-collage.png)",
+   "exemplar": null
+  },
+  {
+   "id": "s5-auth-bento",
+   "how": "native 9+2 card bento (flex, no grid) + per-card raster visuals + wedge raster strips",
+   "exemplar": null
+  },
+  {
+   "id": "s6-b2b",
+   "how": "folded falsifier sec-01 (head) + sec-02 (cards), with-arm rhythm; neutral boxes upgraded to region-raster visuals",
+   "exemplar": "falsifier/with/sec-01,sec-02"
+  },
+  {
+   "id": "s7-billing",
+   "how": "folded sec-03 text-col skeleton; app window = region-raster (billing-app.png)",
+   "exemplar": "falsifier/with/sec-03"
+  },
+  {
+   "id": "s8-frameworks-integrations",
+   "how": "folded sec-04 dual-half skeleton; glyphs upgraded to real outline SVG assets in bordered img-cells",
+   "exemplar": "falsifier/with/sec-04"
+  },
+  {
+   "id": "s9-testimonials",
+   "how": "folded sec-05 wall skeleton; real transcribed tweets, raster avatars/author rows, 584px overflow-cut wall",
+   "exemplar": "falsifier/with/sec-05"
+  },
+  {
+   "id": "s10-footer",
+   "how": "folded sec-06 skeleton; real clerk lockup + raster social strip; legal row aligned to source",
+   "exemplar": "falsifier/with/sec-06"
+  }
+ ],
+ "lintSummary": {
+  "tool": "eval/grader/atlas/lint-authoring.mjs --html",
+  "clean": true,
+  "constructs": 289,
+  "cleanConstructs": 289,
+  "pctClean": 100.0,
+  "violations": 0,
+  "warnings": {
+   "W-FONT": 133,
+   "W-CSSMATH": 3,
+   "W-ALT": 6,
+   "W-SQUARE-BTN": 1
+  },
+  "warningNotes": "W-FONT = real captured Suisse Intl kept deliberately (fidelity over kit fonts); W-CSSMATH = 3 calc() in media blocks (frozen at authoring width per contract); W-ALT = decorative wedge/art imgs with empty alt; W-SQUARE-BTN = .hdr-start 6px radius kept to match source (maps to text-editor not button widget)"
+ },
+ "knownDeltas": [
+  "header in normal flow, not floated over hero (V-POSITION; residual custom_css) - hero art starts below header band",
+  "hero circuit art = static raster slices; no parallax/animation; cropped via object-fit <=1340, hidden <=900 (V-BGIMAGE/V-ANIM; residual region-raster+gsap)",
+  "components right side (ghost collage + sign-up modal + cursor) = one region-raster; modal not native text (modal = atlas GAP)",
+  "dark-band radial glow + circuit backdrop behind auth heading dropped - flat #131316 (V-BGIMAGE/V-POSITION)",
+  "auth shead/grid sit ~6-8px high vs source inside the dark band (band edges exact)",
+  "logo-wall vertical marquee frozen at captured row of 4 logos (V-ANIM; residual custom_css marquee)",
+  "b2b roles/auto-join/invitations + billing app window = region-raster mock-UIs (incl. captured mouse cursor baked in source shot); org-UI pill mark simplified to dark dot",
+  "frameworks faint dashed grid extensions/corner crosses simplified to one dashed top row; icon hover color-reveal dropped",
+  "testimonial wall bottom cards hard-cut by overflow (source uses gradient fade mask); quote-mark glyph approximated with ldquo pair; tweet author rows are raster crops",
+  "footer social icons = single raster strip",
+  "wedge transition strips are width-scaled rasters at non-1440 widths (slight squash)",
+  "responsive (1250/768 reflowed this pass): comp intro stays in the left column at <=1280 where source centers it full-width (DOM 2D-span limit); auth 2-col grouping differs from source regroup (col3 renders as a bottom triple row); auth/b2b card graphics render at natural width centered instead of full-bleed; testi 768 shows all cards where source masks; mobile 390 untested beyond 480px font steps"
+ ],
+ "responsive": {
+  "contractChannel": "max-width media queries only; mapped props preferred, regroup props (order/flex-wrap/flex-basis) ride the custom_css channel per AUTHORING_CONTRACT s7.4",
+  "breakpoints": {
+   "1340": "hero-art narrows, collage/bill-app shrink (pre-existing)",
+   "1280": "auth 3-col->2-col + triple row; b2b 3-col->2x2 (order:-1 lifts autojoin/invitations row); fw cells 160px",
+   "900": "hero-art hidden, h1 48px, header gaps tightened (nav stays visible like source), logos lead-left + 2x2 grid, comp accordion+collage stay side-by-side (left col 300px), billing stacks, fw halves stack w/ 235px cells, testi stacks, footer keeps 5 cols + 120px brand",
+   "640": "nav hidden, comp stacks, auth/b2b 1-col, logos lead centered, footer wraps",
+   "480": "h1 32px, hero CTAs stack (pre-existing)"
+  },
+  "sections": [
+   {
+    "id": "s1-announce+header",
+    "at1250": "unchanged (matches source)",
+    "at768": "full nav kept visible per source; gaps tightened to fit one line"
+   },
+   {
+    "id": "s2-hero",
+    "at1250": "art slivers kept (source keeps faint backdrop circuitry); headline unchanged",
+    "at768": "art hidden (source backdrop is position:absolute, contract-banned), h1 48px/54 two lines like source"
+   },
+   {
+    "id": "s3-logo-wall",
+    "at1250": "unchanged 1-row (matches source, h129)",
+    "at768": "lead text left + 2x2 logo grid right via .logos-grid wrapper (h154 vs source 155)"
+   },
+   {
+    "id": "s4-components",
+    "at1250": "left-col layout kept; source centers intro full-width above an accordion|collage row, unreachable without breaking the 1440 flex tree (intro lives inside the left column; 2D span = grid territory); collage shrinks (h910 vs source 1173)",
+    "at768": "accordion+collage remain side-by-side like source (left col 300px, collage calc(100%-316px)); same intro-placement delta (h846 vs 1117)"
+   },
+   {
+    "id": "s5-auth-bento",
+    "at1250": "3-col -> 2-col at <=1280: col1+col2 become the two columns (cards auto-height, imgs natural width centered), col3 lays as full-width triple row, api/mcp row preserved; source regroups cards across columns (grid), our grouping differs but bento structure matches (h2483 vs source 2442)",
+    "at768": "same 2-col holds (h2326 vs source 2581)"
+   },
+   {
+    "id": "s6-b2b",
+    "at1250": "3-col -> 2x2 at <=1280: order:-1 lifts autojoin+invitations to the top row, roles+org-ui bottom row (h1163 vs source 1161)",
+    "at768": "same 2x2 holds (h1169 vs source 1161)"
+   },
+   {
+    "id": "s7-billing",
+    "at1250": "unchanged side-by-side like source (h890 vs source 938)",
+    "at768": "stacks: text above app raster like source (h1189 vs source 1327)"
+   },
+   {
+    "id": "s8-frameworks-integrations",
+    "at1250": "cells 160px (source ~155)",
+    "at768": "halves stack, cells 235px like source (h1400 vs source 1417)"
+   },
+   {
+    "id": "s9-testimonials",
+    "at1250": "unchanged 3-col wall (matches source, h824 both)",
+    "at768": "stacks to single column; all 6 cards shown where source fades/masks (h1847 vs source ~1541)"
+   },
+   {
+    "id": "s10-footer",
+    "at1250": "unchanged (h396 vs source 397)",
+    "at768": "5 link columns stay in one row like source, brand col narrowed to 120px (h428 vs source ~350)"
+   }
+  ]
+ }
+}

@@ -1,0 +1,53 @@
+<!doctype html>
+<!-- @purpose Exemplar spike-clerk-nav — floating boxed nav-card section, extracted VERBATIM from the proven HTML-first spike /tmp/htmlfirst/hero.html (judge-verified, /tmp/vj-htmlfirst). Brand + link row + sign-in/CTA right cluster inside a bordered rounded card. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>exemplar: nav row</title>
+<style>
+  :root { --ink: #131316; --muted: #5e5f6e; --purple: #6c47ff; --bg: #f8f8f9; --line: #ececef; --line2: #f3f3f3; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--ink);
+    font-family: ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  a { text-decoration: none; color: inherit; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 0 24px; }
+  .navwrap { padding-top: 7px; }
+  .navcard { background: #fbfbfb; border: 1px solid #e8e8e8; border-radius: 12px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.05); height: 43px;
+    display: flex; align-items: center; padding: 0 14px; gap: 28px; }
+  .brand { display: flex; align-items: center; gap: 8px; }
+  .brand .dot { width: 19px; height: 19px; border-radius: 50%; background: #131316; }
+  .brand .name { font-size: 17px; font-weight: 700; letter-spacing: -0.2px; }
+  .navlinks { display: flex; align-items: center; gap: 26px; flex: 1; }
+  .navlinks a { font-size: 14px; font-weight: 500; color: var(--ink); }
+  .navlinks a .chev { color: #8e8e93; font-size: 9px; margin-left: 5px; vertical-align: 1px; }
+  .navright { display: flex; align-items: center; gap: 18px; }
+  .signin { font-size: 14px; font-weight: 600; }
+  .pillbtn { display: inline-flex; align-items: center; gap: 10px; background: #fdfdfd;
+    border: 1px solid #e1e1e2; border-radius: 999px; height: 30px; padding: 0 13px;
+    font-size: 13px; font-weight: 600; }
+  .pillbtn .arr { color: #707072; font-size: 10px; }
+</style>
+</head>
+<body>
+<header class="navwrap">
+  <div class="wrap">
+    <nav class="navcard">
+      <a class="brand" href="#"><span class="dot"></span><span class="name">clerk</span></a>
+      <div class="navlinks">
+        <a href="#">Products<span class="chev">&#9662;</span></a>
+        <a href="#">Docs<span class="chev">&#9662;</span></a>
+        <a href="#">Changelog<span class="chev">&#9662;</span></a>
+        <a href="#">Company<span class="chev">&#9662;</span></a>
+        <a href="#">Pricing</a>
+      </div>
+      <div class="navright">
+        <a class="signin" href="#">Sign in</a>
+        <a class="pillbtn" href="#">Start building <span class="arr">&#9656;</span></a>
+      </div>
+    </nav>
+  </div>
+</header>
+</body>
+</html>

@@ -1,0 +1,51 @@
+{
+  "id": "spike-clerk-announce",
+  "constructIds": [
+    "section-stack",
+    "body-text",
+    "divider"
+  ],
+  "visualDescriptor": {
+    "structuralSignature": "flex-row",
+    "palette": [
+      "#f8f8f9",
+      "#131316",
+      "#2e2e31"
+    ],
+    "densityTags": [
+      "light-bg",
+      "medium",
+      "muted",
+      "wide-band"
+    ]
+  },
+  "renderPng": "renders/spike-clerk-announce.png",
+  "renderSize": {
+    "w": 1440,
+    "h": 200
+  },
+  "authoredHtml": "html/spike-clerk-announce.html",
+  "elementorJson": null,
+  "provenance": "spike",
+  "verification": {
+    "status": "judged",
+    "evidence": [
+      "/tmp/vj-htmlfirst/results.json (VOLATILE /tmp)",
+      "/tmp/vj-htmlfirst/manifest.json tiles w1440-00..04 (VOLATILE)",
+      "knowledge/EMBODIMENT_APPROACH.md §4.2 (commit fbfddda)",
+      "eval/grader/atlas/spike-lint-report.json"
+    ],
+    "notes": "Section of the proven HTML-first spike (judge run vs live clerk.com, page-level tiles; covered-region tiles 72-82). Extracted verbatim."
+  },
+  "lint": {
+    "clean": true,
+    "violations": [],
+    "warnings": []
+  },
+  "source": {
+    "site": "clerk.com",
+    "crop": "/tmp/htmlfirst/c-nav.png",
+    "width": 1440
+  },
+  "hash": "sha256:1b68a9ab67183364e7767502f81a9709c05d89669025ea2ca2b7dd424e1158d4"
+}

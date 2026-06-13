@@ -410,7 +410,7 @@ async function casPutPage(pageId, elements, pageSettings, intent) {
   return live;
 }
 
-async function applyUnion({ pageId, source, workingTree, prep, secReport, sectionsPath, outDir }) {
+export async function applyUnion({ pageId, source, workingTree, prep, secReport, sectionsPath, outDir }) { // exported: refine-vision.mjs reuses the ONE prestate+CAS+regrade+auto-revert apply path
   // 1. pre-state saved FIRST (one-command revert: node refine-sections.mjs --revert <file>)
   const pre = await api('GET', `/wp-json/joist/v1/pages/${pageId}?include=elements`);
   const preEls = pre.json && pre.json.elementor && pre.json.elementor.elements;

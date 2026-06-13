@@ -1,0 +1,49 @@
+{
+  "id": "syn-stat-band",
+  "constructIds": [
+    "stat-number",
+    "section-stack",
+    "body-text"
+  ],
+  "visualDescriptor": {
+    "structuralSignature": "flex-row",
+    "palette": [
+      "#ffffff",
+      "#111114",
+      "#6a6b72"
+    ],
+    "densityTags": [
+      "light-bg",
+      "sparse",
+      "muted",
+      "wide-band"
+    ]
+  },
+  "renderPng": "renders/syn-stat-band.png",
+  "renderSize": {
+    "w": 1440,
+    "h": 266
+  },
+  "authoredHtml": "html/syn-stat-band.html",
+  "elementorJson": null,
+  "provenance": "synthetic",
+  "verification": {
+    "status": "lint-clean-rendered",
+    "evidence": [
+      "records/syn-stat-band.json lint block",
+      "renders/syn-stat-band.png (LOOK sanity)"
+    ],
+    "notes": "Synthetic coverage sample (P3 backfill): lint-clean + rendered; NO fidelity claim (no source ground truth)."
+  },
+  "lint": {
+    "clean": true,
+    "violations": [],
+    "warnings": []
+  },
+  "source": {
+    "site": "",
+    "crop": "",
+    "width": 1440
+  },
+  "hash": "sha256:b6301f40ae08496ce345f481166d2a1384bd43cbba2310c01fe2e1c92a7c2edc"
+}
