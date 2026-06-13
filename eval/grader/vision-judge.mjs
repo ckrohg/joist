@@ -53,9 +53,22 @@
  *   band + sev4/5; marquee phase mismatch = wrong-logos sev4s). Burned SRC/CLONE labels moved into a dedicated
  *   LABEL_STRIP above the content (canvas extended; labels NEVER overlay page pixels — the old corner burn-in
  *   produced a false "clipped text" defect).
+ * Boundary guard (VJ-BOUNDARY 2026-06-12, default ON; reversible VJ_NO_BOUNDARY_GUARD=1 → legacy byte-identical,
+ *   block skipped, no field added, no defect mutated): band-aligned tiling cuts a THIN source slice at a section
+ *   BOUNDARY (a white↔dark transition strip); when the clone renders SHORTER (hRatio<1) the matched window slides
+ *   under cumulative height compression, so that source band-EDGE is compared against the clone's correctly-
+ *   rendered SOLID section → the judge calls a false sev5 inverted/dark-background-absent/section-absent defect
+ *   (clerk fixed page = +~10 penalty of pure noise on t03/t14/t16, systematic across pre+post-fix runs). FIX:
+ *   isBoundaryArtifactTile flags a tile that is THIN (<=BG_MAX_H) with a strong vertical luma split (>=BG_SPLIT,
+ *   a transition strip) on ONE side and a comparatively SOLID section (<=BG_SOLID_SPLIT) on the OTHER; on such a
+ *   tile reclassifyBoundaryDefects strips ONLY the sev>=4 floor off background/inversion/absence defects → sev2
+ *   (still counts in the visual mean, no penalty floor). A GENUINE inversion (clone actually dark where source is
+ *   white over the SAME content) is SOLID on BOTH sides (each split ~0) → fails the gate → STILL penalized.
  * Reversible/inert: pure capture+slice+judge; no grader or builder mutation; logged-out contexts; read-only.
  * Selftest: _vj-selftest.mjs (identical src|src pair must score >=95 with no sev>=2 defects);
- *   _vj-statepin-selftest.mjs (banner gone, marquee deterministic across two captures, labels off-content).
+ *   _vj-statepin-selftest.mjs (banner gone, marquee deterministic across two captures, labels off-content);
+ *   _vj-boundary-selftest.mjs (3 clerk artifact tiles reclassified sev5->sev2; a constructed genuine inversion
+ *   STILL penalized; flag-off byte-identical legacy path).
  */
 import fs from 'fs';
 import path from 'path';
@@ -86,6 +99,10 @@ const VJALIGN = process.env.GRADER_NO_VJALIGN !== '1'; // band-anchored tile ali
 const MIN_ANCHOR_PAIRS = 4;                 // under-determined maps over-extrapolate → proportional fallback
 const STATE_PIN = process.env.VJ_NO_STATE_PIN !== '1'; // VJ-PIN capture-state pinning (overlays + anim freeze), default ON
 const LABEL_STRIP = 24;                     // px harness-label strip ABOVE the content — labels never overlay page pixels
+const BOUNDARY_GUARD = process.env.VJ_NO_BOUNDARY_GUARD !== '1'; // VJ-BOUNDARY: de-fang hRatio<1 boundary-edge false-sev5, default ON
+const BG_MAX_H = 320;                       // a boundary-cut tile is THIN (a section edge, not a full section)
+const BG_SPLIT = 120;                       // one side's top↔bottom luma split this strong = a white↔dark transition strip
+const BG_SOLID_SPLIT = 60;                  // the OTHER side must be comparatively SOLID (no matching transition)
 
 // ── tiny 5x7 bitmap font (no font deps) for burned-in corner labels ─────────────────────────────────────────
 const FONT = {
@@ -191,6 +208,50 @@ function bandLumaStd(img, y0, y1) {
   if (!n) return 0;
   const m = s / n;
   return Math.sqrt(Math.max(0, s2 / n - m * m));
+}
+
+// ── VJ-BOUNDARY GUARD (2026-06-12, default ON; reversible VJ_NO_BOUNDARY_GUARD=1) ────────────────────────────
+// THE BUG (LOOK-confirmed on the fixed clerk page, hRatio 0.889): band-aligned tiling cuts a THIN source slice
+// (128-140px) exactly at a section BOUNDARY — a white↔dark background transition strip. When the clone renders
+// SHORTER than source (hRatio < 1) the matched window slides under cumulative height compression, so that
+// source band-EDGE strip is compared against the clone's correctly-rendered SOLID section. The vision judge sees
+// "LEFT half-dark / RIGHT solid-light" (or vice versa) and calls a sev5 inverted/dark-background-absent /
+// section-absent defect that is PURE alignment noise (t03/t14/t16 on the clerk page = +~10 penalty points).
+// SIGNATURE (measured): the artifact tile is THIN (<=BG_MAX_H) AND ONE side carries a strong vertical luma
+// discontinuity (top-half↔bottom-half mean split >= BG_SPLIT — a transition strip) while the OTHER side is
+// comparatively SOLID (split <= BG_SOLID_SPLIT — a single section). A GENUINE inversion (clone actually dark
+// where source is white over the SAME content) is SOLID on BOTH sides (each split ~0, just different colors) →
+// fails this gate → STILL penalized. We do NOT condemn a tile, and do NOT touch its judged score (it still
+// counts in the visual mean); we only strip the sev>=4 SEVERITY FLOOR off the background/inversion/absence
+// defects this boundary strip provoked, so a pure-alignment edge cannot fake a ruinous defect.
+// isBoundaryArtifactTile takes a composed tile PNG (the same [src|divider|clone] layout under LABEL_STRIP that
+// the judge saw) so the detector measures EXACTLY the pixels that were judged. Pure + exported (unit-testable).
+function vertSplit(png, x0, x1) {
+  const y0 = LABEL_STRIP, y1 = png.height, mid = y0 + ((y1 - y0) >> 1);
+  const mean = (a, b) => { let s = 0, n = 0; for (let y = a; y < b; y++) for (let x = x0; x < x1; x += 2) { const i = (y * png.width + x) << 2; s += 0.299 * png.data[i] + 0.587 * png.data[i + 1] + 0.114 * png.data[i + 2]; n++; } return n ? s / n : 0; };
+  return Math.abs(mean(y0, mid) - mean(mid, y1));
+}
+export function isBoundaryArtifactTile(png, srcContentH) {
+  const h = srcContentH != null ? srcContentH : png.height - LABEL_STRIP;
+  if (h > BG_MAX_H) return false;                 // a full section, not a boundary cut
+  const srcW = (png.width - DIVIDER) >> 1;
+  const sSplit = vertSplit(png, 0, srcW);         // source transition strip?
+  const cSplit = vertSplit(png, srcW + DIVIDER, png.width); // clone transition strip?
+  const hi = Math.max(sSplit, cSplit), lo = Math.min(sSplit, cSplit);
+  // one side is a strong white↔dark transition strip; the other is a comparatively solid section
+  return hi >= BG_SPLIT && lo <= BG_SOLID_SPLIT;
+}
+// reclassifyBoundaryDefects: on a boundary-artifact tile, drop the sev>=4 FLOOR off background/inversion/absence
+// defects (the only family this alignment strip can fake) → capped at sev2 (counts in mean, no penalty floor).
+// Other defects (wrong logos, missing CTA, junk text) are untouched — those are not boundary-strip artifacts.
+const BG_DEFECT = /\b(invert|background|dark[- ]?(theme|section|background|panel|band|block)|section.*(absent|missing)|(absent|missing).*section|white.*background|black.*background|theme.*(absent|missing))\b/i;
+export function reclassifyBoundaryDefects(defects) {
+  let reclassified = 0;
+  const out = defects.map((d) => {
+    if (d.severity >= 4 && BG_DEFECT.test(d.desc || '')) { reclassified++; return { ...d, severity: 2, boundaryGuard: true, origSeverity: d.severity }; }
+    return d;
+  });
+  return { defects: out, reclassified };
 }
 
 // ── STATE PIN (VJ-PIN 2026-06-12, default ON; reversible VJ_NO_STATE_PIN=1 → pre-pin capture behavior) ──────
@@ -644,7 +705,7 @@ async function pool(items, n, fn) {
 }
 
 // ── exports (consumed by _vj-selftest.mjs, _vjalign-selftest.mjs, _vj-statepin-selftest.mjs, agent judging) ──
-export { composeTile, captureFull, claudeOnce, RUBRIC, extractJson, drawLabel, bandPlaceholder, dismissOverlays, freezeAnimations, LABEL_STRIP };
+export { composeTile, captureFull, claudeOnce, RUBRIC, extractJson, drawLabel, bandPlaceholder, dismissOverlays, freezeAnimations, LABEL_STRIP, BG_DEFECT };
 
 // ── main (only when invoked directly — importable as a library without side effects) ────────────────────────
 const IS_MAIN = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
@@ -757,6 +818,22 @@ if (IS_MAIN) (async () => {
 
   // ── aggregate: weighted mean (aboveFold x3) minus sev>=4 penalties; per-width breakdown ───────────────────
   const enriched = tiles.map((t, i) => { const { det, ...rest } = t; return { ...rest, ...judgments[i] }; });
+  // VJ-BOUNDARY GUARD (default ON; VJ_NO_BOUNDARY_GUARD=1 skips this block entirely → legacy byte-identical):
+  // de-fang the hRatio<1 band-edge false-sev5 (a thin boundary-cut tile with a white↔dark transition on ONE
+  // side and a solid section on the OTHER provoked an inverted/dark-absent sev5 that is pure alignment noise).
+  // Judged, NON-deterministic tiles only — deterministic clone-missing/extra bands carry their own verdict.
+  if (BOUNDARY_GUARD) {
+    let guardedTiles = 0, guardedDefects = 0;
+    for (const t of enriched) {
+      if (!t.judged || t.deterministic || !Array.isArray(t.defects) || !t.defects.some((d) => d.severity >= 4 && BG_DEFECT.test(d.desc || ''))) continue;
+      let png; try { png = PNG.sync.read(fs.readFileSync(t.tilePath)); } catch { continue; }
+      const srcContentH = (t.yRange && (t.yRange[1] - t.yRange[0])) || null;
+      if (!isBoundaryArtifactTile(png, srcContentH)) continue;
+      const { defects, reclassified } = reclassifyBoundaryDefects(t.defects);
+      if (reclassified) { t.defects = defects; t.boundaryGuard = { reclassified }; guardedTiles++; guardedDefects += reclassified; }
+    }
+    if (guardedTiles) console.error(`[boundary-guard] reclassified ${guardedDefects} sev>=4 background/inversion defect(s) on ${guardedTiles} hRatio-compression boundary-edge tile(s) -> sev2 (no penalty floor; score unchanged)`);
+  }
   const aggregate = (subset) => {
     const judged = subset.filter((t) => t.judged);
     if (!judged.length) return { pageScore: null, base: null, penalty: 0, judged: 0, skipped: subset.length };
