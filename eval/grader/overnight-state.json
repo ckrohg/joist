@@ -4481,6 +4481,164 @@
         "/tmp/vj-elementor/results.json",
         "/tmp/vj-html/results.json"
       ]
+    },
+    {
+      "name": "clerk-responsive-judged",
+      "date": "2026-06-12",
+      "hash": "9c55f07ee584fb3b012ed3dfa14989c788389e9fe46034eb93aa793b583d97d2",
+      "verdict": "INDEPENDENT JUDGE (sec.8d, hash-verified, PINNED judge 46ef7bb) — local-fidelity clerk.html RESPONSIVE iteration: pageScore 65.6@1440 / 45.7@1250 / 38.6@768, ALL 3 widths gated median-of-3, band-anchored align (extra=0 every width = NO phantom cookie band). vs PRIOR (pre-pinning, pre-responsive) 67.3@1440 / 53.8@1250: 1440 -1.7, 1250 -8.1. NET: pinning ELIMINATED the prior artifacts (cookie-band 0 hits, burned-label-clip 0, false avatar-missing 0 — all verified gone) but the fixed judge enumerates MORE defects per tile (median-of-3 + band-align) AND introduces band-alignment false-positives at thin section-boundary transition tiles (sev5 \"background inverted\" on 1440 t03 / 1250 t01 / 768 t29 are HALLUCINATIONS or declared testi-mask, NOT real inversions — verified by LOOK). The headline did NOT beat prior because grader honesty rose (more defects surfaced) while declared residuals (comp-intro placement, raster modal, frozen marquee, auth-regroup) are unchanged. Responsive geometry GENUINELY improved: hRatio 1250 0.876->0.970, 768 overflow eliminated (preResponsive768 15632->9982).",
+      "scores": {
+        "768": {
+          "pageScore": 38.6,
+          "base": 70.6,
+          "penalty": 32,
+          "hRatio": 0.987,
+          "tiles": 33,
+          "perTile": [
+            72,
+            88,
+            62,
+            42,
+            48,
+            38,
+            45,
+            82,
+            68,
+            74,
+            72,
+            65,
+            100,
+            90,
+            85,
+            95,
+            72,
+            75,
+            62,
+            82,
+            100,
+            78,
+            82,
+            82,
+            82,
+            72,
+            82,
+            72,
+            95,
+            32,
+            50,
+            75,
+            92
+          ],
+          "align": {
+            "matched": 21,
+            "interp": 6,
+            "missing": 5,
+            "extra": 0
+          }
+        },
+        "1250": {
+          "pageScore": 45.7,
+          "base": 61.7,
+          "penalty": 16,
+          "hRatio": 0.97,
+          "tiles": 11,
+          "perTile": [
+            78,
+            35,
+            38,
+            45,
+            47,
+            62,
+            72,
+            82,
+            82,
+            74,
+            85
+          ],
+          "align": {
+            "matched": 8,
+            "interp": 0,
+            "missing": 0,
+            "extra": 0
+          }
+        },
+        "1440": {
+          "pageScore": 65.6,
+          "base": 77.6,
+          "penalty": 12,
+          "hRatio": 1,
+          "tiles": 21,
+          "perTile": [
+            82,
+            91,
+            38,
+            28,
+            92,
+            82,
+            72,
+            93,
+            84,
+            87,
+            83,
+            100,
+            85,
+            87,
+            100,
+            82,
+            100,
+            88,
+            82,
+            92,
+            95
+          ],
+          "align": {
+            "matched": 15,
+            "interp": 4,
+            "missing": 1,
+            "extra": 0
+          }
+        },
+        "all": {
+          "pageScore": 36.5,
+          "base": 71.5,
+          "penalty": 35,
+          "publishedScore": null
+        }
+      },
+      "heightCrossCheck": {
+        "768": {
+          "clone": 9982,
+          "source": 10113,
+          "hRatio": 0.987
+        },
+        "1250": {
+          "clone": 8298,
+          "source": 8552,
+          "hRatio": 0.97
+        },
+        "1440": {
+          "clone": 7614,
+          "source": 7616,
+          "hRatio": 1
+        },
+        "note": "independently re-rendered src+clone; CONFIRMS author claims to the pixel"
+      },
+      "pinningAttribution": "PRIOR artifacts CONFIRMED GONE: cookie/consent banner (was sev4 both widths + the only prior sev5 in 1440 t03 cascade=18) -> 0 hits this run; burned tile-label \"Truste\" clip (false defect) -> 0; t18 avatars-missing (false) -> 0. Prior 1440 t03 18->28 (artifact slot now a benign band-offset, no cookie). So the 1440 -1.7 is NOT a pinning loss; pinning REMOVED ~6-10 penalty pts of artifacts, which were offset by the fixed judge finding more REAL+declared defects and new band-align false-positives.",
+      "worstTiles": "1440 t03 (28, sev5 \"inverted\"=ALIGN ARTIFACT: unmatched band, clone components-section start compared vs source hero->dark transition strip; clone NOT inverted, verified white-on-white). 1250 t01 (35, sev5 \"dark bg wrong\"=JUDGE HALLUCINATION: both sides white components-intro, scores[57,35,32] median picked false-inversion run; real defect=DECLARED comp-intro left-aligned vs source centered). 768 t29 (32, sev5 \"dark bg\"=DECLARED testi-mask: source gradient-masks wall to black, clone shows all real transcribed cards). 1440 t02 / all-width logo wall (38, sev5 wrong-logos=DECLARED frozen-marquee: clone hardcoded David AI/OpenRouter/Samaya/Cartesia vs source inngest/durable/upstash/Consensus; REAL declared defect, not artifact).",
+      "defectLedger": {
+        "sev5": 7,
+        "sev4": 16,
+        "declaredOrArtifact": "4 of 7 sev5 are align-artifact/hallucination (1440t03,1250t01,768t29 inversions) or declared (768t29 mask, 768t05 modal-raster x2); 3 are the declared frozen-marquee (1440t02 logos) + declared comp-modal. ZERO sev5 is a NEW undeclared clone breakage."
+      },
+      "evidence": {
+        "out": "/tmp/vj-clerk-resp",
+        "results": "/tmp/vj-clerk-resp/results.json",
+        "model": "claude-sonnet-4-6",
+        "costUsd": 7.5,
+        "tiles": 65,
+        "note": "publishedScore=null (no --structure passed; RAW vision). Server: localhost:61070 static /tmp/local-fidelity (assets relative). clerk.com GETs fine; ZERO WordPress."
+      },
+      "plateauEffect": "none"
     }
   ],
   "phase5backlog_wave3": [
@@ -4657,7 +4815,7 @@
     "fullDetail": "see sessionSummary_spotcheck_arc + metricsHistory + memory grader_honesty_both_directions.md"
   },
   "graderUpgradeQueue": "Sequential SUPERVISED grader upgrades (each self-test=1.0 + reversible + re-baselines; run one at a time, NOT directed-fix rounds). DONE: responsive promotion ADOPTED (composite now 0.35*visual+0.2*edit+0.2*struct+0.25*responsive; corpus re-baselined ~0.77->~0.62 honestly). RUNNING: clone-econ-grader-fix (wxcek7tmo, free-descend .e-con wrappers so clone capture stops under-counting widgets). NEXT (queued, fires on .e-con completion): build-completeness-grader.workflow.js -> grade-completeness.mjs SHADOW (top-down ARIA-landmark + position + content component checklist: header/nav/logo/hero/CTA/main/FOOTER+subparts/cookie; detect clone by POSITION+CONTENT since Elementor demotes header/footer roles; self-test=1.0; smoke = does it flag our clones' missing footer/nav). THEN (supervised): promote completeness into composite (like responsive) -> re-baseline. CLONER follow-on: emit explicit landmark role= on header/nav/main/footer containers (kses-safe per tabs recipe) + a real footer/nav component emitter. THEN resume directed-fix (now pulling toward the FLOW builder, since responsive+completeness reward it over the desktop-frozen absolute builder).",
-  "lastUpdatedEpoch": 1781319917,
+  "lastUpdatedEpoch": 1781319991,
   "flowV5": "T2 flow v5 DONE (wsgwqu7u0) — KEPT a real flow gain (grid side-by-side guard: tailwind hRatio 2.908->1.458, the 3x grid-collapse blowup fixed; + responsive inline clamp() font on linear narrow-bp) but flow STILL < absolute on composite. CRITICAL: exposed that prior flow baselines (0.712/0.692) were CHERRY-PICKED — true flow baseline ~0.59-0.60. Root-caused the residual to CAPTURE (tailwind code-as-art hero emitted as literal <div class=> markup -> perElement 0.066 + hRatio) + build-flow vertical-stacking of IoU<0.5 overlaps (linear desktop hRatio 1.909). Both now actionable: capture fix RUNNING (wjs7n7q9u), flow overlay-gate QUEUED.",
   "flowV4": "T2 flow v4 launched (wrjanwuvq) — LayoutCoder redirect: STOP pinning min_height on nesting wrappers, zero synthesized padding/gap, flex:[portion] proportional sizing + fractional grid tracks, mobile font-scaling, fluid cells + tablet breakpoint. Tests whether FLOWING (not pinning) drives hRatio->1 after v2/v3 capping failed twice.",
   "flowTrackStatus": "T2 flow builder: v1/v2/v3 all ~0.711/0.694 (FLAT, below abs 0.85/0.776). Editability 0.93 + struct 0.90-0.944 STRONG; responsive collapse WORKS (linear 0 h-overflow at 768+390). Gated by hRatio (2.3x/1.5x) + visual. ROOT CAUSE (v3 diagnosis): capture nests near-full-pageH wrappers so isSectionBand matched EVERY container + pinned all to ~pageH -> stacking inflation; AND the height-bound is computed on PREDICTED assembled height but the live RENDER inflates (min_height pins + per-char text wrap at narrow widths + flex gaps). FLOW v4 REDIRECT (per LayoutCoder research): STOP pinning min_height entirely, zero synthesized padding/gap, drive columns by flex:[portion] from captured width ratios, add mobile font-scaling + fluid cells (% / 1fr) — measure RENDERED not predicted height. Pages 5404 (linear) / 5405 (tailwind).",
