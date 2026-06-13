@@ -45,8 +45,17 @@
  *   score 30, deterministic). Those are REAL defects and are priced into pageScore — but two different sections
  *   are never compared as if aligned. Textless bands interpolate via the anchor map (align:'interp', judged
  *   normally). <4 anchor pairs → honest proportional FALLBACK (perWidth.align.mode, tiles align:'proportional').
+ * State pinning (VJ-PIN 2026-06-12, default ON; reversible VJ_NO_STATE_PIN=1): captureFull pins BOTH sides to
+ *   the same page state before the shot — cookie/consent overlays dismissed-or-hidden (capture-assets pattern,
+ *   12f5609/e675e77), animations frozen deterministically (finite → finish+commitStyles end state; infinite
+ *   marquees → animation:none base pose, identical across captures; reducedMotion context), videos paused at
+ *   t=0. WHY: the clerk run lost ~10 severity points to capture artifacts (live source cookie banner = phantom
+ *   band + sev4/5; marquee phase mismatch = wrong-logos sev4s). Burned SRC/CLONE labels moved into a dedicated
+ *   LABEL_STRIP above the content (canvas extended; labels NEVER overlay page pixels — the old corner burn-in
+ *   produced a false "clipped text" defect).
  * Reversible/inert: pure capture+slice+judge; no grader or builder mutation; logged-out contexts; read-only.
- * Selftest: _vj-selftest.mjs (identical src|src pair must score >=95 with no sev>=2 defects).
+ * Selftest: _vj-selftest.mjs (identical src|src pair must score >=95 with no sev>=2 defects);
+ *   _vj-statepin-selftest.mjs (banner gone, marquee deterministic across two captures, labels off-content).
  */
 import fs from 'fs';
 import path from 'path';
@@ -75,6 +84,8 @@ const FOLD_Y = 1000;                        // aboveFold = source-band y0 < 1000
 const DIVIDER = 14;                         // px magenta divider between source and clone
 const VJALIGN = process.env.GRADER_NO_VJALIGN !== '1'; // band-anchored tile alignment (VJ-ALIGN), default ON
 const MIN_ANCHOR_PAIRS = 4;                 // under-determined maps over-extrapolate → proportional fallback
+const STATE_PIN = process.env.VJ_NO_STATE_PIN !== '1'; // VJ-PIN capture-state pinning (overlays + anim freeze), default ON
+const LABEL_STRIP = 24;                     // px harness-label strip ABOVE the content — labels never overlay page pixels
 
 // ── tiny 5x7 bitmap font (no font deps) for burned-in corner labels ─────────────────────────────────────────
 const FONT = {
@@ -136,20 +147,26 @@ function drawLabel(png, x0, y0, text, scale = 2) {
   }
 }
 
-// ── side-by-side composite: [source | magenta divider | clone], labels burned top corners ────────────────────
+// ── side-by-side composite: [source | magenta divider | clone] under a dedicated LABEL STRIP ─────────────────
+// VJ-PIN 2026-06-12: labels used to be burned into the TOP CORNERS of the content itself — on tiles whose first
+// rows carry text (band-aligned tiles start exactly at section tops) the black label box COVERED real content
+// and the judge called a false "clipped text" defect. The canvas is now extended by LABEL_STRIP px and labels
+// live ONLY in that strip; content pixels start at y=LABEL_STRIP untouched.
 // labels = { src?, clone? } — optional overrides for the VJ-ALIGN missing/extra band tiles; default identical.
 function composeTile(srcTile, clnTile, width, y0, labels = {}) {
-  const h = Math.max(srcTile.height, clnTile.height);
+  const h = Math.max(srcTile.height, clnTile.height) + LABEL_STRIP;
   const w = srcTile.width + DIVIDER + clnTile.width;
   const out = new PNG({ width: w, height: h });
   // dark-gray canvas so height mismatch padding is visible but not mistaken for page content
   for (let i = 0; i < out.data.length; i += 4) { out.data[i] = 24; out.data[i + 1] = 24; out.data[i + 2] = 24; out.data[i + 3] = 255; }
-  const blit = (img, ox) => { for (let r = 0; r < img.height; r++) { const sRow = (r * img.width) << 2; img.data.copy(out.data, ((r * w + ox) << 2), sRow, sRow + (img.width << 2)); } };
+  // solid-black label strip across the top (visually distinct from the (24,24,24) padding)
+  for (let r = 0; r < LABEL_STRIP; r++) for (let c = 0; c < w; c++) { const i = (r * w + c) << 2; out.data[i] = 0; out.data[i + 1] = 0; out.data[i + 2] = 0; out.data[i + 3] = 255; }
+  const blit = (img, ox) => { for (let r = 0; r < img.height; r++) { const sRow = (r * img.width) << 2; img.data.copy(out.data, (((r + LABEL_STRIP) * w + ox) << 2), sRow, sRow + (img.width << 2)); } };
   blit(srcTile, 0);
   blit(clnTile, srcTile.width + DIVIDER);
   for (let r = 0; r < h; r++) for (let c = srcTile.width + 2; c < srcTile.width + DIVIDER - 2; c++) { const i = (r * w + c) << 2; out.data[i] = 255; out.data[i + 1] = 0; out.data[i + 2] = 220; out.data[i + 3] = 255; }
-  drawLabel(out, 6, 6, labels.src || `SRC ${width}PX Y${y0}`);
-  drawLabel(out, srcTile.width + DIVIDER + 6, 6, labels.clone || `CLONE ${width}PX`);
+  drawLabel(out, 6, 5, labels.src || `SRC ${width}PX Y${y0}`);
+  drawLabel(out, srcTile.width + DIVIDER + 6, 5, labels.clone || `CLONE ${width}PX`);
   return out;
 }
 
@@ -174,6 +191,149 @@ function bandLumaStd(img, y0, y1) {
   if (!n) return 0;
   const m = s / n;
   return Math.sqrt(Math.max(0, s2 / n - m * m));
+}
+
+// ── STATE PIN (VJ-PIN 2026-06-12, default ON; reversible VJ_NO_STATE_PIN=1 → pre-pin capture behavior) ──────
+// WHY: a judged tile must compare the two PAGES, not the two capture MOMENTS. The 2026-06 clerk run lost
+// ~10 severity points to pure capture artifacts: (a) the SOURCE kept a live cookie-consent banner the clone
+// (rightly) doesn't have → phantom unmatched band + sev4/sev5 calls; (b) the source logo marquee was shot at a
+// different rotation phase than the clone's frozen frame → "wrong logos" sev4s. Both sides of every pair now
+// capture in the same pinned state. Pattern ported from capture-assets.mjs (12f5609 + e675e77 keyword-less
+// Tailwind banner fix) — that file is a CLI with top-level side effects, so the two pins are inlined here.
+// pin 1: cookie/consent overlays — click accept/dismiss inside consent-looking roots (pass A), text-detected
+// keyword-less banners (pass A2, clerk's `fixed bottom-7 z-150` div), else CSS-hide (pass B, nav-safe: z>999
+// OR strong "we use cookies" text required) + body scroll-unlock. Every action logged with a locator.
+async function dismissOverlays(page) {
+  const log = await page.evaluate(() => {
+    const out = [];
+    const cssPath = (el) => { const seg = []; let n = el, g = 0; while (n && n.nodeType === 1 && n !== document.documentElement && g++ < 12) { let s = n.tagName.toLowerCase(); if (n.id && /^[A-Za-z][\w-]*$/.test(n.id)) { seg.unshift(`${s}#${n.id}`); break; } const sib = n.parentElement ? [...n.parentElement.children].filter((c) => c.tagName === n.tagName) : []; if (sib.length > 1) s += `:nth-of-type(${sib.indexOf(n) + 1})`; seg.unshift(s); n = n.parentElement; } return seg.join('>'); };
+    const vis = (el) => { const r = el.getBoundingClientRect(); const cs = getComputedStyle(el); return r.width > 4 && r.height > 4 && cs.visibility !== 'hidden' && cs.display !== 'none' && parseFloat(cs.opacity) > 0.02; };
+    const ACCEPT = /^(accept( all)?( cookies)?|allow( all)?( cookies)?|agree( & continue)?|i (agree|accept|understand)|got it|ok(ay)?|understood|dismiss|reject all|necessary( cookies)? only|only necessary|save( and| &)? (close|accept|exit)|close)$/i;
+    const CONSENT_PHRASE = /\b(we use cookies|(this |our )?(web)?site uses cookies|cookie (policy|preferences|settings|notice)|manage (your )?cookie)\b/i;
+    const roots = [...document.querySelectorAll('[id*=cookie i],[class*=cookie i],[id*=consent i],[class*=consent i],[id*=gdpr i],[class*=gdpr i],#onetrust-banner-sdk,#CybotCookiebotDialog,.cc-window,[id*=cookiebanner i],[role=dialog],[aria-modal=true]')]
+      .filter((el) => vis(el) && /cookie|consent|gdpr|privacy|tracking/i.test((el.textContent || '').slice(0, 4000) + ' ' + el.id + ' ' + el.className));
+    for (const el of document.querySelectorAll('body *')) { // pass A2: keyword-less text-detected banners
+      const cs = getComputedStyle(el);
+      if (cs.position !== 'fixed' && cs.position !== 'sticky') continue;
+      const txt = (el.textContent || '').replace(/\s+/g, ' ').trim();
+      if (txt.length > 600 || !CONSENT_PHRASE.test(txt)) continue;
+      const r = el.getBoundingClientRect();
+      if (!vis(el) || r.height > innerHeight * 0.6) continue;
+      if (!roots.includes(el)) roots.push(el);
+    }
+    for (const root of roots) {
+      const btns = [...root.querySelectorAll('button,[role=button],a,input[type=button],input[type=submit]')].filter(vis);
+      btns.sort((a, b) => (/accept|allow|agree/i.test(b.textContent || b.value || '') ? 1 : 0) - (/accept|allow|agree/i.test(a.textContent || a.value || '') ? 1 : 0));
+      const hit = btns.find((b) => ACCEPT.test(((b.textContent || b.value || '').replace(/\s+/g, ' ').trim()))
+        || /accept|dismiss|close/i.test(b.getAttribute('aria-label') || ''));
+      if (hit) { try { hit.click(); out.push({ action: 'clicked', locator: cssPath(hit), text: (hit.textContent || hit.value || '').trim().slice(0, 60) }); } catch {} }
+    }
+    return out;
+  }).catch(() => []);
+  await page.waitForTimeout(700).catch(() => {});
+  const hidden = await page.evaluate(() => { // pass B: CSS-hide survivors (nav-safe gates)
+    const out = [];
+    const cssPath = (el) => { const seg = []; let n = el, g = 0; while (n && n.nodeType === 1 && n !== document.documentElement && g++ < 12) { let s = n.tagName.toLowerCase(); if (n.id && /^[A-Za-z][\w-]*$/.test(n.id)) { seg.unshift(`${s}#${n.id}`); break; } const sib = n.parentElement ? [...n.parentElement.children].filter((c) => c.tagName === n.tagName) : []; if (sib.length > 1) s += `:nth-of-type(${sib.indexOf(n) + 1})`; seg.unshift(s); n = n.parentElement; } return seg.join('>'); };
+    const CONSENT_PHRASE = /\b(we use cookies|(this |our )?(web)?site uses cookies|cookie (policy|preferences|settings|notice)|manage (your )?cookie)\b/i;
+    for (const el of document.querySelectorAll('body *')) {
+      const cs = getComputedStyle(el);
+      if (!(cs.position === 'fixed' || cs.position === 'sticky')) continue;
+      const z = parseInt(cs.zIndex, 10) || 0;
+      const r = el.getBoundingClientRect();
+      if (r.width < 5 || r.height < 5 || cs.display === 'none' || cs.visibility === 'hidden') continue;
+      const shortTxt = (el.textContent || '').replace(/\s+/g, ' ').trim();
+      const strongConsent = shortTxt.length <= 600 && CONSENT_PHRASE.test(shortTxt) && r.height <= innerHeight * 0.6;
+      if (z <= 999 && !strongConsent) continue;
+      const meta = `${el.id} ${typeof el.className === 'string' ? el.className : ''}`;
+      const looksConsent = strongConsent
+        || /cookie|consent|gdpr|cmp-|onetrust|cookiebot|didomi|usercentrics|truste/i.test(meta)
+        || (/cookie|consent|gdpr/i.test((el.textContent || '').slice(0, 4000)) && /privacy|polic|accept|agree|preferences|tracking/i.test((el.textContent || '').slice(0, 4000)));
+      const coversViewport = r.width >= innerWidth * 0.85 && r.height >= innerHeight * 0.85;
+      const modalish = el.matches('[role=dialog],[aria-modal=true],[class*=backdrop i],[class*=modal i],[class*=overlay i]');
+      if (looksConsent || (coversViewport && modalish)) {
+        el.style.setProperty('display', 'none', 'important');
+        out.push({ action: 'css-hidden', locator: cssPath(el), reason: looksConsent ? 'consent-keywords' : 'fullscreen-modal' });
+      }
+    }
+    for (const n of [document.documentElement, document.body]) {
+      if (getComputedStyle(n).overflow === 'hidden' || getComputedStyle(n).overflowY === 'hidden') {
+        n.style.setProperty('overflow', 'visible', 'important');
+        out.push({ action: 'scroll-unlocked', locator: n.tagName.toLowerCase() });
+      }
+    }
+    return out;
+  }).catch(() => []);
+  return [...log, ...hidden];
+}
+
+// pin 2: FREEZE animations at a DETERMINISTIC pose. Finite → finish()+commitStyles() (end state written into
+// inline style so entrance fades stay landed — bare animation:none would snap an opacity-0-base hero back to
+// invisible); THEN kill-sheet animation:none (infinite marquees/spinners drop to their BASE pose — unlike
+// capture-assets' pause()-at-t-settled, base pose is IDENTICAL across captures, which is what judge fairness
+// needs: source and clone marquee must freeze at the SAME phase); remaining WAAPI (JS-created) animations
+// cancelled to base; videos paused at t=0. marqueeBoxes (page coords, post-snap) logged so the selftest can
+// pixel-compare the frozen regions across two captures.
+// PLUS stacked-rotator pin: JS class-toggle rotators (clerk's "Trusted by" logo wall — all logos always in
+// the DOM, an interval flips visibility classes; ZERO WAAPI/CSS animations involved, probed 2026-06-12) are
+// invisible to getAnimations and phase-vary across captures (the wrong-logos sev4 artifact). Gate: a parent
+// whose 2-12 element children are mutually STACKED (>=80% overlap with the first child's box) with a
+// visible/invisible MIX (a static layered composition has no hidden member; a rotator always does) → pin the
+// DOM-FIRST child visible, hide the rest. Dom-first is phase-INDEPENDENT (capture-assets' keep-end-state
+// dedupe is phase-dependent) — two captures any seconds apart agree. Inline !important so later interval
+// ticks cannot re-toggle effective visibility. Every pin logged with a locator.
+async function freezeAnimations(page) {
+  return await page.evaluate(() => {
+    const log = { finished: 0, infiniteSnapped: 0, cancelled: 0, videos: 0, marqueeBoxes: [] };
+    const targets = [];
+    for (const a of document.getAnimations()) {
+      try {
+        const t = (a.effect && a.effect.getTiming) ? a.effect.getTiming() : {};
+        const el = a.effect && a.effect.target;
+        if (t.iterations === Infinity) { log.infiniteSnapped++; if (el && el.getBoundingClientRect) targets.push(el); }
+        else { try { a.finish(); } catch {} try { a.commitStyles(); } catch {} log.finished++; }
+      } catch {}
+    }
+    const st = document.createElement('style');
+    st.id = '__vj_state_pin__';
+    st.textContent = '*,*::before,*::after{animation:none !important;transition:none !important;scroll-behavior:auto !important;caret-color:transparent !important;}';
+    document.documentElement.appendChild(st);
+    for (const a of document.getAnimations()) { try { a.cancel(); log.cancelled++; } catch {} }
+    for (const v of document.querySelectorAll('video')) { try { v.pause(); v.currentTime = 0; log.videos++; } catch {} }
+    const sy = window.scrollY || 0;
+    for (const el of targets) {
+      try { const r = el.getBoundingClientRect(); if (r.width > 2 && r.height > 2) log.marqueeBoxes.push({ x: Math.round(r.left), y: Math.round(r.top + sy), w: Math.round(r.width), h: Math.round(r.height) }); } catch {}
+    }
+    // QUIESCE JS time: kill all pending timers + rAF so interval-driven rotators/tickers cannot mutate the
+    // page between freeze and shot (safe HERE: settleLazy already finished — nothing downstream of the freeze
+    // needs page timers; the whole pin is reversible via VJ_NO_STATE_PIN=1).
+    try { const top = setTimeout(() => {}, 0); for (let i = 1; i <= top; i++) { clearTimeout(i); clearInterval(i); } log.timersKilled = top; } catch {}
+    try { window.requestAnimationFrame = () => 0; } catch {}
+    // stacked-rotator pin (see header): dom-first member visible, rest hidden — phase-independent.
+    log.rotatorsPinned = [];
+    const cssPath = (el) => { const seg = []; let n = el, g = 0; while (n && n.nodeType === 1 && n !== document.documentElement && g++ < 12) { let s = n.tagName.toLowerCase(); if (n.id && /^[A-Za-z][\w-]*$/.test(n.id)) { seg.unshift(`${s}#${n.id}`); break; } const sib = n.parentElement ? [...n.parentElement.children].filter((c) => c.tagName === n.tagName) : []; if (sib.length > 1) s += `:nth-of-type(${sib.indexOf(n) + 1})`; seg.unshift(s); n = n.parentElement; } return seg.join('>'); };
+    const effHidden = (el) => { if (getComputedStyle(el).visibility === 'hidden') return true; let o = 1, n = el, g = 0; while (n && n !== document.body && g++ < 30) { o *= parseFloat(getComputedStyle(n).opacity || '1'); n = n.parentElement; } return o < 0.15; };
+    for (const par of document.querySelectorAll('body *')) {
+      if (par.children.length < 2 || par.children.length > 12) continue;
+      const kids = [...par.children].filter((k) => { const r = k.getBoundingClientRect(); return r.width >= 24 && r.height >= 12 && getComputedStyle(k).display !== 'none'; });
+      if (kids.length < 2 || kids.length !== par.children.length) continue;
+      const r0 = kids[0].getBoundingClientRect();
+      const stacked = kids.every((k) => {
+        const r = k.getBoundingClientRect();
+        const ix = Math.max(0, Math.min(r0.right, r.right) - Math.max(r0.left, r.left));
+        const iy = Math.max(0, Math.min(r0.bottom, r.bottom) - Math.max(r0.top, r.top));
+        const minArea = Math.max(1, Math.min(r0.width * r0.height, r.width * r.height));
+        return (ix * iy) / minArea >= 0.8 && Math.max(r.width * r.height, r0.width * r0.height) / minArea <= 4;
+      });
+      if (!stacked) continue;
+      const hiddenMix = kids.some(effHidden) && kids.some((k) => !effHidden(k));
+      if (!hiddenMix) continue;                              // static layered composition, not a rotator
+      kids[0].style.setProperty('opacity', '1', 'important');
+      kids[0].style.setProperty('visibility', 'visible', 'important');
+      for (const k of kids.slice(1)) k.style.setProperty('visibility', 'hidden', 'important');
+      log.rotatorsPinned.push({ locator: cssPath(par), members: kids.length });
+    }
+    return log;
+  }).catch(() => ({ finished: 0, infiniteSnapped: 0, cancelled: 0, videos: 0, marqueeBoxes: [], rotatorsPinned: [], error: true }));
 }
 
 // ── capture: logged-out FRESH browser per capture (renderer-crash isolation), full-page, settleLazy ──────────
@@ -224,12 +384,22 @@ async function captureFull(url, width, wantMeta = false) {
   for (let attempt = 0; attempt < 2; attempt++) {
     const browser = await chromium.launch({ args: ['--disable-blink-features=AutomationControlled'] });
     try {
-      const ctx = await browser.newContext({ viewport: { width, height: 900 }, deviceScaleFactor: 1 });
+      const ctx = await browser.newContext({ viewport: { width, height: 900 }, deviceScaleFactor: 1, ...(STATE_PIN ? { reducedMotion: 'reduce' } : {}) });
       await ctx.addInitScript(() => { Object.defineProperty(navigator, 'webdriver', { get: () => undefined }); });
       const p = await ctx.newPage();
       await p.goto(url, { waitUntil: 'networkidle', timeout: 90000 }).catch(() => {});
       await p.waitForTimeout(2000).catch(() => {});
-      await settleLazy(p);
+      let state = null;
+      if (STATE_PIN) {
+        const o1 = await dismissOverlays(p);   // early: unlock consent scroll-locks BEFORE settleLazy needs them
+        await settleLazy(p);
+        const o2 = await dismissOverlays(p);   // late banners (consent managers that mount post-load)
+        const freeze = await freezeAnimations(p);
+        state = { overlays: [...o1, ...o2], freeze };
+        if (state.overlays.length || freeze.infiniteSnapped || (freeze.rotatorsPinned || []).length) console.error(`[pin] ${url} @${width}: overlays ${state.overlays.length}, anims finished ${freeze.finished} / snapped ${freeze.infiniteSnapped}, rotators pinned ${(freeze.rotatorsPinned || []).length}, videos ${freeze.videos}`);
+      } else {
+        await settleLazy(p);
+      }
       const buf = await Promise.race([
         p.screenshot({ fullPage: true, timeout: 90000 }),
         new Promise((_, rej) => setTimeout(() => rej(new Error('screenshot >120s')), 120000)),
@@ -237,7 +407,7 @@ async function captureFull(url, width, wantMeta = false) {
       const png = PNG.sync.read(buf);
       if (!wantMeta) return png;
       const meta = await extractMeta(p);
-      return { png, leaves: meta.leaves, bands: meta.bands };
+      return { png, leaves: meta.leaves, bands: meta.bands, state };
     } catch (e) {
       lastErr = e;
       console.error(`[capture] attempt ${attempt + 1} failed for ${url} @${width}: ${e && e.message || e}${attempt === 0 ? ' — retrying with fresh browser' : ''}`);
@@ -374,7 +544,7 @@ export function planBandTiles({ srcLeaves, clnLeaves, srcBands, clnBands, srcH, 
 
 // ── judge: claude -p headless vision call, strict JSON parse + 1 retry ───────────────────────────────────────
 const RUBRIC = (tilePath, width, y0, y1) => `You are a pixel-fidelity QA judge. Read the image file ${tilePath} now.
-It is a side-by-side composite: LEFT of the vertical magenta divider is the ORIGINAL website; RIGHT is a REBUILD of the same page region (viewport width ${width}px, page band y=${y0}-${y1}; corner labels SRC/CLONE are burned in by the harness — ignore them).
+It is a side-by-side composite: LEFT of the vertical magenta divider is the ORIGINAL website; RIGHT is a REBUILD of the same page region (viewport width ${width}px, page band y=${y0}-${y1}). The solid-black strip across the very top carries SRC/CLONE labels added by the harness — it is NOT part of either page and covers no content; page content starts directly below it. Ignore the strip and its labels.
 Score the RIGHT side's fidelity to the LEFT, 0-100:
 - 100 = indistinguishable at a glance
 - 50 = same skeleton but obviously different on inspection
@@ -473,8 +643,8 @@ async function pool(items, n, fn) {
   return results;
 }
 
-// ── exports (consumed by _vj-selftest.mjs, _vjalign-selftest.mjs and agent-based judging) ───────────────────
-export { composeTile, captureFull, claudeOnce, RUBRIC, extractJson, drawLabel, bandPlaceholder };
+// ── exports (consumed by _vj-selftest.mjs, _vjalign-selftest.mjs, _vj-statepin-selftest.mjs, agent judging) ──
+export { composeTile, captureFull, claudeOnce, RUBRIC, extractJson, drawLabel, bandPlaceholder, dismissOverlays, freezeAnimations, LABEL_STRIP };
 
 // ── main (only when invoked directly — importable as a library without side effects) ────────────────────────
 const IS_MAIN = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
