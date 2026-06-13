@@ -5059,6 +5059,29 @@
       "census": "button=4 image=43 total=288 HELD all widths; selftest 42/0; flags-off byte-identical to baseline (reversibility proven)",
       "honestCaveat": "validated on clerk only; intermediate breakpoints (clerk 640/900) still quantize to 767/1024 (move #3 = Elementor custom breakpoint, deferred); generalization to other sites untested; NO deterministic responsive grader yet (hand-probed).",
       "loadBearingIntact": "id-stamp, Suisse, imagery, boundary-guard, CTA-pill (pills render at mobile), localhost default, cache-flush, P4b"
+    },
+    {
+      "name": "responsive-rail-blessed",
+      "date": "2026-06-13",
+      "commit": "09756e8 on main (grade-responsive-rail.mjs)",
+      "kind": "deterministic responsive grader/regression-rail \u2014 orchestrator-reproduced discriminate test",
+      "independentReExec": {
+        "green_page83": {
+          "score": 1.0,
+          "pass": true,
+          "detail": "gutter 0 all widths; typo 64->48->36 mono=true stuck=false; hRatio .998/1.063/.999"
+        },
+        "red_page127_prefix_flags": {
+          "score": 0.52,
+          "pass": false,
+          "detail": "@390 +69px overflow FAIL; hero stuck 64px all widths stuck=true"
+        },
+        "margin": 0.48,
+        "verdict": "PASS \u2014 rail catches BOTH fix-targeted defects (stuck hero + gutter); identical to builder's reported margin; deterministic"
+      },
+      "design": "clone-only rail anchored to frozen cap manifest; dims: no-overflow(0.6/w) + height-sanity(0.4/w) + typography-scales(0.35 gate); score=0.65*mean(perWidth)+0.35*typoGate, pass>=0.80. New file (NOT the production source-vs-clone grade-responsive.mjs which grade-sections spawns).",
+      "honestLimit": "grid-reflow dim does NOT discriminate the native-grid fix (Elementor containers don't collapse the way the x-cluster probe reads) -> reported best-effort, EXCLUDED from score. dims 1-3 carry discrimination, rock-solid.",
+      "safety": "page 83 re-graded post-teardown = identical 1.0 (untouched); RED scratch page deleted; no shared host"
     }
   ],
   "phase5backlog_wave3": [
