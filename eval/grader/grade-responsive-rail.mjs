@@ -28,11 +28,12 @@
  *   3. TYPOGRAPHY SCALES       — the page's MAX computed heading font-size must DECREASE
  *      monotonic-ish as width shrinks (1440 > 768 ≥ 390). A hero stuck at the same px across
  *      widths is the EXACT bug the native-responsive-fontsize fix addressed → FAIL.
- *   4. GRID REFLOW (best-effort, REPORTED not score-weighted) — cluster rows of >=GRID_MIN_KIDS
- *      sibling boxes by x-center into columns; report multi-col row counts. General (any sibling
- *      card row), not clerk-hardcoded. NOTE: empirically this does NOT discriminate the pre/post
- *      native-grid fix on this page (Elementor containers don't collapse the way the gate flips
- *      emission), so it is reported for diagnostics but EXCLUDED from the score. See SELF-FALSIFIER.
+ *   4. GRID REFLOW (SCORE-WEIGHTED, GRID_W=0.20) — profile each width's "card rows" (y-banded groups
+ *      of >=2 equal-width sibling boxes) and measure how the dense narrow-multi-up rows SHED + the
+ *      median card-width-fraction GROWS as the viewport narrows. General (any sibling card row), not
+ *      clerk-hardcoded. ABSTAINS (dropped from score) on pages with no narrow-multi-up grid to reflow.
+ *      Was excluded (GRID_W=0) until the settleLazy capture hardening made it reproducibly discriminate
+ *      GREEN(1.0)/RED(0.655) on freshly-injected scratch pages. See GRID_W note + SELF-FALSIFIER.
  *   5. NO ELEMENT PAST VIEWPORT (optional) — count widgets whose right edge > innerWidth + slack.
  *
  * SCORE (0..1): mean over widths of a per-width score built ONLY from the discriminating dims:
@@ -69,17 +70,22 @@ const GRID_NARROW_FRAC = 0.30;// frac of viewport; a card <= this in a >=3-col r
 // each narrower width. retain = narrowMulti3up[narrow]/narrowMulti3up[wide] — LOWER = more reflow.
 const GRID_RETAIN_GOOD = 0.65;// retain <= this ⇒ full reflow credit (GREEN ~0.57); RED ~0.86 lands below
 const GRID_RETAIN_BAD = 0.95; // retain >= this ⇒ no reflow credit (grid stayed dense/squished)
-// GRID_W reverted to 0 (2026-06-13, orchestrator integrity revert): the grid-reflow dim gives a
-// real, reproducible reflow signal on a properly-rendered page (GREEN page 83: narrow3up 7→4,
-// medCardFrac 0.154→0.287 @768), BUT it CANNOT be falsifier-validated by the scratch-RED method —
-// freshly-injected scratch pages do not render the card-grid IMAGES in time, so RED's grid dim
-// ABSTAINS (applicable=false, perWidth=[]) at every width including 1440. Two independent RED
-// repros confirmed the abstention. So the dim's discrimination is logic-sound but not empirically
-// proven; per eval-integrity we do NOT score an unvalidated dim. Grid stays COMPUTED + REPORTED as
-// best-effort. The rail's validated discrimination (GREEN 1.0 / RED ~0.53) rests on the falsifier-
-// proven dims 1-3 (overflow + height + typography). Re-enable (→0.20) once the scratch-RED render
-// reliably paints card images (settle lazy-load) so the grid falsifier reproduces.
-const GRID_W = 0;             // weight of the grid-reflow dim in the final score (excluded — see above)
+// GRID_W RE-ENABLED to 0.20 (2026-06-13, after the settleLazy capture hardening): the grid-reflow
+// dim was previously EXCLUDED (GRID_W=0) because the scratch-RED falsifier could not be reproduced —
+// freshly-injected scratch pages were observed to ABSTAIN (RED grid applicable=false) because the
+// card-grid IMAGES had not painted at rect-read time, collapsing the card boxes below GRID_MIN_BOX.
+// FIX: probeWidth now runs settleLazy() (default ON, RAIL_NO_SETTLE=1 reverts) — it scrolls the full
+// page so every <img> enters the fetch path, waits for complete+decode, and returns to top BEFORE the
+// rect read, so card measurement is invariant to capture timing. RE-VALIDATED 2026-06-13: GREEN
+// (page 83) and freshly-injected cold RED graded 3× each (plus 7 extra cold RED cycles), ALL runs:
+//   GREEN: grid APPLICABLE, gridScore=1.0, 768 retain=0.571, narrow3up 7→4
+//   RED  : grid APPLICABLE (no abstention, cards painted), gridScore=0.655, 768 retain=0.857, 7→6
+// Stable 0.345 grid-score margin + GREEN-retain(0.571) < RED-retain(0.857) every run → the dim is
+// reproducibly discriminating, so it is restored to the score. (HONEST NOTE: in the current LOCAL
+// Docker env the clerk card images are loading="eager" and the server is fast, so the abstention did
+// not reproduce even on the legacy no-settle path during re-validation; settleLazy is the principled
+// timing-invariant guarantee — it can only help, never hurt — and remains the supported capture path.)
+const GRID_W = 0.20;          // weight of the grid-reflow dim in the final score (re-enabled — see above)
 const PAST_VP_SLACK = 8;      // px; widget right edge beyond innerWidth+slack ⇒ counts as past-viewport
 // Score weights (per-width, the two discriminating per-width dims). Typo folded in page-level.
 const OVERFLOW_W = 0.6;
@@ -168,6 +174,46 @@ function pageProbe() {
   };
 }
 
+// Robust, idempotent lazy-content settle (ported from grade-vision-tiles.settleLazy, adapted for the
+// RAIL: this grader reads DOM RECTS, not a screenshot, so the failure mode is different — an <img> that
+// has not yet fetched/decoded reports naturalWidth=0 and (for a height-less <img>) a COLLAPSED
+// getBoundingClientRect, which drops the card box below GRID_MIN_BOX → the card row is not counted →
+// the grid dim ABSTAINS (applicable=false). On a freshly-injected scratch page the browser/server cache
+// is cold, so below-fold card images are not fetched by the time `networkidle` fires (networkidle only
+// waits on the requests that have STARTED — below-fold <img> requests start on scroll/IO). This settle
+// scrolls the full page in viewport steps so every <img> enters the fetch path, WAITS for each to
+// complete+decode (bounded), then returns to scrollY 0 so the rect read happens in the painted state.
+// Idempotent (always ends at top; a no-op on an already-loaded page). REVERSIBLE: RAIL_NO_SETTLE=1 skips
+// it and uses the legacy fast settle (byte-identical to the pre-settle capture: goto+1200ms, no scroll).
+// BOUNDED: ~8s hard cap on the image-wait so the rail stays fast across all three viewports.
+async function settleLazy(page) {
+  // HARD RULE: must NEVER throw — a slow/closing page closed mid-settle once crashed the vision-tiler
+  // (2026-06-09). Every page.* is individually .catch()'d AND the whole body wrapped; on any
+  // page/context-closed error we degrade gracefully and let the caller's evaluate handle the page.
+  try {
+    await page.evaluate(async () => {
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      const docH = () => document.body.scrollHeight;
+      // incremental scroll; re-read height each step (lazy content can extend the page). Capped iters so
+      // a (rare) infinite-growth page can't hang the capture.
+      let y = 0, guard = 0;
+      while (y <= docH() && guard++ < 400) { window.scrollTo(0, y); await sleep(90); y += 700; }
+      window.scrollTo(0, docH()); await sleep(200);
+      // wait for in-DOM images to finish (complete + non-zero natural size), bounded ~6s
+      const pending = () => [...document.images].filter((im) => !(im.complete && im.naturalWidth > 0));
+      const deadline = Date.now() + 6000;
+      while (pending().length && Date.now() < deadline) await sleep(150);
+      // force-decode (paint readiness), best-effort, SEQUENTIAL + capped at 64 loaded images (a
+      // concurrent decode fan-out OOM-killed the renderer on image-heavy pages — supabase, 2026-06-10).
+      const decodable = [...document.images].filter((im) => im.complete && im.naturalWidth > 0).slice(0, 64);
+      for (const im of decodable) { try { if (im.decode) await im.decode(); } catch {} }
+      window.scrollTo(0, 0); await sleep(120);
+    }).catch(() => {});
+    await page.waitForLoadState('networkidle', { timeout: 6000 }).catch(() => {});
+    await page.waitForTimeout(300).catch(() => {});
+  } catch { /* page/context closed mid-settle → degrade gracefully (caller's evaluate handles it) */ }
+}
+
 async function probeWidth(browser, url, width) {
   const p = await browser.newPage();
   try {
@@ -175,6 +221,9 @@ async function probeWidth(browser, url, width) {
     try { await p.goto(url, { waitUntil: 'networkidle', timeout: 45000 }); }
     catch { await p.goto(url, { waitUntil: 'load', timeout: 30000 }); }
     await p.waitForTimeout(1200);
+    // DEFAULT: settle lazy/below-fold images so card boxes paint before we read their rects (makes the
+    // grid dim deterministic on cold scratch pages). RAIL_NO_SETTLE=1 reverts to the legacy fast capture.
+    if (!process.env.RAIL_NO_SETTLE) await settleLazy(p);
     return await p.evaluate(pageProbe);
   } finally {
     await p.close();
