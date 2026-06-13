@@ -5206,7 +5206,13 @@
                         "bottom": "0",
                         "left": "0",
                         "isLinked": false
-                      }
+                      },
+                      "width": {
+                        "unit": "px",
+                        "size": 119
+                      },
+                      "_flex_size": "custom",
+                      "_flex_shrink": 0
                     },
                     "elements": [
                       {
@@ -5279,6 +5285,12 @@
                         "row": "0",
                         "isLinked": true
                       },
+                      "width": {
+                        "unit": "px",
+                        "size": 585
+                      },
+                      "_flex_size": "custom",
+                      "_flex_shrink": 0,
                       "min_height": {
                         "unit": "px",
                         "size": 139
@@ -5383,6 +5395,12 @@
                         "row": "0",
                         "isLinked": true
                       },
+                      "width": {
+                        "unit": "px",
+                        "size": 585
+                      },
+                      "_flex_size": "custom",
+                      "_flex_shrink": 0,
                       "min_height": {
                         "unit": "px",
                         "size": 139
@@ -5599,7 +5617,13 @@
                         "bottom": "0",
                         "left": "0",
                         "isLinked": false
-                      }
+                      },
+                      "width": {
+                        "unit": "px",
+                        "size": 120
+                      },
+                      "_flex_size": "custom",
+                      "_flex_shrink": 0
                     },
                     "elements": [
                       {
@@ -5672,6 +5696,12 @@
                         "row": "0",
                         "isLinked": true
                       },
+                      "width": {
+                        "unit": "px",
+                        "size": 585
+                      },
+                      "_flex_size": "custom",
+                      "_flex_shrink": 0,
                       "min_height": {
                         "unit": "px",
                         "size": 139

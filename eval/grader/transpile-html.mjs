@@ -656,6 +656,28 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
       settings.width = { unit: 'px', size: n.rect.w + ROW_CHILD_BUFFER_PX };
       settings._flex_size = 'custom'; settings._flex_shrink = 0;
     }
+    // P4b COLUMN-CENTER SHRINK (2026-06-13, fw-link left-drift fix): an e-con child defaults to
+    // width:100%. When its parent is a flex-COLUMN that centers items (align-items:center), a child
+    // with NO declared width stretches full-width, so its own left-/start-aligned content sits at the
+    // LEFT and the parent's cross-axis centering is defeated (e.g. .fw-link "All frameworks ›" /
+    // "All integrations ›" rendered hard-left instead of centered under their headings). In source
+    // such a child is width:auto and shrinks to content, letting the column center it. Mirror that:
+    // pin its width to the rendered CONTENT width (n.rect.w) + buffer with _flex_size:'custom' so
+    // Elementor honors it (the `.e-con-full` class hard-sets width:100%, which beats a bare
+    // _element_width:'auto' — an explicit width control is the only reliable shrink lever). The
+    // parent's align-items:center then centers the now-content-sized child. Guarded: only when the
+    // child has no declared width, isn't a flex-grow item, isn't already pinned by P4, and is
+    // genuinely content-narrower than the parent's inner box (rect.w + slack < parent rect.w) so we
+    // never shrink a legitimately full-width block. Reversible: TRANSPILE_NO_COL_CENTER_SHRINK=1.
+    if (!process.env.TRANSPILE_NO_COL_CENTER_SHRINK
+      && parent && parent.s && parent.s.display.includes('flex') && parent.s['flex-direction'] === 'column'
+      && (parent.s['align-items'] === 'center')
+      && !settings.width && !settings._flex_grow
+      && n.rect && parent.rect && n.rect.w > 0 && parent.rect.w > 0
+      && n.rect.w + 8 < parent.rect.w) {
+      settings.width = { unit: 'px', size: n.rect.w + ROW_CHILD_BUFFER_PX };
+      settings._flex_size = 'custom'; settings._flex_shrink = 0;
+    }
     // P5: margin-auto heuristics (documented in header).
     if ((n.children || []).some((c) => c.autoML)) {
       if (settings.flex_direction === 'row') settings.flex_justify_content = 'space-between';
