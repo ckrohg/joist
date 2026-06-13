@@ -94,3 +94,58 @@ Large full-page trees (100s of KB) blew past `ARG_MAX` on the old
 writes the meta from the mounted file via `wp eval-file /update-meta.php`
 (`update_post_meta($id,'_elementor_data',wp_slash(file_get_contents('/tree.json')))`),
 so any page size renders. Verified round-trip: stored meta decodes to 292 nodes, 0 missing ids.
+
+## 4. Page-scale fidelity — JUDGED (gated vision-judge, median-of-3)
+
+Hash-bound to the as-rendered tree `sha256 680173d4…` (VERIFIED on disk == build report).
+Source = live clerk.com, pinned judge 46ef7bb (overlays dismissed, marquee/anim frozen,
+labels off-content). Clone = the LOCAL Elementor render (`/clerk-fullpage/`, page 83).
+`judge/results.json`, `judge/run.log`, 32 tiles, cost $5.3.
+
+| width | Elementor pageScore | base | penalty | hRatio | HTML ceiling | raw loss |
+|-------|--------------------|------|---------|--------|-------------|----------|
+| 1440  | **41.7**           | 59.7 | 18      | 0.903  | 65.6        | 23.9     |
+| 1250  | **12.3**           | 47.3 | 35      | 0.777  | 45.7        | 33.4     |
+
+Hero-only Elementor (page 82, single band, no recompose/marquee/reflow) = **82**.
+
+### Judge-hygiene (artifact flags — the page number is artifact-DEFLATED)
+3 sev5s total:
+- **1440 t03** (score 28, align=unmatched) — sev5 "white bg vs dark" + sev4 "contrast
+  inverted": **ARTIFACT.** Band-boundary: src=hero/dark-band-start vs clone=white
+  components-intro. The clone is correctly white there, NOT inverted. LOOK-confirmed.
+- **1440 t16** (score 30, sev4 "white wedge in dark"): **ARTIFACT.** Dark→white
+  section-boundary offset by cumulative hRatio (clnY 5075 vs srcY 5515). LOOK-confirmed.
+- **1250 t02** (score 18, align=unmatched) — sev5 "bottom 60% black void / content absent":
+  **ARTIFACT.** clnSpan 0.62× srcSpan; the clone window slid into the next dark section
+  because of hRatio 0.777. The clone content IS present at a different y. LOOK-confirmed.
+- **1250 t04** (score 32) — sev5 "grid destroyed to single column": **REAL but OVERSTATED.**
+  Clone bento IS a multi-column dark grid (reordered/misaligned), not single-column;
+  flex-bento regroup at off-authoring width = authoring-limit.
+
+At 1250 the band-matcher squeezed clone windows to 30–63% of source span on **t02/t03/t06/t10**
+(hRatio 0.777) → those "void/collapsed/absent" defects are GEOMETRIC artifacts of the squeeze.
+Artifact-adjusted: 1440 base excl t03+t16 = **64.3** → honest 1440 pageScore ≈ **52–58**
+(loss vs ceiling ≈ **8–13**). 1250 raw 12.3 is heavily deflated; honest 1250 is well above 12.3.
+
+### Worst REAL tiles (classified)
+1. **1440 t00 (38)** — header/announce in REVERSED vertical order (announce-below-nav vs
+   source announce-above-nav) + nav bg dark vs white + "PricingSign in" merged.
+   → **TRANSPILATION-LOSS** (P7 site-part recompose flipped order). FIXABLE.
+2. **1250 t00 (52)** — same header reversal + hero PRIMARY CTA "Start building for free"
+   (purple) dropped/unstyled at 1250 (renders correct #6c47ff/r17 at 1440).
+   → **RESPONSIVE-AUTHORING-LIMIT** (CTA regroup off authoring width) + frozen-marquee.
+3. **1440 t02 (32)** — logo wall shows different customer logos (marquee-phase divergence)
+   + boxed cells vs borderless. → **AUTHORING-LIMIT** (frozen static row can't match a live
+   marquee's pinned phase; cell-border is a real minor defect).
+
+### Page-scale verdict
+The page-scale transpilation loss is **LARGER** than the hero-only 6pt (88→82): the hero was
+one band with no site-part recompose, no marquee, no responsive reflow, no multi-section
+height accumulation. Genuine page-scale residuals: (1) header/announce recompose ORDER bug
+[transpilation-loss, FIXABLE]; (2) frozen-marquee logo divergence [authoring-limit];
+(3) hero CTA drop at 1250 [responsive-authoring-limit]; (4) desktop-frozen CSS-math vertical
+compression at 1250 (hRatio 0.777) [transpilation-loss — the abs/desktop-only ceiling].
+ZERO new undeclared breakage; 292 native widgets, 0 raster fallback, Suisse webfont correct.
+Grader-hygiene item recurs (band-boundary transition tiles t03/t16 + height-squeeze unmatched
+tiles deflate the headline) — fold band-boundary-tile suppression into the next round.

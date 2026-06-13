@@ -1,0 +1,3364 @@
+{
+  "source": "https://clerk.com",
+  "clone": "http://localhost:8001/clerk-fullpage/",
+  "widths": [
+    1440,
+    1250
+  ],
+  "runsPerTile": 3,
+  "gating": true,
+  "model": "claude-sonnet-4-6",
+  "publishedScore": null,
+  "veto": null,
+  "pageScore": 20.7,
+  "baseScore": 55.7,
+  "severityPenalty": 35,
+  "perWidth": {
+    "1250": {
+      "srcHeight": 8552,
+      "cloneHeight": 6648,
+      "hRatio": 0.777,
+      "align": {
+        "mode": "band",
+        "anchorPairs": 67,
+        "segments": 8,
+        "matched": 7,
+        "interpolated": 0,
+        "missing": 1,
+        "extra": 0,
+        "missingDeterministic": 0,
+        "unmatchedJudged": 1
+      },
+      "pageScore": 12.3,
+      "base": 47.3,
+      "penalty": 35,
+      "judged": 11,
+      "skipped": 0
+    },
+    "1440": {
+      "srcHeight": 7616,
+      "cloneHeight": 6876,
+      "hRatio": 0.903,
+      "align": {
+        "mode": "band",
+        "anchorPairs": 80,
+        "segments": 20,
+        "matched": 14,
+        "interpolated": 4,
+        "missing": 2,
+        "extra": 0,
+        "missingDeterministic": 0,
+        "unmatchedJudged": 2
+      },
+      "pageScore": 41.7,
+      "base": 59.7,
+      "penalty": 18,
+      "judged": 21,
+      "skipped": 0
+    }
+  },
+  "tilesJudged": 32,
+  "tilesSkipped": 0,
+  "costUsd": 5.3,
+  "wallSec": 1180,
+  "defects": [
+    {
+      "desc": "Section background is solid white/light gray in clone; source has a deep black/dark background for this entire band — the most visually dominant property is wrong",
+      "severity": 5,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 3,
+      "yRange": [
+        753,
+        893
+      ],
+      "aboveFold": true,
+      "tileScore": 28
+    },
+    {
+      "desc": "Bottom ~60% of right side is solid black void — large swath of page content completely absent",
+      "severity": 5,
+      "category": "layout-broken",
+      "width": 1250,
+      "tile": 2,
+      "yRange": [
+        1237,
+        1910
+      ],
+      "aboveFold": false,
+      "tileScore": 18
+    },
+    {
+      "desc": "Card grid layout is broken: LEFT shows a 2-column card grid with large dark rounded cards; RIGHT collapses into a single-column or misaligned list, destroying the grid structure",
+      "severity": 5,
+      "category": "layout-broken",
+      "width": 1250,
+      "tile": 4,
+      "yRange": [
+        2810,
+        3710
+      ],
+      "aboveFold": false,
+      "tileScore": 32
+    },
+    {
+      "desc": "Overall contrast inverted — source text appears light-on-dark; clone renders dark-on-light — making the right side look like a completely different design",
+      "severity": 4,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 3,
+      "yRange": [
+        753,
+        893
+      ],
+      "aboveFold": true,
+      "tileScore": 28
+    },
+    {
+      "desc": "All four company logos are wrong: clone shows 'David AI', 'OpenRouter', 'şamaya', 'Cartesia' instead of original 'inngest', 'durable', 'upstash', 'Consensus'",
+      "severity": 4,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 2,
+      "yRange": [
+        624,
+        753
+      ],
+      "aboveFold": true,
+      "tileScore": 32
+    },
+    {
+      "desc": "Announcement banner and nav bar are stacked in reversed order: clone shows nav bar first (top), then announcement bar below it; source shows announcement bar first, then nav below",
+      "severity": 4,
+      "category": "layout-broken",
+      "width": 1440,
+      "tile": 0,
+      "yRange": [
+        0,
+        218
+      ],
+      "aboveFold": true,
+      "tileScore": 38
+    },
+    {
+      "desc": "Hero heading, body text, and CTA are left-aligned in rebuild vs center-aligned in original",
+      "severity": 4,
+      "category": "layout-broken",
+      "width": 1250,
+      "tile": 1,
+      "yRange": [
+        737,
+        1237
+      ],
+      "aboveFold": true,
+      "tileScore": 40
+    },
+    {
+      "desc": "Rebuild renders a two-column layout (text-left / sign-up card-right) whereas original is a single centered-column block",
+      "severity": 4,
+      "category": "layout-broken",
+      "width": 1250,
+      "tile": 1,
+      "yRange": [
+        737,
+        1237
+      ],
+      "aboveFold": true,
+      "tileScore": 40
+    },
+    {
+      "desc": "Nav bar: 'Sign in' and 'Start building' CTA buttons missing from clone",
+      "severity": 4,
+      "category": "chrome-missing",
+      "width": 1250,
+      "tile": 0,
+      "yRange": [
+        0,
+        737
+      ],
+      "aboveFold": true,
+      "tileScore": 52
+    },
+    {
+      "desc": "Hero CTA buttons: 'Start building for free' (purple filled) and 'Build with agents →' (ghost/text) are unstyled plain text links in clone — no button styling, no purple background",
+      "severity": 4,
+      "category": "wrong-style",
+      "width": 1250,
+      "tile": 0,
+      "yRange": [
+        0,
+        737
+      ],
+      "aboveFold": true,
+      "tileScore": 52
+    },
+    {
+      "desc": "Trust bar logos (G2 Crowd Stars, Braintrust, Happttel, Consensus on left) replaced with completely different logos (David AI, OpenRouter, Samaya, Cartesia) on right",
+      "severity": 4,
+      "category": "wrong-style",
+      "width": 1250,
+      "tile": 0,
+      "yRange": [
+        0,
+        737
+      ],
+      "aboveFold": true,
+      "tileScore": 52
+    },
+    {
+      "desc": "Primary CTA button ('Start building for free') missing entirely — only the ghost/text 'Build with agents →' link is present on the right",
+      "severity": 4,
+      "category": "missing-content",
+      "width": 1440,
+      "tile": 1,
+      "yRange": [
+        218,
+        624
+      ],
+      "aboveFold": true,
+      "tileScore": 68
+    },
+    {
+      "desc": "Clerk sign-up modal rendered only as bottom fragment (Continue button + 'Already have an account?' + 'Secured by clerk'); missing 'Create your account' heading, social login buttons (Google/GitHub), email and password fields",
+      "severity": 4,
+      "category": "missing-content",
+      "width": 1250,
+      "tile": 2,
+      "yRange": [
+        1237,
+        1910
+      ],
+      "aboveFold": false,
+      "tileScore": 18
+    },
+    {
+      "desc": "Left sidebar 'USER AUTHENTICATION' section missing entirely — no section header, no component list (<SignUp />, <SignIn />, <UserButton />, <UserProfile />, <Waitlist />)",
+      "severity": 4,
+      "category": "missing-content",
+      "width": 1250,
+      "tile": 2,
+      "yRange": [
+        1237,
+        1910
+      ],
+      "aboveFold": false,
+      "tileScore": 18
+    },
+    {
+      "desc": "Documentation two-column layout collapsed — sidebar and content regions not correctly positioned; accordion items (B2B Authentication, Billing) float to top-left without surrounding structure",
+      "severity": 4,
+      "category": "layout-broken",
+      "width": 1250,
+      "tile": 2,
+      "yRange": [
+        1237,
+        1910
+      ],
+      "aboveFold": false,
+      "tileScore": 18
+    },
+    {
+      "desc": "RIGHT side shows a large white/light diagonal shape intruding into the dark background — a bright wedge or angled block that is absent on the LEFT which is uniformly dark",
+      "severity": 4,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 16,
+      "yRange": [
+        5515,
+        5643
+      ],
+      "aboveFold": false,
+      "tileScore": 30
+    },
+    {
+      "desc": "UI mockup windows inside the feature cards are light/washed-out on the RIGHT vs deep-dark styled mockups on the LEFT — window chrome dots and dark backgrounds missing or wrong",
+      "severity": 4,
+      "category": "wrong-style",
+      "width": 1250,
+      "tile": 4,
+      "yRange": [
+        2810,
+        3710
+      ],
+      "aboveFold": false,
+      "tileScore": 32
+    },
+    {
+      "desc": "Tab-panel layout hierarchy inverted: LEFT shows Auto-join org-chart as the hero panel at top with three smaller cards below; RIGHT renders all panels at roughly equal size in a different column arrangement, destroying the primary/secondary visual hierarchy",
+      "severity": 4,
+      "category": "layout-broken",
+      "width": 1250,
+      "tile": 6,
+      "yRange": [
+        4610,
+        5510
+      ],
+      "aboveFold": false,
+      "tileScore": 32
+    },
+    {
+      "desc": "UI mockup inside 'Multifactor Authentication' card (device icons / auth interface illustration) is entirely absent on the right",
+      "severity": 4,
+      "category": "imagery-missing",
+      "width": 1250,
+      "tile": 3,
+      "yRange": [
+        1910,
+        2810
+      ],
+      "aboveFold": false,
+      "tileScore": 35
+    },
+    {
+      "desc": "UI mockup inside 'Fraud Abuse Prevention' card (inline form with CTA button) is entirely absent on the right",
+      "severity": 4,
+      "category": "imagery-missing",
+      "width": 1250,
+      "tile": 3,
+      "yRange": [
+        1910,
+        2810
+      ],
+      "aboveFold": false,
+      "tileScore": 35
+    },
+    {
+      "desc": "Feature card grid (bottom two rows of cards) is collapsed — cards render as near-empty dark bands with no visible internal content or imagery",
+      "severity": 4,
+      "category": "layout-broken",
+      "width": 1250,
+      "tile": 3,
+      "yRange": [
+        1910,
+        2810
+      ],
+      "aboveFold": false,
+      "tileScore": 35
+    },
+    {
+      "desc": "Sidebar code-component tags (<SignUp />, <SignIn />, <UserButton />, <UserProfile />, <WaitList />) are absent from the CLONE left panel; only 'B2B Authentication' and 'Billing' collapse rows appear",
+      "severity": 4,
+      "category": "missing-content",
+      "width": 1440,
+      "tile": 5,
+      "yRange": [
+        1153,
+        1826
+      ],
+      "aboveFold": false,
+      "tileScore": 58
+    },
+    {
+      "desc": "Dark section ends too early in the clone — a large white void occupies the bottom ~40% of the right side where the dark background should continue; only a small angled white shape appears at the bottom of the original",
+      "severity": 4,
+      "category": "layout-broken",
+      "width": 1440,
+      "tile": 10,
+      "yRange": [
+        3279,
+        3732
+      ],
+      "aboveFold": false,
+      "tileScore": 58
+    },
+    {
+      "desc": "Dark feature-card section: card internal UI mockups (embedded UI chrome, code snippets, credential/key field illustrations visible in source cards like Passwords and API Keys) are absent or reduced to plain text in the rebuild",
+      "severity": 4,
+      "category": "chrome-missing",
+      "width": 1250,
+      "tile": 5,
+      "yRange": [
+        3710,
+        4610
+      ],
+      "aboveFold": false,
+      "tileScore": 58
+    },
+    {
+      "desc": "Content vertical positioning is misaligned: source content sits at the bottom of the band, clone content starts near the top, indicating a layout height or padding mismatch",
+      "severity": 3,
+      "category": "layout-broken",
+      "width": 1440,
+      "tile": 3,
+      "yRange": [
+        753,
+        893
+      ],
+      "aboveFold": true,
+      "tileScore": 28
+    },
+    {
+      "desc": "Logo rendering on right uses small thumbnail icons + plain text instead of the original styled brand wordmarks (e.g. inngest logotype, durable heart+wordmark, upstash S-mark+wordmark)",
+      "severity": 3,
+      "category": "imagery-missing",
+      "width": 1440,
+      "tile": 2,
+      "yRange": [
+        624,
+        753
+      ],
+      "aboveFold": true,
+      "tileScore": 32
+    },
+    {
+      "desc": "Nav bar background is dark/black in clone; source nav bar is white",
+      "severity": 3,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 0,
+      "yRange": [
+        0,
+        218
+      ],
+      "aboveFold": true,
+      "tileScore": 38
+    },
+    {
+      "desc": "'Pricing' and 'Sign in' nav items are merged as 'PricingSign in' with no space or separator",
+      "severity": 3,
+      "category": "text-junk",
+      "width": 1440,
+      "tile": 0,
+      "yRange": [
+        0,
+        218
+      ],
+      "aboveFold": true,
+      "tileScore": 38
+    },
+    {
+      "desc": "Announcement bar in clone lacks black background styling; appears on plain white/light background instead of the source's black pill/bar",
+      "severity": 3,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 0,
+      "yRange": [
+        0,
+        218
+      ],
+      "aboveFold": true,
+      "tileScore": 38
+    },
+    {
+      "desc": "Hero section below nav is entirely blank white in clone; source shows a light-gray background with subtle decorative dot-grid/UI-element pattern",
+      "severity": 3,
+      "category": "imagery-missing",
+      "width": 1440,
+      "tile": 0,
+      "yRange": [
+        0,
+        218
+      ],
+      "aboveFold": true,
+      "tileScore": 38
+    },
+    {
+      "desc": "'Create your account' sign-up form card is fully visible and dominant in rebuild but not present/prominent in this page band on the original",
+      "severity": 3,
+      "category": "wrong-style",
+      "width": 1250,
+      "tile": 1,
+      "yRange": [
+        737,
+        1237
+      ],
+      "aboveFold": true,
+      "tileScore": 40
+    },
+    {
+      "desc": "Nav bar: 'Docs', 'Changelog', and other right-side nav links missing or not rendered; only 'Products' visible in clone nav",
+      "severity": 3,
+      "category": "missing-content",
+      "width": 1250,
+      "tile": 0,
+      "yRange": [
+        0,
+        737
+      ],
+      "aboveFold": true,
+      "tileScore": 52
+    },
+    {
+      "desc": "Announcement banner ('Clerk raises $30m Series C · Learn more') missing from clone",
+      "severity": 3,
+      "category": "missing-content",
+      "width": 1250,
+      "tile": 0,
+      "yRange": [
+        0,
+        737
+      ],
+      "aboveFold": true,
+      "tileScore": 52
+    },
+    {
+      "desc": "'Choose an account' multi-account picker widget (visible bottom-left of source) is absent in clone",
+      "severity": 3,
+      "category": "missing-content",
+      "width": 1250,
+      "tile": 2,
+      "yRange": [
+        1237,
+        1910
+      ],
+      "aboveFold": false,
+      "tileScore": 18
+    },
+    {
+      "desc": "Background is black/dark where source shows white documentation page background",
+      "severity": 3,
+      "category": "wrong-style",
+      "width": 1250,
+      "tile": 2,
+      "yRange": [
+        1237,
+        1910
+      ],
+      "aboveFold": false,
+      "tileScore": 18
+    },
+    {
+      "desc": "Content order differs: LEFT leads with Session Management, Social Sign On, Bot Detection, Magic Links; RIGHT reorders, surfacing Multifactor Authentication and Fraud and Account Prevention at top — sections are out of sequence",
+      "severity": 3,
+      "category": "layout-broken",
+      "width": 1250,
+      "tile": 4,
+      "yRange": [
+        2810,
+        3710
+      ],
+      "aboveFold": false,
+      "tileScore": 32
+    },
+    {
+      "desc": "Bot Detection feature card: visible on LEFT with a dark UI mockup; not clearly present in equivalent position on RIGHT",
+      "severity": 3,
+      "category": "missing-content",
+      "width": 1250,
+      "tile": 4,
+      "yRange": [
+        2810,
+        3710
+      ],
+      "aboveFold": false,
+      "tileScore": 32
+    },
+    {
+      "desc": "Embedded UI mockup screenshot detail (form fields, list rows, syntax elements inside the dark app windows) is absent or heavily degraded on the RIGHT side",
+      "severity": 3,
+      "category": "imagery-missing",
+      "width": 1250,
+      "tile": 4,
+      "yRange": [
+        2810,
+        3710
+      ],
+      "aboveFold": false,
+      "tileScore": 32
+    },
+    {
+      "desc": "Card depth/shadow and dark surface styling of individual feature cards significantly lighter on RIGHT, losing the dark-glass aesthetic",
+      "severity": 3,
+      "category": "wrong-style",
+      "width": 1250,
+      "tile": 4,
+      "yRange": [
+        2810,
+        3710
+      ],
+      "aboveFold": false,
+      "tileScore": 32
+    },
+    {
+      "desc": "Auto-join active-tab highlight and tab navigation chrome at top of the panel is absent on RIGHT — the active state indicator and tab row that sit above the org-chart are not rendered",
+      "severity": 3,
+      "category": "chrome-missing",
+      "width": 1250,
+      "tile": 6,
+      "yRange": [
+        4610,
+        5510
+      ],
+      "aboveFold": false,
+      "tileScore": 32
+    },
+    {
+      "desc": "Bottom feature-category navigation tabs (Privacy standards, Customization, B2B, Security, Bot detection) appear partially missing or unstyled on the RIGHT compared to the clearly rendered row on the LEFT",
+      "severity": 3,
+      "category": "chrome-missing",
+      "width": 1250,
+      "tile": 6,
+      "yRange": [
+        4610,
+        5510
+      ],
+      "aboveFold": false,
+      "tileScore": 32
+    },
+    {
+      "desc": "Org-chart people-photo cluster is smaller and repositioned on RIGHT relative to the large central placement on LEFT",
+      "severity": 3,
+      "category": "layout-broken",
+      "width": 1250,
+      "tile": 6,
+      "yRange": [
+        4610,
+        5510
+      ],
+      "aboveFold": false,
+      "tileScore": 32
+    },
+    {
+      "desc": "'Advanced security' card and its right-column counterpart show only faint text with no visual weight; internal structure is lost",
+      "severity": 3,
+      "category": "missing-content",
+      "width": 1250,
+      "tile": 3,
+      "yRange": [
+        1910,
+        2810
+      ],
+      "aboveFold": false,
+      "tileScore": 35
+    },
+    {
+      "desc": "Large dark-gray empty area at bottom of clone where card content should continue",
+      "severity": 3,
+      "category": "missing-content",
+      "width": 1250,
+      "tile": 3,
+      "yRange": [
+        1910,
+        2810
+      ],
+      "aboveFold": false,
+      "tileScore": 35
+    },
+    {
+      "desc": "White horizontal bar visible at bottom of right side — artifact not present in original; appears to be a stray element or section divider leaking into frame",
+      "severity": 3,
+      "category": "layout-broken",
+      "width": 1440,
+      "tile": 17,
+      "yRange": [
+        5643,
+        6395
+      ],
+      "aboveFold": false,
+      "tileScore": 55
+    },
+    {
+      "desc": "Framework/integration icon grid: RIGHT icons rendered as plain flat line-art without the circular container badge treatment present in the original (dark circular backgrounds with brand logos)",
+      "severity": 3,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 17,
+      "yRange": [
+        5643,
+        6395
+      ],
+      "aboveFold": false,
+      "tileScore": 55
+    },
+    {
+      "desc": "Angled black cutout shape at section bottom is visible in the clone but positioned incorrectly (floats in white space rather than terminating the dark band)",
+      "severity": 3,
+      "category": "layout-broken",
+      "width": 1440,
+      "tile": 10,
+      "yRange": [
+        3279,
+        3732
+      ],
+      "aboveFold": false,
+      "tileScore": 58
+    },
+    {
+      "desc": "Card icon/graphic elements inside dark feature cards (small illustrations or interface screenshots in source) appear missing in rebuild, leaving cards as text-only blocks",
+      "severity": 3,
+      "category": "imagery-missing",
+      "width": 1250,
+      "tile": 5,
+      "yRange": [
+        3710,
+        4610
+      ],
+      "aboveFold": false,
+      "tileScore": 58
+    },
+    {
+      "desc": "Framework/integration icon grid items are noticeably larger in the clone — icons render at roughly 2× the original size, making the grid look blown up and unrefined",
+      "severity": 3,
+      "category": "layout-broken",
+      "width": 1250,
+      "tile": 8,
+      "yRange": [
+        6451,
+        7331
+      ],
+      "aboveFold": false,
+      "tileScore": 62
+    },
+    {
+      "desc": "Sign-in UI mockup card (center-left feature card): rebuild renders the inner interface screenshot noticeably flatter and less detailed — missing the depth/contrast present in the original's dark modal overlay",
+      "severity": 3,
+      "category": "imagery-missing",
+      "width": 1440,
+      "tile": 8,
+      "yRange": [
+        2207,
+        3107
+      ],
+      "aboveFold": false,
+      "tileScore": 63
+    },
+    {
+      "desc": "Pricing card tier prices differ: original shows $9/mo and $19/mo, rebuild shows $5 and $10",
+      "severity": 3,
+      "category": "wrong-style",
+      "width": 1250,
+      "tile": 7,
+      "yRange": [
+        5513,
+        6413
+      ],
+      "aboveFold": false,
+      "tileScore": 63
+    },
+    {
+      "desc": "Heading text in rebuild reads 'Subscription billing, without the headache' with noticeably smaller/lighter font weight than original's bold large heading",
+      "severity": 3,
+      "category": "wrong-style",
+      "width": 1250,
+      "tile": 7,
+      "yRange": [
+        5513,
+        6413
+      ],
+      "aboveFold": false,
+      "tileScore": 63
+    },
+    {
+      "desc": "Testimonial card avatar profile photos appear as generic placeholders or very small low-contrast circles on the right vs clearly visible circular portrait photos on the left",
+      "severity": 3,
+      "category": "imagery-missing",
+      "width": 1250,
+      "tile": 9,
+      "yRange": [
+        7331,
+        8155
+      ],
+      "aboveFold": false,
+      "tileScore": 66
+    },
+    {
+      "desc": "Testimonial card profile avatar images in right column (ronaldsolicki, WebDevCode, Cim Stefan cards) appear missing or not rendered — circular image placeholders visible instead of actual profile photos",
+      "severity": 3,
+      "category": "imagery-missing",
+      "width": 1440,
+      "tile": 18,
+      "yRange": [
+        6395,
+        7219
+      ],
+      "aboveFold": false,
+      "tileScore": 68
+    },
+    {
+      "desc": "Footer body has noticeably less vertical padding/breathing room — columns and logo row are compressed top-to-bottom compared to the original's generous spacing",
+      "severity": 3,
+      "category": "layout-broken",
+      "width": 1250,
+      "tile": 10,
+      "yRange": [
+        8155,
+        8552
+      ],
+      "aboveFold": false,
+      "tileScore": 68
+    },
+    {
+      "desc": "Right side (clone) renders as a nearly solid black band with no visible content; left side shows subtle dark UI elements/text that are not reproduced",
+      "severity": 3,
+      "category": "missing-content",
+      "width": 1440,
+      "tile": 6,
+      "yRange": [
+        1826,
+        1954
+      ],
+      "aboveFold": false,
+      "tileScore": 72
+    },
+    {
+      "desc": "Card/UI feature boxes below 'Explore B2B features' CTA are empty outlines with no content — source shows card content in that band",
+      "severity": 3,
+      "category": "missing-content",
+      "width": 1440,
+      "tile": 12,
+      "yRange": [
+        3860,
+        4097
+      ],
+      "aboveFold": false,
+      "tileScore": 72
+    },
+    {
+      "desc": "Organization UI Components card preview (far right): clone renders it as a plain white box; original shows a styled dark/frosted-glass inner panel with visible list rows and a 'Clark' badge",
+      "severity": 3,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 13,
+      "yRange": [
+        4097,
+        4625
+      ],
+      "aboveFold": false,
+      "tileScore": 72
+    },
+    {
+      "desc": "Dark/black background fills the lower portion of the clone below the nav bar; LEFT shows light/white background continuing to the bottom of the band",
+      "severity": 3,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 19,
+      "yRange": [
+        7219,
+        7487
+      ],
+      "aboveFold": false,
+      "tileScore": 80
+    },
+    {
+      "desc": "Dark rectangular card-like shapes visible at bottom-right that are absent on the left — next section or feature cards bleeding into this band",
+      "severity": 3,
+      "category": "layout-broken",
+      "width": 1440,
+      "tile": 7,
+      "yRange": [
+        1954,
+        2207
+      ],
+      "aboveFold": false,
+      "tileScore": 82
+    },
+    {
+      "desc": "Footer background: right side shows a light gray/white background instead of the dark/black background visible on the left",
+      "severity": 3,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 20,
+      "yRange": [
+        7487,
+        7616
+      ],
+      "aboveFold": false,
+      "tileScore": 82
+    },
+    {
+      "desc": "Source shows faint text/label row near vertical center of band that is absent or shifted out of frame in the clone",
+      "severity": 2,
+      "category": "missing-content",
+      "width": 1440,
+      "tile": 3,
+      "yRange": [
+        753,
+        893
+      ],
+      "aboveFold": true,
+      "tileScore": 28
+    },
+    {
+      "desc": "Logo spacing/sizing is tighter and less balanced on the right; logos appear cramped relative to the evenly-spread originals",
+      "severity": 2,
+      "category": "layout-broken",
+      "width": 1440,
+      "tile": 2,
+      "yRange": [
+        624,
+        753
+      ],
+      "aboveFold": true,
+      "tileScore": 32
+    },
+    {
+      "desc": "'Start building' CTA button in nav appears unstyled/plain text in clone vs styled button with chevron in source",
+      "severity": 2,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 0,
+      "yRange": [
+        0,
+        218
+      ],
+      "aboveFold": true,
+      "tileScore": 38
+    },
+    {
+      "desc": "'User Authentication' accordion row with expand caret visible in rebuild; not present in original within this band",
+      "severity": 2,
+      "category": "missing-content",
+      "width": 1250,
+      "tile": 1,
+      "yRange": [
+        737,
+        1237
+      ],
+      "aboveFold": true,
+      "tileScore": 40
+    },
+    {
+      "desc": "Body text line-wrapping and column width narrower in rebuild due to column split, making paragraph text harder to scan",
+      "severity": 2,
+      "category": "layout-broken",
+      "width": 1250,
+      "tile": 1,
+      "yRange": [
+        737,
+        1237
+      ],
+      "aboveFold": true,
+      "tileScore": 40
+    },
+    {
+      "desc": "Clerk logo in nav: logo mark/wordmark appears present but nav links context is stripped",
+      "severity": 2,
+      "category": "missing-content",
+      "width": 1250,
+      "tile": 0,
+      "yRange": [
+        0,
+        737
+      ],
+      "aboveFold": true,
+      "tileScore": 52
+    },
+    {
+      "desc": "Hero sub-heading text reflows to different line breaks and appears lighter/smaller weight in clone",
+      "severity": 2,
+      "category": "wrong-style",
+      "width": 1250,
+      "tile": 0,
+      "yRange": [
+        0,
+        737
+      ],
+      "aboveFold": true,
+      "tileScore": 52
+    },
+    {
+      "desc": "Overall hero section vertical spacing compressed in clone — less padding above and below heading",
+      "severity": 2,
+      "category": "layout-broken",
+      "width": 1250,
+      "tile": 0,
+      "yRange": [
+        0,
+        737
+      ],
+      "aboveFold": true,
+      "tileScore": 52
+    },
+    {
+      "desc": "Body paragraph wraps differently on the right: 'then deploy to' breaks with an overflow indicator ('›' or '>') before 'your own domain.' — container appears narrower, causing reflow not present in source",
+      "severity": 2,
+      "category": "layout-broken",
+      "width": 1440,
+      "tile": 4,
+      "yRange": [
+        893,
+        1153
+      ],
+      "aboveFold": true,
+      "tileScore": 75
+    },
+    {
+      "desc": "Right-side text column is slightly narrower overall, compressing the paragraph layout relative to source",
+      "severity": 2,
+      "category": "layout-broken",
+      "width": 1440,
+      "tile": 4,
+      "yRange": [
+        893,
+        1153
+      ],
+      "aboveFold": true,
+      "tileScore": 75
+    },
+    {
+      "desc": "Fraud and Account Prevention section appears on RIGHT but is not visibly present as a distinct card on LEFT in this band — possible phantom section insertion",
+      "severity": 2,
+      "category": "text-junk",
+      "width": 1250,
+      "tile": 4,
+      "yRange": [
+        2810,
+        3710
+      ],
+      "aboveFold": false,
+      "tileScore": 32
+    },
+    {
+      "desc": "Small icon/glyph elements inside card headers appear as plain gray squares on RIGHT instead of styled icons on LEFT",
+      "severity": 2,
+      "category": "imagery-missing",
+      "width": 1250,
+      "tile": 4,
+      "yRange": [
+        2810,
+        3710
+      ],
+      "aboveFold": false,
+      "tileScore": 32
+    },
+    {
+      "desc": "Card spacing and white-space proportions are compressed on RIGHT — cards appear tighter and narrower, losing the airy grid rhythm of LEFT",
+      "severity": 2,
+      "category": "wrong-style",
+      "width": 1250,
+      "tile": 6,
+      "yRange": [
+        4610,
+        5510
+      ],
+      "aboveFold": false,
+      "tileScore": 32
+    },
+    {
+      "desc": "'Check' button on Organization UI Components card on RIGHT appears as a plain unstyled element vs the styled button on LEFT",
+      "severity": 2,
+      "category": "wrong-style",
+      "width": 1250,
+      "tile": 6,
+      "yRange": [
+        4610,
+        5510
+      ],
+      "aboveFold": false,
+      "tileScore": 32
+    },
+    {
+      "desc": "Section heading 'Explore B2B features' is cut off or less prominent on RIGHT top area",
+      "severity": 2,
+      "category": "missing-content",
+      "width": 1250,
+      "tile": 6,
+      "yRange": [
+        4610,
+        5510
+      ],
+      "aboveFold": false,
+      "tileScore": 32
+    },
+    {
+      "desc": "'Explore user authentication' CTA pill is smaller and less visually prominent than the source",
+      "severity": 2,
+      "category": "wrong-style",
+      "width": 1250,
+      "tile": 3,
+      "yRange": [
+        1910,
+        2810
+      ],
+      "aboveFold": false,
+      "tileScore": 35
+    },
+    {
+      "desc": "Icon sizing in the grid appears smaller/less prominent on RIGHT compared to LEFT, reducing visual weight of the icon section",
+      "severity": 2,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 17,
+      "yRange": [
+        5643,
+        6395
+      ],
+      "aboveFold": false,
+      "tileScore": 55
+    },
+    {
+      "desc": "Spacing between icon rows appears tighter on RIGHT, compressing the grid compared to the looser, more spaced-out original",
+      "severity": 2,
+      "category": "layout-broken",
+      "width": 1440,
+      "tile": 17,
+      "yRange": [
+        5643,
+        6395
+      ],
+      "aboveFold": false,
+      "tileScore": 55
+    },
+    {
+      "desc": "Section heading 'USER AUTHENTICATION' (uppercase, heavier weight) rendered as 'User Authentication' (mixed case, lighter weight) in CLONE",
+      "severity": 2,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 5,
+      "yRange": [
+        1153,
+        1826
+      ],
+      "aboveFold": false,
+      "tileScore": 58
+    },
+    {
+      "desc": "Sign-in modal form fields are pre-filled in CLONE (email address + dotted password) whereas SRC shows empty interactive placeholders",
+      "severity": 2,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 5,
+      "yRange": [
+        1153,
+        1826
+      ],
+      "aboveFold": false,
+      "tileScore": 58
+    },
+    {
+      "desc": "B2B Authentication and Billing accordion rows appear at a different vertical position and with different spacing relative to the content block above them",
+      "severity": 2,
+      "category": "layout-broken",
+      "width": 1440,
+      "tile": 5,
+      "yRange": [
+        1153,
+        1826
+      ],
+      "aboveFold": false,
+      "tileScore": 58
+    },
+    {
+      "desc": "Card grid vertical spacing appears tighter in the clone, compressing the cards toward the top of the dark region",
+      "severity": 2,
+      "category": "layout-broken",
+      "width": 1440,
+      "tile": 10,
+      "yRange": [
+        3279,
+        3732
+      ],
+      "aboveFold": false,
+      "tileScore": 58
+    },
+    {
+      "desc": "UI mockup panel elements inside API Keys card appear slightly smaller/less detailed in clone compared to original",
+      "severity": 2,
+      "category": "imagery-missing",
+      "width": 1440,
+      "tile": 10,
+      "yRange": [
+        3279,
+        3732
+      ],
+      "aboveFold": false,
+      "tileScore": 58
+    },
+    {
+      "desc": "Top of dark section on source shows a 'Contact Us' navigation link/button that is not visible in the rebuild at the same vertical position",
+      "severity": 2,
+      "category": "missing-content",
+      "width": 1250,
+      "tile": 5,
+      "yRange": [
+        3710,
+        4610
+      ],
+      "aboveFold": false,
+      "tileScore": 58
+    },
+    {
+      "desc": "Card grid in dark section has slightly different proportions — cards appear taller/more padded in rebuild, compressing the lower white section into this tile",
+      "severity": 2,
+      "category": "layout-broken",
+      "width": 1250,
+      "tile": 5,
+      "yRange": [
+        3710,
+        4610
+      ],
+      "aboveFold": false,
+      "tileScore": 58
+    },
+    {
+      "desc": "Bottom white angled/diagonal decorative section appears clipped or offset differently in the clone vs the clean triangular cutout on the left",
+      "severity": 2,
+      "category": "wrong-style",
+      "width": 1250,
+      "tile": 8,
+      "yRange": [
+        6451,
+        7331
+      ],
+      "aboveFold": false,
+      "tileScore": 62
+    },
+    {
+      "desc": "Overall section is taller in the clone due to oversized icon grid, causing vertical padding/spacing mismatch",
+      "severity": 2,
+      "category": "layout-broken",
+      "width": 1250,
+      "tile": 8,
+      "yRange": [
+        6451,
+        7331
+      ],
+      "aboveFold": false,
+      "tileScore": 62
+    },
+    {
+      "desc": "Icon row spacing is looser in the clone — gap between icon rows is larger than source, compressing the visual density",
+      "severity": 2,
+      "category": "layout-broken",
+      "width": 1250,
+      "tile": 8,
+      "yRange": [
+        6451,
+        7331
+      ],
+      "aboveFold": false,
+      "tileScore": 62
+    },
+    {
+      "desc": "Device/phone mockup in upper-right quadrant: right side renders it smaller and with less visual weight compared to the original's more prominent dark device frame",
+      "severity": 2,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 8,
+      "yRange": [
+        2207,
+        3107
+      ],
+      "aboveFold": false,
+      "tileScore": 63
+    },
+    {
+      "desc": "Social Sign On icon row (GitHub, Google, etc.): icons on the right are present but appear slightly smaller and less crisp, with reduced spacing between them",
+      "severity": 2,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 8,
+      "yRange": [
+        2207,
+        3107
+      ],
+      "aboveFold": false,
+      "tileScore": 63
+    },
+    {
+      "desc": "Card grid borders/separators: original has subtle but visible card delineation; rebuild's cards appear less defined with softer or missing border treatment",
+      "severity": 2,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 8,
+      "yRange": [
+        2207,
+        3107
+      ],
+      "aboveFold": false,
+      "tileScore": 63
+    },
+    {
+      "desc": "\"Joseph Cole\" avatar/label in Social Sign On card: present on both sides but right-side styling is slightly less refined (pill/button styling differs)",
+      "severity": 2,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 8,
+      "yRange": [
+        2207,
+        3107
+      ],
+      "aboveFold": false,
+      "tileScore": 63
+    },
+    {
+      "desc": "Magic Links section inner screenshot: rebuild's inline UI screenshot is present but appears lower contrast and less visually detailed than the original",
+      "severity": 2,
+      "category": "imagery-missing",
+      "width": 1440,
+      "tile": 8,
+      "yRange": [
+        2207,
+        3107
+      ],
+      "aboveFold": false,
+      "tileScore": 63
+    },
+    {
+      "desc": "Pricing card UI mockup on right lacks the same card border/shadow definition visible in the original — cards appear flatter",
+      "severity": 2,
+      "category": "wrong-style",
+      "width": 1250,
+      "tile": 7,
+      "yRange": [
+        5513,
+        6413
+      ],
+      "aboveFold": false,
+      "tileScore": 63
+    },
+    {
+      "desc": "Feature bullet list items in rebuild appear in a tighter, more compressed layout compared to the original's spaced list",
+      "severity": 2,
+      "category": "layout-broken",
+      "width": 1250,
+      "tile": 7,
+      "yRange": [
+        5513,
+        6413
+      ],
+      "aboveFold": false,
+      "tileScore": 63
+    },
+    {
+      "desc": "Card grid in testimonial section has slightly different inter-card spacing and vertical rhythm — right side cards feel more compressed",
+      "severity": 2,
+      "category": "layout-broken",
+      "width": 1250,
+      "tile": 9,
+      "yRange": [
+        7331,
+        8155
+      ],
+      "aboveFold": false,
+      "tileScore": 66
+    },
+    {
+      "desc": "The 'Start building for free' CTA button on the right appears less visually distinct (color/contrast difference vs the more prominent teal/blue button on the left)",
+      "severity": 2,
+      "category": "wrong-style",
+      "width": 1250,
+      "tile": 9,
+      "yRange": [
+        7331,
+        8155
+      ],
+      "aboveFold": false,
+      "tileScore": 66
+    },
+    {
+      "desc": "Social handle text under names in testimonial cards (e.g. @WalterDody) appears lighter/smaller on the right, losing contrast vs left",
+      "severity": 2,
+      "category": "wrong-style",
+      "width": 1250,
+      "tile": 9,
+      "yRange": [
+        7331,
+        8155
+      ],
+      "aboveFold": false,
+      "tileScore": 66
+    },
+    {
+      "desc": "Right-column testimonial cards have slightly reduced visual separation/contrast between card backgrounds and page background compared to original",
+      "severity": 2,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 18,
+      "yRange": [
+        6395,
+        7219
+      ],
+      "aboveFold": false,
+      "tileScore": 68
+    },
+    {
+      "desc": "Minor font weight differences on testimonial author names across several cards in right column",
+      "severity": 2,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 18,
+      "yRange": [
+        6395,
+        7219
+      ],
+      "aboveFold": false,
+      "tileScore": 68
+    },
+    {
+      "desc": "Small spacing inconsistencies between testimonial cards in right column — tighter vertical gap than original",
+      "severity": 2,
+      "category": "layout-broken",
+      "width": 1440,
+      "tile": 18,
+      "yRange": [
+        6395,
+        7219
+      ],
+      "aboveFold": false,
+      "tileScore": 68
+    },
+    {
+      "desc": "Copyright bar and social icons row sit closer to the column links than in the original; the separating whitespace is significantly reduced",
+      "severity": 2,
+      "category": "layout-broken",
+      "width": 1250,
+      "tile": 10,
+      "yRange": [
+        8155,
+        8552
+      ],
+      "aboveFold": false,
+      "tileScore": 68
+    },
+    {
+      "desc": "Column inter-link vertical spacing is tighter in the clone — links appear denser than the original's more open list rhythm",
+      "severity": 2,
+      "category": "wrong-style",
+      "width": 1250,
+      "tile": 10,
+      "yRange": [
+        8155,
+        8552
+      ],
+      "aboveFold": false,
+      "tileScore": 68
+    },
+    {
+      "desc": "Faint structural elements visible in source (small icons or text nodes at mid-left) are absent in clone",
+      "severity": 2,
+      "category": "missing-content",
+      "width": 1440,
+      "tile": 6,
+      "yRange": [
+        1826,
+        1954
+      ],
+      "aboveFold": false,
+      "tileScore": 72
+    },
+    {
+      "desc": "Small text visible at bottom-right of clone (appears to be a URL or label artifact) not present in source",
+      "severity": 2,
+      "category": "text-junk",
+      "width": 1440,
+      "tile": 11,
+      "yRange": [
+        3732,
+        3860
+      ],
+      "aboveFold": false,
+      "tileScore": 72
+    },
+    {
+      "desc": "'B2B Authentication' pill/tag appears slightly less prominent in clone (color/weight difference)",
+      "severity": 2,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 12,
+      "yRange": [
+        3860,
+        4097
+      ],
+      "aboveFold": false,
+      "tileScore": 72
+    },
+    {
+      "desc": "Large black void at bottom-right of clone panel obscures any remaining content in the band",
+      "severity": 2,
+      "category": "layout-broken",
+      "width": 1440,
+      "tile": 12,
+      "yRange": [
+        3860,
+        4097
+      ],
+      "aboveFold": false,
+      "tileScore": 72
+    },
+    {
+      "desc": "Floating user-avatar cluster in the center feature area: avatar circles appear smaller/less defined in the clone, losing the subtle sizing variation of the original",
+      "severity": 2,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 13,
+      "yRange": [
+        4097,
+        4625
+      ],
+      "aboveFold": false,
+      "tileScore": 72
+    },
+    {
+      "desc": "'Join the project' button: clone button appears slightly lighter/less saturated green compared to the original's more vivid teal-green fill",
+      "severity": 2,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 13,
+      "yRange": [
+        4097,
+        4625
+      ],
+      "aboveFold": false,
+      "tileScore": 72
+    },
+    {
+      "desc": "Column header labels (Product, SDKs, Resources, Company, Legal) appear slightly lighter or thinner weight in the clone vs. the source",
+      "severity": 2,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 19,
+      "yRange": [
+        7219,
+        7487
+      ],
+      "aboveFold": false,
+      "tileScore": 80
+    },
+    {
+      "desc": "Arrow glyph '→' missing after 'Explore user authentication' CTA link on the right",
+      "severity": 2,
+      "category": "missing-content",
+      "width": 1440,
+      "tile": 7,
+      "yRange": [
+        1954,
+        2207
+      ],
+      "aboveFold": false,
+      "tileScore": 82
+    },
+    {
+      "desc": "Top-row feature icons (circular icon images above each card heading) are partially cut off/missing at the very top of the clone — the arc shapes visible in source are clipped more aggressively in the clone",
+      "severity": 2,
+      "category": "imagery-missing",
+      "width": 1440,
+      "tile": 9,
+      "yRange": [
+        3107,
+        3279
+      ],
+      "aboveFold": false,
+      "tileScore": 82
+    },
+    {
+      "desc": "'Billing' category pill above the hero heading: on the LEFT it renders as a clearly visible blue/indigo filled pill; on the RIGHT it appears lighter/less saturated and lower contrast, reducing its visual prominence",
+      "severity": 2,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 15,
+      "yRange": [
+        4753,
+        5515
+      ],
+      "aboveFold": false,
+      "tileScore": 82
+    },
+    {
+      "desc": "'Explore Billing features →' CTA link color appears less vivid (closer to gray) in the clone vs. the blue-accented original",
+      "severity": 2,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 15,
+      "yRange": [
+        4753,
+        5515
+      ],
+      "aboveFold": false,
+      "tileScore": 82
+    },
+    {
+      "desc": "Floating avatar/icon button position differs — top-right corner in rebuild vs mid-right in original",
+      "severity": 1,
+      "category": "layout-broken",
+      "width": 1250,
+      "tile": 1,
+      "yRange": [
+        737,
+        1237
+      ],
+      "aboveFold": true,
+      "tileScore": 40
+    },
+    {
+      "desc": "Trust bar intro text ('Trusted by fast-growing companies around the world') present on both but positioned differently",
+      "severity": 1,
+      "category": "layout-broken",
+      "width": 1250,
+      "tile": 0,
+      "yRange": [
+        0,
+        737
+      ],
+      "aboveFold": true,
+      "tileScore": 52
+    },
+    {
+      "desc": "'Explore all components →' link at bottom is partially cut off on right vs. fully visible on left",
+      "severity": 1,
+      "category": "missing-content",
+      "width": 1440,
+      "tile": 4,
+      "yRange": [
+        893,
+        1153
+      ],
+      "aboveFold": true,
+      "tileScore": 75
+    },
+    {
+      "desc": "Blue indicator dot before section heading appears slightly smaller/different weight in CLONE vs filled solid circle in SRC",
+      "severity": 1,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 5,
+      "yRange": [
+        1153,
+        1826
+      ],
+      "aboveFold": false,
+      "tileScore": 58
+    },
+    {
+      "desc": "White B2B Authentication section body text appears truncated or slightly shorter in rebuild compared to source",
+      "severity": 1,
+      "category": "missing-content",
+      "width": 1250,
+      "tile": 5,
+      "yRange": [
+        3710,
+        4610
+      ],
+      "aboveFold": false,
+      "tileScore": 58
+    },
+    {
+      "desc": "Overall card text sizing: body copy within feature cards appears slightly smaller on the right, reducing legibility relative to the original",
+      "severity": 1,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 8,
+      "yRange": [
+        2207,
+        3107
+      ],
+      "aboveFold": false,
+      "tileScore": 63
+    },
+    {
+      "desc": "Minor padding difference: rebuild left-column text sits slightly closer to center divider than original",
+      "severity": 1,
+      "category": "layout-broken",
+      "width": 1250,
+      "tile": 7,
+      "yRange": [
+        5513,
+        6413
+      ],
+      "aboveFold": false,
+      "tileScore": 63
+    },
+    {
+      "desc": "Large decorative quotation mark glyph above the Patrick Collison quote appears slightly smaller/different weight on the right",
+      "severity": 1,
+      "category": "wrong-style",
+      "width": 1250,
+      "tile": 9,
+      "yRange": [
+        7331,
+        8155
+      ],
+      "aboveFold": false,
+      "tileScore": 66
+    },
+    {
+      "desc": "Minor line-height differences in the body paragraph under the main heading make the text block slightly more compact on the right",
+      "severity": 1,
+      "category": "wrong-style",
+      "width": 1250,
+      "tile": 9,
+      "yRange": [
+        7331,
+        8155
+      ],
+      "aboveFold": false,
+      "tileScore": 66
+    },
+    {
+      "desc": "Quote attribution line under Patrick Cobson block appears to have slightly different text color (lighter) than original",
+      "severity": 1,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 18,
+      "yRange": [
+        6395,
+        7219
+      ],
+      "aboveFold": false,
+      "tileScore": 68
+    },
+    {
+      "desc": "Large dark/black area occupies roughly the lower half of the clone panel (height mismatch — ignoring per instructions)",
+      "severity": 1,
+      "category": "layout-broken",
+      "width": 1250,
+      "tile": 10,
+      "yRange": [
+        8155,
+        8552
+      ],
+      "aboveFold": false,
+      "tileScore": 68
+    },
+    {
+      "desc": "Clone right side has a thin dark horizontal band at bottom not present in source",
+      "severity": 1,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 11,
+      "yRange": [
+        3732,
+        3860
+      ],
+      "aboveFold": false,
+      "tileScore": 72
+    },
+    {
+      "desc": "Auto-join section and Invitations section body text: clone renders at slightly reduced visual weight, losing the original's contrast between heading and description copy",
+      "severity": 1,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 13,
+      "yRange": [
+        4097,
+        4625
+      ],
+      "aboveFold": false,
+      "tileScore": 72
+    },
+    {
+      "desc": "Section-level vertical spacing between Custom roles block and Auto-join block is tighter in the clone than the original",
+      "severity": 1,
+      "category": "layout-broken",
+      "width": 1440,
+      "tile": 13,
+      "yRange": [
+        4097,
+        4625
+      ],
+      "aboveFold": false,
+      "tileScore": 72
+    },
+    {
+      "desc": "Horizontal divider line above the nav columns appears absent or less prominent in the clone",
+      "severity": 1,
+      "category": "chrome-missing",
+      "width": 1440,
+      "tile": 19,
+      "yRange": [
+        7219,
+        7487
+      ],
+      "aboveFold": false,
+      "tileScore": 80
+    },
+    {
+      "desc": "Slight font-weight difference on 'Passwords' heading — appears marginally lighter in the clone than source",
+      "severity": 1,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 9,
+      "yRange": [
+        3107,
+        3279
+      ],
+      "aboveFold": false,
+      "tileScore": 82
+    },
+    {
+      "desc": "Card background subtle border/separator lines between cards appear slightly less distinct in clone",
+      "severity": 1,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 9,
+      "yRange": [
+        3107,
+        3279
+      ],
+      "aboveFold": false,
+      "tileScore": 82
+    },
+    {
+      "desc": "Check-mark bullet list items in the left panel appear slightly tighter/compressed vertically in the clone, reducing readability compared to the original's spacing",
+      "severity": 1,
+      "category": "layout-broken",
+      "width": 1440,
+      "tile": 15,
+      "yRange": [
+        4753,
+        5515
+      ],
+      "aboveFold": false,
+      "tileScore": 82
+    },
+    {
+      "desc": "Minor typographic weight difference on the 'Subscription billing, without the headache' heading — clone renders slightly lighter than the bold weight on the LEFT",
+      "severity": 1,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 15,
+      "yRange": [
+        4753,
+        5515
+      ],
+      "aboveFold": false,
+      "tileScore": 82
+    },
+    {
+      "desc": "Social icons (X, LinkedIn, Discord, GitHub, YouTube) appear slightly smaller or less distinct on the right",
+      "severity": 1,
+      "category": "wrong-style",
+      "width": 1440,
+      "tile": 20,
+      "yRange": [
+        7487,
+        7616
+      ],
+      "aboveFold": false,
+      "tileScore": 82
+    }
+  ],
+  "tiles": [
+    {
+      "idx": 0,
+      "width": 1440,
+      "yRange": [
+        0,
+        218
+      ],
+      "cloneYRange": [
+        0,
+        218
+      ],
+      "aboveFold": true,
+      "band": 0,
+      "align": "band",
+      "anchors": 2,
+      "judged": true,
+      "score": 38,
+      "scores": [
+        32,
+        38,
+        58
+      ],
+      "defects": [
+        {
+          "desc": "Announcement banner and nav bar are stacked in reversed order: clone shows nav bar first (top), then announcement bar below it; source shows announcement bar first, then nav below",
+          "severity": 4,
+          "category": "layout-broken"
+        },
+        {
+          "desc": "Nav bar background is dark/black in clone; source nav bar is white",
+          "severity": 3,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "'Pricing' and 'Sign in' nav items are merged as 'PricingSign in' with no space or separator",
+          "severity": 3,
+          "category": "text-junk"
+        },
+        {
+          "desc": "Announcement bar in clone lacks black background styling; appears on plain white/light background instead of the source's black pill/bar",
+          "severity": 3,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Hero section below nav is entirely blank white in clone; source shows a light-gray background with subtle decorative dot-grid/UI-element pattern",
+          "severity": 3,
+          "category": "imagery-missing"
+        },
+        {
+          "desc": "'Start building' CTA button in nav appears unstyled/plain text in clone vs styled button with chevron in source",
+          "severity": 2,
+          "category": "wrong-style"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-00.png"
+    },
+    {
+      "idx": 1,
+      "width": 1440,
+      "yRange": [
+        218,
+        624
+      ],
+      "cloneYRange": [
+        218,
+        665
+      ],
+      "aboveFold": true,
+      "band": 1,
+      "align": "band",
+      "anchors": 3,
+      "judged": true,
+      "score": 68,
+      "scores": [
+        62,
+        72,
+        68
+      ],
+      "defects": [
+        {
+          "desc": "Primary CTA button ('Start building for free') missing entirely — only the ghost/text 'Build with agents →' link is present on the right",
+          "severity": 4,
+          "category": "missing-content"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-01.png"
+    },
+    {
+      "idx": 2,
+      "width": 1440,
+      "yRange": [
+        624,
+        753
+      ],
+      "cloneYRange": [
+        665,
+        774
+      ],
+      "aboveFold": true,
+      "band": 2,
+      "align": "band",
+      "anchors": 1,
+      "judged": true,
+      "score": 32,
+      "scores": [
+        35,
+        22,
+        32
+      ],
+      "defects": [
+        {
+          "desc": "All four company logos are wrong: clone shows 'David AI', 'OpenRouter', 'şamaya', 'Cartesia' instead of original 'inngest', 'durable', 'upstash', 'Consensus'",
+          "severity": 4,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Logo rendering on right uses small thumbnail icons + plain text instead of the original styled brand wordmarks (e.g. inngest logotype, durable heart+wordmark, upstash S-mark+wordmark)",
+          "severity": 3,
+          "category": "imagery-missing"
+        },
+        {
+          "desc": "Logo spacing/sizing is tighter and less balanced on the right; logos appear cramped relative to the evenly-spread originals",
+          "severity": 2,
+          "category": "layout-broken"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-02.png"
+    },
+    {
+      "idx": 3,
+      "width": 1440,
+      "yRange": [
+        753,
+        893
+      ],
+      "cloneYRange": [
+        774,
+        1014
+      ],
+      "aboveFold": true,
+      "band": 3,
+      "align": "unmatched",
+      "sample": "members",
+      "windowLumaStd": 34.4,
+      "judged": true,
+      "score": 28,
+      "scores": [
+        28,
+        32,
+        18
+      ],
+      "defects": [
+        {
+          "desc": "Section background is solid white/light gray in clone; source has a deep black/dark background for this entire band — the most visually dominant property is wrong",
+          "severity": 5,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Content vertical positioning is misaligned: source content sits at the bottom of the band, clone content starts near the top, indicating a layout height or padding mismatch",
+          "severity": 3,
+          "category": "layout-broken"
+        },
+        {
+          "desc": "Source shows faint text/label row near vertical center of band that is absent or shifted out of frame in the clone",
+          "severity": 2,
+          "category": "missing-content"
+        },
+        {
+          "desc": "Overall contrast inverted — source text appears light-on-dark; clone renders dark-on-light — making the right side look like a completely different design",
+          "severity": 4,
+          "category": "wrong-style"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-03.png"
+    },
+    {
+      "idx": 4,
+      "width": 1440,
+      "yRange": [
+        893,
+        1153
+      ],
+      "cloneYRange": [
+        893,
+        1158
+      ],
+      "aboveFold": true,
+      "band": 4,
+      "align": "band",
+      "anchors": 4,
+      "judged": true,
+      "score": 75,
+      "scores": [
+        83,
+        74,
+        75
+      ],
+      "defects": [
+        {
+          "desc": "Body paragraph wraps differently on the right: 'then deploy to' breaks with an overflow indicator ('›' or '>') before 'your own domain.' — container appears narrower, causing reflow not present in source",
+          "severity": 2,
+          "category": "layout-broken"
+        },
+        {
+          "desc": "Right-side text column is slightly narrower overall, compressing the paragraph layout relative to source",
+          "severity": 2,
+          "category": "layout-broken"
+        },
+        {
+          "desc": "'Explore all components →' link at bottom is partially cut off on right vs. fully visible on left",
+          "severity": 1,
+          "category": "missing-content"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-04.png"
+    },
+    {
+      "idx": 5,
+      "width": 1440,
+      "yRange": [
+        1153,
+        1826
+      ],
+      "cloneYRange": [
+        1158,
+        1807
+      ],
+      "aboveFold": false,
+      "band": 5,
+      "align": "unmatched",
+      "sample": "add user <signup/> and <signin/>, provide account access thr",
+      "windowLumaStd": 34.9,
+      "judged": true,
+      "score": 58,
+      "scores": [
+        58,
+        72,
+        55
+      ],
+      "defects": [
+        {
+          "desc": "Sidebar code-component tags (<SignUp />, <SignIn />, <UserButton />, <UserProfile />, <WaitList />) are absent from the CLONE left panel; only 'B2B Authentication' and 'Billing' collapse rows appear",
+          "severity": 4,
+          "category": "missing-content"
+        },
+        {
+          "desc": "Section heading 'USER AUTHENTICATION' (uppercase, heavier weight) rendered as 'User Authentication' (mixed case, lighter weight) in CLONE",
+          "severity": 2,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Sign-in modal form fields are pre-filled in CLONE (email address + dotted password) whereas SRC shows empty interactive placeholders",
+          "severity": 2,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "B2B Authentication and Billing accordion rows appear at a different vertical position and with different spacing relative to the content block above them",
+          "severity": 2,
+          "category": "layout-broken"
+        },
+        {
+          "desc": "Blue indicator dot before section heading appears slightly smaller/different weight in CLONE vs filled solid circle in SRC",
+          "severity": 1,
+          "category": "wrong-style"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-05.png"
+    },
+    {
+      "idx": 6,
+      "width": 1440,
+      "yRange": [
+        1826,
+        1954
+      ],
+      "cloneYRange": [
+        1807,
+        1930
+      ],
+      "aboveFold": false,
+      "band": 6,
+      "align": "interp",
+      "anchors": 0,
+      "judged": true,
+      "score": 72,
+      "scores": [
+        72,
+        72,
+        68
+      ],
+      "defects": [
+        {
+          "desc": "Right side (clone) renders as a nearly solid black band with no visible content; left side shows subtle dark UI elements/text that are not reproduced",
+          "severity": 3,
+          "category": "missing-content"
+        },
+        {
+          "desc": "Faint structural elements visible in source (small icons or text nodes at mid-left) are absent in clone",
+          "severity": 2,
+          "category": "missing-content"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-06.png"
+    },
+    {
+      "idx": 7,
+      "width": 1440,
+      "yRange": [
+        1954,
+        2207
+      ],
+      "cloneYRange": [
+        1930,
+        2131
+      ],
+      "aboveFold": false,
+      "band": 7,
+      "align": "band",
+      "anchors": 3,
+      "judged": true,
+      "score": 82,
+      "scores": [
+        82,
+        82,
+        72
+      ],
+      "defects": [
+        {
+          "desc": "Arrow glyph '→' missing after 'Explore user authentication' CTA link on the right",
+          "severity": 2,
+          "category": "missing-content"
+        },
+        {
+          "desc": "Dark rectangular card-like shapes visible at bottom-right that are absent on the left — next section or feature cards bleeding into this band",
+          "severity": 3,
+          "category": "layout-broken"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-07.png"
+    },
+    {
+      "idx": 8,
+      "width": 1440,
+      "yRange": [
+        2207,
+        3107
+      ],
+      "cloneYRange": [
+        2131,
+        3011
+      ],
+      "aboveFold": false,
+      "band": 8,
+      "align": "band",
+      "anchors": 17,
+      "judged": true,
+      "score": 63,
+      "scores": [
+        63,
+        63,
+        62
+      ],
+      "defects": [
+        {
+          "desc": "Sign-in UI mockup card (center-left feature card): rebuild renders the inner interface screenshot noticeably flatter and less detailed — missing the depth/contrast present in the original's dark modal overlay",
+          "severity": 3,
+          "category": "imagery-missing"
+        },
+        {
+          "desc": "Device/phone mockup in upper-right quadrant: right side renders it smaller and with less visual weight compared to the original's more prominent dark device frame",
+          "severity": 2,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Social Sign On icon row (GitHub, Google, etc.): icons on the right are present but appear slightly smaller and less crisp, with reduced spacing between them",
+          "severity": 2,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Card grid borders/separators: original has subtle but visible card delineation; rebuild's cards appear less defined with softer or missing border treatment",
+          "severity": 2,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "\"Joseph Cole\" avatar/label in Social Sign On card: present on both sides but right-side styling is slightly less refined (pill/button styling differs)",
+          "severity": 2,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Overall card text sizing: body copy within feature cards appears slightly smaller on the right, reducing legibility relative to the original",
+          "severity": 1,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Magic Links section inner screenshot: rebuild's inline UI screenshot is present but appears lower contrast and less visually detailed than the original",
+          "severity": 2,
+          "category": "imagery-missing"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-08.png"
+    },
+    {
+      "idx": 9,
+      "width": 1440,
+      "yRange": [
+        3107,
+        3279
+      ],
+      "cloneYRange": [
+        3011,
+        3181
+      ],
+      "aboveFold": false,
+      "band": 8,
+      "align": "band",
+      "anchors": 17,
+      "judged": true,
+      "score": 82,
+      "scores": [
+        82,
+        82,
+        91
+      ],
+      "defects": [
+        {
+          "desc": "Top-row feature icons (circular icon images above each card heading) are partially cut off/missing at the very top of the clone — the arc shapes visible in source are clipped more aggressively in the clone",
+          "severity": 2,
+          "category": "imagery-missing"
+        },
+        {
+          "desc": "Slight font-weight difference on 'Passwords' heading — appears marginally lighter in the clone than source",
+          "severity": 1,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Card background subtle border/separator lines between cards appear slightly less distinct in clone",
+          "severity": 1,
+          "category": "wrong-style"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-09.png"
+    },
+    {
+      "idx": 10,
+      "width": 1440,
+      "yRange": [
+        3279,
+        3732
+      ],
+      "cloneYRange": [
+        3181,
+        3542
+      ],
+      "aboveFold": false,
+      "band": 9,
+      "align": "band",
+      "anchors": 2,
+      "judged": true,
+      "score": 58,
+      "scores": [
+        58,
+        68,
+        57
+      ],
+      "defects": [
+        {
+          "desc": "Dark section ends too early in the clone — a large white void occupies the bottom ~40% of the right side where the dark background should continue; only a small angled white shape appears at the bottom of the original",
+          "severity": 4,
+          "category": "layout-broken"
+        },
+        {
+          "desc": "Angled black cutout shape at section bottom is visible in the clone but positioned incorrectly (floats in white space rather than terminating the dark band)",
+          "severity": 3,
+          "category": "layout-broken"
+        },
+        {
+          "desc": "Card grid vertical spacing appears tighter in the clone, compressing the cards toward the top of the dark region",
+          "severity": 2,
+          "category": "layout-broken"
+        },
+        {
+          "desc": "UI mockup panel elements inside API Keys card appear slightly smaller/less detailed in clone compared to original",
+          "severity": 2,
+          "category": "imagery-missing"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-10.png"
+    },
+    {
+      "idx": 11,
+      "width": 1440,
+      "yRange": [
+        3732,
+        3860
+      ],
+      "cloneYRange": [
+        3542,
+        3642
+      ],
+      "aboveFold": false,
+      "band": 10,
+      "align": "interp",
+      "anchors": 0,
+      "judged": true,
+      "score": 72,
+      "scores": [
+        72,
+        72,
+        72
+      ],
+      "defects": [
+        {
+          "desc": "Small text visible at bottom-right of clone (appears to be a URL or label artifact) not present in source",
+          "severity": 2,
+          "category": "text-junk"
+        },
+        {
+          "desc": "Clone right side has a thin dark horizontal band at bottom not present in source",
+          "severity": 1,
+          "category": "wrong-style"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-11.png"
+    },
+    {
+      "idx": 12,
+      "width": 1440,
+      "yRange": [
+        3860,
+        4097
+      ],
+      "cloneYRange": [
+        3642,
+        3842
+      ],
+      "aboveFold": false,
+      "band": 11,
+      "align": "band",
+      "anchors": 3,
+      "judged": true,
+      "score": 72,
+      "scores": [
+        72,
+        45,
+        74
+      ],
+      "defects": [
+        {
+          "desc": "Card/UI feature boxes below 'Explore B2B features' CTA are empty outlines with no content — source shows card content in that band",
+          "severity": 3,
+          "category": "missing-content"
+        },
+        {
+          "desc": "'B2B Authentication' pill/tag appears slightly less prominent in clone (color/weight difference)",
+          "severity": 2,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Large black void at bottom-right of clone panel obscures any remaining content in the band",
+          "severity": 2,
+          "category": "layout-broken"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-12.png"
+    },
+    {
+      "idx": 13,
+      "width": 1440,
+      "yRange": [
+        4097,
+        4625
+      ],
+      "cloneYRange": [
+        3842,
+        4371
+      ],
+      "aboveFold": false,
+      "band": 12,
+      "align": "band",
+      "anchors": 4,
+      "judged": true,
+      "score": 72,
+      "scores": [
+        74,
+        72,
+        72
+      ],
+      "defects": [
+        {
+          "desc": "Organization UI Components card preview (far right): clone renders it as a plain white box; original shows a styled dark/frosted-glass inner panel with visible list rows and a 'Clark' badge",
+          "severity": 3,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Floating user-avatar cluster in the center feature area: avatar circles appear smaller/less defined in the clone, losing the subtle sizing variation of the original",
+          "severity": 2,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "'Join the project' button: clone button appears slightly lighter/less saturated green compared to the original's more vivid teal-green fill",
+          "severity": 2,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Auto-join section and Invitations section body text: clone renders at slightly reduced visual weight, losing the original's contrast between heading and description copy",
+          "severity": 1,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Section-level vertical spacing between Custom roles block and Auto-join block is tighter in the clone than the original",
+          "severity": 1,
+          "category": "layout-broken"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-13.png"
+    },
+    {
+      "idx": 14,
+      "width": 1440,
+      "yRange": [
+        4625,
+        4753
+      ],
+      "cloneYRange": [
+        4371,
+        4494
+      ],
+      "aboveFold": false,
+      "band": 13,
+      "align": "interp",
+      "anchors": 0,
+      "judged": true,
+      "score": 100,
+      "scores": [
+        100,
+        100,
+        100
+      ],
+      "defects": [],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-14.png"
+    },
+    {
+      "idx": 15,
+      "width": 1440,
+      "yRange": [
+        4753,
+        5515
+      ],
+      "cloneYRange": [
+        4494,
+        5075
+      ],
+      "aboveFold": false,
+      "band": 14,
+      "align": "band",
+      "anchors": 7,
+      "judged": true,
+      "score": 82,
+      "scores": [
+        76,
+        82,
+        82
+      ],
+      "defects": [
+        {
+          "desc": "'Billing' category pill above the hero heading: on the LEFT it renders as a clearly visible blue/indigo filled pill; on the RIGHT it appears lighter/less saturated and lower contrast, reducing its visual prominence",
+          "severity": 2,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Check-mark bullet list items in the left panel appear slightly tighter/compressed vertically in the clone, reducing readability compared to the original's spacing",
+          "severity": 1,
+          "category": "layout-broken"
+        },
+        {
+          "desc": "Minor typographic weight difference on the 'Subscription billing, without the headache' heading — clone renders slightly lighter than the bold weight on the LEFT",
+          "severity": 1,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "'Explore Billing features →' CTA link color appears less vivid (closer to gray) in the clone vs. the blue-accented original",
+          "severity": 2,
+          "category": "wrong-style"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-15.png"
+    },
+    {
+      "idx": 16,
+      "width": 1440,
+      "yRange": [
+        5515,
+        5643
+      ],
+      "cloneYRange": [
+        5075,
+        5138
+      ],
+      "aboveFold": false,
+      "band": 15,
+      "align": "interp",
+      "anchors": 0,
+      "judged": true,
+      "score": 30,
+      "scores": [
+        28,
+        30,
+        30
+      ],
+      "defects": [
+        {
+          "desc": "RIGHT side shows a large white/light diagonal shape intruding into the dark background — a bright wedge or angled block that is absent on the LEFT which is uniformly dark",
+          "severity": 4,
+          "category": "wrong-style"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-16.png"
+    },
+    {
+      "idx": 17,
+      "width": 1440,
+      "yRange": [
+        5643,
+        6395
+      ],
+      "cloneYRange": [
+        5138,
+        5736
+      ],
+      "aboveFold": false,
+      "band": 16,
+      "align": "band",
+      "anchors": 7,
+      "judged": true,
+      "score": 55,
+      "scores": [
+        55,
+        48,
+        58
+      ],
+      "defects": [
+        {
+          "desc": "White horizontal bar visible at bottom of right side — artifact not present in original; appears to be a stray element or section divider leaking into frame",
+          "severity": 3,
+          "category": "layout-broken"
+        },
+        {
+          "desc": "Framework/integration icon grid: RIGHT icons rendered as plain flat line-art without the circular container badge treatment present in the original (dark circular backgrounds with brand logos)",
+          "severity": 3,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Icon sizing in the grid appears smaller/less prominent on RIGHT compared to LEFT, reducing visual weight of the icon section",
+          "severity": 2,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Spacing between icon rows appears tighter on RIGHT, compressing the grid compared to the looser, more spaced-out original",
+          "severity": 2,
+          "category": "layout-broken"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-17.png"
+    },
+    {
+      "idx": 18,
+      "width": 1440,
+      "yRange": [
+        6395,
+        7219
+      ],
+      "cloneYRange": [
+        5736,
+        6619
+      ],
+      "aboveFold": false,
+      "band": 17,
+      "align": "band",
+      "anchors": 8,
+      "judged": true,
+      "score": 68,
+      "scores": [
+        63,
+        74,
+        68
+      ],
+      "defects": [
+        {
+          "desc": "Testimonial card profile avatar images in right column (ronaldsolicki, WebDevCode, Cim Stefan cards) appear missing or not rendered — circular image placeholders visible instead of actual profile photos",
+          "severity": 3,
+          "category": "imagery-missing"
+        },
+        {
+          "desc": "Right-column testimonial cards have slightly reduced visual separation/contrast between card backgrounds and page background compared to original",
+          "severity": 2,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Minor font weight differences on testimonial author names across several cards in right column",
+          "severity": 2,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Small spacing inconsistencies between testimonial cards in right column — tighter vertical gap than original",
+          "severity": 2,
+          "category": "layout-broken"
+        },
+        {
+          "desc": "Quote attribution line under Patrick Cobson block appears to have slightly different text color (lighter) than original",
+          "severity": 1,
+          "category": "wrong-style"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-18.png"
+    },
+    {
+      "idx": 19,
+      "width": 1440,
+      "yRange": [
+        7219,
+        7487
+      ],
+      "cloneYRange": [
+        6619,
+        6780
+      ],
+      "aboveFold": false,
+      "band": 18,
+      "align": "band",
+      "anchors": 18,
+      "judged": true,
+      "score": 80,
+      "scores": [
+        82,
+        80,
+        62
+      ],
+      "defects": [
+        {
+          "desc": "Dark/black background fills the lower portion of the clone below the nav bar; LEFT shows light/white background continuing to the bottom of the band",
+          "severity": 3,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Column header labels (Product, SDKs, Resources, Company, Legal) appear slightly lighter or thinner weight in the clone vs. the source",
+          "severity": 2,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Horizontal divider line above the nav columns appears absent or less prominent in the clone",
+          "severity": 1,
+          "category": "chrome-missing"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-19.png"
+    },
+    {
+      "idx": 20,
+      "width": 1440,
+      "yRange": [
+        7487,
+        7616
+      ],
+      "cloneYRange": [
+        6780,
+        6876
+      ],
+      "aboveFold": false,
+      "band": 19,
+      "align": "band",
+      "anchors": 1,
+      "judged": true,
+      "score": 82,
+      "scores": [
+        58,
+        82,
+        85
+      ],
+      "defects": [
+        {
+          "desc": "Footer background: right side shows a light gray/white background instead of the dark/black background visible on the left",
+          "severity": 3,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Social icons (X, LinkedIn, Discord, GitHub, YouTube) appear slightly smaller or less distinct on the right",
+          "severity": 1,
+          "category": "wrong-style"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-20.png"
+    },
+    {
+      "idx": 0,
+      "width": 1250,
+      "yRange": [
+        0,
+        737
+      ],
+      "cloneYRange": [
+        0,
+        772
+      ],
+      "aboveFold": true,
+      "band": 0,
+      "align": "band",
+      "anchors": 6,
+      "judged": true,
+      "score": 52,
+      "scores": [
+        52,
+        32,
+        62
+      ],
+      "defects": [
+        {
+          "desc": "Nav bar: 'Docs', 'Changelog', and other right-side nav links missing or not rendered; only 'Products' visible in clone nav",
+          "severity": 3,
+          "category": "missing-content"
+        },
+        {
+          "desc": "Nav bar: 'Sign in' and 'Start building' CTA buttons missing from clone",
+          "severity": 4,
+          "category": "chrome-missing"
+        },
+        {
+          "desc": "Clerk logo in nav: logo mark/wordmark appears present but nav links context is stripped",
+          "severity": 2,
+          "category": "missing-content"
+        },
+        {
+          "desc": "Announcement banner ('Clerk raises $30m Series C · Learn more') missing from clone",
+          "severity": 3,
+          "category": "missing-content"
+        },
+        {
+          "desc": "Hero CTA buttons: 'Start building for free' (purple filled) and 'Build with agents →' (ghost/text) are unstyled plain text links in clone — no button styling, no purple background",
+          "severity": 4,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Hero sub-heading text reflows to different line breaks and appears lighter/smaller weight in clone",
+          "severity": 2,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Trust bar logos (G2 Crowd Stars, Braintrust, Happttel, Consensus on left) replaced with completely different logos (David AI, OpenRouter, Samaya, Cartesia) on right",
+          "severity": 4,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Trust bar intro text ('Trusted by fast-growing companies around the world') present on both but positioned differently",
+          "severity": 1,
+          "category": "layout-broken"
+        },
+        {
+          "desc": "Overall hero section vertical spacing compressed in clone — less padding above and below heading",
+          "severity": 2,
+          "category": "layout-broken"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1250-tile-00.png"
+    },
+    {
+      "idx": 1,
+      "width": 1250,
+      "yRange": [
+        737,
+        1237
+      ],
+      "cloneYRange": [
+        772,
+        1238
+      ],
+      "aboveFold": true,
+      "band": 1,
+      "align": "band",
+      "anchors": 4,
+      "judged": true,
+      "score": 40,
+      "scores": [
+        38,
+        40,
+        55
+      ],
+      "defects": [
+        {
+          "desc": "Hero heading, body text, and CTA are left-aligned in rebuild vs center-aligned in original",
+          "severity": 4,
+          "category": "layout-broken"
+        },
+        {
+          "desc": "Rebuild renders a two-column layout (text-left / sign-up card-right) whereas original is a single centered-column block",
+          "severity": 4,
+          "category": "layout-broken"
+        },
+        {
+          "desc": "'Create your account' sign-up form card is fully visible and dominant in rebuild but not present/prominent in this page band on the original",
+          "severity": 3,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "'User Authentication' accordion row with expand caret visible in rebuild; not present in original within this band",
+          "severity": 2,
+          "category": "missing-content"
+        },
+        {
+          "desc": "Body text line-wrapping and column width narrower in rebuild due to column split, making paragraph text harder to scan",
+          "severity": 2,
+          "category": "layout-broken"
+        },
+        {
+          "desc": "Floating avatar/icon button position differs — top-right corner in rebuild vs mid-right in original",
+          "severity": 1,
+          "category": "layout-broken"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1250-tile-01.png"
+    },
+    {
+      "idx": 2,
+      "width": 1250,
+      "yRange": [
+        1237,
+        1910
+      ],
+      "cloneYRange": [
+        1238,
+        1653
+      ],
+      "aboveFold": false,
+      "band": 2,
+      "align": "unmatched",
+      "sample": "email addresses",
+      "windowLumaStd": 83.4,
+      "judged": true,
+      "score": 18,
+      "scores": [
+        18,
+        17,
+        19
+      ],
+      "defects": [
+        {
+          "desc": "Bottom ~60% of right side is solid black void — large swath of page content completely absent",
+          "severity": 5,
+          "category": "layout-broken"
+        },
+        {
+          "desc": "Clerk sign-up modal rendered only as bottom fragment (Continue button + 'Already have an account?' + 'Secured by clerk'); missing 'Create your account' heading, social login buttons (Google/GitHub), email and password fields",
+          "severity": 4,
+          "category": "missing-content"
+        },
+        {
+          "desc": "Left sidebar 'USER AUTHENTICATION' section missing entirely — no section header, no component list (<SignUp />, <SignIn />, <UserButton />, <UserProfile />, <Waitlist />)",
+          "severity": 4,
+          "category": "missing-content"
+        },
+        {
+          "desc": "'Choose an account' multi-account picker widget (visible bottom-left of source) is absent in clone",
+          "severity": 3,
+          "category": "missing-content"
+        },
+        {
+          "desc": "Documentation two-column layout collapsed — sidebar and content regions not correctly positioned; accordion items (B2B Authentication, Billing) float to top-left without surrounding structure",
+          "severity": 4,
+          "category": "layout-broken"
+        },
+        {
+          "desc": "Background is black/dark where source shows white documentation page background",
+          "severity": 3,
+          "category": "wrong-style"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1250-tile-02.png"
+    },
+    {
+      "idx": 3,
+      "width": 1250,
+      "yRange": [
+        1910,
+        2810
+      ],
+      "cloneYRange": [
+        1653,
+        1926
+      ],
+      "aboveFold": false,
+      "band": 3,
+      "align": "band",
+      "anchors": 17,
+      "judged": true,
+      "score": 35,
+      "scores": [
+        27,
+        35,
+        47
+      ],
+      "defects": [
+        {
+          "desc": "UI mockup inside 'Multifactor Authentication' card (device icons / auth interface illustration) is entirely absent on the right",
+          "severity": 4,
+          "category": "imagery-missing"
+        },
+        {
+          "desc": "UI mockup inside 'Fraud Abuse Prevention' card (inline form with CTA button) is entirely absent on the right",
+          "severity": 4,
+          "category": "imagery-missing"
+        },
+        {
+          "desc": "Feature card grid (bottom two rows of cards) is collapsed — cards render as near-empty dark bands with no visible internal content or imagery",
+          "severity": 4,
+          "category": "layout-broken"
+        },
+        {
+          "desc": "'Advanced security' card and its right-column counterpart show only faint text with no visual weight; internal structure is lost",
+          "severity": 3,
+          "category": "missing-content"
+        },
+        {
+          "desc": "'Explore user authentication' CTA pill is smaller and less visually prominent than the source",
+          "severity": 2,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Large dark-gray empty area at bottom of clone where card content should continue",
+          "severity": 3,
+          "category": "missing-content"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1250-tile-03.png"
+    },
+    {
+      "idx": 4,
+      "width": 1250,
+      "yRange": [
+        2810,
+        3710
+      ],
+      "cloneYRange": [
+        1926,
+        2869
+      ],
+      "aboveFold": false,
+      "band": 3,
+      "align": "band",
+      "anchors": 17,
+      "judged": true,
+      "score": 32,
+      "scores": [
+        32,
+        35,
+        32
+      ],
+      "defects": [
+        {
+          "desc": "Card grid layout is broken: LEFT shows a 2-column card grid with large dark rounded cards; RIGHT collapses into a single-column or misaligned list, destroying the grid structure",
+          "severity": 5,
+          "category": "layout-broken"
+        },
+        {
+          "desc": "UI mockup windows inside the feature cards are light/washed-out on the RIGHT vs deep-dark styled mockups on the LEFT — window chrome dots and dark backgrounds missing or wrong",
+          "severity": 4,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Content order differs: LEFT leads with Session Management, Social Sign On, Bot Detection, Magic Links; RIGHT reorders, surfacing Multifactor Authentication and Fraud and Account Prevention at top — sections are out of sequence",
+          "severity": 3,
+          "category": "layout-broken"
+        },
+        {
+          "desc": "Bot Detection feature card: visible on LEFT with a dark UI mockup; not clearly present in equivalent position on RIGHT",
+          "severity": 3,
+          "category": "missing-content"
+        },
+        {
+          "desc": "Embedded UI mockup screenshot detail (form fields, list rows, syntax elements inside the dark app windows) is absent or heavily degraded on the RIGHT side",
+          "severity": 3,
+          "category": "imagery-missing"
+        },
+        {
+          "desc": "Card depth/shadow and dark surface styling of individual feature cards significantly lighter on RIGHT, losing the dark-glass aesthetic",
+          "severity": 3,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Fraud and Account Prevention section appears on RIGHT but is not visibly present as a distinct card on LEFT in this band — possible phantom section insertion",
+          "severity": 2,
+          "category": "text-junk"
+        },
+        {
+          "desc": "Small icon/glyph elements inside card headers appear as plain gray squares on RIGHT instead of styled icons on LEFT",
+          "severity": 2,
+          "category": "imagery-missing"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1250-tile-04.png"
+    },
+    {
+      "idx": 5,
+      "width": 1250,
+      "yRange": [
+        3710,
+        4610
+      ],
+      "cloneYRange": [
+        2869,
+        3554
+      ],
+      "aboveFold": false,
+      "band": 3,
+      "align": "band",
+      "anchors": 17,
+      "judged": true,
+      "score": 58,
+      "scores": [
+        58,
+        60,
+        44
+      ],
+      "defects": [
+        {
+          "desc": "Dark feature-card section: card internal UI mockups (embedded UI chrome, code snippets, credential/key field illustrations visible in source cards like Passwords and API Keys) are absent or reduced to plain text in the rebuild",
+          "severity": 4,
+          "category": "chrome-missing"
+        },
+        {
+          "desc": "Top of dark section on source shows a 'Contact Us' navigation link/button that is not visible in the rebuild at the same vertical position",
+          "severity": 2,
+          "category": "missing-content"
+        },
+        {
+          "desc": "Card grid in dark section has slightly different proportions — cards appear taller/more padded in rebuild, compressing the lower white section into this tile",
+          "severity": 2,
+          "category": "layout-broken"
+        },
+        {
+          "desc": "Card icon/graphic elements inside dark feature cards (small illustrations or interface screenshots in source) appear missing in rebuild, leaving cards as text-only blocks",
+          "severity": 3,
+          "category": "imagery-missing"
+        },
+        {
+          "desc": "White B2B Authentication section body text appears truncated or slightly shorter in rebuild compared to source",
+          "severity": 1,
+          "category": "missing-content"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1250-tile-05.png"
+    },
+    {
+      "idx": 6,
+      "width": 1250,
+      "yRange": [
+        4610,
+        5510
+      ],
+      "cloneYRange": [
+        3554,
+        4125
+      ],
+      "aboveFold": false,
+      "band": 3,
+      "align": "band",
+      "anchors": 17,
+      "judged": true,
+      "score": 32,
+      "scores": [
+        32,
+        33,
+        32
+      ],
+      "defects": [
+        {
+          "desc": "Tab-panel layout hierarchy inverted: LEFT shows Auto-join org-chart as the hero panel at top with three smaller cards below; RIGHT renders all panels at roughly equal size in a different column arrangement, destroying the primary/secondary visual hierarchy",
+          "severity": 4,
+          "category": "layout-broken"
+        },
+        {
+          "desc": "Auto-join active-tab highlight and tab navigation chrome at top of the panel is absent on RIGHT — the active state indicator and tab row that sit above the org-chart are not rendered",
+          "severity": 3,
+          "category": "chrome-missing"
+        },
+        {
+          "desc": "Bottom feature-category navigation tabs (Privacy standards, Customization, B2B, Security, Bot detection) appear partially missing or unstyled on the RIGHT compared to the clearly rendered row on the LEFT",
+          "severity": 3,
+          "category": "chrome-missing"
+        },
+        {
+          "desc": "Org-chart people-photo cluster is smaller and repositioned on RIGHT relative to the large central placement on LEFT",
+          "severity": 3,
+          "category": "layout-broken"
+        },
+        {
+          "desc": "Card spacing and white-space proportions are compressed on RIGHT — cards appear tighter and narrower, losing the airy grid rhythm of LEFT",
+          "severity": 2,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "'Check' button on Organization UI Components card on RIGHT appears as a plain unstyled element vs the styled button on LEFT",
+          "severity": 2,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Section heading 'Explore B2B features' is cut off or less prominent on RIGHT top area",
+          "severity": 2,
+          "category": "missing-content"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1250-tile-06.png"
+    },
+    {
+      "idx": 7,
+      "width": 1250,
+      "yRange": [
+        5513,
+        6413
+      ],
+      "cloneYRange": [
+        4128,
+        4840
+      ],
+      "aboveFold": false,
+      "band": 4,
+      "align": "band",
+      "anchors": 7,
+      "judged": true,
+      "score": 63,
+      "scores": [
+        63,
+        62,
+        68
+      ],
+      "defects": [
+        {
+          "desc": "Pricing card tier prices differ: original shows $9/mo and $19/mo, rebuild shows $5 and $10",
+          "severity": 3,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Heading text in rebuild reads 'Subscription billing, without the headache' with noticeably smaller/lighter font weight than original's bold large heading",
+          "severity": 3,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Pricing card UI mockup on right lacks the same card border/shadow definition visible in the original — cards appear flatter",
+          "severity": 2,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Feature bullet list items in rebuild appear in a tighter, more compressed layout compared to the original's spaced list",
+          "severity": 2,
+          "category": "layout-broken"
+        },
+        {
+          "desc": "Minor padding difference: rebuild left-column text sits slightly closer to center divider than original",
+          "severity": 1,
+          "category": "layout-broken"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1250-tile-07.png"
+    },
+    {
+      "idx": 8,
+      "width": 1250,
+      "yRange": [
+        6451,
+        7331
+      ],
+      "cloneYRange": [
+        4857,
+        5509
+      ],
+      "aboveFold": false,
+      "band": 5,
+      "align": "band",
+      "anchors": 7,
+      "judged": true,
+      "score": 62,
+      "scores": [
+        62,
+        62,
+        58
+      ],
+      "defects": [
+        {
+          "desc": "Framework/integration icon grid items are noticeably larger in the clone — icons render at roughly 2× the original size, making the grid look blown up and unrefined",
+          "severity": 3,
+          "category": "layout-broken"
+        },
+        {
+          "desc": "Bottom white angled/diagonal decorative section appears clipped or offset differently in the clone vs the clean triangular cutout on the left",
+          "severity": 2,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Overall section is taller in the clone due to oversized icon grid, causing vertical padding/spacing mismatch",
+          "severity": 2,
+          "category": "layout-broken"
+        },
+        {
+          "desc": "Icon row spacing is looser in the clone — gap between icon rows is larger than source, compressing the visual density",
+          "severity": 2,
+          "category": "layout-broken"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1250-tile-08.png"
+    },
+    {
+      "idx": 9,
+      "width": 1250,
+      "yRange": [
+        7331,
+        8155
+      ],
+      "cloneYRange": [
+        5509,
+        6391
+      ],
+      "aboveFold": false,
+      "band": 6,
+      "align": "band",
+      "anchors": 7,
+      "judged": true,
+      "score": 66,
+      "scores": [
+        68,
+        63,
+        66
+      ],
+      "defects": [
+        {
+          "desc": "Testimonial card avatar profile photos appear as generic placeholders or very small low-contrast circles on the right vs clearly visible circular portrait photos on the left",
+          "severity": 3,
+          "category": "imagery-missing"
+        },
+        {
+          "desc": "Card grid in testimonial section has slightly different inter-card spacing and vertical rhythm — right side cards feel more compressed",
+          "severity": 2,
+          "category": "layout-broken"
+        },
+        {
+          "desc": "The 'Start building for free' CTA button on the right appears less visually distinct (color/contrast difference vs the more prominent teal/blue button on the left)",
+          "severity": 2,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Social handle text under names in testimonial cards (e.g. @WalterDody) appears lighter/smaller on the right, losing contrast vs left",
+          "severity": 2,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Large decorative quotation mark glyph above the Patrick Collison quote appears slightly smaller/different weight on the right",
+          "severity": 1,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Minor line-height differences in the body paragraph under the main heading make the text block slightly more compact on the right",
+          "severity": 1,
+          "category": "wrong-style"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1250-tile-09.png"
+    },
+    {
+      "idx": 10,
+      "width": 1250,
+      "yRange": [
+        8155,
+        8552
+      ],
+      "cloneYRange": [
+        6391,
+        6641
+      ],
+      "aboveFold": false,
+      "band": 7,
+      "align": "band",
+      "anchors": 19,
+      "judged": true,
+      "score": 68,
+      "scores": [
+        65,
+        68,
+        68
+      ],
+      "defects": [
+        {
+          "desc": "Footer body has noticeably less vertical padding/breathing room — columns and logo row are compressed top-to-bottom compared to the original's generous spacing",
+          "severity": 3,
+          "category": "layout-broken"
+        },
+        {
+          "desc": "Copyright bar and social icons row sit closer to the column links than in the original; the separating whitespace is significantly reduced",
+          "severity": 2,
+          "category": "layout-broken"
+        },
+        {
+          "desc": "Column inter-link vertical spacing is tighter in the clone — links appear denser than the original's more open list rhythm",
+          "severity": 2,
+          "category": "wrong-style"
+        },
+        {
+          "desc": "Large dark/black area occupies roughly the lower half of the clone panel (height mismatch — ignoring per instructions)",
+          "severity": 1,
+          "category": "layout-broken"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1250-tile-10.png"
+    }
+  ]
+}

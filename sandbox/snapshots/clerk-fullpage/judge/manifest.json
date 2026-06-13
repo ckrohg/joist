@@ -1,0 +1,595 @@
+{
+  "source": "https://clerk.com",
+  "clone": "http://localhost:8001/clerk-fullpage/",
+  "widths": [
+    1440,
+    1250
+  ],
+  "tileH": 900,
+  "foldY": 1000,
+  "perWidth": {
+    "1250": {
+      "srcHeight": 8552,
+      "cloneHeight": 6648,
+      "hRatio": 0.777,
+      "align": {
+        "mode": "band",
+        "anchorPairs": 67,
+        "segments": 8,
+        "matched": 7,
+        "interpolated": 0,
+        "missing": 1,
+        "extra": 0,
+        "missingDeterministic": 0,
+        "unmatchedJudged": 1
+      }
+    },
+    "1440": {
+      "srcHeight": 7616,
+      "cloneHeight": 6876,
+      "hRatio": 0.903,
+      "align": {
+        "mode": "band",
+        "anchorPairs": 80,
+        "segments": 20,
+        "matched": 14,
+        "interpolated": 4,
+        "missing": 2,
+        "extra": 0,
+        "missingDeterministic": 0,
+        "unmatchedJudged": 2
+      }
+    }
+  },
+  "tileCount": 32,
+  "tiles": [
+    {
+      "idx": 0,
+      "width": 1440,
+      "yRange": [
+        0,
+        218
+      ],
+      "cloneYRange": [
+        0,
+        218
+      ],
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-00.png",
+      "aboveFold": true,
+      "band": 0,
+      "align": "band",
+      "anchors": 2
+    },
+    {
+      "idx": 1,
+      "width": 1440,
+      "yRange": [
+        218,
+        624
+      ],
+      "cloneYRange": [
+        218,
+        665
+      ],
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-01.png",
+      "aboveFold": true,
+      "band": 1,
+      "align": "band",
+      "anchors": 3
+    },
+    {
+      "idx": 2,
+      "width": 1440,
+      "yRange": [
+        624,
+        753
+      ],
+      "cloneYRange": [
+        665,
+        774
+      ],
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-02.png",
+      "aboveFold": true,
+      "band": 2,
+      "align": "band",
+      "anchors": 1
+    },
+    {
+      "idx": 3,
+      "width": 1440,
+      "yRange": [
+        753,
+        893
+      ],
+      "cloneYRange": [
+        774,
+        1014
+      ],
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-03.png",
+      "aboveFold": true,
+      "band": 3,
+      "align": "unmatched",
+      "sample": "members",
+      "windowLumaStd": 34.4
+    },
+    {
+      "idx": 4,
+      "width": 1440,
+      "yRange": [
+        893,
+        1153
+      ],
+      "cloneYRange": [
+        893,
+        1158
+      ],
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-04.png",
+      "aboveFold": true,
+      "band": 4,
+      "align": "band",
+      "anchors": 4
+    },
+    {
+      "idx": 5,
+      "width": 1440,
+      "yRange": [
+        1153,
+        1826
+      ],
+      "cloneYRange": [
+        1158,
+        1807
+      ],
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-05.png",
+      "aboveFold": false,
+      "band": 5,
+      "align": "unmatched",
+      "sample": "add user <signup/> and <signin/>, provide account access thr",
+      "windowLumaStd": 34.9
+    },
+    {
+      "idx": 6,
+      "width": 1440,
+      "yRange": [
+        1826,
+        1954
+      ],
+      "cloneYRange": [
+        1807,
+        1930
+      ],
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-06.png",
+      "aboveFold": false,
+      "band": 6,
+      "align": "interp",
+      "anchors": 0
+    },
+    {
+      "idx": 7,
+      "width": 1440,
+      "yRange": [
+        1954,
+        2207
+      ],
+      "cloneYRange": [
+        1930,
+        2131
+      ],
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-07.png",
+      "aboveFold": false,
+      "band": 7,
+      "align": "band",
+      "anchors": 3
+    },
+    {
+      "idx": 8,
+      "width": 1440,
+      "yRange": [
+        2207,
+        3107
+      ],
+      "cloneYRange": [
+        2131,
+        3011
+      ],
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-08.png",
+      "aboveFold": false,
+      "band": 8,
+      "align": "band",
+      "anchors": 17
+    },
+    {
+      "idx": 9,
+      "width": 1440,
+      "yRange": [
+        3107,
+        3279
+      ],
+      "cloneYRange": [
+        3011,
+        3181
+      ],
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-09.png",
+      "aboveFold": false,
+      "band": 8,
+      "align": "band",
+      "anchors": 17
+    },
+    {
+      "idx": 10,
+      "width": 1440,
+      "yRange": [
+        3279,
+        3732
+      ],
+      "cloneYRange": [
+        3181,
+        3542
+      ],
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-10.png",
+      "aboveFold": false,
+      "band": 9,
+      "align": "band",
+      "anchors": 2
+    },
+    {
+      "idx": 11,
+      "width": 1440,
+      "yRange": [
+        3732,
+        3860
+      ],
+      "cloneYRange": [
+        3542,
+        3642
+      ],
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-11.png",
+      "aboveFold": false,
+      "band": 10,
+      "align": "interp",
+      "anchors": 0
+    },
+    {
+      "idx": 12,
+      "width": 1440,
+      "yRange": [
+        3860,
+        4097
+      ],
+      "cloneYRange": [
+        3642,
+        3842
+      ],
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-12.png",
+      "aboveFold": false,
+      "band": 11,
+      "align": "band",
+      "anchors": 3
+    },
+    {
+      "idx": 13,
+      "width": 1440,
+      "yRange": [
+        4097,
+        4625
+      ],
+      "cloneYRange": [
+        3842,
+        4371
+      ],
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-13.png",
+      "aboveFold": false,
+      "band": 12,
+      "align": "band",
+      "anchors": 4
+    },
+    {
+      "idx": 14,
+      "width": 1440,
+      "yRange": [
+        4625,
+        4753
+      ],
+      "cloneYRange": [
+        4371,
+        4494
+      ],
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-14.png",
+      "aboveFold": false,
+      "band": 13,
+      "align": "interp",
+      "anchors": 0
+    },
+    {
+      "idx": 15,
+      "width": 1440,
+      "yRange": [
+        4753,
+        5515
+      ],
+      "cloneYRange": [
+        4494,
+        5075
+      ],
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-15.png",
+      "aboveFold": false,
+      "band": 14,
+      "align": "band",
+      "anchors": 7
+    },
+    {
+      "idx": 16,
+      "width": 1440,
+      "yRange": [
+        5515,
+        5643
+      ],
+      "cloneYRange": [
+        5075,
+        5138
+      ],
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-16.png",
+      "aboveFold": false,
+      "band": 15,
+      "align": "interp",
+      "anchors": 0
+    },
+    {
+      "idx": 17,
+      "width": 1440,
+      "yRange": [
+        5643,
+        6395
+      ],
+      "cloneYRange": [
+        5138,
+        5736
+      ],
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-17.png",
+      "aboveFold": false,
+      "band": 16,
+      "align": "band",
+      "anchors": 7
+    },
+    {
+      "idx": 18,
+      "width": 1440,
+      "yRange": [
+        6395,
+        7219
+      ],
+      "cloneYRange": [
+        5736,
+        6619
+      ],
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-18.png",
+      "aboveFold": false,
+      "band": 17,
+      "align": "band",
+      "anchors": 8
+    },
+    {
+      "idx": 19,
+      "width": 1440,
+      "yRange": [
+        7219,
+        7487
+      ],
+      "cloneYRange": [
+        6619,
+        6780
+      ],
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-19.png",
+      "aboveFold": false,
+      "band": 18,
+      "align": "band",
+      "anchors": 18
+    },
+    {
+      "idx": 20,
+      "width": 1440,
+      "yRange": [
+        7487,
+        7616
+      ],
+      "cloneYRange": [
+        6780,
+        6876
+      ],
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1440-tile-20.png",
+      "aboveFold": false,
+      "band": 19,
+      "align": "band",
+      "anchors": 1
+    },
+    {
+      "idx": 0,
+      "width": 1250,
+      "yRange": [
+        0,
+        737
+      ],
+      "cloneYRange": [
+        0,
+        772
+      ],
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1250-tile-00.png",
+      "aboveFold": true,
+      "band": 0,
+      "align": "band",
+      "anchors": 6
+    },
+    {
+      "idx": 1,
+      "width": 1250,
+      "yRange": [
+        737,
+        1237
+      ],
+      "cloneYRange": [
+        772,
+        1238
+      ],
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1250-tile-01.png",
+      "aboveFold": true,
+      "band": 1,
+      "align": "band",
+      "anchors": 4
+    },
+    {
+      "idx": 2,
+      "width": 1250,
+      "yRange": [
+        1237,
+        1910
+      ],
+      "cloneYRange": [
+        1238,
+        1653
+      ],
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1250-tile-02.png",
+      "aboveFold": false,
+      "band": 2,
+      "align": "unmatched",
+      "sample": "email addresses",
+      "windowLumaStd": 83.4
+    },
+    {
+      "idx": 3,
+      "width": 1250,
+      "yRange": [
+        1910,
+        2810
+      ],
+      "cloneYRange": [
+        1653,
+        1926
+      ],
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1250-tile-03.png",
+      "aboveFold": false,
+      "band": 3,
+      "align": "band",
+      "anchors": 17
+    },
+    {
+      "idx": 4,
+      "width": 1250,
+      "yRange": [
+        2810,
+        3710
+      ],
+      "cloneYRange": [
+        1926,
+        2869
+      ],
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1250-tile-04.png",
+      "aboveFold": false,
+      "band": 3,
+      "align": "band",
+      "anchors": 17
+    },
+    {
+      "idx": 5,
+      "width": 1250,
+      "yRange": [
+        3710,
+        4610
+      ],
+      "cloneYRange": [
+        2869,
+        3554
+      ],
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1250-tile-05.png",
+      "aboveFold": false,
+      "band": 3,
+      "align": "band",
+      "anchors": 17
+    },
+    {
+      "idx": 6,
+      "width": 1250,
+      "yRange": [
+        4610,
+        5510
+      ],
+      "cloneYRange": [
+        3554,
+        4125
+      ],
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1250-tile-06.png",
+      "aboveFold": false,
+      "band": 3,
+      "align": "band",
+      "anchors": 17
+    },
+    {
+      "idx": 7,
+      "width": 1250,
+      "yRange": [
+        5513,
+        6413
+      ],
+      "cloneYRange": [
+        4128,
+        4840
+      ],
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1250-tile-07.png",
+      "aboveFold": false,
+      "band": 4,
+      "align": "band",
+      "anchors": 7
+    },
+    {
+      "idx": 8,
+      "width": 1250,
+      "yRange": [
+        6451,
+        7331
+      ],
+      "cloneYRange": [
+        4857,
+        5509
+      ],
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1250-tile-08.png",
+      "aboveFold": false,
+      "band": 5,
+      "align": "band",
+      "anchors": 7
+    },
+    {
+      "idx": 9,
+      "width": 1250,
+      "yRange": [
+        7331,
+        8155
+      ],
+      "cloneYRange": [
+        5509,
+        6391
+      ],
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1250-tile-09.png",
+      "aboveFold": false,
+      "band": 6,
+      "align": "band",
+      "anchors": 7
+    },
+    {
+      "idx": 10,
+      "width": 1250,
+      "yRange": [
+        8155,
+        8552
+      ],
+      "cloneYRange": [
+        6391,
+        6641
+      ],
+      "tilePath": "sandbox/snapshots/clerk-fullpage/judge/w1250-tile-10.png",
+      "aboveFold": false,
+      "band": 7,
+      "align": "band",
+      "anchors": 19
+    }
+  ],
+  "createdAt": "2026-06-13T03:24:29.842Z"
+}
