@@ -1,71 +1,89 @@
 #!/usr/bin/env node
 /**
- * @purpose SELF-FALSIFIER for the grade-responsive-rail.mjs grid-reflow dimension. Asserts the
- * dim DISCRIMINATES the native-grid fix: GREEN (post-fix, page 83 / clerk-fullpage, the @768
- * B2B/auth bento grid reflows 4-up→2-up) must score the grid dim ~1.0, while RED (pre-fix,
- * RESPONSIVE_NO_NATIVE_GRID=1 — the grid stays 4-up-but-squished at 768) must score clearly lower.
+ * @purpose SELF-FALSIFIER for grade-responsive-rail.mjs — asserts the rail DISCRIMINATES a
+ * post-fix responsive clone (GREEN) from a pre-fix one (RED), via the FALSIFIER-PROVEN dims
+ * (horizontal-overflow + typography-scaling + height-sanity). Self-contained: it builds RED itself
+ * (re-transpile clerk.html with the responsive fixes disabled → inject to a scratch page → grade →
+ * teardown), so the contract reliably reproduces.
  *
- * WHY THIS EXISTS: the OLD probe collapsed grid to a binary multiColRows (cols>=2) tally, which read
- * IDENTICALLY for both (both are "multi-col"), so grid was excluded from the score. The new probe
- * profiles equal-width card rows and measures (a) shedding of narrow-multi-up rows and (b) card-
- * width-fraction growth as the viewport narrows — the true reflow signature. This test pins that
- * contract so a future probe change can't silently re-break discrimination.
+ * HISTORY / HONEST LIMIT: an earlier version asserted the GRID-REFLOW dim discriminates. It does
+ * NOT reproduce: freshly-injected scratch RED pages do not paint the card-grid IMAGES in time, so
+ * RED's grid dim ABSTAINS (applicable=false) at every width — the grid "discrimination" was a
+ * scratch-render artifact, not a real signal. Grid is therefore EXCLUDED from the rail score
+ * (GRID_W=0) and computed best-effort only. The rail's real, reproducible discrimination rests on
+ * overflow (RED: +69px gutter @390) and typography-stuck (RED: hero 64px across all widths). This
+ * test pins THAT contract. Re-enable grid scoring + a grid-specific assertion once the scratch-RED
+ * render reliably settles lazy-loaded card images.
  *
- * PREREQS (set up by the orchestrator/grader engineer, NOT by this test):
- *   - GREEN = live page 83 (post-fix) on the LOCAL sandbox (http://localhost:8001/?page_id=83)
- *   - RED   = a SCRATCH page rendered from a pre-fix transpile
- *             (RESPONSIVE_NO_NATIVE_FONTSIZE=1 RESPONSIVE_NO_NATIVE_GRID=1 RESPONSIVE_NO_MOBILE_FULLWIDTH=1)
- * Pass the two URLs via --green / --red (defaults: 83 and 128). RAILS: read-only; LOCAL only.
+ * RAILS: LOCAL sandbox only (localhost:8001). GREEN = live page 83 (never written). RED = a scratch
+ * page id, deleted at the end. Never mutates page 83.
  *
- * Usage: node _gridreflow-selftest.mjs [--green <url>] [--red <url>]
- * Exit 0 = discrimination holds; exit 1 = FAILED (grid dim no longer discriminates).
+ * Usage: node _gridreflow-selftest.mjs [--green <url>]
+ * Exit 0 = rail discriminates (GREEN pass, RED fail via the proven dims); exit 1 = FAILED.
  */
 import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const REPO = join(__dirname, '..', '..');
 const arg = (n, d) => { const i = process.argv.indexOf('--' + n); return i > -1 && process.argv[i + 1] ? process.argv[i + 1] : d; };
 const GREEN = arg('green', 'http://localhost:8001/?page_id=83');
-const RED = arg('red', 'http://localhost:8001/?page_id=128');
-
-// The dim must (1) be applicable on both, (2) credit GREEN's grid >= this, (3) score RED's grid
-// at least this much LOWER than GREEN, and (4) the per-768 retain must order GREEN < RED.
-const GREEN_GRID_MIN = 0.95;
-const MIN_GRID_MARGIN = 0.20; // GREEN.gridScore - RED.gridScore must exceed this
+const ASSETS = '/tmp/clerk-enriched-manifest.json';
 
 function railJson(url) {
   const out = execFileSync('node', [join(__dirname, 'grade-responsive-rail.mjs'), '--url', url, '--json'], { cwd: __dirname, encoding: 'utf8', timeout: 110000 });
   return JSON.parse(out.trim().split('\n').pop());
 }
-
-const g = railJson(GREEN);
-const r = railJson(RED);
-const gGrid = g.gridReflow, rGrid = r.gridReflow;
-const fails = [];
-
-if (!gGrid.applicable) fails.push('GREEN grid dim ABSTAINED (expected applicable — has a narrow-multi-up grid)');
-if (!rGrid.applicable) fails.push('RED grid dim ABSTAINED (expected applicable — same tree, same grid at 1440)');
-if (gGrid.applicable && gGrid.score < GREEN_GRID_MIN) fails.push(`GREEN gridScore ${gGrid.score} < ${GREEN_GRID_MIN} (post-fix grid should fully reflow)`);
-if (gGrid.applicable && rGrid.applicable && (gGrid.score - rGrid.score) < MIN_GRID_MARGIN) {
-  fails.push(`grid-dim margin too small: GREEN ${gGrid.score} - RED ${rGrid.score} = ${(gGrid.score - rGrid.score).toFixed(3)} < ${MIN_GRID_MARGIN}`);
-}
-// 768 keystone: GREEN must retain FEWER narrow-multi-up rows than RED (more reflow).
-const g768 = (gGrid.reflow || []).find((x) => x.w === 768);
-const r768 = (rGrid.reflow || []).find((x) => x.w === 768);
-if (g768 && r768 && !(g768.retain < r768.retain)) {
-  fails.push(`@768 retain not ordered: GREEN ${g768.retain} should be < RED ${r768.retain} (GREEN reflows more)`);
+function wpcli(script) {
+  return execFileSync('docker', ['compose', 'run', '--rm', '-T', 'wpcli-1', '-c', script], { cwd: join(REPO, 'sandbox'), encoding: 'utf8', timeout: 100000 });
 }
 
-console.log('=== grid-reflow self-falsifier ===');
-console.log(`  GREEN ${GREEN}`);
-console.log(`    applicable=${gGrid.applicable} gridScore=${gGrid.score} @768 retain=${g768 ? g768.retain : 'n/a'} (narrow3up ${gGrid.wideNarrow}→${g768 ? Math.round(g768.retain * gGrid.wideNarrow) : '?'})`);
-console.log(`  RED   ${RED}`);
-console.log(`    applicable=${rGrid.applicable} gridScore=${rGrid.score} @768 retain=${r768 ? r768.retain : 'n/a'} (narrow3up ${rGrid.wideNarrow}→${r768 ? Math.round(r768.retain * rGrid.wideNarrow) : '?'})`);
-console.log(`  overall SCORE: GREEN ${g.score} (pass=${g.pass}) vs RED ${r.score} (pass=${r.pass})`);
+// 1. Build RED (pre-fix: all three responsive fixes disabled).
+const redOut = '/tmp/red-selftest-build';
+execFileSync('node', [join(__dirname, 'transpile-html.mjs'), '--html', join(__dirname, 'local-fidelity', 'clerk.html'),
+  '--width', '1440', '--assets', ASSETS, '--out', redOut, '--no-site-parts', '--dry-run'],
+  { cwd: __dirname, encoding: 'utf8', timeout: 110000, env: { ...process.env, RESPONSIVE_NO_NATIVE_FONTSIZE: '1', RESPONSIVE_NO_NATIVE_GRID: '1', RESPONSIVE_NO_MOBILE_FULLWIDTH: '1' } });
+
+// 2. Inject RED to a scratch page via render.mjs (auto-assigns an id).
+const injectSrc = `import { readFileSync } from 'node:fs';
+import { render } from '${join(REPO, 'sandbox', 'render.mjs')}';
+const tree = JSON.parse(readFileSync('${redOut}/tree.json','utf8'));
+const res = await render(tree, { slug: 'resprail-red-selftest', title: 'RAIL RED selftest', width: 1440, noShot: true });
+console.log('REDPAGE=' + res.pageId);`;
+const injectFile = '/tmp/_resprail-red-inject.mjs';
+execFileSync('node', ['-e', `require('fs').writeFileSync('${injectFile}', ${JSON.stringify(injectSrc)})`]);
+const redOutLog = execFileSync('node', [injectFile], { encoding: 'utf8', timeout: 110000 });
+const redId = (redOutLog.match(/REDPAGE=(\d+)/) || [])[1];
+const RED = `http://localhost:8001/?page_id=${redId}`;
+
+let g, r, fails = [];
+try {
+  g = railJson(GREEN);
+  r = railJson(RED);
+
+  // CONTRACT (validated, reproducible — dims 1-3, NOT grid):
+  if (!(g.pass === true)) fails.push(`GREEN should PASS, got pass=${g.pass} score=${g.score}`);
+  if (!(g.score >= 0.80)) fails.push(`GREEN score ${g.score} < 0.80`);
+  if (!(r.pass === false)) fails.push(`RED should FAIL, got pass=${r.pass} score=${r.score}`);
+  if (!(g.score - r.score >= 0.20)) fails.push(`discriminate margin ${(g.score - r.score).toFixed(3)} < 0.20 (GREEN ${g.score} vs RED ${r.score})`);
+  // RED must fail via a PROVEN dim: a hard overflow somewhere OR typography stuck.
+  const redOverflow = (r.byWidth ? Object.values(r.byWidth) : (r.widths || []).map((w) => (r.byWidth || {})[w] || {}))
+    .some((b) => b && (b.fails || []).some((f) => String(f).includes('overflow')));
+  const redTypoStuck = r.typography && r.typography.stuck === true;
+  if (!(redOverflow || redTypoStuck)) fails.push('RED did not fail via a proven dim (expected overflow or typo-stuck)');
+} finally {
+  // 3. Teardown the scratch RED page — never leave it around.
+  if (redId) try { wpcli(`wp post delete ${redId} --force >/dev/null 2>&1; echo done`); } catch { /* best-effort */ }
+}
+
+console.log('=== responsive-rail discrimination self-falsifier ===');
+console.log(`  GREEN ${GREEN}: score=${g && g.score} pass=${g && g.pass} | typoStuck=${g && g.typography && g.typography.stuck} gridApplicable=${g && g.gridReflow && g.gridReflow.applicable}`);
+console.log(`  RED   ${RED}: score=${r && r.score} pass=${r && r.pass} | typoStuck=${r && r.typography && r.typography.stuck} gridApplicable=${r && r.gridReflow && r.gridReflow.applicable} (grid abstain on scratch RED is EXPECTED)`);
 if (fails.length) {
   console.log('  RESULT: FAIL');
   for (const f of fails) console.log('    - ' + f);
   process.exit(1);
 }
-console.log('  RESULT: PASS — grid dim discriminates GREEN(reflowed) vs RED(stuck-dense).');
+console.log('  RESULT: PASS — rail discriminates GREEN(pass) vs RED(fail) via the proven overflow+typography dims.');
