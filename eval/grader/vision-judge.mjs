@@ -82,6 +82,22 @@ const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i >= 0 
 const has = (k) => process.argv.includes('--' + k);
 
 const SOURCE = arg('source'), CLONE = arg('clone');
+// ── PINNED SOURCE (VJ-SRCPIN 2026-06-12, OPT-IN; live path unchanged when not used) ──────────────────────────
+// The clone is built from a FROZEN capture; re-navigating the live source every judge run grades the clone
+// against a DRIFTING target (clerk marquee phase + live dark section-divider = pure live-drift sev4/5 noise).
+// When --pinned-source <path> is given, OR --source points at a .png file / `cap:<dir>` dir spec, the SOURCE
+// side loads a pre-captured FROZEN full-page PNG instead of navigating. The clone side stays a LIVE local
+// capture. A flat PNG has NO DOM, so it carries no text-leaf anchors → band-anchored alignment is impossible;
+// the pinned path therefore uses HONEST PROPORTIONAL banding (clone band = source band * cloneH/srcH), tiles
+// labeled align:'pinned-proportional' and perWidth.align.mode='pinned-proportional' so nothing pretends to be
+// anchor-matched. The frozen PNG's intrinsic pixel height IS its true height (verified: cap w1440 = 1440x7616,
+// manifest pageH 7616) so the proportional math is exact. Reversibility = not passing the flag / not pointing
+// --source at a png|cap: spec.
+const PINNED_SOURCE = arg('pinned-source');
+const isPng = (s) => typeof s === 'string' && /\.png$/i.test(s);
+const isCapSpec = (s) => typeof s === 'string' && (s.startsWith('cap:') || (!/^https?:\/\//i.test(s) && fs.existsSync(s) && (() => { try { return fs.statSync(s).isDirectory(); } catch { return false; } })()));
+const PIN_SPEC = PINNED_SOURCE || (isPng(SOURCE) || isCapSpec(SOURCE) ? SOURCE : null);
+const PINNED = !!PIN_SPEC;
 const WIDTHS = String(arg('widths', '1440,1100')).split(',').map((s) => parseInt(s, 10)).filter((n) => n > 200);
 const OUT = arg('out', '/tmp/vision-judge');
 const TILE_H = +arg('tileh', 900);
@@ -479,6 +495,41 @@ async function captureFull(url, width, wantMeta = false) {
   throw lastErr;
 }
 
+// ── PINNED SOURCE loader (VJ-SRCPIN, opt-in): a FROZEN full-page PNG instead of a live navigation ────────────
+// Accepts either a direct .png path, or a `cap:<dir>` / bare-dir spec whose manifest.json maps width->shot.
+// Returns the SAME shape captureFull(meta) returns — { png, leaves, bands, state } — but with leaves:[] (a flat
+// PNG has no DOM text to anchor on) so the band-anchored planner naturally takes its honest proportional
+// fallback. We DO surface coarse proportional `bands` from the cap manifest section y/h when present (purely
+// informational; the proportional tiler does not consume them). Pinned=true & pinnedSpec recorded so the
+// manifest/per-width meta can clearly label every tile as pinned-proportional (NOT live, NOT anchor-matched).
+function resolvePinnedShot(spec, width) {
+  const raw = spec.startsWith('cap:') ? spec.slice(4) : spec;
+  // direct png
+  if (isPng(raw)) return { shot: raw, manifestPath: null, sections: null, declaredH: null };
+  // a dir → expect manifest.json with perWidth[width].shot
+  const dir = raw;
+  const mp = path.join(dir, 'manifest.json');
+  if (!fs.existsSync(mp)) throw new Error(`pinned-source dir has no manifest.json: ${mp}`);
+  const m = JSON.parse(fs.readFileSync(mp, 'utf8'));
+  const pw = m.perWidth && (m.perWidth[width] || m.perWidth[String(width)]);
+  if (!pw || !pw.shot) throw new Error(`pinned-source manifest has no perWidth[${width}].shot (widths: ${Object.keys(m.perWidth || {}).join(',')})`);
+  const shot = path.isAbsolute(pw.shot) ? pw.shot : path.join(dir, pw.shot);
+  return { shot, manifestPath: mp, sections: Array.isArray(pw.sections) ? pw.sections : null, declaredH: pw.pageH != null ? +pw.pageH : null, srcUrl: m.source || null };
+}
+function loadFrozenSource(spec, width) {
+  const { shot, sections, declaredH, srcUrl } = resolvePinnedShot(spec, width);
+  if (!fs.existsSync(shot)) throw new Error(`pinned-source PNG not found: ${shot}`);
+  const png = PNG.sync.read(fs.readFileSync(shot));
+  // the PNG's intrinsic pixel height IS the true source height (deviceScaleFactor-1 capture).
+  if (declaredH != null && Math.abs(declaredH - png.height) > 4) {
+    console.error(`[pin-src] NOTE: manifest pageH ${declaredH} != PNG height ${png.height} @${width} — using PNG height (the painted pixels are ground truth)`);
+  }
+  // coarse proportional bands from manifest sections (informational only; flat PNG has no text anchors)
+  const bands = (sections || []).filter((s) => s && s.h >= 120 && s.y >= 0).map((s) => ({ y: Math.round(s.y), h: Math.round(s.h) })).sort((a, b) => a.y - b.y);
+  console.error(`[pin-src] @${width}: ${path.basename(shot)} ${png.width}x${png.height}${srcUrl ? ` (frozen ${srcUrl})` : ''} — NO DOM anchors -> honest proportional banding`);
+  return { png, leaves: [], bands, state: { pinned: true, shot, srcUrl: srcUrl || null }, pinned: true };
+}
+
 // ── VJ-ALIGN pure functions (exported; unit-testable without network) ───────────────────────────────────────
 // matchUniqueAnchors: pairs of (source y, clone y) for texts that occur EXACTLY ONCE on each side, then a
 // longest-non-decreasing-subsequence filter on clone y kills crossings from false text matches (band order
@@ -710,7 +761,8 @@ export { composeTile, captureFull, claudeOnce, RUBRIC, extractJson, drawLabel, b
 // ── main (only when invoked directly — importable as a library without side effects) ────────────────────────
 const IS_MAIN = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
 if (IS_MAIN) (async () => {
-  if (!SOURCE || !CLONE) { console.error('usage: node vision-judge.mjs --source <url> --clone <url> [--widths 1440,1100] [--out dir] [--gating] [--structure <grade-structure results.json>] [--manifest-only]'); process.exit(2); }
+  if (!SOURCE || !CLONE) { console.error('usage: node vision-judge.mjs --source <url|file.png|cap:dir> --clone <url> [--pinned-source <file.png|cap:dir>] [--widths 1440,1100] [--out dir] [--gating] [--structure <grade-structure results.json>] [--manifest-only]'); process.exit(2); }
+  if (PINNED) console.error(`[pin-src] PINNED-SOURCE mode ON (opt-in): source = FROZEN ${PIN_SPEC} (no live navigation); clone = LIVE ${CLONE}. Tiles will be labeled pinned-proportional (flat PNG has no DOM anchors).`);
   fs.mkdirSync(OUT, { recursive: true });
   const t0 = Date.now();
   // NO sibling-pkill: every captureFull() launches its own ephemeral Playwright browser (own temp
@@ -723,10 +775,10 @@ if (IS_MAIN) (async () => {
   {
     for (const width of WIDTHS) {
       console.error(`[capture] ${width}px source...`);
-      const srcCap = await captureFull(SOURCE, width, VJALIGN);
+      const srcCap = PINNED ? loadFrozenSource(PIN_SPEC, width) : await captureFull(SOURCE, width, VJALIGN);
       console.error(`[capture] ${width}px clone...`);
       const clnCap = await captureFull(CLONE, width, VJALIGN);
-      const src = VJALIGN ? srcCap.png : srcCap;
+      const src = (PINNED || VJALIGN) ? srcCap.png : srcCap; // pinned source is ALWAYS the { png, ... } object
       const cln = VJALIGN ? clnCap.png : clnCap;
       const r = cln.height / src.height; // proportional y alignment (identity at hRatio 1)
       perWidthMeta[width] = { srcHeight: src.height, cloneHeight: cln.height, hRatio: +r.toFixed(3) };
@@ -748,6 +800,12 @@ if (IS_MAIN) (async () => {
         }
       };
       if (!VJALIGN) { proportionalTiles(null); continue; } // legacy path: byte-identical tiles + manifest shape
+      if (PINNED) { // a flat frozen PNG has NO DOM text anchors → honest proportional banding (clearly labeled)
+        perWidthMeta[width].align = { mode: 'pinned-proportional', anchorPairs: 0, pinnedSource: PIN_SPEC };
+        console.error(`[align] ${width}px PINNED-PROPORTIONAL (frozen PNG source, no DOM anchors; clone band = source band * ${(cln.height / src.height).toFixed(3)})`);
+        proportionalTiles('pinned-proportional');
+        continue;
+      }
       // ── VJ-ALIGN: band-anchored tiling (see header). Same content on both sides of every judged tile. ──────
       const bp = planBandTiles({ srcLeaves: srcCap.leaves, clnLeaves: clnCap.leaves, srcBands: srcCap.bands, clnBands: clnCap.bands, srcH: src.height, clnH: cln.height, tileH: TILE_H });
       if (bp.mode !== 'band') {
@@ -802,7 +860,7 @@ if (IS_MAIN) (async () => {
     }
   }
 
-  const manifest = { source: SOURCE, clone: CLONE, widths: WIDTHS, tileH: TILE_H, foldY: FOLD_Y, perWidth: perWidthMeta, tileCount: tiles.length, tiles, createdAt: new Date().toISOString() };
+  const manifest = { source: SOURCE, clone: CLONE, pinnedSource: PINNED ? PIN_SPEC : null, widths: WIDTHS, tileH: TILE_H, foldY: FOLD_Y, perWidth: perWidthMeta, tileCount: tiles.length, tiles, createdAt: new Date().toISOString() };
   fs.writeFileSync(path.join(OUT, 'manifest.json'), JSON.stringify(manifest, null, 2));
   console.error(`[manifest] ${tiles.length} tiles -> ${path.join(OUT, 'manifest.json')}`);
   if (MANIFEST_ONLY) { console.log(JSON.stringify({ manifest: path.join(OUT, 'manifest.json'), tileCount: tiles.length, perWidth: perWidthMeta }, null, 2)); return; }
@@ -876,7 +934,7 @@ if (IS_MAIN) (async () => {
 
   const modelUsed = enriched.find((t) => t.judged && !t.deterministic)?.model || MODEL;
   const results = {
-    source: SOURCE, clone: CLONE, widths: WIDTHS, runsPerTile: RUNS, gating: GATING, model: modelUsed,
+    source: SOURCE, clone: CLONE, pinnedSource: PINNED ? PIN_SPEC : null, widths: WIDTHS, runsPerTile: RUNS, gating: GATING, model: modelUsed,
     publishedScore, veto,
     pageScore: overall.pageScore, baseScore: overall.base, severityPenalty: overall.penalty,
     perWidth, tilesJudged: overall.judged, tilesSkipped: overall.skipped,
