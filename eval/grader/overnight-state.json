@@ -5037,6 +5037,28 @@
       "census": "button=4 image=43 total=288 HELD; selftest 42/0; load-bearing intact",
       "honestNote": "builder correctly judged tiles 02/03/08 as judge-noise/AA NOT defects (refused to invent work); the one real defect (fw-link left-drift) was in tile06 band. 1440 fidelity now near the improvable ceiling against the frozen source \u2014 remaining per-tile gap is largely raster-AA noise, not fixable structure.",
       "nextFrontier": "RESPONSIVE \u2014 all work is desktop-px @1440; render page-83 at 768/390 + pinned-judge vs frozen caps to scope the gap + check if transpile-html.mjs emits any _tablet/_mobile controls today"
+    },
+    {
+      "name": "native-responsive-emission-blessed",
+      "date": "2026-06-13",
+      "commit": "f84eaa6 on main (native responsive typography + grid regroup + mobile full-width)",
+      "kind": "RESPONSIVE breakthrough \u2014 first real responsive-1:1 step; deterministic-DOM-probe verified (off-1440 judge unreliable)",
+      "moves": {
+        "1_native_typography": "font-size routed from STRIPPED custom_css to native typography_font_size_tablet/_mobile (flag RESPONSIVE_NO_NATIVE_FONTSIZE)",
+        "2_native_grid_regroup": "flex-basis% -> native width_tablet/_mobile + flex_wrap (flag RESPONSIVE_NO_NATIVE_GRID)",
+        "3_mobile_fullwidth": "px-pinned containers width_mobile:100% to kill @390 gutter (flag RESPONSIVE_NO_MOBILE_FULLWIDTH)"
+      },
+      "orchestratorVerified": {
+        "method": "independent playwright DOM probe + own-eyes LOOK at /tmp/respcheck-{390,768}.png vs frozen caps",
+        "heroFontPx": "64@1440 -> 48@768 -> 36@390 (clean cascade; was STUCK 64 everywhere)",
+        "gutter390": "+69px -> 0 (scrollW 390 == innerW 390)",
+        "b2bGrid768": "1-col(blank-right) -> 2-col CONFIRMED by eyes (Auto-join | Invitations side-by-side)",
+        "hRatio": "@390 1.018->0.999, @768 0.903->1.063 (taller = correct 2-row reflow not blowup)",
+        "desktop1440": "UNCHANGED 64px/1440/docH7599 \u2014 no regression (probe+LOOK)"
+      },
+      "census": "button=4 image=43 total=288 HELD all widths; selftest 42/0; flags-off byte-identical to baseline (reversibility proven)",
+      "honestCaveat": "validated on clerk only; intermediate breakpoints (clerk 640/900) still quantize to 767/1024 (move #3 = Elementor custom breakpoint, deferred); generalization to other sites untested; NO deterministic responsive grader yet (hand-probed).",
+      "loadBearingIntact": "id-stamp, Suisse, imagery, boundary-guard, CTA-pill (pills render at mobile), localhost default, cache-flush, P4b"
     }
   ],
   "phase5backlog_wave3": [
