@@ -1,0 +1,96 @@
+# Clerk full page — local Elementor render + webfont registration
+
+Closed loop: `eval/grader/local-fidelity/clerk.html` (responsive full page, sha256
+`9c55f07e…`) → `transpile-html.mjs` → one Elementor tree → rendered in the LOCAL
+Docker Elementor sandbox (port 8001, WP 7.0 + Elementor 3.28.4) via `sandbox/render.mjs`.
+NO shared host (georges232) touched.
+
+## 1. Webfont registration (Suisse Intl) — FIXED + VERIFIED
+
+The hero residual was Suisse→Helvetica fallback (server lacked the font). Registered the
+real captured clerk.com webfonts into the local stack:
+
+- Copied 5 woff2 subsets (`/tmp/local-fidelity/fonts/SuisseIntl_{Regular,Book,Medium,SemiBold,Bold}.woff2`)
+  into the WP container at `wp-content/uploads/clerk-fonts/` (served static, `font/woff2`, 200).
+- Added a must-use plugin `wp-content/mu-plugins/joist-clerk-fonts.php`
+  (copy archived here as `joist-clerk-fonts.mu-plugin.php`) that prints `@font-face`
+  rules for `Suisse` (weights 400/450/500/600/700) in `wp_head` — fires on the Elementor
+  canvas template too, so any `.elementor` page whose typography requests
+  `typography_font_family:"Suisse"` resolves to the real face.
+
+**Verification (DOM, not just declared):**
+- Isolated control (page 82, a single `Suisse` heading): `renderedFamily:"Suisse, sans-serif"`,
+  `document.fonts.check(...) = true`, loaded face `Suisse:700`. Helvetica fallback gone.
+- Full page (page 83): every heading → `Suisse, sans-serif`, `suisseLoaded:true`;
+  browser actually loaded all 5 Suisse weights (`Suisse:400/450/500/600/700`) + `JetBrains Mono:500`.
+- LOOK (`hero-band-1440.png`): the H1 renders in genuine Suisse Intl Bold letterforms
+  (single-story `a`, geometric `t`/`g`/`M`) — visibly NOT Helvetica.
+
+Note: page 81 (the prior hero spike) still shows Helvetica because ITS tree was authored
+with `typography_font_family:"Helvetica Neue"` (the value its standalone capture computed).
+The fix is correct; a page only benefits if its tree actually requests Suisse — the full
+clerk.html does, because its `<style>` sets `body{font-family:'Suisse',…}`.
+
+## 2. Transpile — native widget census
+
+`node transpile-html.mjs --html clerk.html --width 1440 --assets <manifest> --dry-run`
+(assets manifest maps the 42 `assets/<name>` refs → `/tmp/local-fidelity/assets/<name>`,
+all 42 resolved). Header+footer were extracted as P7 site-parts (Theme Builder docs);
+for a single full-page render they were recomposed `[header, body, footer]` into one tree.
+
+Combined full-page tree (as rendered) — **292 nodes, every element id-stamped (0 missing)**:
+
+| widget        | count |
+|---------------|-------|
+| container     | 101   |
+| text-editor   | 112   |
+| image         | 43    |
+| heading       | 22    |
+| html          | 13    |
+| button        | 1     |
+
+- **Raster fallbacks: 0.** No region-raster / screenshot-of-a-band anywhere — the whole
+  page is native widgets.
+- Validation: `localErrors: []`. 0 PAIN items.
+- 106 POLICY notes: 58 × P3 (responsive breakpoints mapped to native tablet/mobile controls
+  + scoped `custom_css` for unmapped declarations), 42 × P6 (image uploads), 3 × P6 svg→html,
+  3 × P7 (site-part extraction).
+
+## 3. Transpiler GAPS (honest)
+
+- **Inline SVG glyphs → html widgets (the one native gap).** 13 small inline SVGs
+  (7–10px chevrons/arrows; 3 unique shapes) have no native Elementor home — Elementor has
+  no inline-SVG widget and WP blocks `image/svg+xml` by default, so they ride html widgets
+  carrying the verbatim `<svg>` markup. They render correctly but are not "native" widgets.
+  (The 42 `assets/*.svg|png|webp` `<img>` logos/screenshots ARE native image widgets.)
+- **CSS-math frozen to authoring width.** Any `clamp()/calc()/min()/max()` length is frozen
+  to its computed px at 1440 (P2) — Elementor controls can't express CSS math. Desktop-exact;
+  drifts off-width unless a P3 media rule also fired.
+- **>1024 custom breakpoints ride `custom_css`.** Native Elementor breakpoints are tablet≤1024
+  / mobile≤767; clerk's 1280/1340/900/640 queries land via scoped per-element `@media`
+  `custom_css` (Pro selector channel) rather than native responsive controls.
+- **Images served from a static uploads dir, not the WP media library.** For this render the
+  42 assets were copied to `wp-content/uploads/clerk-assets/` and the image-widget URLs
+  rewritten to that path (no auth/mime friction; svg serves fine). The transpiler's own
+  non-dry-run path would instead upload to WP media via Joist REST.
+
+## Artifacts
+
+- Rendered page: `http://localhost:8001/?page_id=83` (→ `/clerk-fullpage/`)
+- `clerk-fullpage-1440.png` — full page @1440
+- `hero-band-1440.png` — hero band (Suisse LOOK)
+- `tree-composed.json` — id-less composed tree fed to render.mjs
+- `tree-rendered.json` — as-stored tree (ids stamped by render.mjs `ensureIds`)
+- `transpile-report.json`, `assets-manifest.json`, `joist-clerk-fonts.mu-plugin.php`
+
+**Tree hash (as-rendered, id-stamped):**
+`sha256 680173d4acd1c1e74154fb410f56ac12684bca30c0d95a6cdc1f1dd87e4a82b6`
+(composed pre-id tree: `sha256 701656777b1e9041686bf3f0b521ce3f4e6b6f09b0a7792678b0f056c3568b4f`)
+
+## render.mjs change
+
+Large full-page trees (100s of KB) blew past `ARG_MAX` on the old
+`wp post meta update _elementor_data "$(cat …)"` argv-inlining path. `injectTree` now
+writes the meta from the mounted file via `wp eval-file /update-meta.php`
+(`update_post_meta($id,'_elementor_data',wp_slash(file_get_contents('/tree.json')))`),
+so any page size renders. Verified round-trip: stored meta decodes to 292 nodes, 0 missing ids.

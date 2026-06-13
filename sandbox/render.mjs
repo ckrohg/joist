@@ -90,6 +90,15 @@ export function injectTree(tree, { slug = 'joist-render', page = null, title = '
   const work = mkdtempSync(join(tmpdir(), 'joist-render-'));
   const localFile = join(work, 'tree.json');
   writeFileSync(localFile, JSON.stringify(arr));
+  // eval-file helper: read the mounted JSON from disk and store it verbatim as
+  // _elementor_data (avoids ARG_MAX on large full-page trees; preserves Elementor's
+  // expected slashed-JSON storage shape since we hand WP the raw string unmodified).
+  const metaFile = join(work, 'update-meta.php');
+  writeFileSync(metaFile, `<?php
+$id = (int) $args[0];
+$json = file_get_contents('/tree.json');
+update_post_meta($id, '_elementor_data', wp_slash($json));
+`);
   try {
     const script = `
 set -e
@@ -102,8 +111,11 @@ else
   ID=$(wp post list --post_type=page --name="$SLUG" --field=ID 2>/dev/null | head -1)
   [ -z "$ID" ] && ID=$(wp post create --post_type=page --post_status=publish --post_title="${title.replace(/'/g, '')}" --post_name="$SLUG" --porcelain)
 fi
-wp post meta update "$ID" _elementor_data "$(cat /tree.json)" --format=json >/dev/null 2>&1 \
-  || wp post meta update "$ID" _elementor_data "$(cat /tree.json)" >/dev/null
+# Write _elementor_data from the MOUNTED FILE via eval-file, never as an argv —
+# a full-page tree (100s of KB) blows past ARG_MAX with "$(cat …)" inlining.
+# Elementor stores _elementor_data as the RAW JSON string (slashed), so we set it
+# verbatim from the file rather than decode→re-encode (which would alter escaping).
+wp eval-file /update-meta.php "$ID" >/dev/null
 wp post meta update "$ID" _elementor_edit_mode builder >/dev/null
 wp post meta update "$ID" _wp_page_template elementor_canvas >/dev/null
 wp post meta update "$ID" _elementor_template_type wp-page >/dev/null
@@ -113,7 +125,10 @@ wp elementor flush_css >/dev/null 2>&1 || true
 echo "RENDER_PAGE_ID=$ID"
 `;
     const out = compose(
-      ['run', '--rm', '-T', '-v', `${localFile}:/tree.json:ro`, CLI_SERVICE, '-c', script],
+      ['run', '--rm', '-T',
+        '-v', `${localFile}:/tree.json:ro`,
+        '-v', `${metaFile}:/update-meta.php:ro`,
+        CLI_SERVICE, '-c', script],
     );
     const m = out.match(/RENDER_PAGE_ID=(\d+)/);
     if (!m) throw new Error(`injectTree: no page id in wp-cli output:\n${out}`);
