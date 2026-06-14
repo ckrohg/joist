@@ -5281,6 +5281,24 @@
       "realDiagnosis_orchestrator": "Probed LOCAL HTML-first linear 185 myself: absWidgets=0/168 (FLOW-based, genuinely reflows \u2014 NOT frozen-abs), gutter=0 all widths (horizontal overflow fix holds). docH ~constant: 10053@1440 / 9903@768 / 10353@390. Source linear: 10810@1440 -> 6500@390 (source gets MUCH shorter at mobile). So clone @390 = 10353/6500 = 1.59x tall (matches rail). ROOT CAUSE: our 1-col flow clone stacks the content faithfully but stays ~10k tall; SOURCE has a genuinely DENSER MOBILE-SPECIFIC design (6500px @390 \u2014 smaller mobile images, tighter spacing, likely mobile-hidden sections) that desktop geometry + a naive 1-col stack CANNOT predict.",
       "verdict": "MOSTLY the INHERENT ceiling (the 'responsive demake judgment' / abs_responsive_ceiling territory): matching source's compact mobile requires authoring a mobile-SPECIFIC layout (read source's @390 design: smaller mobile images, tighter spacing, hidden sections), NOT a deterministic transpiler tweak. PARTIAL deterministic lever available: a MOBILE rhythm-normalizer (compress @390 section padding + cap mobile image heights toward the captured source @390 band heights) \u2014 would close SOME of the gap but not all (source compactness also comes from smaller images + hidden content). NOT a quick win. Horizontal overflow (the user 'width isn't dynamic' req) IS fixed; this vertical mobile-compactness is the harder residual.",
       "integrity": "orchestrator re-diagnosed on the correct local page 185; the strayed workflow committed NOTHING to local/main (worked on shared-host scratch 6730 only); local baselines untouched."
+    },
+    {
+      "name": "preserve-spike-CONDITIONAL-GO-true-1to1-path",
+      "date": "2026-06-13",
+      "kind": "TRUE-1:1 architecture spike \u2014 preserve BREAKS the flow ceiling (conditional GO)",
+      "headline": "Faithful per-element source-computed-CSS (stamped via the EXISTING elementor/element/parse_css plugin hook -> Elementor core Post_CSS, kses-safe, free-tier) BREAKS the flow ceiling on the absolute/grid/overflow/transform layout class flow CANNOT express. clerk hero band: PRESERVE 62 vs FLOW 4 (58pt margin ~7x noise; flow exploded the decorative absolute art to hRatio 10.7 near-blank). 226 abs rules rendered; the art that blew the projection spike to 155,981px rendered correctly (hRatio 1.000). Falsifier NOT refuted.",
+      "deepFinding": "1:1-pixel and full-Elementor-editability are NOT simultaneously achievable on a geometrically-hairy section in ONE representation (PRESERVE=content-editable+layout-FROZEN; FLOW=layout-editable+geometry-wrong) \u2014 BUT achievable per-PAGE by SPLITTING THE AXES across sections: flow gives full editability on chrome/hero/cards/footer, PRESERVE gives pixel-1:1 on decorative absolute/grid sections. This is the answer to 'whatever it takes for true 1:1'.",
+      "architecture": "flow-first hybrid + PRESERVE as a grade-routed RESIDUAL ARM (router escalates a section to preserve only when flow loses pixels on a vocab-loss class; gated hRatio[0.98,1.02]+zero-overflow+byte-equiv flow fallback). NOT pure-preserve (fails >=90% layout round-trip, ~10pt under authored 72, breaks carousels). NOT flow-only (can't express absolute class).",
+      "channelExists": "the preserve channel is ALREADY HALF-OWNED by the plugin (elementor/element/parse_css hook, used by DisplaySwap/ViewTransitions) \u2014 productionize PreserveCSSEmitter + a joist_preserve_css control, no new mu-plugin.",
+      "caveats_block_full_bless": [
+        "scores 62/4/72/22 NARRATED not hash-bound (could not re-derive from a score JSON) \u2014 needs \u00a78d persistence before the promotion decision is trusted",
+        "spike rendered on the PAUSED shared host (Elementor 4.0.9 + plugin hook lives there; local docker lacks the channel) \u2014 3rd shared-host stray this turn; not independently re-executed by orchestrator",
+        "PRESERVE 62 ~10pt below authored reconstruct 72 \u2014 but LOOK defects were EXTRACTION bugs (button-width/nav/heading-border/opacity), cheap to close",
+        "FAILS on interactive clip/scroll carousels (div#components 22 vs flow 16) \u2014 needs a resting-frame clip-state model",
+        "mandatory settle-and-freeze before computed-style read"
+      ],
+      "verdict": "CONDITIONAL GO \u2014 true 1:1 + editable IS achievable as a per-axis split (flow base + preserve residual arm); preserve proven to break the ceiling on the hard layout class. The specific 62 is not yet hash-bound/orchestrator-reproduced (rendered on shared host) \u2014 the ARCHITECTURE finding is durable; the number needs \u00a78d re-derivation. This is the path to true 1:1.",
+      "nextBuild": "productionize PreserveCSSEmitter+control+capture+router; close 4 cheap extraction levers (re-judge hero toward/above 72); PERSIST hash-bound scores; carousel clip-state model; re-run on a CLEAN stack (local or unpaused host)."
     }
   ],
   "phase5backlog_wave3": [
