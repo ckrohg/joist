@@ -519,12 +519,12 @@ function gradeBandsContent({ bands, srcShot, outlineMap, rasterBlobSet, clone })
     // "…silky-smooth gradients…", "Tailwind uses CSS layers…") so the author loop knows what to add.
     const what = r.kind === 'image-band'
       ? (r.crop ? `image band ${path.basename(r.crop)} @y=${r.y}` : `image band @y=${r.y} h=${r.h}`)
-      : (missing.length ? missing.slice(0, 4).map((m) => m.slice(0, 50)).join(' | ') : r.label);
+      : (missing.length ? missing.slice(0, 8).map((m) => m.slice(0, 50)).join(' | ') : r.label);
     return {
       kind: 'band',
       what,
       where: { y: r.y, h: r.h, section: r.index, crop: r.crop },
-      missingUnits: r.kind === 'image-band' ? [] : missing.slice(0, 12),
+      missingUnits: r.kind === 'image-band' ? [] : missing,
       evidence: r.kind === 'image-band'
         ? `image/mockup band @y=${r.y} h=${r.h} — no clone region resembles it (best visual ${r.visual ? `hashSim=${r.visual.hashSim} corr=${r.visual.corr}@y${r.visual.y}` : 'n/a'}; threshold ${VIS_HASHSIM_MIN}/${VIS_CORR_MIN} or ${VIS_HASHSIM_ALT}/${VIS_CORR_ALT})`
         : `text band @y=${r.y} h=${r.h} — only ${r.textCover.hits}/${r.textCover.total} salient text units in clone (frac ${r.textCover.frac}<${TEXT_COVER_FRAC})` + (r.visual ? ` and no visual match (hashSim=${r.visual.hashSim} corr=${r.visual.corr})` : ''),
