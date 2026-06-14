@@ -10,8 +10,12 @@
 import fs from 'fs';
 import { PNG } from 'pngjs';
 import { createHash } from 'crypto';
+import { resolveBase } from '../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: never render/PUT to a non-training host
 const arg = (n, d = null) => { const i = process.argv.indexOf('--' + n); return i > -1 && process.argv[i + 1] && !process.argv[i + 1].startsWith('--') ? process.argv[i + 1] : d; };
-const base = process.env.JOIST_BASE || 'https://georges232.sg-host.com';
+// §0 SAFETY GUARD: default to the LOCAL sandbox (was the PAUSED shared host georges232.sg-host.com —
+// this default caused the strays). resolveBase() throws LOUDLY before any fetch/PUT if JOIST_BASE
+// points anywhere but localhost:8001 / JOIST_TRAINING_BASE / JOIST_ALLOWED_HOSTS.
+const base = resolveBase(process.env.JOIST_BASE || 'http://localhost:8001');
 const b64 = process.env.JOIST_AUTH_B64; const layoutPath = arg('layout'), pageId = arg('page');
 if (!b64 || !layoutPath || !pageId) { console.error('need --layout --page + JOIST_AUTH_B64'); process.exit(2); }
 const L = JSON.parse(fs.readFileSync(layoutPath, 'utf8')); const VW = L.vw || 1440; const pageH = L.pageH || 6000;

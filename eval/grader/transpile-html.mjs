@@ -69,6 +69,7 @@ import path from 'path';
 import crypto from 'crypto';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { chromium } from 'playwright';
+import { assertAllowedBase } from '../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: never render/PUT to a non-training host
 
 export const ROW_CHILD_BUFFER_PX = 12; // P4: e-con row-child px pin buffer (spike-proven)
 
@@ -1200,7 +1201,9 @@ if (isMain) {
   const dryRun = has('dry-run');
   // Default to the LOCAL Docker sandbox — the shared host is paused and must never be the
   // implicit target (eval-integrity "NO shared host" rail). Override with --base / JOIST_BASE.
-  const base = arg('base', process.env.JOIST_BASE || 'http://localhost:8001');
+  // §0 SAFETY GUARD: guard the resolved base BEFORE any serverValidate/PUT/network call —
+  // throws LOUDLY if --base / JOIST_BASE points anywhere but localhost:8001 / JOIST_TRAINING_BASE.
+  const base = assertAllowedBase(arg('base', process.env.JOIST_BASE || 'http://localhost:8001'));
   const b64 = process.env.JOIST_AUTH_B64;
   if (!dryRun && !b64) { console.error('need JOIST_AUTH_B64 (or --dry-run)'); process.exit(2); }
   const outDir = arg('out', '/tmp/htmlfirst-v1/' + path.basename(html).replace(/\.html?$/, ''));
