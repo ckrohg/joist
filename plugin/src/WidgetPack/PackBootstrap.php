@@ -29,6 +29,9 @@ final class PackBootstrap
         \Joist\WidgetPack\ViewTransitions\Emitter::init();
         \Joist\WidgetPack\DisplaySwap\Extension::init();
         \Joist\WidgetPack\Motion\Emitter::init();
+        // PRESERVE channel (per-element source-CSS stamping). Reversible: HIDDEN control +
+        // default-empty (no effect without a payload) + JOIST_PRESERVE_CSS_DISABLE kill-switch.
+        \Joist\WidgetPack\PreserveCSS\Emitter::init();
     }
 
     public static function registerCategory($elements_manager): void
