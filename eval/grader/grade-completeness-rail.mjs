@@ -99,9 +99,10 @@ const _require = createRequire(import.meta.url);
 // ─── Named thresholds (deterministic, tunable in one place) ──────────────────────────────────────
 const BAND_MIN_H = 120;        // px; ignore source bands shorter than this (spacers/rules, not sections).
 const BAND_MIN_W_FRAC = 0.50;  // a content band must span ≥ this fraction of page width to be a section.
-const BAND_NEST_OVERLAP = 0.92;// if band B's y-range is ≥ this contained in an already-kept band A AND A
-                               //   carries the same text/visual content, B is a redundant nested wrapper —
-                               //   we keep the FINEST real bands and drop pure duplicate wrappers (see dedupeBands).
+const BAND_NEST_OVERLAP = 0.92;// nesting threshold for selectContentBands: a CONTAINER whose children tile
+                               //   ≥ this fraction of its height is a pure wrapper (dropped in favor of its
+                               //   finer children); and a band ≥ this contained in a near-equal-height kept
+                               //   band is a duplicate wrapper/column-mirror (the finer one is kept).
 const TEXT_SALIENT_MIN = 4;    // ignore text tokens shorter than this when scoring a band's text presence.
 const TEXT_BAND_MIN_CHARS = 24;// a band with < this many non-raster salient chars is treated as an IMAGE band
                                //   (its coverage is decided by the visual fallback, not text).
