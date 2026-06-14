@@ -5204,6 +5204,18 @@
       ],
       "positives": "code-samples solved NATIVELY (the named hard construct, clean win); authoring CHEAPER on n=3; desktop clean; rhythm composed on a reflow-opposite (taller-at-narrow) site",
       "integrity": "baselines 83/185/etc untouched; rail reproduced; fresh page 232"
+    },
+    {
+      "name": "author-completeness-check-NOGO-as-gate",
+      "date": "2026-06-13",
+      "commit": "cd13a2e (grade-completeness-rail.mjs) \u2014 built, NOT shippable as a gate",
+      "kind": "falsifier CAUGHT a broken gate before ship (eval-integrity win)",
+      "falsifier": "INVERTED / non-discriminating (orchestrator-reproduced): abridged tailwind 0.638 > faithful clerk 0.600 > faithful linear 0.525. Faithful clones score LOWER than the abridged one \u2014 no threshold works. Wiring as a hard gate would trap faithful clones in infinite add-phantom-section loops.",
+      "rootCause": "the ASSET signal (weight 0.45) uses BASENAME-STEM matching, which is ANTI-CORRELATED with fidelity: faithful clones legitimately RE-HOST / RE-CUT / RENAME assets (clerk re-cuts source decorative-bgs+screenshots into comp-collage.png/region-rasters; linear uses Cloudflare-UUID/data-URI/inline-hash source URLs) so they have NO shared stem anchor and read as 'omitted' (clerk asset 0.167, linear asset 0.0 \u2014 structural false-positives). Plus stem-regex bugs + decorative-asset over-flagging. The BAND signal only catches WHOLESALE bottom-truncation (covOK true once heightRatio>=0.85) so it's blind to middle-abridgement (missed linear's real \u00a7customers omission).",
+      "whatWorks": "architecture (separate clone-vs-source rail beside the orthogonal top-down grade-completeness.mjs); selftest PASSES; the omissions-list shape is right (where:{y,section,crop}+what, author-loop-consumable); and on the ONE case it was built for it correctly named tailwind's REAL omitted bento cards (css-grid-1..4, 3d-transforms, responsive-3) \u2014 the n=3 gap, with ~2 false-positives.",
+      "deepFinding": "author-completeness is fundamentally a source<->clone REGION-CORRESPONDENCE problem, not a filename problem: filename-matching false-positives on faithful re-hosting, and the compressed-screenshot vision judge misses abridgement (a 4-card clone of a 10-card source still looks locally faithful). The robust fix = CONTENT-BASED per-band correspondence (does the clone visually reproduce content at each source band's y-region) and/or perceptual-hash asset matching \u2014 NOT basename stems.",
+      "verdict": "NO-GO as a pass/fail gate (do not ship as a hard stop). Salvageable as ADVISORY (surface asset+text omission HINTS, don't block) \u2014 it does correctly flag tailwind's abridgement. Promote to gate only after content-based asset anchoring + per-band content correspondence replace stem-matching.",
+      "integrity": "orchestrator reproduced the inversion across all 3 sites; baselines untouched; this is the falsifier discipline catching a non-working grader (like the grid-reflow dim earlier)."
     }
   ],
   "phase5backlog_wave3": [
