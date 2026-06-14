@@ -14,12 +14,15 @@
 //   ...or --set '{"title_color":"#A7F432"}' for an arbitrary settings merge. Add --dry to preview.
 
 import process from 'node:process';
+// §0 SAFETY GUARD: default flipped from the PAUSED shared host georges232.sg-host.com → local sandbox;
+// resolveBase() throws LOUDLY before any fetch/PUT if JOIST_BASE points to a non-training host.
+import { resolveBase } from '../../sandbox/host-guard.mjs';
 
 // existence check (not truthiness) so an empty value like --set-title "" is honored (blank a heading).
 const arg = (n, d = null) => { const i = process.argv.indexOf('--' + n); return i > -1 && i + 1 < process.argv.length && !process.argv[i + 1].startsWith('--') ? process.argv[i + 1] : d; };
 const flag = (n) => process.argv.includes('--' + n);
 
-const base = (process.env.JOIST_BASE || 'https://georges232.sg-host.com').replace(/\/$/, '');
+const base = resolveBase((process.env.JOIST_BASE || 'http://localhost:8001').replace(/\/$/, ''));
 const b64 = process.env.JOIST_AUTH_B64;
 const pageId = arg('page');
 const findType = (arg('find-type') || '').toLowerCase();

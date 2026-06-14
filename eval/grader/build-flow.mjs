@@ -54,7 +54,10 @@ import fs from 'fs';
 // ---------------------------------------------------------------------------
 const arg = (n, d = null) => { const i = process.argv.indexOf('--' + n); return i > -1 && process.argv[i + 1] && !process.argv[i + 1].startsWith('--') ? process.argv[i + 1] : d; };
 const DRY = process.argv.includes('--dry');
-const base = process.env.JOIST_BASE || 'https://georges232.sg-host.com';
+// §0 SAFETY GUARD: default flipped from the PAUSED shared host georges232.sg-host.com → local sandbox;
+// resolveBase() throws LOUDLY before any fetch/PUT if JOIST_BASE points to a non-training host.
+import { resolveBase } from '../../sandbox/host-guard.mjs';
+const base = resolveBase(process.env.JOIST_BASE || 'http://localhost:8001');
 const b64 = process.env.JOIST_AUTH_B64;
 const layoutPath = arg('layout'), pageId = arg('page');
 // --dry only needs --layout; a real write needs --layout + --page + auth.

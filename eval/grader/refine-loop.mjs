@@ -11,7 +11,10 @@ import { spawn } from 'child_process';
 import fs from 'fs';
 const arg = (n, d) => { const i = process.argv.indexOf('--' + n); return i > -1 && process.argv[i + 1] ? process.argv[i + 1] : d; };
 const source = arg('source'), page = arg('page'), MAX = parseInt(arg('max', '4'), 10);
-const base = process.env.JOIST_BASE || 'https://georges232.sg-host.com';
+// §0 SAFETY GUARD: default flipped from the PAUSED shared host georges232.sg-host.com → local sandbox;
+// resolveBase() throws LOUDLY before any fetch/PUT if JOIST_BASE points to a non-training host.
+import { resolveBase } from '../../sandbox/host-guard.mjs';
+const base = resolveBase(process.env.JOIST_BASE || 'http://localhost:8001');
 if (!source || !page) { console.error('need --source --page'); process.exit(2); }
 const slug = source.replace(/^https?:\/\//, '').replace(/[^a-z0-9]/gi, '').slice(0, 16).toLowerCase();
 const layout = `/tmp/refine-layout-${slug}.json`;

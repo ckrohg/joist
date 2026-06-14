@@ -8,7 +8,10 @@
  */
 import fs from 'fs';
 const arg = (n, d = null) => { const i = process.argv.indexOf('--' + n); return i > -1 && process.argv[i + 1] ? process.argv[i + 1] : d; };
-const base = process.env.JOIST_BASE || 'https://georges232.sg-host.com';
+// §0 SAFETY GUARD: default flipped from the PAUSED shared host georges232.sg-host.com → local sandbox;
+// resolveBase() throws LOUDLY before any fetch/PUT if JOIST_BASE points to a non-training host.
+import { resolveBase } from '../../sandbox/host-guard.mjs';
+const base = resolveBase(process.env.JOIST_BASE || 'http://localhost:8001');
 const b64 = process.env.JOIST_AUTH_B64;
 const name = arg('name'), file = arg('file'), weight = arg('weight', '400'), style = arg('style', 'normal');
 if (!b64 || !name || !file) { console.error('need --name --file + JOIST_AUTH_B64'); process.exit(2); }

@@ -10,12 +10,16 @@
  */
 import { spawn } from 'child_process';
 import fs from 'fs';
+import { resolveBase } from '../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: never grade/render against a non-training host
 const has = (n) => process.argv.includes('--' + n);
 const arg = (n, d) => { const i = process.argv.indexOf('--' + n); return i > -1 && process.argv[i + 1] ? process.argv[i + 1] : d; };
 const doBuild = has('build') || !has('grade');
 const CONC = parseInt(arg('conc', '2'), 10);
 const OUT = '/tmp/route'; fs.mkdirSync(OUT, { recursive: true });
-const baseURL = 'https://georges232.sg-host.com';
+// §0 SAFETY GUARD: was hardcoded to the PAUSED shared host georges232.sg-host.com (grade-structure
+// navigates this → server-side render + CSS regen = the overload path). Default to the local sandbox;
+// override via JOIST_BASE only to localhost:8001 / JOIST_TRAINING_BASE — resolveBase throws otherwise.
+const baseURL = resolveBase(process.env.JOIST_BASE || 'http://localhost:8001');
 
 const CORPUS = [
   { name: 'tailwind', url: 'https://tailwindcss.com', nativePage: 2852, hybridPage: 2551 },
