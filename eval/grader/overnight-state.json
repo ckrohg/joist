@@ -5249,6 +5249,17 @@
         "live end-to-end clone.mjs --cap not exercised against the real WP/Joist site (gate logic validated in isolation + selftest)"
       ],
       "integrity": "completeness 0.882/pass reproduced; full-bento LOOK-confirmed; baselines 83/185/232 untouched; selftest PASS; default clone.mjs flow unchanged."
+    },
+    {
+      "name": "narrow-width-overflow-FIXED",
+      "date": "2026-06-13",
+      "commit": "ebaa1ff merged to main (transpile-html.mjs textEditor)",
+      "kind": "responsive: horizontal-overflow fix (the user 'width isn't dynamic' gap, only non-clean rail width) \u2014 orchestrator-verified",
+      "diagnosis": "The ENTIRE narrow-width overflow was ONE element class: textEditor() baked white-space:nowrap;min-width:<desktop-rect-w>px (1152px for tailwind's 'index.html app.css package.json' code/file-tab strip) as a RAW INLINE style \u2014 not an Elementor responsive control \u2014 so _mobile/_tablet couldn't shrink it -> +432px@768, +798px@390. Archetype-specific: ONLY tailwind's inline-block code/tab strip; linear+clerk were +0px clean at 768/390 (the wide-bento hypothesis did NOT materialize).",
+      "fix": "transpile-html.mjs textEditor() (~L529/540): (1) inner-div min-width pin -> white-space:nowrap;max-width:100%;overflow-x:auto (self-contains: caps to column, scrolls internally at narrow, desktop unchanged since strip<column); (2) emit _element_custom_width_mobile/_tablet:{%,100} alongside the desktop px pin (mirrors the proven mobileFullWidth pattern). Reversible RESPONSIVE_NO_INLINE_NOWRAP_PIN=1. Desktop px pin preserved.",
+      "verified": "Orchestrator-reproduced on abridged-base 232 (no-fix, rail 0.733) vs 244 (same base +fix, rail 0.933): gutter 432->0 @768, 798->0 @390 (overflow ELIMINATED, all widths gutter=0). @390 wscore 0.4->1.0; @768 0->0.6 (remaining 0.6 = hRatio 1.323 TALL = the inherent 1-col stacking tax, NOT overflow). Provable NO-OP on linear (fix-ON vs fix-OFF byte-identical tree md5 62543e9). selftests green (transpile 42/0, rhythm 20/0, gridreflow PASS).",
+      "caveat": "validator's 'desktop1440 changed' was an ARTIFACT (page 244=abridged base vs 242=complete base, different HTMLs) NOT the overflow fix \u2014 the fix preserves the desktop px pin. Remaining narrow-width gap is purely the vertical stacking-tax (hRatio tall), the documented abs/1-col ceiling, orthogonal to overflow.",
+      "integrity": "merged to main; baselines untouched; reversible; general fix (covers any inline-block pill/tab/code strip)."
     }
   ],
   "phase5backlog_wave3": [
