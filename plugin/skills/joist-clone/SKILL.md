@@ -269,9 +269,37 @@ Open both screenshots with Read tool. Compare with your own vision. Return a str
 
 **Be honest with the score.** Inflation defeats the loop. If the page is 60% as good, say 60.
 
+**Phase 5b — FINISH-THE-PAGE completeness gate (deterministic, catches ABRIDGEMENT).** Your vision grade
+scores the fidelity of *what is present*. It is blind to what you *silently dropped* — whole source
+content bands (cards in a dense bento, a logo wall, a feature strip) that the original plainly shows but
+your clone omitted. Dense pages (tailwind's "Built for the modern web" bento) are where this hides: a
+clone can LOOK 1:1 on the bands it kept and still be 60% complete. Run the deterministic rail to expose it
+(no model, same inputs → same output):
+
+```bash
+# freeze a clone shot first so the visual fallback is deterministic
+node eval/grader/_render-shot.mjs <clone_url> /tmp/clone-complete.png 1440
+node eval/grader/grade-completeness-rail.mjs --cap <source_cap_dir> --url <clone_url> \
+     --clone-shot /tmp/clone-complete.png --json
+```
+
+It returns `{ completenessScore, pass, bands:{covered,total,omitFrac}, omissions:[…] }`. Each `omission`
+NAMES the dropped band's salient text or image crop (`what`) and where it belongs (`where:{y,h,section}`).
+`pass` is true only when completenessScore ≥ 0.85 AND no critical-mass abridgement (>30% bands omitted).
+
 ### Phase 6 — Revise + iterate
 
-If `overall_score >= target_score`, OR if all remaining gaps are in `uncloneable_in_v3`, OR if `iteration_count >= max_iterations`, STOP. Otherwise:
+THE FINISH-THE-PAGE LOOP CONTRACT (binding — a "high vision-score, low completeness" clone is an
+ABRIDGED clone; fidelity-at-density is a lie until the gate passes):
+
+> After render+grade, run the completeness rail with `--clone-shot`. **If `pass === false`, you MUST add
+> every `result.omissions` band to the page (author its missing text/cards/image as new plan steps),
+> re-render, and re-gate — BEFORE STOP.** Do not STOP with `pass === false` unless each remaining omission
+> is provably uncloneable at the chosen tier (record those in `uncloneable_at_chosen_tier`, not as silent
+> drops). The rail's `omissions[].what` tells you exactly what to add, so this is a directed fix, not a guess.
+
+If `overall_score >= target_score` **AND the completeness gate passes** (or all remaining omissions are
+provably uncloneable), OR if `iteration_count >= max_iterations`, STOP. Otherwise:
 
 1. Take the top 3-5 `ranked_gaps` by severity
 2. Apply `suggested_fix` for each as a plan patch. (NOTE: the "executor is insert-only" claim is **stale** — verified 2026-05-31. `PatchEngine` supports surgical `update_settings`/`delete`/`move`/`replace_element` targeting a node by `element_id`, with whole-plan snapshot+rollback. For clone *revision* you may still prefer a fresh page per iteration to keep score trajectory clean, but in-place edit is fully supported. See `plugin/skills/lessons/LESSONS_EDIT.md`.)

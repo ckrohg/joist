@@ -14,18 +14,49 @@
  *              hybrid: forwarded to build-hybrid's own /tmp/hybrid-cache). Deterministic rebuilds.
  *   --refresh  with --cache: force a fresh capture and re-freeze it. No-op without --cache.
  *   (raster mode has no capture cache — flags are ignored there.)
+ *   --cap <dir>  full SOURCE capture dir (manifest.json + shots/ + outline.txt + source.html +
+ *              crops-manifest.json) for the FINISH-THE-PAGE completeness gate (see below). If omitted,
+ *              the gate is skipped (it needs the rich cap dir, not just the box-tree layout.json).
+ *
+ * ════════════════════════════ FINISH-THE-PAGE completeness gate (opt-in) ════════════════════════════
+ *   After render+grade, optionally run grade-completeness-rail.mjs — a DETERMINISTIC, cap-anchored,
+ *   no-model check that catches quiet ABRIDGEMENT (the author silently dropping whole source content
+ *   bands — e.g. tailwind's dense bento rebuilt as a thin subset). grade-structure measures visual+
+ *   editability fidelity of what IS there; it is BLIND to what's MISSING. The rail closes that hole:
+ *   it reports completenessScore + a list of `omissions` (the dropped bands, each with the salient text /
+ *   crop to add). Gated ON by env JOIST_COMPLETENESS=1 (default OFF → byte-identical to before). Requires
+ *   --cap <dir>. Renders a frozen clone shot (via _render-shot.mjs) so the visual fallback is deterministic.
+ *
+ *   THE STANDING LOOP CONTRACT (what every clone must satisfy before STOP):
+ *     1. render the clone  → 2. grade-structure (fidelity)  → 3. completeness rail with --clone-shot.
+ *     4. if rail.pass === false: the author loop MUST add `rail.omissions` (each names the missing band's
+ *        text / image crop) to the page, re-render, and re-gate. Do NOT STOP with pass===false unless the
+ *        omissions are provably uncloneable at the chosen tier. A "high composite, low completeness" clone
+ *        is an ABRIDGED clone — fidelity-at-density is a lie until the gate passes.
+ *   This script performs steps 1-3 and REPORTS pass + omissions; step 4 (adding content) is the agentic
+ *   author loop's job (it is not fully scriptable). See the joist-clone SKILL.md Phase 6 for the encoded
+ *   author-side contract. Set JOIST_COMPLETENESS_GATE=1 (in addition) to EXIT NON-ZERO when pass===false,
+ *   so a CI/corpus harness fails loudly on an abridged clone; otherwise the result is report-only.
+ *
  * Env: JOIST_AUTH_B64 (source /tmp/joist-auth.env), JOIST_BASE.
+ *   JOIST_COMPLETENESS=1       run the completeness rail in the grade step (needs --cap). Default OFF.
+ *   JOIST_COMPLETENESS_GATE=1  additionally make a failing gate exit non-zero (hard gate for CI/corpus).
  */
 import { spawn } from 'child_process';
 import fs from 'fs';
 const arg = (n, d = null) => { const i = process.argv.indexOf('--' + n); return i > -1 && process.argv[i + 1] ? process.argv[i + 1] : d; };
 const has = (n) => process.argv.includes('--' + n);
 const source = arg('source'), page = arg('page'), mode = arg('mode', 'absolute');
+const capDir = arg('cap');                                       // full source capture dir for the completeness gate
+const COMPLETENESS = process.env.JOIST_COMPLETENESS === '1';     // opt-in: run the finish-the-page rail
+const COMPLETENESS_HARD = process.env.JOIST_COMPLETENESS_GATE === '1'; // additionally: fail (exit≠0) when not pass
 const base = process.env.JOIST_BASE || 'https://georges232.sg-host.com';
 if (!source || !page) { console.error('usage: node clone.mjs --source <url> --page <id> [--mode absolute|hybrid|raster] [--no-grade]'); process.exit(2); }
 const slug = source.replace(/^https?:\/\//, '').replace(/[^a-z0-9]/gi, '').slice(0, 16).toLowerCase();
 const layout = `/tmp/clone-layout-${slug}.json`;
 const run = (cmd, args) => new Promise((res, rej) => { const p = spawn(cmd, args, { stdio: 'inherit', env: process.env }); p.on('close', (c) => (c === 0 ? res() : rej(new Error(`${args.join(' ')} → exit ${c}`)))); });
+// like run() but CAPTURES stdout (for the rail's --json line). Inherits stderr so progress is still visible.
+const runCap = (cmd, args) => new Promise((res) => { let out = ''; const p = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'inherit'], env: process.env }); p.stdout.on('data', (d) => (out += d)); p.on('close', (c) => res({ code: c, out })); });
 
 // CAPTURE CACHE (--cache): freeze the ensemble layout per source so corpus rebuilds measure BUILDER
 // changes without capture noise (mirrors build-hybrid's --cache). --refresh forces a recapture.
@@ -51,11 +82,44 @@ const cachedLayout = cacheDir ? `${cacheDir}/layout.json` : null;
     console.log('• build-sectionraster…'); await run('node', ['build-sectionraster.mjs', '--source', source, '--page', page]);
   } else { console.error('unknown mode', mode); process.exit(2); }
 
+  const cloneUrl = `${base}/?page_id=${page}`;
   if (!has('no-grade')) {
     console.log('• grade-structure…');
     const out = `/tmp/clone-grade-${slug}`;
-    await run('node', ['grade-structure.mjs', '--source', source, '--clone', `${base}/?page_id=${page}`, '--out', out]);
+    await run('node', ['grade-structure.mjs', '--source', source, '--clone', cloneUrl, '--out', out]);
     try { const r = JSON.parse(fs.readFileSync(`${out}/report.json`, 'utf8')); console.log(`\n=== RESULT ===\ncomposite ${r.composite} | visual ${r.visual} | editability ${r.editability} | hRatio ${r.breakdown.hRatio}`); } catch {}
+
+    // ── FINISH-THE-PAGE completeness gate (opt-in, deterministic, report+contract) ──────────────────
+    // grade-structure scores the fidelity of what IS present; it is blind to ABRIDGEMENT (dropped source
+    // bands). The rail closes that hole. Runs only when JOIST_COMPLETENESS=1 AND a rich --cap dir exists.
+    if (COMPLETENESS) {
+      if (!capDir || !fs.existsSync(capDir)) {
+        console.log(`\n[completeness] SKIPPED — JOIST_COMPLETENESS=1 but no usable --cap <dir> (got ${capDir || 'none'}). The rail needs the full source capture (manifest/shots/outline/source.html), not just layout.json.`);
+      } else {
+        console.log('\n• grade-completeness-rail (FINISH-THE-PAGE gate)…');
+        // frozen clone shot → deterministic visual fallback (per the rail's own --clone-shot guidance).
+        const shot = `/tmp/clone-complete-${slug}.png`;
+        try { await run('node', ['_render-shot.mjs', cloneUrl, shot, '1440']); } catch (e) { console.log(`[completeness] clone-shot render failed (${e.message}); rail will render its own (noisier) shot`); }
+        const railArgs = ['grade-completeness-rail.mjs', '--cap', capDir, '--url', cloneUrl, '--json'];
+        if (fs.existsSync(shot)) railArgs.push('--clone-shot', shot);
+        const { out: railOut } = await runCap('node', railArgs);
+        let rail = null;
+        try { rail = JSON.parse(railOut.trim().split('\n').filter(Boolean).pop()); } catch (e) { console.log(`[completeness] could not parse rail JSON: ${e.message}`); }
+        if (rail) {
+          fs.writeFileSync(`${out}/completeness-rail.json`, JSON.stringify(rail, null, 2));
+          console.log(`\n=== COMPLETENESS ===\ncompletenessScore ${rail.completenessScore} | pass=${rail.pass} | bands ${rail.bands.covered}/${rail.bands.total} (omitFrac ${rail.bands.omitFrac})${rail.critMass ? ` | CRIT-MASS ${rail.critMass}` : ''}`);
+          if (!rail.pass) {
+            // THE LOOP CONTRACT — surface the omissions the author loop MUST add before STOP.
+            console.log(`\n[FINISH-THE-PAGE] pass===false — the clone is ABRIDGED. The author loop MUST add result.omissions below, re-render, and re-gate before STOP (unless each is provably uncloneable at the chosen tier):`);
+            for (const o of (rail.omissions || []).slice(0, 40)) console.log(`  • [s${o.where.section} y=${o.where.y}] ${o.what}`);
+          } else {
+            console.log('[FINISH-THE-PAGE] pass===true — no quiet abridgement; the page is complete.');
+          }
+          // Hard gate (CI/corpus): exit non-zero so an abridged clone fails loudly. report-only otherwise.
+          if (COMPLETENESS_HARD && !rail.pass) { console.log(`PAGE: ${cloneUrl}\n`); process.exit(3); }
+        }
+      }
+    }
   }
-  console.log(`PAGE: ${base}/?page_id=${page}\n`);
+  console.log(`PAGE: ${cloneUrl}\n`);
 })().catch((e) => { console.error('CLONE FAILED:', e.message); process.exit(1); });
