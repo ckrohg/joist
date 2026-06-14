@@ -165,8 +165,24 @@ function joistPreserveExtract(SEL, PROPS, DEFAULT) {
     const rect = { x: Math.round(r.x - OX), y: Math.round(r.y - OY), w: Math.round(r.width), h: Math.round(r.height) };
     const text = leafText(el);
     const hash = chash(tag + '|' + text + '|' + rect.x + ',' + rect.y + ',' + rect.w + ',' + rect.h);
+    // CONTENT fields a builder needs to emit a REAL widget (image src / anchor href / alt). The {d,x,m}
+    // payload is PAINT-only; without these the byHash-keyed overlay would render blank <img>/empty links.
+    // resolve <img src> through currentSrc (the actually-painted responsive candidate) then absolutize.
+    let src = '', href = '', alt = '';
+    if (tag === 'img') {
+      src = el.currentSrc || el.getAttribute('src') || '';
+      try { if (src) src = new URL(src, location.href).href; } catch {}
+      alt = el.getAttribute('alt') || '';
+    } else {
+      // a background-image on a non-img leaf (common for hero art) — expose its first url() so the
+      // builder can choose to emit it as an image rather than a paint-box.
+      const bg = cs.backgroundImage || '';
+      const mUrl = /url\\((['"]?)([^'")]+)\\1\\)/.exec(bg);
+      if (mUrl) { try { src = new URL(mUrl[2], location.href).href; } catch { src = mUrl[2]; } }
+    }
+    if (tag === 'a') { href = el.getAttribute('href') || ''; try { if (href) href = new URL(href, location.href).href; } catch {} }
     out.push({
-      hash, tag, text, rect,
+      hash, tag, text, rect, src, href, alt,
       d: declBlock(el, isSectionRoot),
       m: mediaOf(el, isSectionRoot),
       effOpacity: effOpacity(el),
@@ -180,15 +196,33 @@ function joistPreserveExtract(SEL, PROPS, DEFAULT) {
 `;
 
 // ── Node-side helpers ────────────────────────────────────────────────────────────────────────
-/** Build the {d,x,m} payload string the PHP emitter consumes from one captured node. */
-export function presPayload(node, { x = '' } = {}) {
-  return JSON.stringify({ d: node.d || '', x, m: node.m || {} });
+/**
+ * Build the {d,x,m} payload OBJECT the PHP emitter consumes from one captured node.
+ * @param node  a captured node ({ d, m, ... })
+ * @param opts  { d } override the desktop decl block (e.g. the builder's proven absolute pin);
+ *              { x } an extra full-rule descendant block (inner heading/button color/font);
+ *              { m } override the per-breakpoint media map (defaults to the node's captured m).
+ * Returns a plain object (NOT stringified) so callers can stringify at attach time — the builder
+ * needs the object to layer its pin; the legacy CLI/spike path stringifies via presPayloadStr.
+ */
+export function presPayloadObj(node, { d = null, x = '', m = null } = {}) {
+  return { d: d != null ? d : (node.d || ''), x: x || '', m: m != null ? m : (node.m || {}) };
+}
+/** Stringified form (what gets stored in the joist_preserve_css element setting). */
+export function presPayload(node, opts = {}) {
+  return JSON.stringify(presPayloadObj(node, opts));
 }
 
-/** Map content-hash -> payload string for every captured node. */
+/**
+ * Map content-hash -> canonical payload OBJECT for every captured node. This is THE attach table:
+ * a builder that emits the same content at the same measured rect computes the identical content-hash
+ * (preserve-capture's chash = tag|text|section-relative-rect) and looks up byHash[hash] to attach the
+ * matching preserve payload to the element id it just emitted — deterministic, content-addressed.
+ * Returns OBJECTS (callers stringify at attach time so they can layer a pin over `d`).
+ */
 export function keyByHash(captured) {
   const byHash = {};
-  for (const n of captured.nodes || []) byHash[n.hash] = presPayload(n);
+  for (const n of captured.nodes || []) byHash[n.hash] = presPayloadObj(n);
   return byHash;
 }
 
