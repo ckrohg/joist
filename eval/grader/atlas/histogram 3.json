@@ -1,0 +1,5358 @@
+{
+ "generated": "2026-06-12T22:22:01.124Z",
+ "unit": "EMBODIMENT_APPROACH.md §4.1 (pre-registered commit 440bb78)",
+ "sources": {
+  "counted": [
+   {
+    "source": "/tmp/abs-cache/linearapp/layout.json",
+    "site": "linearapp",
+    "vw": 1440,
+    "pageH": 10781
+   },
+   {
+    "source": "/tmp/abs-cache/overreactedioaco/layout.json",
+    "site": "overreactedioaco",
+    "vw": 1440,
+    "pageH": 53761
+   },
+   {
+    "source": "/tmp/abs-cache/reactdev/layout.json",
+    "site": "reactdev",
+    "vw": 1440,
+    "pageH": 9097
+   },
+   {
+    "source": "/tmp/abs-cache/resendcom/layout.json",
+    "site": "resendcom",
+    "vw": 1440,
+    "pageH": 12321
+   },
+   {
+    "source": "/tmp/abs-cache/supabasecom/layout.json",
+    "site": "supabasecom",
+    "vw": 1440,
+    "pageH": 7694
+   },
+   {
+    "source": "/tmp/abs-cache/tailwindcsscom/layout.json",
+    "site": "tailwindcsscom",
+    "vw": 1440,
+    "pageH": 11649
+   },
+   {
+    "source": "/tmp/abs-cache/vercelcom/layout.json",
+    "site": "vercelcom",
+    "vw": 1440,
+    "pageH": 5922
+   },
+   {
+    "source": "/tmp/local-fidelity/cap",
+    "site": "clerkcom",
+    "widths": [
+     1440,
+     1250,
+     768,
+     390
+    ],
+    "bands": 134,
+    "note": "band-only keys (no typed tree)"
+   }
+  ],
+  "evidenceOnly": [
+   "/tmp/vj-3146-1100",
+   "/tmp/vj-align-smoke",
+   "/tmp/vj-blog",
+   "/tmp/vj-cal-blog",
+   "/tmp/vj-cal-resend",
+   "/tmp/vj-cal-supabase",
+   "/tmp/vj-cal-tailwind",
+   "/tmp/vj-critic",
+   "/tmp/vj-critic2-iso-18409",
+   "/tmp/vj-e2e-smoke-1781137301",
+   "/tmp/vj-heldout-clerk",
+   "/tmp/vj-htmlfirst",
+   "/tmp/vj-resend",
+   "/tmp/vj-selftest-smoke-1781137228",
+   "/tmp/vj-smoke",
+   "/tmp/vj-supabase",
+   "/tmp/vj-tailwind",
+   "/tmp/vj-tailwind-3146",
+   "/tmp/vj-veto-sim",
+   "/tmp/qa-stepback"
+  ]
+ },
+ "coverage": {
+  "headN": 50,
+  "headOccurrences": 2223,
+  "totalOccurrences": 2412,
+  "headShare": 0.9216,
+  "gate": "headShare >= 0.95",
+  "pass": false
+ },
+ "distinctConstructs": 177,
+ "aliasRollup": {
+  "code-panel": 31,
+  "hero-stack": 12,
+  "inline-styled-text": 10,
+  "footer-columns": 4,
+  "bg-image-section": 4,
+  "card-grid": 3,
+  "nav-row": 3,
+  "form": 1
+ },
+ "leafClassTotals": {
+  "body-text": 921,
+  "button-cta": 231,
+  "heading": 115,
+  "image": 99,
+  "icon-svg": 72,
+  "stat-number": 49,
+  "code-mockup": 39,
+  "nav-links": 34,
+  "logo": 29,
+  "badge-pill": 13,
+  "inline-styled-rich-text": 10,
+  "video-embed": 5,
+  "form-control": 1
+ },
+ "constructs": [
+  {
+   "key": "leaf|body-text",
+   "alias": null,
+   "count": 921,
+   "sites": [
+    "linearapp",
+    "overreactedioaco",
+    "reactdev",
+    "resendcom",
+    "supabasecom",
+    "tailwindcsscom",
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "span",
+     "box": {
+      "x": 78,
+      "y": 272,
+      "w": 703,
+      "h": 64
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "span",
+     "box": {
+      "x": 78,
+      "y": 336,
+      "w": 784,
+      "h": 64
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "span",
+     "box": {
+      "x": 861,
+      "y": 335,
+      "w": 1,
+      "h": 1
+     }
+    }
+   ]
+  },
+  {
+   "key": "leaf|button-cta",
+   "alias": null,
+   "count": 231,
+   "sites": [
+    "linearapp",
+    "overreactedioaco",
+    "reactdev",
+    "resendcom",
+    "supabasecom",
+    "tailwindcsscom",
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "button",
+     "box": {
+      "x": 741,
+      "y": 20,
+      "w": 72,
+      "h": 32
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "button",
+     "box": {
+      "x": 813,
+      "y": 20,
+      "w": 89,
+      "h": 32
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "button",
+     "box": {
+      "x": 76,
+      "y": 544,
+      "w": 97,
+      "h": 28
+     }
+    }
+   ]
+  },
+  {
+   "key": "leaf|heading",
+   "alias": null,
+   "count": 115,
+   "sites": [
+    "linearapp",
+    "overreactedioaco",
+    "reactdev",
+    "resendcom",
+    "supabasecom",
+    "tailwindcsscom",
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "h3",
+     "box": {
+      "x": 369,
+      "y": 629,
+      "w": 614,
+      "h": 27
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "h4",
+     "box": {
+      "x": 369,
+      "y": 739,
+      "w": 614,
+      "h": 24
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "h2",
+     "box": {
+      "x": 46,
+      "y": 1532,
+      "w": 1250,
+      "h": 144
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|band-only|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 105,
+   "sites": [
+    "clerkcom"
+   ],
+   "examples": [
+    {
+     "site": "clerkcom",
+     "tag": "band",
+     "box": {
+      "x": 0,
+      "y": 90,
+      "w": 390,
+      "h": 13268
+     },
+     "width": "390"
+    },
+    {
+     "site": "clerkcom",
+     "tag": "band",
+     "box": {
+      "x": 0,
+      "y": 170,
+      "w": 390,
+      "h": 360
+     },
+     "width": "390"
+    },
+    {
+     "site": "clerkcom",
+     "tag": "band",
+     "box": {
+      "x": 0,
+      "y": 722,
+      "w": 390,
+      "h": 155
+     },
+     "width": "390"
+    }
+   ]
+  },
+  {
+   "key": "leaf|image",
+   "alias": null,
+   "count": 99,
+   "sites": [
+    "linearapp",
+    "overreactedioaco",
+    "reactdev",
+    "resendcom",
+    "supabasecom",
+    "tailwindcsscom",
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "img",
+     "box": {
+      "x": 12,
+      "y": 528,
+      "w": 1416,
+      "h": 768
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "img",
+     "box": {
+      "x": 0,
+      "y": 528,
+      "w": 1440,
+      "h": 768
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "img",
+     "box": {
+      "x": 370,
+      "y": 790,
+      "w": 14,
+      "h": 14
+     }
+    }
+   ]
+  },
+  {
+   "key": "leaf|icon-svg",
+   "alias": null,
+   "count": 72,
+   "sites": [
+    "linearapp",
+    "reactdev",
+    "resendcom",
+    "supabasecom",
+    "tailwindcsscom",
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "svg",
+     "box": {
+      "x": 79,
+      "y": 25,
+      "w": 88,
+      "h": 22
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "svg",
+     "box": {
+      "x": 80,
+      "y": 1413,
+      "w": 90,
+      "h": 19
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "svg",
+     "box": {
+      "x": 247,
+      "y": 1410,
+      "w": 101,
+      "h": 24
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 60,
+   "sites": [
+    "linearapp",
+    "overreactedioaco",
+    "resendcom",
+    "supabasecom",
+    "tailwindcsscom",
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "h1",
+     "box": {
+      "x": 78,
+      "y": 272,
+      "w": 1282,
+      "h": 128
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 80,
+      "y": 432,
+      "w": 505,
+      "h": 26
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 539,
+      "y": 2232,
+      "w": 362,
+      "h": 48
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|containers-only|bg:none,bs:no,rad:square,dyn:static",
+   "alias": "hero-stack",
+   "count": 60,
+   "sites": [
+    "linearapp",
+    "reactdev",
+    "resendcom",
+    "supabasecom",
+    "tailwindcsscom",
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "nav",
+     "box": {
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 72
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 2,
+      "y": 0,
+      "w": 1436,
+      "h": 72
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 80,
+      "y": 432,
+      "w": 1280,
+      "h": 26
+     }
+    }
+   ]
+  },
+  {
+   "key": "leaf|stat-number",
+   "alias": null,
+   "count": 49,
+   "sites": [
+    "linearapp",
+    "supabasecom",
+    "tailwindcsscom",
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "span",
+     "box": {
+      "x": 947,
+      "y": 550,
+      "w": 20,
+      "h": 17
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "span",
+     "box": {
+      "x": 752,
+      "y": 2725,
+      "w": 23,
+      "h": 19
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "span",
+     "box": {
+      "x": 987,
+      "y": 2987,
+      "w": 59,
+      "h": 20
+     }
+    }
+   ]
+  },
+  {
+   "key": "leaf|code-mockup",
+   "alias": null,
+   "count": 39,
+   "sites": [
+    "linearapp",
+    "overreactedioaco",
+    "resendcom",
+    "supabasecom",
+    "tailwindcsscom",
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "box": {
+      "x": 567,
+      "y": 1866,
+      "w": 304,
+      "h": 281
+     }
+    },
+    {
+     "site": "linearapp",
+     "box": {
+      "x": 57,
+      "y": 4148,
+      "w": 398,
+      "h": 461
+     }
+    },
+    {
+     "site": "linearapp",
+     "box": {
+      "x": 256,
+      "y": 4147,
+      "w": 200,
+      "h": 200
+     }
+    }
+   ]
+  },
+  {
+   "key": "leaf|nav-links",
+   "alias": null,
+   "count": 34,
+   "sites": [
+    "linearapp",
+    "overreactedioaco",
+    "resendcom",
+    "supabasecom",
+    "tailwindcsscom",
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "ul",
+     "box": {
+      "x": 304,
+      "y": 10418,
+      "w": 160,
+      "h": 208
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "ul",
+     "box": {
+      "x": 528,
+      "y": 10418,
+      "w": 160,
+      "h": 208
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "ul",
+     "box": {
+      "x": 752,
+      "y": 10418,
+      "w": 160,
+      "h": 208
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|button-cta:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 29,
+   "sites": [
+    "overreactedioaco",
+    "supabasecom",
+    "tailwindcsscom",
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "overreactedioaco",
+     "tag": "h2",
+     "box": {
+      "x": 404,
+      "y": 1993,
+      "w": 632,
+      "h": 36
+     }
+    },
+    {
+     "site": "overreactedioaco",
+     "tag": "h2",
+     "box": {
+      "x": 404,
+      "y": 3911,
+      "w": 632,
+      "h": 36
+     }
+    },
+    {
+     "site": "overreactedioaco",
+     "tag": "h2",
+     "box": {
+      "x": 404,
+      "y": 5933,
+      "w": 632,
+      "h": 36
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|containers-only|bg:none,bs:no,rad:square,dyn:static",
+   "alias": "hero-stack",
+   "count": 29,
+   "sites": [
+    "linearapp",
+    "overreactedioaco",
+    "reactdev",
+    "resendcom",
+    "supabasecom",
+    "tailwindcsscom",
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 48,
+      "y": 271,
+      "w": 1344,
+      "h": 1025
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 48,
+      "y": 272,
+      "w": 1344,
+      "h": 186
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "section",
+     "box": {
+      "x": 48,
+      "y": 2482,
+      "w": 1344,
+      "h": 1207
+     }
+    }
+   ]
+  },
+  {
+   "key": "leaf|logo",
+   "alias": null,
+   "count": 29,
+   "sites": [
+    "linearapp",
+    "resendcom",
+    "supabasecom",
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "svg",
+     "box": {
+      "x": 955,
+      "y": 4213,
+      "w": 128,
+      "h": 24
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "svg",
+     "box": {
+      "x": 1026,
+      "y": 4320,
+      "w": 231,
+      "h": 24
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "svg",
+     "box": {
+      "x": 732,
+      "y": 4439,
+      "w": 153,
+      "h": 109
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|containers-only|bg:none,bs:no,rad:square,dyn:static",
+   "alias": "hero-stack",
+   "count": 27,
+   "sites": [
+    "linearapp",
+    "overreactedioaco",
+    "reactdev",
+    "resendcom",
+    "supabasecom",
+    "tailwindcsscom",
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 10781
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "a",
+     "box": {
+      "x": 48,
+      "y": 1408,
+      "w": 1344,
+      "h": 28
+     }
+    },
+    {
+     "site": "overreactedioaco",
+     "tag": "div",
+     "box": {
+      "x": 404,
+      "y": 300,
+      "w": 632,
+      "h": 53301
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|heading:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": "hero-stack",
+   "count": 25,
+   "sites": [
+    "linearapp",
+    "supabasecom",
+    "tailwindcsscom",
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 2,
+      "y": 72,
+      "w": 1436,
+      "h": 10245
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 46,
+      "y": 2578,
+      "w": 674,
+      "h": 169
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 46,
+      "y": 3795,
+      "w": 674,
+      "h": 169
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|body-text:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 19,
+   "sites": [
+    "linearapp",
+    "reactdev",
+    "resendcom",
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 80,
+      "y": 1812,
+      "w": 427,
+      "h": 468
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 507,
+      "y": 1812,
+      "w": 427,
+      "h": 468
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 539,
+      "y": 2200,
+      "w": 362,
+      "h": 80
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|heading:1,nav-links:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 15,
+   "sites": [
+    "linearapp",
+    "supabasecom",
+    "tailwindcsscom",
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 272,
+      "y": 10374,
+      "w": 224,
+      "h": 252
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 496,
+      "y": 10374,
+      "w": 224,
+      "h": 252
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 720,
+      "y": 10374,
+      "w": 224,
+      "h": 252
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|button-cta:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 13,
+   "sites": [
+    "overreactedioaco",
+    "reactdev",
+    "supabasecom",
+    "tailwindcsscom",
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "overreactedioaco",
+     "tag": "header",
+     "box": {
+      "x": 404,
+      "y": 48,
+      "w": 632,
+      "h": 32
+     }
+    },
+    {
+     "site": "overreactedioaco",
+     "tag": "div",
+     "box": {
+      "x": 380,
+      "y": 300,
+      "w": 632,
+      "h": 45
+     }
+    },
+    {
+     "site": "overreactedioaco",
+     "tag": "div",
+     "box": {
+      "x": 372,
+      "y": 53447,
+      "w": 632,
+      "h": 61
+     }
+    }
+   ]
+  },
+  {
+   "key": "grid-4pluscol|containers-only|bg:none,bs:no,rad:square,dyn:static",
+   "alias": "footer-columns",
+   "count": 13,
+   "sites": [
+    "linearapp",
+    "reactdev",
+    "resendcom",
+    "supabasecom",
+    "tailwindcsscom",
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 48,
+      "y": 1812,
+      "w": 1344,
+      "h": 468
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 48,
+      "y": 8616,
+      "w": 1344,
+      "h": 197
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 2,
+      "y": 10318,
+      "w": 1436,
+      "h": 463
+     }
+    }
+   ]
+  },
+  {
+   "key": "leaf|badge-pill",
+   "alias": null,
+   "count": 13,
+   "sites": [
+    "linearapp",
+    "resendcom",
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "a",
+     "box": {
+      "x": 902,
+      "y": 20,
+      "w": 91,
+      "h": 32
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "a",
+     "box": {
+      "x": 992,
+      "y": 20,
+      "w": 67,
+      "h": 32
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "a",
+     "box": {
+      "x": 1059,
+      "y": 20,
+      "w": 52,
+      "h": 32
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|band-only|bg:flat,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 12,
+   "sites": [
+    "clerkcom"
+   ],
+   "examples": [
+    {
+     "site": "clerkcom",
+     "tag": "band",
+     "box": {
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 14321
+     },
+     "width": "390"
+    },
+    {
+     "site": "clerkcom",
+     "tag": "band",
+     "box": {
+      "x": 0,
+      "y": 878,
+      "w": 390,
+      "h": 1504
+     },
+     "width": "390"
+    },
+    {
+     "site": "clerkcom",
+     "tag": "band",
+     "box": {
+      "x": 0,
+      "y": 2382,
+      "w": 390,
+      "h": 4681
+     },
+     "width": "390"
+    }
+   ]
+  },
+  {
+   "key": "block-stack|containers-only|bg:flat,bs:no,rad:square,dyn:static",
+   "alias": "hero-stack",
+   "count": 12,
+   "sites": [
+    "linearapp",
+    "overreactedioaco",
+    "reactdev",
+    "resendcom",
+    "supabasecom",
+    "tailwindcsscom",
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "body",
+     "box": {
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 10781
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 10781
+     }
+    },
+    {
+     "site": "overreactedioaco",
+     "tag": "body",
+     "box": {
+      "x": 384,
+      "y": 0,
+      "w": 672,
+      "h": 53761
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|band-only|bg:flat,bs:yes,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 11,
+   "sites": [
+    "clerkcom"
+   ],
+   "examples": [
+    {
+     "site": "clerkcom",
+     "tag": "band",
+     "box": {
+      "x": 24,
+      "y": 3115,
+      "w": 342,
+      "h": 568
+     },
+     "width": "390"
+    },
+    {
+     "site": "clerkcom",
+     "tag": "band",
+     "box": {
+      "x": 24,
+      "y": 3691,
+      "w": 342,
+      "h": 280
+     },
+     "width": "390"
+    },
+    {
+     "site": "clerkcom",
+     "tag": "band",
+     "box": {
+      "x": 24,
+      "y": 3979,
+      "w": 342,
+      "h": 568
+     },
+     "width": "390"
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:1,image:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 11,
+   "sites": [
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 45,
+      "y": 5299,
+      "w": 254,
+      "h": 40
+     }
+    },
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 45,
+      "y": 5513,
+      "w": 254,
+      "h": 40
+     }
+    },
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 45,
+      "y": 5751,
+      "w": 254,
+      "h": 23
+     }
+    }
+   ]
+  },
+  {
+   "key": "grid-2col|containers-only|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 11,
+   "sites": [
+    "linearapp",
+    "resendcom"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 48,
+      "y": 2578,
+      "w": 1344,
+      "h": 265
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 48,
+      "y": 3469,
+      "w": 1344,
+      "h": 92
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 48,
+      "y": 3795,
+      "w": 1344,
+      "h": 265
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|body-text:1,heading:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 10,
+   "sites": [
+    "reactdev",
+    "resendcom",
+    "supabasecom",
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "reactdev",
+     "tag": "div",
+     "box": {
+      "x": 336,
+      "y": 737,
+      "w": 768,
+      "h": 222
+     }
+    },
+    {
+     "site": "reactdev",
+     "tag": "div",
+     "box": {
+      "x": 336,
+      "y": 1772,
+      "w": 768,
+      "h": 222
+     }
+    },
+    {
+     "site": "reactdev",
+     "tag": "div",
+     "box": {
+      "x": 336,
+      "y": 2904,
+      "w": 768,
+      "h": 222
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|heading:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 10,
+   "sites": [
+    "linearapp",
+    "resendcom"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "section",
+     "box": {
+      "x": 48,
+      "y": 9865,
+      "w": 1344,
+      "h": 228
+     }
+    },
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 104,
+      "y": 7691,
+      "w": 357,
+      "h": 60
+     }
+    },
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 541,
+      "y": 7691,
+      "w": 357,
+      "h": 60
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|icon-svg:1|bg:none,bs:no,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 10,
+   "sites": [
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 564,
+      "y": 1865,
+      "w": 64,
+      "h": 64
+     }
+    },
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 636,
+      "y": 1865,
+      "w": 64,
+      "h": 64
+     }
+    },
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 708,
+      "y": 1865,
+      "w": 64,
+      "h": 64
+     }
+    }
+   ]
+  },
+  {
+   "key": "leaf|inline-styled-rich-text",
+   "alias": "inline-styled-text",
+   "count": 10,
+   "sites": [
+    "resendcom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "h1",
+     "box": {
+      "x": 168,
+      "y": 327,
+      "w": 480,
+      "h": 204
+     }
+    },
+    {
+     "site": "resendcom",
+     "tag": "h2",
+     "box": {
+      "x": 104,
+      "y": 1799,
+      "w": 1232,
+      "h": 67
+     }
+    },
+    {
+     "site": "resendcom",
+     "tag": "h2",
+     "box": {
+      "x": 104,
+      "y": 2909,
+      "w": 1232,
+      "h": 134
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:1|bg:flat,bs:yes,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 9,
+   "sites": [
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 20,
+      "y": 5274,
+      "w": 304,
+      "h": 198
+     }
+    },
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 20,
+      "y": 5488,
+      "w": 304,
+      "h": 222
+     }
+    },
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 340,
+      "y": 5274,
+      "w": 304,
+      "h": 222
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|button-cta:many|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 9,
+   "sites": [
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "vercelcom",
+     "tag": "div",
+     "box": {
+      "x": 24,
+      "y": 5384,
+      "w": 225,
+      "h": 112
+     }
+    },
+    {
+     "site": "vercelcom",
+     "tag": "div",
+     "box": {
+      "x": 257,
+      "y": 5384,
+      "w": 225,
+      "h": 84
+     }
+    },
+    {
+     "site": "vercelcom",
+     "tag": "div",
+     "box": {
+      "x": 724,
+      "y": 5384,
+      "w": 225,
+      "h": 140
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|button-cta:many|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 9,
+   "sites": [
+    "linearapp",
+    "reactdev",
+    "resendcom",
+    "supabasecom",
+    "tailwindcsscom"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 579,
+      "y": 10049,
+      "w": 283,
+      "h": 44
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 272,
+      "y": 10706,
+      "w": 258,
+      "h": 20
+     }
+    },
+    {
+     "site": "reactdev",
+     "tag": "div",
+     "box": {
+      "x": 559,
+      "y": 432,
+      "w": 322,
+      "h": 47
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|containers-only|bg:gradient,bs:no,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 9,
+   "sites": [
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 160,
+      "y": 804,
+      "w": 554,
+      "h": 400
+     }
+    },
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 160,
+      "y": 1216,
+      "w": 271,
+      "h": 400
+     }
+    },
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 1009,
+      "y": 1216,
+      "w": 271,
+      "h": 400
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|icon-svg:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 8,
+   "sites": [
+    "linearapp"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "li",
+     "box": {
+      "x": 80,
+      "y": 1408,
+      "w": 90,
+      "h": 28
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "li",
+     "box": {
+      "x": 247,
+      "y": 1408,
+      "w": 101,
+      "h": 28
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "li",
+     "box": {
+      "x": 425,
+      "y": 1408,
+      "w": 70,
+      "h": 28
+     }
+    }
+   ]
+  },
+  {
+   "key": "grid-3col|containers-only|bg:none,bs:no,rad:square,dyn:static",
+   "alias": "card-grid",
+   "count": 8,
+   "sites": [
+    "resendcom",
+    "tailwindcsscom",
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 104,
+      "y": 7691,
+      "w": 1232,
+      "h": 566
+     }
+    },
+    {
+     "site": "tailwindcsscom",
+     "tag": "div",
+     "box": {
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 11649
+     }
+    },
+    {
+     "site": "vercelcom",
+     "tag": "section",
+     "box": {
+      "x": 181,
+      "y": 890,
+      "w": 1079,
+      "h": 313
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|containers-only|bg:flat,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 7,
+   "sites": [
+    "linearapp",
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "main",
+     "box": {
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 10317
+     }
+    },
+    {
+     "site": "vercelcom",
+     "tag": "div",
+     "box": {
+      "x": 16,
+      "y": 64,
+      "w": 1408,
+      "h": 784
+     }
+    },
+    {
+     "site": "vercelcom",
+     "tag": "div",
+     "box": {
+      "x": 16,
+      "y": 847,
+      "w": 1408,
+      "h": 398
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|containers-only|bg:gradient,bs:yes,rad:square,dyn:static",
+   "alias": null,
+   "count": 7,
+   "sites": [
+    "reactdev"
+   ],
+   "examples": [
+    {
+     "site": "reactdev",
+     "tag": "div",
+     "box": {
+      "x": 0,
+      "y": 608,
+      "w": 1440,
+      "h": 1036
+     }
+    },
+    {
+     "site": "reactdev",
+     "tag": "div",
+     "box": {
+      "x": 0,
+      "y": 1643,
+      "w": 1440,
+      "h": 1132
+     }
+    },
+    {
+     "site": "reactdev",
+     "tag": "div",
+     "box": {
+      "x": 0,
+      "y": 2775,
+      "w": 1440,
+      "h": 1186
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|logo:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 7,
+   "sites": [
+    "resendcom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 207,
+      "y": 1229,
+      "w": 158,
+      "h": 96
+     }
+    },
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 554,
+      "y": 1229,
+      "w": 158,
+      "h": 96
+     }
+    },
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 1076,
+      "y": 1229,
+      "w": 158,
+      "h": 96
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|code-mockup:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": "code-panel",
+   "count": 6,
+   "sites": [
+    "resendcom",
+    "supabasecom",
+    "tailwindcsscom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 166,
+      "y": 4262,
+      "w": 1109,
+      "h": 787
+     }
+    },
+    {
+     "site": "supabasecom",
+     "tag": "a",
+     "box": {
+      "x": 266,
+      "y": 2515,
+      "w": 250,
+      "h": 141
+     }
+    },
+    {
+     "site": "supabasecom",
+     "tag": "a",
+     "box": {
+      "x": 998,
+      "y": 2356,
+      "w": 250,
+      "h": 141
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|containers-only|bg:flat,bs:yes,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 6,
+   "sites": [
+    "resendcom",
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 388,
+      "y": 4367,
+      "w": 664,
+      "h": 152
+     }
+    },
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 20,
+      "y": 5726,
+      "w": 304,
+      "h": 48
+     }
+    },
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 660,
+      "y": 5726,
+      "w": 304,
+      "h": 48
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|body-text:1,nav-links:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 6,
+   "sites": [
+    "resendcom",
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 436,
+      "y": 11829,
+      "w": 154,
+      "h": 348
+     }
+    },
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 622,
+      "y": 11829,
+      "w": 154,
+      "h": 348
+     }
+    },
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 809,
+      "y": 11829,
+      "w": 154,
+      "h": 348
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:1,button-cta:1,stat-number:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 5,
+   "sites": [
+    "linearapp"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 752,
+      "y": 2722,
+      "w": 608,
+      "h": 25
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 752,
+      "y": 3938,
+      "w": 608,
+      "h": 25
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 752,
+      "y": 5147,
+      "w": 608,
+      "h": 25
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:many|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 5,
+   "sites": [
+    "linearapp",
+    "resendcom"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 78,
+      "y": 265,
+      "w": 784,
+      "h": 141
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 1047,
+      "y": 432,
+      "w": 313,
+      "h": 26
+     }
+    },
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 769,
+      "y": 3372,
+      "w": 566,
+      "h": 110
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|logo:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 5,
+   "sites": [
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 428,
+      "y": 608,
+      "w": 119,
+      "h": 48
+     }
+    },
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 579,
+      "y": 608,
+      "w": 125,
+      "h": 48
+     }
+    },
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 736,
+      "y": 608,
+      "w": 91,
+      "h": 48
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|body-text:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 5,
+   "sites": [
+    "linearapp",
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 57,
+      "y": 4147,
+      "w": 398,
+      "h": 60
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 78,
+      "y": 8893,
+      "w": 73,
+      "h": 24
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 48,
+      "y": 9617,
+      "w": 1344,
+      "h": 24
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|icon-svg:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 5,
+   "sites": [
+    "resendcom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 380,
+      "y": 1229,
+      "w": 158,
+      "h": 96
+     }
+    },
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 728,
+      "y": 1229,
+      "w": 158,
+      "h": 96
+     }
+    },
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 902,
+      "y": 1229,
+      "w": 158,
+      "h": 96
+     }
+    }
+   ]
+  },
+  {
+   "key": "leaf|video-embed",
+   "alias": null,
+   "count": 5,
+   "sites": [
+    "resendcom",
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "box": {
+      "x": 635,
+      "y": 1613,
+      "w": 170,
+      "h": 170
+     }
+    },
+    {
+     "site": "resendcom",
+     "box": {
+      "x": 635,
+      "y": 3883,
+      "w": 170,
+      "h": 170
+     }
+    },
+    {
+     "site": "resendcom",
+     "box": {
+      "x": 635,
+      "y": 6141,
+      "w": 170,
+      "h": 170
+     }
+    }
+   ]
+  },
+  {
+   "key": "absolute-overlay|containers-only|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 4,
+   "sites": [
+    "linearapp"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 48,
+      "y": 2843,
+      "w": 1344,
+      "h": 626
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 48,
+      "y": 4059,
+      "w": 1344,
+      "h": 618
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 48,
+      "y": 5268,
+      "w": 1344,
+      "h": 546
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:many,button-cta:many|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 4,
+   "sites": [
+    "supabasecom",
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 316,
+      "y": 261,
+      "w": 458,
+      "h": 35
+     }
+    },
+    {
+     "site": "vercelcom",
+     "tag": "div",
+     "box": {
+      "x": 900,
+      "y": 4895,
+      "w": 359,
+      "h": 321
+     }
+    },
+    {
+     "site": "vercelcom",
+     "tag": "div",
+     "box": {
+      "x": 491,
+      "y": 5384,
+      "w": 225,
+      "h": 168
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:many|bg:none,bs:no,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 4,
+   "sites": [
+    "linearapp"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 80,
+      "y": 8696,
+      "w": 272,
+      "h": 117
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 416,
+      "y": 8696,
+      "w": 272,
+      "h": 117
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 752,
+      "y": 8696,
+      "w": 272,
+      "h": 117
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|image:1|bg:none,bs:no,rad:pill-circle,dyn:static",
+   "alias": null,
+   "count": 4,
+   "sites": [
+    "resendcom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "a",
+     "box": {
+      "x": 104,
+      "y": 11893,
+      "w": 32,
+      "h": 32
+     }
+    },
+    {
+     "site": "resendcom",
+     "tag": "a",
+     "box": {
+      "x": 152,
+      "y": 11893,
+      "w": 32,
+      "h": 32
+     }
+    },
+    {
+     "site": "resendcom",
+     "tag": "a",
+     "box": {
+      "x": 200,
+      "y": 11893,
+      "w": 32,
+      "h": 32
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|button-cta:many|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 4,
+   "sites": [
+    "reactdev"
+   ],
+   "examples": [
+    {
+     "site": "reactdev",
+     "tag": "div",
+     "box": {
+      "x": 346,
+      "y": 8802,
+      "w": 218,
+      "h": 239
+     }
+    },
+    {
+     "site": "reactdev",
+     "tag": "div",
+     "box": {
+      "x": 611,
+      "y": 8802,
+      "w": 218,
+      "h": 239
+     }
+    },
+    {
+     "site": "reactdev",
+     "tag": "div",
+     "box": {
+      "x": 877,
+      "y": 8802,
+      "w": 218,
+      "h": 239
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|body-text:many|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 4,
+   "sites": [
+    "resendcom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 167,
+      "y": 4263,
+      "w": 1107,
+      "h": 64
+     }
+    },
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 1013,
+      "y": 4278,
+      "w": 237,
+      "h": 34
+     }
+    },
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 421,
+      "y": 4376,
+      "w": 598,
+      "h": 45
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|heading:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 4,
+   "sites": [
+    "linearapp",
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 46,
+      "y": 8496,
+      "w": 1346,
+      "h": 48
+     }
+    },
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 185,
+      "y": 837,
+      "w": 159,
+      "h": 24
+     }
+    },
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 185,
+      "y": 1241,
+      "w": 82,
+      "h": 24
+     }
+    }
+   ]
+  },
+  {
+   "key": "grid-2col|body-text:many,button-cta:many,stat-number:many|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 4,
+   "sites": [
+    "linearapp"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 752,
+      "y": 3505,
+      "w": 608,
+      "h": 56
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 752,
+      "y": 4713,
+      "w": 608,
+      "h": 56
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 752,
+      "y": 5850,
+      "w": 608,
+      "h": 84
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|band-only|bg:flat,bs:yes,rad:square,dyn:static",
+   "alias": null,
+   "count": 3,
+   "sites": [
+    "clerkcom"
+   ],
+   "examples": [
+    {
+     "site": "clerkcom",
+     "tag": "band",
+     "box": {
+      "x": 0,
+      "y": 610,
+      "w": 390,
+      "h": 268
+     },
+     "width": "390"
+    },
+    {
+     "site": "clerkcom",
+     "tag": "band",
+     "box": {
+      "x": 0,
+      "y": 592,
+      "w": 768,
+      "h": 155
+     },
+     "width": "768"
+    },
+    {
+     "site": "clerkcom",
+     "tag": "band",
+     "box": {
+      "x": 0,
+      "y": 624,
+      "w": 1440,
+      "h": 129
+     },
+     "width": "1440"
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:1,heading:1,image:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 3,
+   "sites": [
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "vercelcom",
+     "tag": "div",
+     "box": {
+      "x": 540,
+      "y": 1245,
+      "w": 359,
+      "h": 304
+     }
+    },
+    {
+     "site": "vercelcom",
+     "tag": "div",
+     "box": {
+      "x": 181,
+      "y": 1550,
+      "w": 359,
+      "h": 304
+     }
+    },
+    {
+     "site": "vercelcom",
+     "tag": "div",
+     "box": {
+      "x": 540,
+      "y": 1550,
+      "w": 359,
+      "h": 304
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:1,heading:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": "hero-stack",
+   "count": 3,
+   "sites": [
+    "overreactedioaco",
+    "supabasecom",
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "overreactedioaco",
+     "tag": "article",
+     "box": {
+      "x": 404,
+      "y": 136,
+      "w": 632,
+      "h": 53465
+     }
+    },
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 160,
+      "y": 2134,
+      "w": 560,
+      "h": 118
+     }
+    },
+    {
+     "site": "vercelcom",
+     "tag": "div",
+     "box": {
+      "x": 181,
+      "y": 1245,
+      "w": 359,
+      "h": 304
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:1,inline-styled-rich-text:1,video-embed:1|bg:flat,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 3,
+   "sites": [
+    "resendcom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "section",
+     "box": {
+      "x": 80,
+      "y": 3787,
+      "w": 1280,
+      "h": 1358
+     }
+    },
+    {
+     "site": "resendcom",
+     "tag": "section",
+     "box": {
+      "x": 80,
+      "y": 6045,
+      "w": 1280,
+      "h": 1367
+     }
+    },
+    {
+     "site": "resendcom",
+     "tag": "section",
+     "box": {
+      "x": 80,
+      "y": 8984,
+      "w": 1280,
+      "h": 1352
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:1,inline-styled-rich-text:1|bg:flat,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 3,
+   "sites": [
+    "resendcom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "section",
+     "box": {
+      "x": 80,
+      "y": 2813,
+      "w": 1280,
+      "h": 975
+     }
+    },
+    {
+     "site": "resendcom",
+     "tag": "section",
+     "box": {
+      "x": 80,
+      "y": 5145,
+      "w": 1280,
+      "h": 899
+     }
+    },
+    {
+     "site": "resendcom",
+     "tag": "section",
+     "box": {
+      "x": 0,
+      "y": 10336,
+      "w": 1440,
+      "h": 661
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|containers-only|bg:none,bs:no,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 3,
+   "sites": [
+    "linearapp"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 56,
+      "y": 2815,
+      "w": 480,
+      "h": 573
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "a",
+     "box": {
+      "x": 78,
+      "y": 8893,
+      "w": 73,
+      "h": 24
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "a",
+     "box": {
+      "x": 1222,
+      "y": 9617,
+      "w": 138,
+      "h": 24
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|image:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 3,
+   "sites": [
+    "overreactedioaco",
+    "resendcom",
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "overreactedioaco",
+     "tag": "a",
+     "box": {
+      "x": 996,
+      "y": 57,
+      "w": 40,
+      "h": 20
+     }
+    },
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 0,
+      "y": 58,
+      "w": 1440,
+      "h": 900
+     }
+    },
+    {
+     "site": "vercelcom",
+     "tag": "div",
+     "box": {
+      "x": 1191,
+      "y": 5584,
+      "w": 225,
+      "h": 32
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|body-text:many,icon-svg:1|bg:flat,bs:no,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 3,
+   "sites": [
+    "tailwindcsscom"
+   ],
+   "examples": [
+    {
+     "site": "tailwindcsscom",
+     "tag": "div",
+     "box": {
+      "x": 589,
+      "y": 4599,
+      "w": 803,
+      "h": 640
+     }
+    },
+    {
+     "site": "tailwindcsscom",
+     "tag": "div",
+     "box": {
+      "x": 48,
+      "y": 5895,
+      "w": 443,
+      "h": 720
+     }
+    },
+    {
+     "site": "tailwindcsscom",
+     "tag": "div",
+     "box": {
+      "x": 949,
+      "y": 5895,
+      "w": 443,
+      "h": 720
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|code-mockup:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": "code-panel",
+   "count": 3,
+   "sites": [
+    "linearapp",
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 539,
+      "y": 1812,
+      "w": 362,
+      "h": 388
+     }
+    },
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 266,
+      "y": 2356,
+      "w": 250,
+      "h": 300
+     }
+    },
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 998,
+      "y": 2356,
+      "w": 250,
+      "h": 300
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|band-only|bg:none,bs:no,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 2,
+   "sites": [
+    "clerkcom"
+   ],
+   "examples": [
+    {
+     "site": "clerkcom",
+     "tag": "band",
+     "box": {
+      "x": -10,
+      "y": 5730,
+      "w": 410,
+      "h": 205
+     },
+     "width": "390"
+    },
+    {
+     "site": "clerkcom",
+     "tag": "band",
+     "box": {
+      "x": 23,
+      "y": 7348,
+      "w": 344,
+      "h": 344
+     },
+     "width": "390"
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:1,heading:1,icon-svg:1,logo:1|bg:flat,bs:no,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 2,
+   "sites": [
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 521,
+      "y": 3520,
+      "w": 398,
+      "h": 296
+     }
+    },
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 941,
+      "y": 3520,
+      "w": 398,
+      "h": 296
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:many,button-cta:1,heading:1,icon-svg:many,logo:1|bg:flat,bs:no,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 2,
+   "sites": [
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 941,
+      "y": 3183,
+      "w": 398,
+      "h": 316
+     }
+    },
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 101,
+      "y": 3520,
+      "w": 398,
+      "h": 296
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|containers-only|bg:none,bs:yes,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 2,
+   "sites": [
+    "resendcom",
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 104,
+      "y": 6616,
+      "w": 1232,
+      "h": 700
+     }
+    },
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 169,
+      "y": 4264,
+      "w": 1102,
+      "h": 620
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|icon-svg:1|bg:none,bs:no,rad:pill-circle,dyn:static",
+   "alias": null,
+   "count": 2,
+   "sites": [
+    "tailwindcsscom"
+   ],
+   "examples": [
+    {
+     "site": "tailwindcsscom",
+     "tag": "div",
+     "box": {
+      "x": 113,
+      "y": 11522,
+      "w": 28,
+      "h": 28
+     }
+    },
+    {
+     "site": "tailwindcsscom",
+     "tag": "div",
+     "box": {
+      "x": 143,
+      "y": 11522,
+      "w": 28,
+      "h": 28
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|nav-links:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 2,
+   "sites": [
+    "resendcom",
+    "tailwindcsscom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 419,
+      "y": 0,
+      "w": 602,
+      "h": 58
+     }
+    },
+    {
+     "site": "tailwindcsscom",
+     "tag": "div",
+     "box": {
+      "x": 388,
+      "y": 11150,
+      "w": 316,
+      "h": 328
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|body-text:1,button-cta:1,heading:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 2,
+   "sites": [
+    "resendcom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 105,
+      "y": 3498,
+      "w": 342,
+      "h": 193
+     }
+    },
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 105,
+      "y": 5764,
+      "w": 342,
+      "h": 185
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|body-text:1,button-cta:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 2,
+   "sites": [
+    "reactdev"
+   ],
+   "examples": [
+    {
+     "site": "reactdev",
+     "tag": "div",
+     "box": {
+      "x": 336,
+      "y": 3688,
+      "w": 768,
+      "h": 144
+     }
+    },
+    {
+     "site": "reactdev",
+     "tag": "div",
+     "box": {
+      "x": 336,
+      "y": 4946,
+      "w": 768,
+      "h": 174
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|body-text:many,button-cta:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 2,
+   "sites": [
+    "linearapp"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 56,
+      "y": 4207,
+      "w": 400,
+      "h": 228
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 56,
+      "y": 4435,
+      "w": 400,
+      "h": 175
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|body-text:many,button-cta:many,heading:many|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 2,
+   "sites": [
+    "reactdev"
+   ],
+   "examples": [
+    {
+     "site": "reactdev",
+     "tag": "div",
+     "box": {
+      "x": 80,
+      "y": 2002,
+      "w": 1280,
+      "h": 547
+     }
+    },
+    {
+     "site": "reactdev",
+     "tag": "div",
+     "box": {
+      "x": 80,
+      "y": 3133,
+      "w": 1280,
+      "h": 547
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|body-text:many,icon-svg:1,image:1|bg:flat,bs:no,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 2,
+   "sites": [
+    "tailwindcsscom"
+   ],
+   "examples": [
+    {
+     "site": "tailwindcsscom",
+     "tag": "div",
+     "box": {
+      "x": 48,
+      "y": 3951,
+      "w": 668,
+      "h": 640
+     }
+    },
+    {
+     "site": "tailwindcsscom",
+     "tag": "div",
+     "box": {
+      "x": 724,
+      "y": 6623,
+      "w": 668,
+      "h": 640
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|body-text:many,icon-svg:1,image:many|bg:flat,bs:no,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 2,
+   "sites": [
+    "tailwindcsscom"
+   ],
+   "examples": [
+    {
+     "site": "tailwindcsscom",
+     "tag": "div",
+     "box": {
+      "x": 724,
+      "y": 3951,
+      "w": 668,
+      "h": 640
+     }
+    },
+    {
+     "site": "tailwindcsscom",
+     "tag": "div",
+     "box": {
+      "x": 499,
+      "y": 5895,
+      "w": 443,
+      "h": 720
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|body-text:many|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 2,
+   "sites": [
+    "linearapp"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 80,
+      "y": 2200,
+      "w": 394,
+      "h": 80
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 965,
+      "y": 2200,
+      "w": 395,
+      "h": 80
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|code-mockup:1,image:1|bg:none,bs:yes,rad:rounded,dyn:static",
+   "alias": "code-panel",
+   "count": 2,
+   "sites": [
+    "resendcom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 104,
+      "y": 5423,
+      "w": 600,
+      "h": 526
+     }
+    },
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 736,
+      "y": 5423,
+      "w": 600,
+      "h": 526
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|code-mockup:1|bg:none,bs:yes,rad:rounded,dyn:static",
+   "alias": "code-panel",
+   "count": 2,
+   "sites": [
+    "resendcom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 104,
+      "y": 3157,
+      "w": 600,
+      "h": 534
+     }
+    },
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 736,
+      "y": 3157,
+      "w": 600,
+      "h": 534
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|containers-only|bg:flat,bs:no,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 2,
+   "sites": [
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 161,
+      "y": 1217,
+      "w": 269,
+      "h": 398
+     }
+    },
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 1010,
+      "y": 1217,
+      "w": 269,
+      "h": 398
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|body-text:1,button-cta:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 2,
+   "sites": [
+    "reactdev",
+    "tailwindcsscom"
+   ],
+   "examples": [
+    {
+     "site": "reactdev",
+     "tag": "div",
+     "box": {
+      "x": 16,
+      "y": 8,
+      "w": 48,
+      "h": 48
+     }
+    },
+    {
+     "site": "tailwindcsscom",
+     "tag": "div",
+     "box": {
+      "x": 965,
+      "y": 11524,
+      "w": 395,
+      "h": 24
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|body-text:1,logo:1|bg:gradient,bs:no,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 2,
+   "sites": [
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 532,
+      "y": 2356,
+      "w": 450,
+      "h": 300
+     }
+    },
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 1264,
+      "y": 2356,
+      "w": 176,
+      "h": 300
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|body-text:1|bg:flat,bs:no,rad:pill-circle,dyn:static",
+   "alias": null,
+   "count": 2,
+   "sites": [
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "vercelcom",
+     "tag": "div",
+     "box": {
+      "x": 521,
+      "y": 84,
+      "w": 58,
+      "h": 24
+     }
+    },
+    {
+     "site": "vercelcom",
+     "tag": "div",
+     "box": {
+      "x": 786,
+      "y": 80,
+      "w": 143,
+      "h": 32
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|body-text:1|bg:flat,bs:yes,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 2,
+   "sites": [
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "supabasecom",
+     "tag": "a",
+     "box": {
+      "x": 700,
+      "y": 3092,
+      "w": 187,
+      "h": 34
+     }
+    },
+    {
+     "site": "supabasecom",
+     "tag": "a",
+     "box": {
+      "x": 636,
+      "y": 5200,
+      "w": 168,
+      "h": 34
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|body-text:many,icon-svg:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 2,
+   "sites": [
+    "linearapp"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 92,
+      "y": 9503,
+      "w": 816,
+      "h": 42
+     }
+    },
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 980,
+      "y": 9503,
+      "w": 368,
+      "h": 42
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|containers-only|bg:flat,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 2,
+   "sites": [
+    "reactdev",
+    "resendcom"
+   ],
+   "examples": [
+    {
+     "site": "reactdev",
+     "tag": "nav",
+     "box": {
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 64
+     }
+    },
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 104,
+      "y": 0,
+      "w": 1232,
+      "h": 58
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|icon-svg:1|bg:none,bs:no,rad:pill-circle,dyn:static",
+   "alias": null,
+   "count": 2,
+   "sites": [
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "vercelcom",
+     "tag": "div",
+     "box": {
+      "x": 1368,
+      "y": 5853,
+      "w": 24,
+      "h": 24
+     }
+    },
+    {
+     "site": "vercelcom",
+     "tag": "div",
+     "box": {
+      "x": 1392,
+      "y": 5853,
+      "w": 24,
+      "h": 24
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|nav-links:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 2,
+   "sites": [
+    "resendcom",
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 0,
+      "y": 10658,
+      "w": 1440,
+      "h": 244
+     }
+    },
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 80,
+      "y": 6636,
+      "w": 1280,
+      "h": 100
+     }
+    }
+   ]
+  },
+  {
+   "key": "grid-4pluscol|containers-only|bg:flat,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 2,
+   "sites": [
+    "supabasecom",
+    "tailwindcsscom"
+   ],
+   "examples": [
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 0,
+      "y": 6251,
+      "w": 1440,
+      "h": 385
+     }
+    },
+    {
+     "site": "tailwindcsscom",
+     "tag": "div",
+     "box": {
+      "x": 40,
+      "y": 3295,
+      "w": 1360,
+      "h": 3976
+     }
+    }
+   ]
+  },
+  {
+   "key": "sticky-fixed-chrome|containers-only|bg:none,bs:no,rad:square,dyn:sticky",
+   "alias": "nav-row",
+   "count": 2,
+   "sites": [
+    "tailwindcsscom",
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "tailwindcsscom",
+     "tag": "div",
+     "box": {
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 57
+     }
+    },
+    {
+     "site": "vercelcom",
+     "tag": "div",
+     "box": {
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 64
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|badge-pill:1,body-text:many,button-cta:1|bg:image,bs:yes,rad:rounded,dyn:static",
+   "alias": "bg-image-section",
+   "count": 1,
+   "sites": [
+    "linearapp"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 56,
+      "y": 7572,
+      "w": 520,
+      "h": 523
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|badge-pill:many,body-text:many,button-cta:many,heading:many,image:many,stat-number:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "linearapp"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 0,
+      "y": 528,
+      "w": 1440,
+      "h": 720
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|band-only|bg:flat,bs:no,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "clerkcom"
+   ],
+   "examples": [
+    {
+     "site": "clerkcom",
+     "tag": "band",
+     "box": {
+      "x": 35,
+      "y": 4683,
+      "w": 320,
+      "h": 320
+     },
+     "width": "390"
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:1,button-cta:1,heading:1,icon-svg:many,logo:1|bg:flat,bs:no,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 101,
+      "y": 3183,
+      "w": 398,
+      "h": 316
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:1,code-mockup:1,inline-styled-rich-text:1,video-embed:1|bg:flat,bs:no,rad:square,dyn:tabs",
+   "alias": "code-panel",
+   "count": 1,
+   "sites": [
+    "resendcom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "section",
+     "box": {
+      "x": 80,
+      "y": 1517,
+      "w": 1280,
+      "h": 1296
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:1,code-mockup:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": "code-panel",
+   "count": 1,
+   "sites": [
+    "tailwindcsscom"
+   ],
+   "examples": [
+    {
+     "site": "tailwindcsscom",
+     "tag": "div",
+     "box": {
+      "x": 40,
+      "y": 8429,
+      "w": 1360,
+      "h": 1300
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:1,heading:1,icon-svg:many,logo:1|bg:flat,bs:no,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 521,
+      "y": 3183,
+      "w": 398,
+      "h": 316
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:1,heading:1,nav-links:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "vercelcom",
+     "tag": "div",
+     "box": {
+      "x": 900,
+      "y": 1245,
+      "w": 359,
+      "h": 304
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:1,inline-styled-rich-text:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": "hero-stack",
+   "count": 1,
+   "sites": [
+    "resendcom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 104,
+      "y": 263,
+      "w": 544,
+      "h": 410
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:1,stat-number:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "supabasecom",
+     "tag": "span",
+     "box": {
+      "x": 666,
+      "y": 6104,
+      "w": 132,
+      "h": 20
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:many,button-cta:1,code-mockup:1,heading:1,nav-links:1|bg:none,bs:no,rad:square,dyn:tabs",
+   "alias": "code-panel",
+   "count": 1,
+   "sites": [
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "vercelcom",
+     "tag": "div",
+     "box": {
+      "x": 181,
+      "y": 3543,
+      "w": 718,
+      "h": 640
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:many,button-cta:1,heading:1,logo:1|bg:gradient,bs:no,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "resendcom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 825,
+      "y": 6675,
+      "w": 500,
+      "h": 630
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:many,button-cta:1,heading:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "vercelcom",
+     "tag": "div",
+     "box": {
+      "x": 181,
+      "y": 3122,
+      "w": 359,
+      "h": 420
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:many,button-cta:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "vercelcom",
+     "tag": "div",
+     "box": {
+      "x": 900,
+      "y": 890,
+      "w": 359,
+      "h": 312
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:many,button-cta:many,heading:1,logo:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "vercelcom",
+     "tag": "div",
+     "box": {
+      "x": 181,
+      "y": 2349,
+      "w": 1078,
+      "h": 820
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:many,button-cta:many,heading:1,logo:many|bg:none,bs:no,rad:square,dyn:static",
+   "alias": "hero-stack",
+   "count": 1,
+   "sites": [
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "vercelcom",
+     "tag": "div",
+     "box": {
+      "x": 181,
+      "y": 129,
+      "w": 1079,
+      "h": 719
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:many,button-cta:many,heading:many|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "vercelcom",
+     "tag": "div",
+     "box": {
+      "x": 181,
+      "y": 2119,
+      "w": 1078,
+      "h": 136
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:many,code-mockup:1,image:many|bg:none,bs:no,rad:square,dyn:tabs",
+   "alias": "code-panel",
+   "count": 1,
+   "sites": [
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "vercelcom",
+     "tag": "div",
+     "box": {
+      "x": 181,
+      "y": 890,
+      "w": 719,
+      "h": 313
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:many,heading:1,image:many|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "reactdev"
+   ],
+   "examples": [
+    {
+     "site": "reactdev",
+     "tag": "div",
+     "box": {
+      "x": 0,
+      "y": 7462,
+      "w": 1440,
+      "h": 742
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:many,heading:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "vercelcom",
+     "tag": "div",
+     "box": {
+      "x": 900,
+      "y": 1550,
+      "w": 359,
+      "h": 304
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:many,icon-svg:many,logo:many|bg:none,bs:yes,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "linearapp"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 0,
+      "y": 7516,
+      "w": 1440,
+      "h": 598
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:many,image:1|bg:none,bs:yes,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "linearapp"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 48,
+      "y": 5268,
+      "w": 1344,
+      "h": 546
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:many,image:many,stat-number:many|bg:none,bs:yes,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "linearapp"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 0,
+      "y": 2843,
+      "w": 1406,
+      "h": 626
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:many,image:many|bg:image,bs:no,rad:rounded,dyn:static",
+   "alias": "bg-image-section",
+   "count": 1,
+   "sites": [
+    "linearapp"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 56,
+      "y": 2815,
+      "w": 480,
+      "h": 573
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:many,image:many|bg:none,bs:yes,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "linearapp"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 732,
+      "y": 5309,
+      "w": 560,
+      "h": 424
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:many,logo:many|bg:none,bs:yes,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "linearapp"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 48,
+      "y": 4059,
+      "w": 1344,
+      "h": 618
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|body-text:many,stat-number:many|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "vercelcom",
+     "tag": "div",
+     "box": {
+      "x": 900,
+      "y": 3579,
+      "w": 359,
+      "h": 604
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|button-cta:1,heading:1,icon-svg:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "reactdev"
+   ],
+   "examples": [
+    {
+     "site": "reactdev",
+     "tag": "div",
+     "box": {
+      "x": 502,
+      "y": 8291,
+      "w": 437,
+      "h": 360
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|code-mockup:1,image:1|bg:none,bs:no,rad:square,dyn:tabs",
+   "alias": "code-panel",
+   "count": 1,
+   "sites": [
+    "resendcom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 104,
+      "y": 9459,
+      "w": 1232,
+      "h": 781
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|code-mockup:1|bg:flat,bs:yes,rad:square,dyn:static",
+   "alias": "code-panel",
+   "count": 1,
+   "sites": [
+    "resendcom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 0,
+      "y": 11684,
+      "w": 1440,
+      "h": 637
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|code-mockup:1|bg:image,bs:yes,rad:rounded,dyn:static",
+   "alias": "bg-image-section",
+   "count": 1,
+   "sites": [
+    "linearapp"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 732,
+      "y": 5309,
+      "w": 560,
+      "h": 424
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|code-mockup:1|bg:none,bs:no,rad:rounded,dyn:static",
+   "alias": "code-panel",
+   "count": 1,
+   "sites": [
+    "resendcom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 737,
+      "y": 3158,
+      "w": 598,
+      "h": 324
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|code-mockup:1|bg:none,bs:no,rad:square,dyn:tabs",
+   "alias": "code-panel",
+   "count": 1,
+   "sites": [
+    "resendcom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 113,
+      "y": 6675,
+      "w": 183,
+      "h": 152
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|code-mockup:many,inline-styled-rich-text:1|bg:flat,bs:yes,rad:rounded,dyn:static",
+   "alias": "code-panel",
+   "count": 1,
+   "sites": [
+    "resendcom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "section",
+     "box": {
+      "x": 80,
+      "y": 7412,
+      "w": 1280,
+      "h": 941
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|code-mockup:many|bg:image,bs:no,rad:rounded,dyn:static",
+   "alias": "bg-image-section",
+   "count": 1,
+   "sites": [
+    "linearapp"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 56,
+      "y": 4147,
+      "w": 400,
+      "h": 463
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|containers-only|bg:flat,bs:yes,rad:square,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "linearapp"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "footer",
+     "box": {
+      "x": 0,
+      "y": 10317,
+      "w": 1440,
+      "h": 464
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|containers-only|bg:gradient,bs:yes,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "resendcom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 166,
+      "y": 4262,
+      "w": 1109,
+      "h": 600
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|icon-svg:1|bg:flat,bs:no,rad:pill-circle,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "tailwindcsscom"
+   ],
+   "examples": [
+    {
+     "site": "tailwindcsscom",
+     "tag": "div",
+     "box": {
+      "x": 83,
+      "y": 11522,
+      "w": 28,
+      "h": 28
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|image:many|bg:none,bs:no,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "linearapp"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 0,
+      "y": 528,
+      "w": 1440,
+      "h": 768
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|inline-styled-rich-text:1|bg:flat,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "resendcom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "section",
+     "box": {
+      "x": 80,
+      "y": 10997,
+      "w": 1280,
+      "h": 768
+     }
+    }
+   ]
+  },
+  {
+   "key": "block-stack|video-embed:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 170,
+      "y": 4265,
+      "w": 1100,
+      "h": 618
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|body-text:1,button-cta:1,form-control:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": "form",
+   "count": 1,
+   "sites": [
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "supabasecom",
+     "tag": "form",
+     "box": {
+      "x": 160,
+      "y": 6949,
+      "w": 309,
+      "h": 98
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|body-text:1,code-mockup:1|bg:gradient,bs:no,rad:rounded,dyn:static",
+   "alias": "code-panel",
+   "count": 1,
+   "sites": [
+    "linearapp"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "a",
+     "box": {
+      "x": 60,
+      "y": 9089,
+      "w": 880,
+      "h": 480
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|body-text:1,heading:1,icon-svg:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "reactdev"
+   ],
+   "examples": [
+    {
+     "site": "reactdev",
+     "tag": "div",
+     "box": {
+      "x": 20,
+      "y": 160,
+      "w": 1400,
+      "h": 320
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|body-text:1|bg:flat,bs:no,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "linearapp"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "a",
+     "box": {
+      "x": 948,
+      "y": 9089,
+      "w": 432,
+      "h": 480
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|body-text:many,button-cta:1,heading:many,icon-svg:many|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "reactdev"
+   ],
+   "examples": [
+    {
+     "site": "reactdev",
+     "tag": "div",
+     "box": {
+      "x": 0,
+      "y": 5377,
+      "w": 1440,
+      "h": 982
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|body-text:many,button-cta:1,icon-svg:1,image:many,stat-number:1|bg:flat,bs:no,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "tailwindcsscom"
+   ],
+   "examples": [
+    {
+     "site": "tailwindcsscom",
+     "tag": "div",
+     "box": {
+      "x": 48,
+      "y": 3303,
+      "w": 1344,
+      "h": 640
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|body-text:many,button-cta:many,heading:many,image:many|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "reactdev"
+   ],
+   "examples": [
+    {
+     "site": "reactdev",
+     "tag": "div",
+     "box": {
+      "x": 80,
+      "y": 4319,
+      "w": 1280,
+      "h": 619
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|body-text:many,button-cta:many|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 384,
+      "y": 96,
+      "w": 672,
+      "h": 416
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|body-text:many,code-mockup:many,image:many,nav-links:many|bg:none,bs:no,rad:square,dyn:static",
+   "alias": "code-panel",
+   "count": 1,
+   "sites": [
+    "overreactedioaco"
+   ],
+   "examples": [
+    {
+     "site": "overreactedioaco",
+     "tag": "div",
+     "box": {
+      "x": 404,
+      "y": 377,
+      "w": 632,
+      "h": 53038
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|body-text:many,heading:1,icon-svg:1,image:many|bg:flat,bs:no,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "tailwindcsscom"
+   ],
+   "examples": [
+    {
+     "site": "tailwindcsscom",
+     "tag": "div",
+     "box": {
+      "x": 48,
+      "y": 5247,
+      "w": 668,
+      "h": 640
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|body-text:many,heading:1,icon-svg:1,stat-number:many|bg:flat,bs:no,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "tailwindcsscom"
+   ],
+   "examples": [
+    {
+     "site": "tailwindcsscom",
+     "tag": "div",
+     "box": {
+      "x": 48,
+      "y": 6623,
+      "w": 668,
+      "h": 640
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|body-text:many,icon-svg:1,stat-number:many|bg:flat,bs:no,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "tailwindcsscom"
+   ],
+   "examples": [
+    {
+     "site": "tailwindcsscom",
+     "tag": "div",
+     "box": {
+      "x": 48,
+      "y": 4599,
+      "w": 533,
+      "h": 640
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|body-text:many,icon-svg:many|bg:flat,bs:no,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "tailwindcsscom"
+   ],
+   "examples": [
+    {
+     "site": "tailwindcsscom",
+     "tag": "div",
+     "box": {
+      "x": 724,
+      "y": 5247,
+      "w": 668,
+      "h": 640
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|code-mockup:1,nav-links:1|bg:none,bs:no,rad:square,dyn:tabs",
+   "alias": "code-panel",
+   "count": 1,
+   "sites": [
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 160,
+      "y": 4073,
+      "w": 1120,
+      "h": 820
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|code-mockup:1|bg:flat,bs:no,rad:square,dyn:static",
+   "alias": "code-panel",
+   "count": 1,
+   "sites": [
+    "resendcom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 0,
+      "y": 8353,
+      "w": 1440,
+      "h": 631
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|code-mockup:1|bg:none,bs:no,rad:square,dyn:tabs",
+   "alias": "code-panel",
+   "count": 1,
+   "sites": [
+    "tailwindcsscom"
+   ],
+   "examples": [
+    {
+     "site": "tailwindcsscom",
+     "tag": "div",
+     "box": {
+      "x": 40,
+      "y": 10229,
+      "w": 1360,
+      "h": 136
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|code-mockup:many|bg:flat,bs:no,rad:rounded,dyn:static",
+   "alias": "code-panel",
+   "count": 1,
+   "sites": [
+    "resendcom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 80,
+      "y": 1038,
+      "w": 1280,
+      "h": 479
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|code-mockup:many|bg:none,bs:no,rad:square,dyn:static",
+   "alias": "code-panel",
+   "count": 1,
+   "sites": [
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 0,
+      "y": 2356,
+      "w": 250,
+      "h": 300
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|containers-only|bg:flat,bs:yes,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 160,
+      "y": 4231,
+      "w": 1120,
+      "h": 662
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-col|image:1|bg:flat,bs:no,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 161,
+      "y": 805,
+      "w": 552,
+      "h": 398
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|badge-pill:1,body-text:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "resendcom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 421,
+      "y": 4421,
+      "w": 598,
+      "h": 53
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|badge-pill:1|bg:gradient,bs:no,rad:pill-circle,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "resendcom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 168,
+      "y": 263,
+      "w": 233,
+      "h": 32
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|badge-pill:many,button-cta:many,icon-svg:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "linearapp"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 79,
+      "y": 0,
+      "w": 1282,
+      "h": 72
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|badge-pill:many,button-cta:many|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "vercelcom",
+     "tag": "div",
+     "box": {
+      "x": 146,
+      "y": 17,
+      "w": 474,
+      "h": 30
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|body-text:1,icon-svg:1|bg:flat,bs:no,rad:pill-circle,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "tailwindcsscom"
+   ],
+   "examples": [
+    {
+     "site": "tailwindcsscom",
+     "tag": "button",
+     "box": {
+      "x": 969,
+      "y": 16,
+      "w": 54,
+      "h": 24
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|body-text:1|bg:none,bs:yes,rad:pill-circle,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "resendcom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "a",
+     "box": {
+      "x": 104,
+      "y": 11957,
+      "w": 181,
+      "h": 34
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|body-text:1|bg:none,bs:yes,rad:square,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 160,
+      "y": 7537,
+      "w": 1120,
+      "h": 61
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|body-text:many,button-cta:many,heading:many|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "reactdev"
+   ],
+   "examples": [
+    {
+     "site": "reactdev",
+     "tag": "div",
+     "box": {
+      "x": 80,
+      "y": 6616,
+      "w": 1280,
+      "h": 589
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|code-mockup:1,image:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": "code-panel",
+   "count": 1,
+   "sites": [
+    "resendcom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 104,
+      "y": 58,
+      "w": 1232,
+      "h": 868
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|containers-only|bg:flat,bs:yes,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "supabasecom",
+     "tag": "a",
+     "box": {
+      "x": 629,
+      "y": 6097,
+      "w": 182,
+      "h": 34
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|containers-only|bg:none,bs:yes,rad:pill-circle,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "vercelcom",
+     "tag": "fieldset",
+     "box": {
+      "x": 1344,
+      "y": 5853,
+      "w": 72,
+      "h": 24
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|icon-svg:1|bg:flat,bs:yes,rad:pill-circle,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "vercelcom",
+     "tag": "div",
+     "box": {
+      "x": 1344,
+      "y": 5853,
+      "w": 24,
+      "h": 24
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|image:1|bg:gradient,bs:no,rad:pill-circle,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "resendcom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "div",
+     "box": {
+      "x": 670,
+      "y": 8449,
+      "w": 100,
+      "h": 100
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|image:1|bg:none,bs:no,rad:pill-circle,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "resendcom"
+   ],
+   "examples": [
+    {
+     "site": "resendcom",
+     "tag": "span",
+     "box": {
+      "x": 623,
+      "y": 8758,
+      "w": 40,
+      "h": 40
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|image:1|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "vercelcom",
+     "tag": "div",
+     "box": {
+      "x": 540,
+      "y": 3122,
+      "w": 718,
+      "h": 420
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|image:many|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 1010,
+      "y": 1217,
+      "w": 269,
+      "h": 398
+     }
+    }
+   ]
+  },
+  {
+   "key": "flex-row|stat-number:1|bg:none,bs:yes,rad:rounded,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 1002,
+      "y": 266,
+      "w": 86,
+      "h": 26
+     }
+    }
+   ]
+  },
+  {
+   "key": "grid-3col|body-text:1,icon-svg:1|bg:none,bs:no,rad:pill-circle,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "tailwindcsscom"
+   ],
+   "examples": [
+    {
+     "site": "tailwindcsscom",
+     "tag": "div",
+     "box": {
+      "x": 172,
+      "y": 481,
+      "w": 320,
+      "h": 40
+     }
+    }
+   ]
+  },
+  {
+   "key": "grid-3col|code-mockup:1|bg:none,bs:yes,rad:square,dyn:static",
+   "alias": "code-panel",
+   "count": 1,
+   "sites": [
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "vercelcom",
+     "tag": "section",
+     "box": {
+      "x": 181,
+      "y": 1855,
+      "w": 1079,
+      "h": 264
+     }
+    }
+   ]
+  },
+  {
+   "key": "grid-3col|containers-only|bg:flat,bs:no,rad:pill-circle,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "tailwindcsscom"
+   ],
+   "examples": [
+    {
+     "site": "tailwindcsscom",
+     "tag": "div",
+     "box": {
+      "x": 80,
+      "y": 11519,
+      "w": 94,
+      "h": 34
+     }
+    }
+   ]
+  },
+  {
+   "key": "grid-3col|containers-only|bg:none,bs:yes,rad:square,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "vercelcom"
+   ],
+   "examples": [
+    {
+     "site": "vercelcom",
+     "tag": "section",
+     "box": {
+      "x": 181,
+      "y": 3121,
+      "w": 1079,
+      "h": 422
+     }
+    }
+   ]
+  },
+  {
+   "key": "grid-4pluscol|body-text:1,image:many|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "supabasecom",
+     "tag": "div",
+     "box": {
+      "x": 80,
+      "y": 804,
+      "w": 1280,
+      "h": 952
+     }
+    }
+   ]
+  },
+  {
+   "key": "leaf|form-control",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "supabasecom"
+   ],
+   "examples": [
+    {
+     "site": "supabasecom",
+     "tag": "input",
+     "box": {
+      "x": 160,
+      "y": 6977,
+      "w": 247,
+      "h": 36
+     }
+    }
+   ]
+  },
+  {
+   "key": "split-2col|containers-only|bg:none,bs:no,rad:square,dyn:static",
+   "alias": null,
+   "count": 1,
+   "sites": [
+    "linearapp"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "div",
+     "box": {
+      "x": 48,
+      "y": 9077,
+      "w": 1344,
+      "h": 492
+     }
+    }
+   ]
+  },
+  {
+   "key": "sticky-fixed-chrome|containers-only|bg:gradient,bs:no,rad:square,dyn:sticky",
+   "alias": "nav-row",
+   "count": 1,
+   "sites": [
+    "linearapp"
+   ],
+   "examples": [
+    {
+     "site": "linearapp",
+     "tag": "header",
+     "box": {
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 73
+     }
+    }
+   ]
+  }
+ ]
+}
