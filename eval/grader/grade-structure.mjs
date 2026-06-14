@@ -23,6 +23,7 @@ import fs from 'fs';
 import { chromium } from 'playwright';
 import { PNG } from 'pngjs';
 import { assertAllowedBase, assertNotBlocked } from '../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: refuse a stray (e.g. paused *.sg-host.com) URL before any navigation.
+import { runVetoes, VETO_DEFAULTS } from './veto-detectors.mjs'; // GRADER-HONESTY veto detectors (de-overstatement). Pure functions over in-memory signals — no IO/navigation here.
 const arg = (n, d = null) => { const i = process.argv.indexOf('--' + n); return i > -1 && process.argv[i + 1] && !process.argv[i + 1].startsWith('--') ? process.argv[i + 1] : d; };
 const source = arg('source'), clone = arg('clone'), outDir = arg('out', '/tmp/structgrade'), W = 1440;
 if (!source || !clone) { console.error('need --source --clone'); process.exit(2); }
@@ -98,8 +99,48 @@ const norm = (s) => (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
 // a stale capture. NOTE: this is a DE-INFLATION — scores may DROP where clones miss long text; that's the point.
 const NO_LONGTEXT = process.env.GRADER_NO_LONGTEXT === '1';
 
+// ---- GRADER-HONESTY GATE (fusion finding: composite OVERSTATES human fidelity by 17-26pts) ----
+// Two reversible, default-ON honesty fixes, each independently killable, each a NO-OP on a pure-flow clone:
+//  (1) EDITABILITY LADDER — a frozen (preserve-arm) section reproduces source text as real widgets at FULL source
+//      visual fidelity, so the legacy editability term scored a LAYOUT-FROZEN section as fully 'editable' at ZERO
+//      cost → the router could escalate flow→preserve for free. The ladder DISCOUNTS the per-run credit for any
+//      source run whose y lands inside a preserve band (read from the authoritative sidecar ledger the router
+//      writes). drag-reflow-editable (flow) = full credit; content-editable-FROZEN (preserve) = credit×FROZEN_W;
+//      opaque/rasterized = 0 (already, via isCovered). Reversible: GRADER_EDITABILITY_BINARY=1 → legacy term.
+//      NO-OP ON FLOW: no ledger (pure-flow clone) OR zero preserve bands → editability byte-identical to legacy.
+//  (2) HUMAN-SALIENT VETOES — see veto-detectors.mjs. A fired veto HARD-CAPS the composite (a human instantly
+//      sees the page as broken). Reversible: GRADER_NO_VETOES=1 → cap disabled, report fields absent.
+// The whole gate is killable in one switch: GRADER_NO_HONESTYGATE=1 → BOTH ladder and vetoes off, deterministic
+// flow path byte-identical (no new report fields, composite untouched). Sub-flags override within an enabled gate.
+const USE_HONESTYGATE = process.env.GRADER_NO_HONESTYGATE !== '1';
+const EDIT_BINARY = process.env.GRADER_EDITABILITY_BINARY === '1' || !USE_HONESTYGATE; // ladder OFF → legacy editability
+const USE_VETOES = process.env.GRADER_NO_VETOES !== '1' && USE_HONESTYGATE;
+const FROZEN_W = (() => { const v = parseFloat(process.env.GRADER_FROZEN_W || ''); return Number.isFinite(v) && v >= 0 && v <= 1 ? v : 0.35; })(); // frozen-section editability weight (ladder middle tier ~0.3-0.4)
+const VETO_CEIL = (() => { const v = parseFloat(process.env.GRADER_VETO_CEIL || ''); return Number.isFinite(v) && v > 0 && v <= 1 ? v : VETO_DEFAULTS.CEIL; })();
+// FROZEN-COVERAGE CAP (independently killable sub-veto): a preserve-DOMINATED clone (preserveHeightFrac over a
+// threshold) is a layout-frozen page masquerading as editable — cap the composite. Default-ON within the gate.
+const USE_FROZENCAP = process.env.GRADER_NO_FROZENCAP !== '1' && USE_HONESTYGATE;
+const FROZENCAP_THRESH = (() => { const v = parseFloat(process.env.GRADER_FROZENCAP_THRESH || ''); return Number.isFinite(v) && v > 0 && v <= 1 ? v : 0.6; })();
+// The authoritative grade-time frozen-section record is the sidecar ledger build-hybrid-flow.mjs writes. Auto-
+// discovered at /tmp/hybrid-residual-ledger.json; override/disable via --ledger <path|none>. ABSENT ⇒ the clone
+// is treated as pure-flow (no frozen bands) ⇒ ladder + frozen-cap are NO-OPS ⇒ byte-identical flow path.
+function loadLedger() {
+  if (!USE_HONESTYGATE) return null;
+  const a = arg('ledger', '/tmp/hybrid-residual-ledger.json');
+  if (!a || a === 'none') return null;
+  try {
+    if (!fs.existsSync(a)) return null;
+    const led = JSON.parse(fs.readFileSync(a, 'utf8'));
+    // Only trust a ledger that names THIS source (the sidecar is overwritten per build; a stale ledger from a
+    // different source must NOT be applied — that would corrupt an unrelated grade). Conservative: source mismatch
+    // OR missing → no ledger (no-op). preserveHeightFrac/perSection are the fields we read.
+    if (led && led.source && source && led.source !== source) return null;
+    return led;
+  } catch { return null; }
+}
+
 async function capture(ctx, target, isSource) {
-  if (!/^https?:/.test(target)) return { shot: PNG.sync.read(fs.readFileSync(target)), texts: [], census: {}, ds: null };
+  if (!/^https?:/.test(target)) return { shot: PNG.sync.read(fs.readFileSync(target)), texts: [], census: {}, ds: null, ctaRuns: [] };
   const p = await ctx.newPage(); await p.setViewportSize({ width: W, height: 900 });
   try { await p.goto(target, { waitUntil: 'networkidle', timeout: 60000 }); } catch { try { await p.goto(target, { waitUntil: 'load', timeout: 30000 }); } catch {} }
   await p.emulateMedia({ reducedMotion: 'reduce' }); await p.waitForTimeout(1200);
@@ -165,6 +206,20 @@ async function capture(ctx, target, isSource) {
     const fonts = new Map();     // "family|size|weight" -> count (type-scale signal)
     const radiusSet = new Set();
     let contrastPairs = 0, contrastPass = 0, hasAccent = false, scanned = 0; const cfails = [];
+    // CTA-run capture (grader-honesty unstyled-CTA veto): tag buttons/links with their computed fg/bg colour,
+    // saturation, and whether they carry a real (non-transparent) bg fill. A "styled" CTA has an accent (saturated
+    // fill or saturated text); the veto fires when the source has styled CTAs but the clone's are all default.
+    const ctaRuns = [];
+    for (const e of document.querySelectorAll('a,button,.elementor-widget-button,[role="button"]')) {
+      if (ctaRuns.length > 80) break;
+      if (!vis(e)) continue;
+      const t = clean(e.innerText); if (!t || t.length > 60) continue; // a CTA is a short labeled control
+      const cs = getComputedStyle(e);
+      const fg = parseRGB(cs.color); if (!fg) continue;
+      const bgRaw = parseRGB(cs.backgroundColor); const hasBg = !!(bgRaw && bgRaw.a > 0.5);
+      const bg = hasBg ? bgRaw : bgOf(e);
+      ctaRuns.push({ text: t.slice(0, 40), fgSat: +sat(fg).toFixed(3), bgSat: +sat(bg).toFixed(3), bgLum: +lum(bg).toFixed(3), hasBg });
+    }
     for (const e of document.querySelectorAll('*')) {
       if (scanned > 4000) break;            // cap for very large pages
       if (!vis(e)) continue;
@@ -191,10 +246,10 @@ async function capture(ctx, target, isSource) {
       radii: [...radiusSet].sort((a, b) => a - b).slice(0, 8),
       contrastFails: cfails.sort((a, b) => a.ratio - b.ratio).slice(0, 40),
     };
-    return { texts, textPos, census, ds, pageH: document.documentElement.scrollHeight };
+    return { texts, textPos, census, ds, ctaRuns, pageH: document.documentElement.scrollHeight };
   }, NO_LONGTEXT);
   const shot = PNG.sync.read(await p.screenshot({ fullPage: true }));
-  await p.close(); return { shot, texts: info.texts, textPos: info.textPos, census: info.census, ds: info.ds, pageH: info.pageH };
+  await p.close(); return { shot, texts: info.texts, textPos: info.textPos, census: info.census, ds: info.ds, ctaRuns: info.ctaRuns, pageH: info.pageH };
 }
 
 // RESPONSIVE dimension — MOBILE-FIT: does the clone fit the 390px viewport without horizontal overflow?
@@ -461,7 +516,7 @@ const refreshSource = process.argv.includes('--refresh-source');
   const useSrcCache = /^https?:/.test(source) && fs.existsSync(srcCacheJson) && fs.existsSync(srcCachePng) && !refreshSource;
   if (useSrcCache) {
     const meta = JSON.parse(fs.readFileSync(srcCacheJson, 'utf8'));
-    src = { shot: PNG.sync.read(fs.readFileSync(srcCachePng)), texts: meta.texts, textPos: meta.textPos, census: meta.census, ds: meta.ds, pageH: meta.pageH };
+    src = { shot: PNG.sync.read(fs.readFileSync(srcCachePng)), texts: meta.texts, textPos: meta.textPos, census: meta.census, ds: meta.ds, ctaRuns: meta.ctaRuns || null, pageH: meta.pageH };
     srcMobileTexts = meta.mobileTexts;
     srcMobileH = meta.mobileH || null;       // cached source 390px scrollHeight (D4 mobile-height baseline)
     srcMidCached = meta.midwidthSrc || null; // cached source mid-width heights (cliff-probe baseline)
@@ -483,7 +538,7 @@ const refreshSource = process.argv.includes('--refresh-source');
   }
   const midwidth = await midwidthProbe(ctx, clone, source, srcMidCached, cln.pageH, src.pageH); // G1: multi-boundary cliff + 1200 amputation/hero probes (+1440 grading heights for the F1 anchor guard)
   if (!useSrcCache && /^https?:/.test(source)) { // persist a fresh source capture for deterministic future grades
-    try { fs.mkdirSync(SRC_CACHE_DIR, { recursive: true }); fs.writeFileSync(srcCachePng, PNG.sync.write(src.shot)); fs.writeFileSync(srcCacheJson, JSON.stringify({ texts: src.texts, textPos: src.textPos, census: src.census, ds: src.ds, pageH: src.pageH, mobileTexts: srcML ? srcML.mobileTexts : null, ...(USE_MOBILEH && srcML && srcML.mobileH > 0 ? { mobileH: srcML.mobileH } : {}), midwidthSrc: midwidth && midwidth._srcMid ? midwidth._srcMid : null })); } catch {}
+    try { fs.mkdirSync(SRC_CACHE_DIR, { recursive: true }); fs.writeFileSync(srcCachePng, PNG.sync.write(src.shot)); fs.writeFileSync(srcCacheJson, JSON.stringify({ texts: src.texts, textPos: src.textPos, census: src.census, ds: src.ds, ctaRuns: src.ctaRuns || null, pageH: src.pageH, mobileTexts: srcML ? srcML.mobileTexts : null, ...(USE_MOBILEH && srcML && srcML.mobileH > 0 ? { mobileH: srcML.mobileH } : {}), midwidthSrc: midwidth && midwidth._srcMid ? midwidth._srcMid : null })); } catch {}
   } else if (useSrcCache && /^https?:/.test(source) && midwidth && midwidth._srcMidFresh && midwidth._srcMid) {
     // pre-hardening cache lacked midwidthSrc → patch it in place so future corpus runs skip the 5 source loads
     try { const meta = JSON.parse(fs.readFileSync(srcCacheJson, 'utf8')); meta.midwidthSrc = midwidth._srcMid; fs.writeFileSync(srcCacheJson, JSON.stringify(meta)); } catch {}
@@ -552,10 +607,27 @@ const refreshSource = process.argv.includes('--refresh-source');
   // CHUNK runs only (never loosens matching for ordinary short runs; vacuous under GRADER_NO_LONGTEXT=1).
   const cloneAll = ' ' + cln.texts.map(norm).join(' ') + ' ';
   const isCovered = (t, chunk) => cloneSet.has(t) || cloneJoined.includes(' ' + t + ' ') || cloneJoined.includes(t) || (!!chunk && cloneAll.includes(t));
-  let credit = 0, covered = 0;
-  for (const { t, y, chunk } of srcPos) { if (isCovered(t, chunk)) { covered++; credit += bandVisAt(y); } }
-  const editability = srcPos.length ? credit / srcPos.length : 0;       // visual-coupled (objective)
+  // ---- EDITABILITY LADDER (grader-honesty #1) — read the authoritative frozen-section sidecar ledger and weight
+  // any source run that lands inside a PRESERVE (layout-frozen) band DOWN. Tiers: drag-reflow-editable (flow band,
+  // full credit) > content-editable-FROZEN (preserve band, credit×FROZEN_W) > opaque/rasterized (not covered, 0).
+  // NO-OP ON FLOW: ledger absent (pure-flow clone) OR no preserve bands ⇒ inPreserveBand() is always false ⇒
+  // credit identical to legacy. EDIT_BINARY (GRADER_EDITABILITY_BINARY=1 or gate off) ⇒ legacy term, no discount.
+  const ledger = loadLedger();
+  const preserveBands = (!EDIT_BINARY && ledger && Array.isArray(ledger.perSection))
+    ? ledger.perSection.filter((s) => s.arm === 'preserve' && s.h > 0).map((s) => ({ y0: s.y, y1: s.y + s.h }))
+    : [];
+  const inPreserveBand = (y) => preserveBands.some((b) => y >= b.y0 && y < b.y1);
+  let credit = 0, covered = 0, frozenRuns = 0;
+  for (const { t, y, chunk } of srcPos) {
+    if (!isCovered(t, chunk)) continue;
+    covered++;
+    const frozen = inPreserveBand(y);
+    if (frozen) frozenRuns++;
+    credit += bandVisAt(y) * (frozen ? FROZEN_W : 1); // frozen sections weighted DOWN — escalating flow→preserve is no longer free
+  }
+  const editability = srcPos.length ? credit / srcPos.length : 0;       // visual-coupled + ladder-weighted (objective)
   const textCoverage = srcPos.length ? covered / srcPos.length : 0;     // raw coverage (diagnostic only)
+  const preserveHeightFrac = (ledger && typeof ledger.preserveHeightFrac === 'number') ? ledger.preserveHeightFrac : null;
   // structure diagnostic: of the clone, how much is native widgets vs raster images
   const c = cln.census; const nativeW = (c.wHeading || 0) + (c.wText || 0) + (c.wButton || 0); const imgW = c.wImage || 0;
   const nativeRatio = (nativeW + imgW) ? nativeW / (nativeW + imgW) : 0;
@@ -670,6 +742,34 @@ const refreshSource = process.argv.includes('--refresh-source');
     : (cds.contrastFails || []).filter((f) => f.ratio < 1.3 && f.fsz >= 18 && f.w > 0 && lumRange(cln.shot, f.x, f.y, f.w, f.h) < 24);
   const invisDefect = process.env.GRADER_NODEFECT === '1' ? 0 : Math.min(0.20, invisRuns.length * 0.04);
   composite = composite * (1 - invisDefect);
+  // ---- GRADER-HONESTY VETO-CAPS (#2) — human-salient STATIC defects the geometry/editability terms miss. A fired
+  // veto HARD-CAPS the composite at VETO_CEIL (default 0.45): a human instantly reads the page as broken, so no
+  // geometry score should survive it. Mirrors the midwidth veto-cap pattern (Math.min). Reversible: GRADER_NO_VETOES
+  // =1 (or GRADER_NO_HONESTYGATE=1) → no run, no cap, no report field. Per-detector kill via GRADER_NO_VETO_*=1.
+  // The page-level SSIM (ssimMean) gates wrong-logo (don't relabel a uniformly-broken page as a logo defect).
+  let vetoResult = null; const vetoCaps = [];
+  if (USE_VETOES) {
+    vetoResult = runVetoes({
+      srcShot: src.shot, cloneShot: cln.shot,
+      pageSSIM: ssimMean,
+      bandSSIM: sArr, bandExact: eArr,
+      contrastFails: (cln.ds && cln.ds.contrastFails) || null,
+      srcCtaRuns: src.ctaRuns || null, cloneCtaRuns: cln.ctaRuns || null,
+      tunables: { CEIL: VETO_CEIL },
+    });
+    if (vetoResult.fired.length) {
+      composite = Math.min(composite, VETO_CEIL);
+      for (const f of vetoResult.fired) vetoCaps.push(`${f.veto}(sev ${f.severity})→cap${VETO_CEIL}`);
+    }
+  }
+  // FROZEN-COVERAGE CAP (#1 hard backstop) — a preserve-DOMINATED clone (preserveHeightFrac > FROZENCAP_THRESH) is a
+  // layout-frozen page being scored as editable; cap the composite. NO-OP ON FLOW (no ledger / 0 preserveHeightFrac).
+  let frozenCap = null;
+  if (USE_FROZENCAP && preserveHeightFrac != null && preserveHeightFrac > FROZENCAP_THRESH) {
+    frozenCap = VETO_CEIL;
+    composite = Math.min(composite, VETO_CEIL);
+    vetoCaps.push(`frozen-coverage(${preserveHeightFrac}>${FROZENCAP_THRESH})→cap${VETO_CEIL}`);
+  }
   // ---- G1 MULTI-WIDTH VETO-CAPS (see midwidthProbe block; reversible GRADER_NO_MIDWIDTH=1 → probes skipped,
   // composite untouched). A page whose height blows up past the SOURCE'S OWN full responsive growth at any
   // sampled mid-width (abs-pin drop → unstyled stack; cliffExcess = C(w)/S_full > 1.3, see hardening notes) or
@@ -698,9 +798,16 @@ const refreshSource = process.argv.includes('--refresh-source');
     source, clone,
     composite: +composite.toFixed(3),
     visual: +visual.toFixed(3), editability: +editability.toFixed(3), designSystem: +designSystem.toFixed(3), responsive: responsive != null ? +responsive.toFixed(3) : null,
-    breakdown: { ssim_mean: +ssimMean.toFixed(3), exactPixel_mean: +exactMean.toFixed(3), cgm_mean: +cgmMean.toFixed(3), cgmOverDensity: cgmRes.overDensity, hRatio: +hRatio.toFixed(3), heightPenalty: +hPen.toFixed(3), textCoverage: +textCoverage.toFixed(3), editVisCoupled: +editability.toFixed(3), srcTextRuns: srcPos.length, cloneTextRuns: cln.texts.length, nativeRatio: +nativeRatio.toFixed(3), invisibleText: invisRuns.length, invisibleDefect: +invisDefect.toFixed(3), ...(INVISTEXT2 ? { invisDetector: 'localbg-v2', invisRuns: invisRuns.slice(0, 8).map((f) => ({ y: f.y, fsz: f.fsz, ratio: f.ratio, text: f.text })) } : {}), cloneWidgets: { heading: c.wHeading, text: c.wText, button: c.wButton, image: c.wImage } },
+    breakdown: { ssim_mean: +ssimMean.toFixed(3), exactPixel_mean: +exactMean.toFixed(3), cgm_mean: +cgmMean.toFixed(3), cgmOverDensity: cgmRes.overDensity, hRatio: +hRatio.toFixed(3), heightPenalty: +hPen.toFixed(3), textCoverage: +textCoverage.toFixed(3), editVisCoupled: +editability.toFixed(3), srcTextRuns: srcPos.length, cloneTextRuns: cln.texts.length, nativeRatio: +nativeRatio.toFixed(3), ...(USE_HONESTYGATE && !EDIT_BINARY ? { frozenRuns, frozenWeight: FROZEN_W } : {}), invisibleText: invisRuns.length, invisibleDefect: +invisDefect.toFixed(3), ...(INVISTEXT2 ? { invisDetector: 'localbg-v2', invisRuns: invisRuns.slice(0, 8).map((f) => ({ y: f.y, fsz: f.fsz, ratio: f.ratio, text: f.text })) } : {}), cloneWidgets: { heading: c.wHeading, text: c.wText, button: c.wButton, image: c.wImage } },
     designLint: { paletteFidelity: +palFid.toFixed(3), typeFidelity: +typeFid.toFixed(3), contrastPass: +contrastPass.toFixed(3), contrastPairs: cds.contrastPairs || 0, contrastFail: (cds.contrastPairs || 0) - (cds.contrastPass || 0), hasPrimary: !!hasPrimary, hasTypography: !!hasType, cloneFonts: cds.fontCount || 0, clonePalette: (cds.palette || []).length, cloneRadii: cds.radii || [] },
     responsiveDetail: responsive != null ? { mobileFit: +mobileFitV.toFixed(3), mobileOrder: +mobileOrderV.toFixed(3) } : null,
+    // ---- GRADER-HONESTY GATE (absent entirely under GRADER_NO_HONESTYGATE=1 → byte-identical legacy report) ----
+    ...(USE_HONESTYGATE ? { honesty: {
+      editLadder: { binary: EDIT_BINARY, ledger: ledger ? (arg('ledger', '/tmp/hybrid-residual-ledger.json')) : null, preserveBands: preserveBands.length, preserveHeightFrac, frozenRuns, frozenWeight: EDIT_BINARY ? null : FROZEN_W, note: EDIT_BINARY ? 'editability ladder OFF (legacy binary)' : `${frozenRuns} of ${covered} covered runs landed in a layout-FROZEN (preserve) band → credited ×${FROZEN_W} (drag-reflow > content-editable-frozen > opaque ladder)` },
+      vetoes: USE_VETOES ? { fired: (vetoResult ? vetoResult.fired : []), all: (vetoResult ? vetoResult.all : []), ceiling: VETO_CEIL } : { disabled: true },
+      frozenCoverageCap: USE_FROZENCAP ? (frozenCap != null ? { capped: VETO_CEIL, preserveHeightFrac, threshold: FROZENCAP_THRESH } : { capped: false, preserveHeightFrac, threshold: FROZENCAP_THRESH }) : { disabled: true },
+      caps: vetoCaps,
+    } } : {}),
     // G1 MULTI-WIDTH (absent entirely under GRADER_NO_MIDWIDTH=1 / --no-responsive / probe failure → legacy report shape).
     ...(midwidth ? { midwidth: (({ _srcMid, _srcMidFresh, ...pub }) => ({ ...pub, caps: midwidthCaps }))(midwidth) } : {}),
     note: 'composite = 0.35*visual + 0.35*editability + 0.10*designSystem + 0.20*responsive (3-term 0.45/0.45/0.10 fallback when responsive unavailable; visual<0.5 floors it). editability = mean over source text runs of (reproduced-as-selectable ? bandVisual(y) : 0) — coupled to visual so shredded/broken-band text earns little (un-gameable); textCoverage is the raw uncoupled diagnostic. designSystem = 0.35*paletteFidelity + 0.30*typeFidelity + 0.25*contrastPass(WCAG AA) + 0.10*completeness. responsive = 0.5*mobileFit(no 390px overflow) + 0.5*mobileOrder(clone mobile reading-order vs source, LCS).',
