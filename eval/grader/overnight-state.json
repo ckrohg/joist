@@ -5299,6 +5299,24 @@
       ],
       "verdict": "CONDITIONAL GO \u2014 true 1:1 + editable IS achievable as a per-axis split (flow base + preserve residual arm); preserve proven to break the ceiling on the hard layout class. The specific 62 is not yet hash-bound/orchestrator-reproduced (rendered on shared host) \u2014 the ARCHITECTURE finding is durable; the number needs \u00a78d re-derivation. This is the path to true 1:1.",
       "nextBuild": "productionize PreserveCSSEmitter+control+capture+router; close 4 cheap extraction levers (re-judge hero toward/above 72); PERSIST hash-bound scores; carousel clip-state model; re-run on a CLEAN stack (local or unpaused host)."
+    },
+    {
+      "name": "true-1to1-hybrid-BUILT-clean-local",
+      "date": "2026-06-14",
+      "kind": "TRUE-1:1 hybrid BUILT + productionized + demonstrated on a clean local stack; orchestrator-verified; no shared-host stray",
+      "gate_met": "PRESERVE reproduces on clean local 3.28.4 (localStackUsed TRUE, 100% localhost:8001). Orchestrator-verified STRUCTURAL (deterministic): preserve page 251 + productionized-emitter page 254 both docH=598 hRatio 1.000 / 15 abs / gutter 0; FLOW page 253 docH=6418 hRatio 10.7. parse_css fires on 3.28 (13001B Post_CSS, 13 abs pins). Baseline 83 md5 unchanged.",
+      "honest_score_correction": "The spike's '62' was a LOOSER 3-up rubric. Stricter hash-bound hero-band 2-up judge (persisted /tmp/preserve-spike/bless/results.json): preserve PRE-extraction = 28; the 4 extraction fixes (full-button-width, nav-recover, heading-border-kill, bg-art-opacity) lift to 72 = PARITY with authored-reconstruct (72), breaking FLOW (8) by +64. So preserve does NOT EXCEED authored \u2014 it REACHES authored-parity DETERMINISTICALLY on the absolute class where flow fails (8), WITHOUT the LLM semantic-normalization.",
+      "productionized": "plugin/src/WidgetPack/PreserveCSS/Emitter.php (clones DisplaySwap, real hidden joist_preserve_css control, wired into PackBootstrap, reversible JOIST_PRESERVE_CSS_DISABLE) renders BYTE-IDENTICAL to the mu-plugin (page 254==251, orchestrator-verified). Capture half = eval/grader/preserve-capture.mjs (byHash payloads, NOT yet imported by a builder). Commits 3939648/89c2fe6 on main.",
+      "router_hybrid": "eval/grader/flow-preserve-router.mjs (per-section flow-vs-preserve; PRIMARY triggers absolute-overlay/grid/neg-margin/overflow-clip escalate, transform+z-stack corroborating-only [fixed over-fire], carousels excluded). HYBRID DEMO full clerk page 257: grade-structure composite 0.315(flow-only)->0.462(hybrid), pinned baseScore 17.1->31.0, hRatio 1.83->1.15, near-source; preserveCoverageFrac 0.58 by-count/0.88 by-height. The absolute sections flow collapses to empty boxes now render. Commits e33e586/7440de4/97b35ea on main.",
+      "remaining_to_true_1to1": [
+        "72=PARITY-with-authored not >78 \u2014 refine preserve past authored (bg-art opacity ideal ~0.22, finer extraction) to push toward true 1:1",
+        "router auto-revert-failing-preserve-to-flow gate stage MEASURED but NOT enforced (one stage left)",
+        "capture byHash-attach is library-ready but NOT yet called by clone.mjs/build-absolute (the builder-side wiring)",
+        "editability cost: preserve sections content-editable/layout-frozen \u2014 mark in navigator for v0",
+        "carousel clip-state model (preserve fails interactive carousels)"
+      ],
+      "verdict": "The true-1:1 architecture is PROVEN + BUILT + on main: flow+preserve hybrid deterministically reaches authored-parity on the absolute/grid/overflow class flow can't express (hRatio 1.000 vs 10.7), productionized into the plugin (reversible, content-editable), router demonstrated (hybrid 0.462 > flow-only 0.315 on full clerk). The per-axis split answers 'is true-1:1 + editable achievable': YES, per-section. Distance to actual 1:1 = refine past parity + wire the builder + enforce the gate.",
+      "integrity": "orchestrator reproduced the structural hRatio facts + the productionized==mu-plugin render; hash-bound scores persisted; baseline 83 untouched; 100% local docker; no shared-host stray (rails held)."
     }
   ],
   "phase5backlog_wave3": [
