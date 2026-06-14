@@ -1,8 +1,9 @@
 // @purpose Check audience band (Go beyond editing) + confirm grader-mode fullPage void persistence.
 import { chromium } from 'playwright';
+import { resolveBase } from '../../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: never navigate a non-training host
 import path from 'path';
 const OUT = '/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader/.indep-void';
-const CLONE = 'https://georges232.sg-host.com/?page_id=2988';
+const CLONE = `${resolveBase(process.env.JOIST_BASE || 'http://localhost:8001')}/?page_id=2988`;
 const browser = await chromium.launch({ headless: true });
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
 const page = await ctx.newPage();

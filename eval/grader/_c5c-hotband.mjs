@@ -31,6 +31,10 @@ import { execSync } from 'child_process';
 import { chromium } from 'playwright';
 import { norm, W, loadSrcCache } from './grade-sections.mjs';
 import { sweep } from './scratch-harness.mjs';
+import { resolveBase } from '../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: never navigate a non-training host
+// §0 SAFETY GUARD: clone host was hardcoded to the PAUSED shared host (navigation → render + CSS regen
+// = the overload path). Default to the local sandbox; resolveBase throws LOUDLY on a stray JOIST_BASE.
+const C5C_BASE = resolveBase(process.env.JOIST_BASE || 'http://localhost:8001');
 import { prepare, liveHash, DEGENERATE_PX, GLYPH_VIS_MIN_FRAC, BAND_OVERLAP_MIN_FRAC } from './sectionvisual.mjs';
 import { refineSections, registerOperator } from './refine-sections.mjs';
 
@@ -136,7 +140,7 @@ function dominantBg(shot, x0, ya, x1, yb) {
     try {
       const { PNG } = await import('pngjs');
       const pg = await ctx.newPage();
-      await pg.goto(`https://georges232.sg-host.com/?page_id=${PAGE}&c5c=${Date.now().toString(36)}`, { waitUntil: 'networkidle', timeout: 60000 }).catch(() => {});
+      await pg.goto(`${C5C_BASE}/?page_id=${PAGE}&c5c=${Date.now().toString(36)}`, { waitUntil: 'networkidle', timeout: 60000 }).catch(() => {});
       await pg.waitForTimeout(700);
       const cs = PNG.sync.read(await pg.screenshot({ fullPage: true }));
       await pg.close();

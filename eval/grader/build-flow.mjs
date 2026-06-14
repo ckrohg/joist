@@ -45,7 +45,7 @@
  *
  * Usage: node build-flow.mjs --layout layout.json --page <freshId>   [--dry]
  *   --dry → infer the container tree from the capture and console.log row/col/overlay counts, NO WP write.
- * Env: JOIST_BASE (default georges232.sg-host.com), JOIST_AUTH_B64 (source /tmp/joist-auth.env).
+ * Env: JOIST_BASE (default http://localhost:8001 — §0 host-guard refuses non-training hosts), JOIST_AUTH_B64 (source /tmp/joist-auth.env).
  */
 import fs from 'fs';
 

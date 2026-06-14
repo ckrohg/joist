@@ -1,8 +1,9 @@
 // @purpose Independent adversarial capture of the live resend clone — verify void-imagery bands render real source img.
 import { chromium } from 'playwright';
+import { resolveBase } from '../../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: never navigate a non-training host
 import path from 'path';
 const OUT = '/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader/.indep-void';
-const CLONE = 'https://georges232.sg-host.com/?page_id=2988';
+const CLONE = `${resolveBase(process.env.JOIST_BASE || 'http://localhost:8001')}/?page_id=2988`;
 const SRC = 'https://resend.com';
 const browser = await chromium.launch({ headless: true });
 async function shoot(name, url) {

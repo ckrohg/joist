@@ -11,8 +11,13 @@
  */
 import { spawn } from 'child_process';
 import fs from 'fs';
+import { resolveBase } from '../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: never grade against a non-training host
 const has = (n) => process.argv.includes('--' + n);
 const arg = (n, d) => { const i = process.argv.indexOf('--' + n); return i > -1 && process.argv[i + 1] ? process.argv[i + 1] : d; };
+// §0 SAFETY GUARD: the clone host the corpus grades against. Was hardcoded to the PAUSED shared host
+// georges232.sg-host.com (grade-structure navigates it → server-side render + CSS regen = the overload
+// path). Default to the local sandbox; resolveBase throws LOUDLY on a non-training JOIST_BASE override.
+const CLONE_BASE = resolveBase(process.env.JOIST_BASE || 'http://localhost:8001');
 const doBuild = has('build') || (!has('build') && !has('grade'));
 const doGrade = has('grade') || (!has('build') && !has('grade'));
 const CONC = parseInt(arg('conc', '3'), 10);
@@ -55,7 +60,7 @@ async function pool(items, n, fn) { const res = []; let i = 0; const workers = A
   }
   if (doGrade) {
     console.log(`grading ${CORPUS.length} clones (conc ${CONC})…`);
-    await pool(CORPUS, CONC, async (s) => { const code = await run('node', ['grade-structure.mjs', '--source', s.url, '--clone', `https://georges232.sg-host.com/?page_id=${s.page}`, '--out', `${OUT}/g-${s.name}`], `${OUT}/grade-${s.name}.log`); console.log(`  grade ${s.name} → exit ${code}`); return code; });
+    await pool(CORPUS, CONC, async (s) => { const code = await run('node', ['grade-structure.mjs', '--source', s.url, '--clone', `${CLONE_BASE}/?page_id=${s.page}`, '--out', `${OUT}/g-${s.name}`], `${OUT}/grade-${s.name}.log`); console.log(`  grade ${s.name} → exit ${code}`); return code; });
   }
   // aggregate
   const rows = [];

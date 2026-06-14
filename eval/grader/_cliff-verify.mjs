@@ -1,10 +1,11 @@
 // @purpose Independent (grader-code-free) verification of the 1024/1025 height cliff on clone pages.
 // Loads each clone at 1025 then 1024, records scrollHeight + abs-positioned elementor element count.
 import { chromium } from 'playwright';
+import { resolveBase } from '../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: never navigate a non-training host
 const pages = process.argv.slice(2);
 const b = await chromium.launch();
 for (const pid of pages) {
-  const url = `https://georges232.sg-host.com/?page_id=${pid}`;
+  const url = `${resolveBase(process.env.JOIST_BASE || 'http://localhost:8001')}/?page_id=${pid}`;
   const out = { page: pid };
   for (const w of [1025, 1024]) {
     const p = await b.newPage({ viewport: { width: w, height: 900 } });

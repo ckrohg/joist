@@ -21,13 +21,15 @@
  * The bench OVERWRITES its scratch WP page ids every run (that is intentional — they are disposable slots).
  *
  * Usage: node bench/bench-run.mjs [--rebaseline]
- * Env (REQUIRED, source /tmp/joist-auth.env first): JOIST_AUTH_B64, JOIST_BASE=https://georges232.sg-host.com
+ * Env (REQUIRED, source /tmp/joist-auth.env first): JOIST_AUTH_B64. JOIST_BASE defaults to
+ *   http://localhost:8001 and is §0 host-guarded — the PAUSED shared host is REFUSED (was REQUIRED pre-incident).
  */
 import { spawn } from 'child_process';
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { resolveBase } from '../../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: never bench against a non-training host
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const GRADER_DIR = path.resolve(__dirname, '..');         // eval/grader (where capture-layout etc. live)
@@ -39,9 +41,13 @@ const has = (n) => process.argv.includes('--' + n);
 const REBASELINE = has('rebaseline');
 
 // ---- guardrails: never run against the wrong site, never proceed without auth ----
-const BASE = process.env.JOIST_BASE;
+// §0 SAFETY GUARD (INVERTED FROM THE INCIDENT): this bench previously HARD-REQUIRED
+// JOIST_BASE === 'https://georges232.sg-host.com' and FATAL-exited otherwise — i.e. it ENFORCED
+// the now-PAUSED shared host. resolveBase flips that: default to the local sandbox and REFUSE the
+// shared host (and any non-training host) LOUDLY before any render/PUT. The bench writes disposable
+// scratch pages, so per-run CSS regen on a shared host was a direct contributor to the overload.
+const BASE = resolveBase(process.env.JOIST_BASE || 'http://localhost:8001');
 const B64 = process.env.JOIST_AUTH_B64;
-if (BASE !== 'https://georges232.sg-host.com') { console.error(`FATAL wrong JOIST_BASE=${BASE} (expected https://georges232.sg-host.com). Did you 'source /tmp/joist-auth.env'?`); process.exit(2); }
 if (!B64) { console.error('FATAL JOIST_AUTH_B64 not set. source /tmp/joist-auth.env first.'); process.exit(2); }
 
 // ---- bench manifest: block file → disposable scratch WP page id (OVERWRITTEN per run) ----
