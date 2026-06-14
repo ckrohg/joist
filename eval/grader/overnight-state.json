@@ -5180,6 +5180,30 @@
       },
       "scopeHonest": "DESKTOP-only @1440 (mobile/tablet keep author padding to guarantee zero rail regression; per-breakpoint band derivation deferred). Internal head-gap defect (eyebrow/tag) NOT fixed \u2014 separate lever. deriveSourceBands content-column-width heuristic is the most site-specific part.",
       "verdict": "Real generalizable win on the isolated 1:1 ceiling: pins unseen-site vertical rhythm to source via derived band geometry, deterministic + reversible + no-op-when-unneeded. Linear hRatio 0.825->0.93 LOOK-faithful. Render-path imagery-drop confound on fresh clerk render is a separate issue to fix."
+    },
+    {
+      "name": "breadth-n3-tailwind",
+      "date": "2026-06-13",
+      "kind": "n=3 breadth test \u2014 full upgraded pipeline on a 3rd unseen archetype (tailwindcss.com docs/marketing/code/light); orchestrator-verified",
+      "composes": "YES \u2014 upgraded-capture -> author -> rhythm(--cap) -> transpile -> render -> grade ALL ran end-to-end, NO new code, NO crash, lint CLEAN 198/198, real Elementor tree (not fallback), rhythm fired deterministically (+1540px across 6 matched bands, reversible).",
+      "authoringCost": "CHEAPER than linear \u2014 ~1 LOOK-iteration vs linear's ~4 \u2014 BECAUSE the contract already named the archetype's hard construct (code-panel): syntax-highlighted code worked FIRST TRY, native + editable, no region-raster. Strong evidence the CONTRACT+affordance approach transfers, not just plumbing. HONEST caveat: the cheapness is partly because the author ABRIDGED the dense bento \u2014 cheapness and pinned=0 are the same coin.",
+      "grade": {
+        "desktop_1440": "CLEAN \u2014 rail perWidthScore 1.0 (orchestrator-reproduced), hRatio 0.802 (at the 0.80 floor), LOOK strong, 45/45 images, real Elementor",
+        "rail_overall": "0.733 FAIL (reproduced) \u2014 fails are 768 (hRatio 1.261 tall + overflow +432) + 390 (overflow +798); desktop @1440 is the only clean width",
+        "pinnedRaw_1440": 0,
+        "pinned_explained": "NOT transpile loss (census EXACT, 0 broken) \u2014 it's AUTHOR-OMISSION (abridged dense bento: ~4 cards/1630px vs source ~10+ cards/4208px CSS-grid masonry, LOOK-confirmed) + grader proportional-y-band MISREGISTRATION (2.6x bento divergence de-correlates all lower tiles). Grader correctly refuses to credit absent content."
+      },
+      "breadthVerdict": "DUALITY (the honest conclusion): the PIPELINE generalizes as a mechanism (3rd archetype composes cleanly; clerk=auth/linear=product-dark/tailwind=docs-light; posthog=capture-limit), AND tailwind exposed ONE real located gap = AUTHOR-COMPLETENESS at density. No mechanism forces the author to reproduce all source feature-cards, so it abridged the dense CSS-grid bento. PIPELINE generalizes; FIDELITY-AT-DENSITY does not yet.",
+      "locatedGaps": [
+        "#1 AUTHOR-COMPLETENESS: no check forces full source-section coverage -> dense bento abridged -> pinned=0. FIX: completeness check (author band-area vs source band-area / cap-assets coverage) that flags omitted sections BEFORE grade.",
+        "V-GRID bans display:grid -> masonry bento flex-approximated (expressive ceiling for grid-heavy archetype)",
+        "RHYTHM +700 cap can't recover a large author-OMISSION (bento needed +2578); should distinguish omitted (unrecoverable) vs compressed (recoverable) so the model number stops over-reporting (1.0446 model vs 0.802 live)",
+        "capture SVG fix covers xmlns ONLY, not lab()/oklab()/var()/currentColor color-resolution -> invisible standalone (real under-spec)",
+        "768/390 responsive rail still fails (overflow) \u2014 known abs/per-bp ceiling, orthogonal to archetype",
+        "grader pin-registration brittle once one section diverges 2.6x (de-correlates lower tiles)"
+      ],
+      "positives": "code-samples solved NATIVELY (the named hard construct, clean win); authoring CHEAPER on n=3; desktop clean; rhythm composed on a reflow-opposite (taller-at-narrow) site",
+      "integrity": "baselines 83/185/etc untouched; rail reproduced; fresh page 232"
     }
   ],
   "phase5backlog_wave3": [
