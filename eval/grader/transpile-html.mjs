@@ -526,7 +526,17 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
     const d = n.declared || {};
     let inner = n.text;
     let style = 'margin:0';
-    if (/display:inline-block/.test(inner)) style += `;white-space:nowrap;min-width:${n.rect.w}px`;
+    if (/display:inline-block/.test(inner)) {
+      // An inline-block horizontal strip (e.g. a code/file-tab pill row) must stay on one line.
+      // Baking min-width = the captured DESKTOP rect width (e.g. 1152px) pins the strip un-shrinkably:
+      // it is a raw inline style in the text-editor `editor` field, NOT an Elementor responsive
+      // control, so _mobile/_tablet machinery cannot touch it and it overflows the page at 768/390.
+      // Instead self-contain it: nowrap keeps one line, max-width:100% caps it to the column, and
+      // overflow-x:auto lets a too-wide strip scroll internally at narrow widths. Desktop is byte-
+      // unchanged whenever the strip is narrower than its column (the common case). kses-safe, no @media.
+      if (process.env.RESPONSIVE_NO_INLINE_NOWRAP_PIN) style += `;white-space:nowrap;min-width:${n.rect.w}px`;
+      else style += `;white-space:nowrap;max-width:100%;overflow-x:auto`;
+    }
     if (d['max-width'] && /px$/.test(d['max-width']) && !CSS_MATH.test(d['max-width']) && !(d.width)) {
       style += `;max-width:${px(d['max-width'])}px`;
       if (align === 'center') style += ';margin-left:auto;margin-right:auto';
@@ -537,7 +547,19 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
     };
     if (parent && parent.s && parent.s.display.includes('flex') && parent.s['flex-direction'] === 'row') {
       set._element_width = 'auto';
-      if (/display:inline-block/.test(inner)) { set._element_width = 'initial'; set._element_custom_width = { unit: 'px', size: n.rect.w }; }
+      if (/display:inline-block/.test(inner)) {
+        set._element_width = 'initial';
+        set._element_custom_width = { unit: 'px', size: n.rect.w };
+        // SECONDARY (latent same-class defect): a px _element_custom_width pin = the captured desktop
+        // width survives verbatim into narrow breakpoints and overflows a flex row. Mirror the proven
+        // mobileFullWidth() pattern — clear the pin at tablet/mobile by overriding to 100% — so the
+        // widget fills its column edge-to-edge instead of forcing the desktop width. Desktop keeps the
+        // px pin (override is scoped to _tablet/_mobile only). Reversible with the same flag.
+        if (!process.env.RESPONSIVE_NO_INLINE_NOWRAP_PIN) {
+          if (set._element_custom_width_mobile === undefined) set._element_custom_width_mobile = { unit: '%', size: 100 };
+          if (set._element_custom_width_tablet === undefined) set._element_custom_width_tablet = { unit: '%', size: 100 };
+        }
+      }
     }
     responsiveTypo(n, set);
     applyMedia(n, set, 'align');
