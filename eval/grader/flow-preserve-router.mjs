@@ -176,7 +176,8 @@ async function liveConfirm(section, { page, width }) {
   const probe = await page.evaluate(({ band, W }) => {
     const within = (r) => { const cx = r.x + r.width / 2, cy = r.y + r.height / 2; return cx >= band.x - 2 && cx <= band.x + band.w + 2 && cy >= band.y - 2 && cy <= band.y + band.h + 2; };
     let overflowScroll = 0, overflowVert = 0, hTrack = 0, transformPlace = 0, zStack = 0, carouselTok = 0, n = 0;
-    const CAROUSEL = /carousel|swiper|slick|embla|keen-slider|splide|glide|flickity|slider(?![a-z])/i;
+    // class-TOKEN match (word-boundaried) so Tailwind utilities like `tracking-`/`glide-path` etc. never false-hit.
+    const CAROUSEL = /(^|[\s_-])(carousel|swiper|slick|embla|keen-slider|splide|glide|flickity|slideshow)([\s_-]|$)/i;
     const all = document.querySelectorAll('*');
     for (const el of all) {
       const r = el.getBoundingClientRect();
@@ -196,12 +197,39 @@ async function liveConfirm(section, { page, width }) {
         // a HORIZONTAL track = the carousel signature: overflow-x clip whose content is much wider than the box
         if (hClip && el.scrollWidth > el.clientWidth * 1.15) hTrack++;
       }
-      // transform USED FOR PLACEMENT (a translate/rotate/scale that is not the identity and not a hover transition)
+      // transform USED FOR PLACEMENT — a transform is "placement" ONLY when it materially OFFSETS the element from
+      // its flow box (a real translate that moves it ≥12px, or a rotate/skew that re-orients it). Ambient
+      // transforms (the identity, sub-px hover micro-shifts, scale(1.0001) animations) are NOT layout the flex
+      // solver loses — modern sites put a transform on nearly everything, so a bare "transform!=none" test
+      // over-fires on every section. Decompose the matrix: translate distance + presence of rotate/skew.
       const tf = cs.transform;
-      if (tf && tf !== 'none' && !/^matrix\(1, 0, 0, 1, 0, 0\)$/.test(tf)) transformPlace++;
-      // explicit z-index layering of an element that overlaps a sibling
+      if (tf && tf !== 'none' && !/^matrix\(1, 0, 0, 1, 0, 0\)$/.test(tf)) {
+        let isPlacement = false;
+        const m2 = /^matrix\(([^)]+)\)$/.exec(tf);
+        if (m2) { const p = m2[1].split(',').map(Number); const tx = p[4] || 0, ty = p[5] || 0; const rotSkew = Math.abs(p[0] - 1) > 0.02 || Math.abs(p[3] - 1) > 0.02 || Math.abs(p[1]) > 0.02 || Math.abs(p[2]) > 0.02; if (Math.hypot(tx, ty) >= 12 || rotSkew) isPlacement = true; }
+        else if (/matrix3d|translate(?!Z?\(0)|rotate|skew/.test(tf)) isPlacement = true; // 3d/explicit non-identity
+        if (isPlacement) transformPlace++;
+      }
+      // Z-STACK — an explicit z-index is "stacking" ONLY when this positioned element OVERLAPS a positioned sibling
+      // that carries a DIFFERENT z-index (a real layered z-stack). A lone positive z-index with no overlapping
+      // peer is ambient (every positioned button gets one) and is NOT a layout flow loses. Tested below per-parent.
       const zi = cs.zIndex;
-      if (zi && zi !== 'auto' && +zi !== 0) zStack++;
+      if (zi && zi !== 'auto' && +zi !== 0 && /(absolute|relative|fixed|sticky)/.test(cs.position)) {
+        const parent = el.parentElement;
+        if (parent) {
+          const me = el.getBoundingClientRect();
+          for (const sib of parent.children) {
+            if (sib === el) continue;
+            const scs = getComputedStyle(sib); const sz = scs.zIndex;
+            if (!/(absolute|relative|fixed|sticky)/.test(scs.position)) continue;
+            if (sz === zi || sz === 'auto') continue;
+            const sr = sib.getBoundingClientRect();
+            const ix = Math.max(0, Math.min(me.right, sr.right) - Math.max(me.left, sr.left));
+            const iy = Math.max(0, Math.min(me.bottom, sr.bottom) - Math.max(me.top, sr.top));
+            if (ix > 8 && iy > 8) { zStack++; break; }   // overlapping sibling with a different z → real z-stack
+          }
+        }
+      }
       // carousel role / class token
       const role = (el.getAttribute('aria-roledescription') || el.getAttribute('role') || '');
       if (/carousel/i.test(role) || CAROUSEL.test(el.className && el.className.baseVal ? el.className.baseVal : String(el.className || ''))) carouselTok++;
@@ -230,23 +258,32 @@ export async function routeSections(sections, opts = {}) {
     const reasons = [];
     let live = null;
 
-    // LIVE confirmation refines: adds overflow/transform/z-stack classes, confirms/denies the carousel signal.
+    // LIVE confirmation: the ONLY live-derived signal trustworthy enough to be a PRIMARY trigger is a confirmed
+    // VERTICAL overflow scroll/clip region (a real clipped panel flow can't author). transform-placement and
+    // z-stack are CORROBORATING-only (see below) — on a single static snapshot they cannot be distinguished from
+    // ambient animation transforms / decorative z-indices that modern sites put on nearly every element, so using
+    // them as a primary trigger over-fires and collapses the residual into "preserve everything".
+    let corroborate = [];
     if (page) {
       live = await liveConfirm(s, { page, width });
       if (live) {
-        if (live.overflowVert > 0) { stat.classes.push('overflow-scroll'); } // VERTICAL clip = legit preserve region
-        if (live.transformPlace > 0) { stat.classes.push('transform-placement'); }
-        if (live.zStack > 0 && !stat.classes.includes('absolute-overlay')) { stat.classes.push('z-stack'); }
+        if (live.overflowVert > 0) { stat.classes.push('overflow-scroll'); } // VERTICAL clip = legit PRIMARY preserve region
+        if (live.transformPlace > 0) corroborate.push('transform-placement');  // corroborating-only
+        if (live.zStack > 0 && !stat.classes.includes('absolute-overlay')) corroborate.push('z-stack'); // corroborating-only
       }
     }
-    const dedupClasses = [...new Set(stat.classes)];
-    // the NON-track vocab-loss classes (the ones a carousel guess must NEVER veto): a section with absolute-overlay,
-    // a real negative-margin bleed, a z-stack, or a vertical overflow clip is a GENUINE preserve win regardless of
-    // any horizontal-track geometry, because PRESERVE freezes those correctly (the spike's clerk-hero is exactly
-    // this: absolute-overlay + neg-margin, 72 vs 8). The carousel exclusion only bites a section whose ONLY loss
-    // class is a track (grid/track with nothing else flow can't already do).
-    const NON_TRACK = new Set(['absolute-overlay', 'fixed-overlay', 'negative-margin-overlap', 'z-stack', 'overflow-scroll', 'transform-placement']);
-    const hasNonTrackLoss = dedupClasses.some((c) => NON_TRACK.has(c));
+    // PRIMARY classes — the vocabulary-loss layout constructs the flex solver demonstrably cannot author 1:1 and
+    // that we detect from SOLID signals (layout-tree position/gridCols/margin + a confirmed scroll clip). Only
+    // these ESCALATE a section to PRESERVE. This is the tight residual: a section with none of these stays on flow.
+    const primaryClasses = [...new Set(stat.classes)];
+    corroborate = [...new Set(corroborate)].filter((c) => !primaryClasses.includes(c));
+    const dedupClasses = [...primaryClasses, ...corroborate]; // for the ledger/report (primary first)
+    // the NON-track PRIMARY classes (the ones a carousel guess must NEVER veto): absolute-overlay, a real
+    // negative-margin bleed, or a vertical overflow clip is a GENUINE preserve win regardless of horizontal-track
+    // geometry (the spike's clerk-hero = absolute-overlay + neg-margin, 72 vs 8). The carousel exclusion only
+    // bites a section whose ONLY primary class is a grid/track with nothing else flow can't already do.
+    const NON_TRACK = new Set(['absolute-overlay', 'fixed-overlay', 'negative-margin-overlap', 'overflow-scroll']);
+    const hasNonTrackLoss = primaryClasses.some((c) => NON_TRACK.has(c));
     // CONFIRMED carousel: a live carousel TOKEN, or a live HORIZONTAL-track overflow-x clip. The static geometric
     // track guess only counts when we have NO live confirmation AND the section carries no non-track loss class.
     let isCarousel = false, carBasis = '';
@@ -255,25 +292,26 @@ export async function routeSections(sections, opts = {}) {
     // even a CONFIRMED carousel does NOT veto a section that ALSO has a genuine non-track loss class — preserve
     // that section (the track is incidental decoration inside a structurally-overlaid band, e.g. the clerk hero).
     if (isCarousel && hasNonTrackLoss) { isCarousel = false; carBasis = ''; }
-    const conf = dedupClasses.length ? 1 : 0; // confidence: a vocab-loss class materialized
+    const conf = primaryClasses.length ? 1 : 0; // confidence: a PRIMARY vocab-loss class materialized
 
     // DECISION. Default arm = FLOW (the residual policy). Escalate to PRESERVE iff a vocab-loss class is present,
     // it is NOT a carousel, and confidence clears τ. The hRatio/h-overflow gate is applied by the BUILDER after it
     // renders the preserved section (it has the rendered band height); here we record the eligibility + reasons.
     let arm = 'flow';
-    if (dedupClasses.length === 0) {
-      reasons.push('no vocab-loss layout class → flow handles it 1:1 (default arm)');
+    const corrTxt = corroborate.length ? ` (+corroborating ${corroborate.join(', ')})` : '';
+    if (primaryClasses.length === 0) {
+      reasons.push(`no PRIMARY vocab-loss layout class → flow handles it 1:1 (default arm)${corrTxt ? `; ambient ${corroborate.join(', ')} are corroborating-only, never escalate alone` : ''}`);
     } else if (isCarousel) {
       reasons.push(`CAROUSEL/clip-track (${carBasis}) EXCLUDED from preserve-trigger set (spike: preserve 22 < flow 16) → keep on flow until a clip-state model exists`);
     } else if (conf < ROUTER.CONF_TAU) {
       reasons.push(`confidence ${conf.toFixed(2)} < τ ${ROUTER.CONF_TAU} → byte-equivalent FLOW fallback`);
     } else {
       arm = 'preserve';
-      reasons.push(`vocab-loss class(es) [${dedupClasses.join(', ')}] flow cannot author 1:1 → ESCALATE to PRESERVE residual arm`);
+      reasons.push(`PRIMARY vocab-loss class(es) [${primaryClasses.join(', ')}]${corrTxt} flow cannot author 1:1 → ESCALATE to PRESERVE residual arm`);
       reasons.push('post-render gate: hRatio∈[0.98,1.02] + zero h-overflow (builder verifies; else revert to flow)');
     }
     if (arm === 'preserve') preserveH += s.box.h;
-    decisions.push({ i, box: s.box, arm, classes: dedupClasses, reasons, isCarousel, conf, stat, live });
+    decisions.push({ i, box: s.box, arm, classes: primaryClasses, corroborate, reasons, isCarousel, conf, stat, live });
   }
   const preserveSections = decisions.filter((d) => d.arm === 'preserve').length;
   const ledger = {
