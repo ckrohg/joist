@@ -5159,6 +5159,27 @@
       "verdict": "Capture upgrade = clean win on AUTHORING EFFICIENCY (~75% iteration cut) + modest CORRECTNESS win, NEAR-ZERO on the FIDELITY CEILING. Buys faster more-accurate authoring; does NOT move the 1:1 wall. Ship the affordances (reversible flags already). KEY INSIGHT: the ~17% whitespace compression that deflates the pinned-judge is an AUTHORING artifact -> source-projection (reads real computed geometry) would avoid it, so the spike could fix BOTH cost AND ceiling.",
       "integrity": "page 83 md5 unchanged; fresh page 182; rail reproduced 0.933; no shared host.",
       "envFriction": "local Joist PUT now 422-rejects settings._element_custom_width on image widgets (didn't fire pass-1/page162); agent wrote tree direct to postmeta + hand-stamped 211 ids as workaround (plugin dir read-only in-container). Plugin schema divergence \u2014 track."
+    },
+    {
+      "name": "vertical-rhythm-normalizer-SHIPPED",
+      "date": "2026-06-13",
+      "commit": "d7f05d2 + 43a2b6b on main (transpile-html.mjs deriveSourceBands/alignSections/applyRhythm)",
+      "kind": "deterministic vertical-rhythm fix \u2014 narrow-projection of source band geometry (NOT layout); orchestrator-verified",
+      "premiseCorrection": "Diagnosis corrected my premise: CLERK was ALREADY ~1:1 @1440 (hRatio 0.998 \u2014 prior band-pinning closed it); the ~17% compression is LINEAR-SPECIFIC, root-caused to the author's zero-bottom-padding (padding:140px 48px 0) on the 5 feature sections (source has ~96 top + ~220 bottom).",
+      "mechanism": "post-transpile pass: deriveSourceBands (clean non-overlapping band cover from capture sections) + alignSections (Needleman-Wunsch DP matching authored sections<->source bands, skips unmatched sticky-nav) + applyRhythm (bottom-padding top-up on matched-SHORT sections to pin to source band height; growth-only + match-gated = NO-OP on already-1:1 pages). Source padding NOT read (absent from style-facts) \u2014 target DERIVED from source band box geometry. Reversible TRANSPILE_NO_RHYTHM=1; opt-in (needs --cap). selftest 20/20; transpile selftest 42/42.",
+      "linear": {
+        "hRatio": "0.825 -> 0.93 (orchestrator-reproduced)",
+        "rail": "0.933 held (no regression)",
+        "pinnedRaw": "60.6 -> 62.4 (+1.8, severityPenalty 6->4)",
+        "look": "LOOK-confirmed faithful distribution matching source cadence band-for-band (big empty dark gaps GONE); +269/223/219/208/212px bottom-pad on the 5 feat sections; AFTER docH 10053 vs source 10810",
+        "residual": "lands 0.93 not 1.0 \u2014 residual = header sticky-artifact + omitted partner-logo strip (authoring choices, NOT compression)"
+      },
+      "clerk": {
+        "result": "correct NO-OP (0 sections grown; hRatio 0.998->0.990; rail 1.0 held) + BONUS fixed the footer empty-gap (sev3) the diagnosis flagged",
+        "confound": "pinned 74.7->71.2 DROP is NOT the rhythm fix \u2014 it's a SEPARATE imagery regression on the fresh-render page 186 (avatars/UI-mockups dropped vs page 83's original render) = a render-PATH artifact (PHP-postmeta write vs render-clerk-fullpage path). Track separately."
+      },
+      "scopeHonest": "DESKTOP-only @1440 (mobile/tablet keep author padding to guarantee zero rail regression; per-breakpoint band derivation deferred). Internal head-gap defect (eyebrow/tag) NOT fixed \u2014 separate lever. deriveSourceBands content-column-width heuristic is the most site-specific part.",
+      "verdict": "Real generalizable win on the isolated 1:1 ceiling: pins unseen-site vertical rhythm to source via derived band geometry, deterministic + reversible + no-op-when-unneeded. Linear hRatio 0.825->0.93 LOOK-faithful. Render-path imagery-drop confound on fresh clerk render is a separate issue to fix."
     }
   ],
   "phase5backlog_wave3": [
