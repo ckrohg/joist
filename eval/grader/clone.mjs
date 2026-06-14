@@ -41,6 +41,15 @@
  * Env: JOIST_AUTH_B64 (source /tmp/joist-auth.env), JOIST_BASE.
  *   JOIST_COMPLETENESS=1       run the completeness rail in the grade step (needs --cap). Default OFF.
  *   JOIST_COMPLETENESS_GATE=1  additionally make a failing gate exit non-zero (hard gate for CI/corpus).
+ *   JOIST_MOTION=1             run grade-motion.mjs as a REPORT-ONLY SHADOW field after grade-structure.
+ *                              Default OFF. The live composite is a STATIC single-scroll grade — BLIND to
+ *                              hover/scroll-reveal/parallax/pin/marquee/library motion — so a static clone of
+ *                              an animated source scores identically today. This flag captures motion signals
+ *                              for source-vs-clone and writes `motion-report.json` (motionScore + the detected
+ *                              motion fingerprint + missing/extra motion) to the SAME grade out-dir. It is a
+ *                              SHADOW measurement: it reads only `motionScore`, NEVER folds into `composite`,
+ *                              and a grade-motion failure is swallowed (it cannot break the existing flow).
+ *                              Richness-weighted: a static source ⇒ motionScore→1.0 (never deflates).
  */
 import { spawn } from 'child_process';
 import fs from 'fs';
@@ -50,6 +59,7 @@ const source = arg('source'), page = arg('page'), mode = arg('mode', 'absolute')
 const capDir = arg('cap');                                       // full source capture dir for the completeness gate
 const COMPLETENESS = process.env.JOIST_COMPLETENESS === '1';     // opt-in: run the finish-the-page rail
 const COMPLETENESS_HARD = process.env.JOIST_COMPLETENESS_GATE === '1'; // additionally: fail (exit≠0) when not pass
+const MOTION = process.env.JOIST_MOTION === '1';                 // opt-in: run grade-motion as a REPORT-ONLY shadow field (NEVER touches the composite)
 const base = process.env.JOIST_BASE || 'https://georges232.sg-host.com';
 if (!source || !page) { console.error('usage: node clone.mjs --source <url> --page <id> [--mode absolute|hybrid|raster] [--no-grade]'); process.exit(2); }
 const slug = source.replace(/^https?:\/\//, '').replace(/[^a-z0-9]/gi, '').slice(0, 16).toLowerCase();
@@ -88,6 +98,33 @@ const cachedLayout = cacheDir ? `${cacheDir}/layout.json` : null;
     const out = `/tmp/clone-grade-${slug}`;
     await run('node', ['grade-structure.mjs', '--source', source, '--clone', cloneUrl, '--out', out]);
     try { const r = JSON.parse(fs.readFileSync(`${out}/report.json`, 'utf8')); console.log(`\n=== RESULT ===\ncomposite ${r.composite} | visual ${r.visual} | editability ${r.editability} | hRatio ${r.breakdown.hRatio}`); } catch {}
+
+    // ── MOTION shadow field (opt-in JOIST_MOTION=1, REPORT-ONLY — NEVER touches the composite) ──────────
+    // The grade above is a STATIC single-scroll fidelity grade: blind to hover/scroll-reveal/parallax/pin/
+    // marquee/library motion. grade-motion captures motion signals for source-vs-clone and scores their
+    // agreement, RICHNESS-WEIGHTED (a static source ⇒ score→1.0, never deflated). Pure shadow: we read only
+    // `motionScore` + the detected fingerprint and write `motion-report.json` alongside report.json. A failure
+    // is swallowed — it CANNOT regress the composite or break the standing grade flow.
+    if (MOTION) {
+      console.log('\n• grade-motion (REPORT-ONLY shadow — does NOT affect composite)…');
+      try {
+        const { code, out: mOut } = await runCap('node', ['grade-motion.mjs', '--source', source, '--clone', cloneUrl]);
+        let motion = null;
+        try { motion = JSON.parse(mOut.trim().split('\n').filter(Boolean).pop()); } catch (e) { console.log(`[motion] could not parse grade-motion JSON: ${e.message}`); }
+        if (motion && typeof motion.motionScore === 'number') {
+          fs.writeFileSync(`${out}/motion-report.json`, JSON.stringify(motion, null, 2));
+          const fpS = motion.fingerprint && motion.fingerprint.source || {};
+          console.log(`\n=== MOTION (shadow) ===\nmotionScore ${motion.motionScore} | richness ${motion.motionRichness} | classBlend ${motion.classBlend}`);
+          console.log(`  source motion: reveal=${fpS.reveal} parallax=${fpS.parallax} pin=${fpS.pin} marquee=${fpS.marquee} hover=${fpS.hoverEffects}/${fpS.hoverCandidates} libs=[${(fpS.libs||[]).join(',')}]`);
+          for (const m of (motion.missingMotion || []).slice(0, 12)) console.log(`  MISSING: ${m}`);
+          console.log('[motion] report-only — composite UNCHANGED.');
+        } else {
+          console.log(`[motion] grade-motion produced no usable score (code ${code}) — shadow skipped, composite UNCHANGED.`);
+        }
+      } catch (e) {
+        console.log(`[motion] grade-motion failed (${e.message}) — shadow skipped, composite UNCHANGED.`);
+      }
+    }
 
     // ── FINISH-THE-PAGE completeness gate (opt-in, deterministic, report+contract) ──────────────────
     // grade-structure scores the fidelity of what IS present; it is blind to ABRIDGEMENT (dropped source
