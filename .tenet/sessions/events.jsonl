@@ -60,3 +60,5 @@
 {"session":"session-christian-krohg-20260614-1438-fd1fd9","event":"session:register","user":"christian-krohg","branch":"main","ts":"2026-06-14T21:38:41.499Z"}
 {"session":"session-christian-krohg-20260614-1438-fd1fd9","event":"session:unregister","ts":"2026-06-14T21:39:25.335Z"}
 {"session":"session-christian-krohg-20260614-1438-fd1fd9","event":"session:unregister","ts":"2026-06-14T21:39:26.873Z"}
+{"session":"session-christian-krohg-20260614-1628-1153cb","event":"session:register","user":"christian-krohg","branch":"main","ts":"2026-06-14T23:28:59.877Z"}
+{"session":"session-christian-krohg-20260614-1628-105fef","event":"session:register","user":"christian-krohg","branch":"main","ts":"2026-06-14T23:28:59.945Z"}
