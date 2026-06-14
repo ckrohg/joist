@@ -9,8 +9,8 @@ export const meta = {
   ],
 }
 const GRADER = '/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader'
-const AUTH = 'source /tmp/joist-auth.env && [ "$JOIST_BASE" = "https://georges232.sg-host.com" ] || { echo "FATAL wrong JOIST_BASE=$JOIST_BASE"; exit 1; }'
-const HARD = 'Edit ONLY build-absolute.mjs (Build phase). Back it up FIRST: cp build-absolute.mjs /tmp/ev-bk-buildabs-respport.mjs. Do NOT edit capture/grade/perelement/build-flow. AUTH before every WP command: ' + AUTH + '. Never print JOIST_AUTH_B64. Pro IS licensed on this sg-host 4.0.9 stack.'
+const AUTH = 'source /tmp/joist-auth.env && export JOIST_BASE="${JOIST_BASE:-http://localhost:8001}"; case "$JOIST_BASE" in *sg-host.com*|*georges232*|*35.212.46.254*) echo "FATAL: JOIST_BASE=$JOIST_BASE is a blocked/paused host (host-guard allowlist; renders only target localhost:8001 or JOIST_TRAINING_BASE)"; exit 1;; esac'
+const HARD = 'Edit ONLY build-absolute.mjs (Build phase). Back it up FIRST: cp build-absolute.mjs /tmp/ev-bk-buildabs-respport.mjs. Do NOT edit capture/grade/perelement/build-flow. AUTH before every WP command: ' + AUTH + '. Never print JOIST_AUTH_B64. Pro IS licensed on this configured 4.0.9 stack.'
 
 // ---- Phase 0: PROBE viability on a throwaway page (no builder edit yet) ----
 const PROBE_SCHEMA = { type: 'object', additionalProperties: false, properties: {
@@ -20,7 +20,7 @@ const PROBE_SCHEMA = { type: 'object', additionalProperties: false, properties: 
   chosenMechanism: { type: 'string' }, viable: { type: 'boolean' }, notes: { type: 'string' },
 }, required: ['gridOverrideReflows', 'flexWidthReflows', 'desktopPinHolds', 'chosenMechanism', 'viable', 'notes'] }
 const probe = await agent([HARD.replace('Edit ONLY build-absolute.mjs (Build phase). ', 'PROBE PHASE — do NOT edit any builder file yet. '),
-  'PROBE the abs-responsive mechanism on a THROWAWAY page (page 2990 framer slot is free to overwrite, or any scratch page id you confirm is disposable). Work in ' + GRADER + '. You MUST end by calling StructuredOutput. Goal: determine WHICH responsive mechanism actually reflows a card-row that lives inside an otherwise ABSOLUTE-positioned Elementor page on this sg-host 4.0.9 + Pro stack.',
+  'PROBE the abs-responsive mechanism on a THROWAWAY page (page 2990 framer slot is free to overwrite, or any scratch page id you confirm is disposable). Work in ' + GRADER + '. You MUST end by calling StructuredOutput. Goal: determine WHICH responsive mechanism actually reflows a card-row that lives inside an otherwise ABSOLUTE-positioned Elementor page on this configured 4.0.9 + Pro stack.',
   'Hand-author (via a small node script using fetch + the joist/v1 PUT path; mimic build-absolute.mjs auth + hash flow) a MINIMAL page: an abs-pinned hero band + ONE row of 3 comparable-width cards (each a container with a heading+text). Build TWO variants on two scratch pages:',
   'VARIANT G (grid-track overrides, flow-proven): the card-row = a GRID container with settings grid_columns_grid={unit:custom,size:"repeat(3,1fr)"} + grid_columns_grid_tablet={unit:custom,size:"repeat(2,1fr)"} + grid_columns_grid_mobile={unit:custom,size:"repeat(1,1fr)"}; cards are normal (non-abs) grid children. The rest of the page stays abs-pinned.',
   'VARIANT F (flex width%, the literal research recipe): the card-row = a FLEX container (flex-wrap) holding 3 cards each with _element_width=custom + _element_custom_width={unit:%,size:30} (desktop) + _element_custom_width_tablet={%,45} + _element_custom_width_mobile={%,100}. IMPORTANT elementor #19528 check: also test whether the tablet/mobile width overrides only apply when DESKTOP _element_width is explicitly "custom" (set it; if omitted does it no-op?).',

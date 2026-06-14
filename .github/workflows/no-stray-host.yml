@@ -1,0 +1,22 @@
+# @purpose CI gate — fail the build if a stray reference to the paused shared host
+# (georges232.sg-host.com / 35.212.46.254) or a numbered-duplicate file re-enters the tree.
+# Runs the same single-source-of-truth script the pre-commit hook uses. Offline: no host,
+# no network calls, no renders.
+name: no-stray-host
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full tree so `git ls-files` / `git grep` see everything
+      - name: Stray-host & numbered-duplicate gate
+        run: sh scripts/check-no-stray-host.sh
+      - name: Gate selftest (offline)
+        run: sh scripts/check-no-stray-host.sh --selftest

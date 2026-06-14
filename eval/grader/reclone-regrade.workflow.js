@@ -7,7 +7,7 @@ export const meta = {
 const GRADER = '/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader'
 const SRC = '/tmp/glob-supa.json'                 // canonical supabase source (206 leaves, pageH 7578)
 const PAGE = '12157'                              // the production supabase clone page (/structured-supabase/)
-const CLONE_URL = 'https://georges232.sg-host.com/structured-supabase/'
+const CLONE_URL = '' + (process.env.JOIST_BASE || 'http://localhost:8001') + '/structured-supabase/'
 const BEFORE_MEAN = 0.093                         // prior good-clone per-section positional mean (the stale/current 12157)
 const BEFORE_PAGEH = 15576                        // prior clone height (2.06x the 7578 source — the collapse signature)
 

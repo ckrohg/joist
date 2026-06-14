@@ -16,7 +16,7 @@ const SITES = [
   { name: 'vercel', url: 'https://vercel.com', page: 4296 },
   { name: 'reactdev', url: 'https://react.dev', page: 4771 },
 ]
-const cloneUrl = (p) => 'https://georges232.sg-host.com/?page_id=' + p
+const cloneUrl = (p) => '' + (process.env.JOIST_BASE || 'http://localhost:8001') + '/?page_id=' + p
 const SCHEMA = { type: 'object', additionalProperties: false, properties: {
   applied: { type: 'boolean' }, selfTestPass: { type: 'boolean' }, selfTestDetail: { type: 'string' }, adopted: { type: 'boolean' },
   perSite: { type: 'array', items: { type: 'object', additionalProperties: false, properties: {

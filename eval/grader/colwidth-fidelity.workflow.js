@@ -11,7 +11,7 @@ const GRADER = '/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader'
 const SRC = '/tmp/glob-supa.json'
 const BASELINE_OFF = '/tmp/colwidth-baseline.json'   // current default-off dump (for byte-identical-off check)
 const PAGE = '12157'
-const CLONE_URL = 'https://georges232.sg-host.com/structured-supabase/'
+const CLONE_URL = '' + (process.env.JOIST_BASE || 'http://localhost:8001') + '/structured-supabase/'
 
 const SCHEMA = {
   type: 'object', additionalProperties: true,

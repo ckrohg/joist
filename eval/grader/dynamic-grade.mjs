@@ -13,11 +13,14 @@ import path from 'path';
 import { chromium } from 'playwright';
 import { PNG } from 'pngjs';
 import pmModule from 'pixelmatch';
+import { assertAllowedBase, assertNotBlocked } from '../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: refuse a stray (e.g. paused *.sg-host.com) URL before any navigation.
 const pixelmatch = pmModule.default || pmModule;
 const arg = (n, d = null) => { const i = process.argv.indexOf('--' + n); return i > -1 && process.argv[i + 1] && !process.argv[i + 1].startsWith('--') ? process.argv[i + 1] : d; };
 const has = (n) => process.argv.includes('--' + n);
 const source = arg('source'), clone = arg('clone'), out = arg('out', './dynamic-out');
 if (!has('validate') && (!source || !clone)) { console.error('need --source --clone (or --validate)'); process.exit(2); }
+// §0 SAFETY GUARD: assert every http(s) URL arg targets a training host (blocks the paused shared host) BEFORE any chromium.goto.
+if (clone && /^https?:/i.test(clone)) assertAllowedBase(clone); if (source && /^https?:/i.test(source)) assertNotBlocked(source); /* source = external read-only; only the paused host is blocked */
 fs.mkdirSync(out, { recursive: true });
 const W = 1440, VH = 900;
 const diffRatio = (a, b) => { const w = Math.min(a.width, b.width), h = Math.min(a.height, b.height); const d = new PNG({ width: w, height: h }); const m = pixelmatch(crop(a, w, h).data, crop(b, w, h).data, d.data, w, h, { threshold: 0.1 }); return m / (w * h); };

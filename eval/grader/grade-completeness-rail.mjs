@@ -94,6 +94,7 @@
 import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
+import { assertAllowedBase } from '../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: refuse a stray (e.g. paused *.sg-host.com) URL before any navigation.
 const _require = createRequire(import.meta.url);
 
 // ─── Named thresholds (deterministic, tunable in one place) ──────────────────────────────────────
@@ -640,6 +641,9 @@ async function main() {
   const out = arg('out', null);
   const label = arg('label', 'completeness');
   const jsonOnly = has('json');
+  // §0 SAFETY GUARD: --url is the only navigable arg (cap/html/clone-shot are local paths); assert it targets a
+  // training host (blocks the paused shared host) BEFORE any navigation.
+  if (url && /^https?:/i.test(url)) assertAllowedBase(url);
   if (!capArg) { console.error('need --cap <dir|manifest.json> (and --url and/or --html). Or --selftest.'); process.exit(2); }
   if (!url && !htmlPath) { console.error('need --url <clone-url> and/or --html <authored.html>'); process.exit(2); }
 

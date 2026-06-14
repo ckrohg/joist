@@ -8,8 +8,8 @@ export const meta = {
   ],
 }
 const GRADER = '/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader'
-const AUTH = 'source /tmp/joist-auth.env && [ "$JOIST_BASE" = "https://georges232.sg-host.com" ] || { echo "FATAL wrong JOIST_BASE=$JOIST_BASE"; exit 1; }'
-const HARD = 'Edit ONLY build-absolute.mjs. Back it up FIRST: cp build-absolute.mjs /tmp/ev-bk-buildabs-cardreflow.mjs. Do NOT edit capture/grade/perelement/build-flow. The abs-chrome-unpin fix (recipe #21, ABS_NO_CHROMEFIX default ON) is ALREADY in build-absolute — keep it ON; build ON TOP of it. AUTH before every WP command: ' + AUTH + '. Never print JOIST_AUTH_B64. Pro IS licensed on this sg-host 4.0.9 stack.'
+const AUTH = 'source /tmp/joist-auth.env && export JOIST_BASE="${JOIST_BASE:-http://localhost:8001}"; case "$JOIST_BASE" in *sg-host.com*|*georges232*|*35.212.46.254*) echo "FATAL: JOIST_BASE=$JOIST_BASE is a blocked/paused host (host-guard allowlist; renders only target localhost:8001 or JOIST_TRAINING_BASE)"; exit 1;; esac'
+const HARD = 'Edit ONLY build-absolute.mjs. Back it up FIRST: cp build-absolute.mjs /tmp/ev-bk-buildabs-cardreflow.mjs. Do NOT edit capture/grade/perelement/build-flow. The abs-chrome-unpin fix (recipe #21, ABS_NO_CHROMEFIX default ON) is ALREADY in build-absolute — keep it ON; build ON TOP of it. AUTH before every WP command: ' + AUTH + '. Never print JOIST_AUTH_B64. Pro IS licensed on this configured 4.0.9 stack.'
 
 const impl = await agent([HARD,
   'IMPLEMENT true 3->2->1 card-row reflow in build-absolute.mjs (wall B, router primary). Work in ' + GRADER + '. The grid MECHANISM is already PROVEN on this stack: grid_columns_grid {unit:custom,size:"repeat(N,1fr)"} + grid_columns_grid_tablet repeat(2,1fr) + grid_columns_grid_mobile repeat(1,1fr) compiles to real grid-template-columns and reflows. flex _element_custom_width does NOT work on flex container children — DO NOT use flex-width%.',

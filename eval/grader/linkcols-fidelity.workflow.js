@@ -13,7 +13,7 @@ const BASELINE_OFF = '/tmp/colwidth-baseline.json'   // all-flags-off default (s
 const BC = '/tmp/br-basecamp.json'                   // basecamp source (footer link-list collapse, pageH 4909)
 const BC_PAGEH = 4909
 const PAGE = '12446'                                 // scratch page
-const BC_CLONE_URL = 'https://georges232.sg-host.com/incomplete-clone-scratch-was-12999/'
+const BC_CLONE_URL = '' + (process.env.JOIST_BASE || 'http://localhost:8001') + '/incomplete-clone-scratch-was-12999/'
 const BC_HEIGHTRATIO_BEFORE = 1.351                  // basecamp full-stack heightRatio WITHOUT linkcols
 
 const SCHEMA = {

@@ -11,7 +11,7 @@ const GRADER = '/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader'
 const SRC = '/tmp/glob-supa.json'
 const BASELINE_OFF = '/tmp/colwidth-baseline.json'
 const PAGE = '12157'
-const CLONE_URL = 'https://georges232.sg-host.com/structured-supabase/'
+const CLONE_URL = '' + (process.env.JOIST_BASE || 'http://localhost:8001') + '/structured-supabase/'
 const HEIGHTRATIO_BASELINE = 1.523  // GRIDFIX-only render baseline; v2 must NOT exceed this
 
 const SCHEMA = {

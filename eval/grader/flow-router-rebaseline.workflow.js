@@ -1,13 +1,13 @@
 export const meta = {
   name: 'flow-router-rebaseline',
-  description: 'Test/realize the biggest UNCAPPED lever (rebaseline-2: responsive 0.2296 is the floor + CAPPED on the abs builder; the FLOW builder reflows 3->2->1 so it is the uncapped path; linear flow 0.607 vs abs 0.378 on responsive). Re-baseline build-FLOW on all 7 corpus sites on the CURRENT honest grader (mobile-prop + struct-invariant + block-merge live, canonical sg-host auth) -> per-site flow composite + sub-scores. Then compute the BEST-PER-SITE ROUTER (max of the known abs composite vs flow composite) + the router corpus mean vs the abs-only 0.5589, and which sites should route to flow. With the honester grader now rewarding flows reflow, routing responsive-heavy sites to flow may lift the corpus substantially. Read-only on builders/grader (build+grade only); the router POLICY adoption is the deliverable.',
+  description: 'Test/realize the biggest UNCAPPED lever (rebaseline-2: responsive 0.2296 is the floor + CAPPED on the abs builder; the FLOW builder reflows 3->2->1 so it is the uncapped path; linear flow 0.607 vs abs 0.378 on responsive). Re-baseline build-FLOW on all 7 corpus sites on the CURRENT honest grader (mobile-prop + struct-invariant + block-merge live, canonical host auth) -> per-site flow composite + sub-scores. Then compute the BEST-PER-SITE ROUTER (max of the known abs composite vs flow composite) + the router corpus mean vs the abs-only 0.5589, and which sites should route to flow. With the honester grader now rewarding flows reflow, routing responsive-heavy sites to flow may lift the corpus substantially. Read-only on builders/grader (build+grade only); the router POLICY adoption is the deliverable.',
   phases: [
     { title: 'Flow-rebaseline', detail: 'build-flow + grade on all 7 corpus sites (current honest grader)' },
     { title: 'Router', detail: 'best-per-site max(abs,flow) + router corpus mean vs abs-only 0.5589 + route recommendation' },
   ],
 }
 const GRADER = '/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader'
-const AUTH = 'source /tmp/joist-auth.env && [ "$JOIST_BASE" = "https://georges232.sg-host.com" ] || { echo "FATAL wrong JOIST_BASE=$JOIST_BASE"; exit 1; }'
+const AUTH = 'source /tmp/joist-auth.env && export JOIST_BASE="${JOIST_BASE:-http://localhost:8001}"; case "$JOIST_BASE" in *sg-host.com*|*georges232*|*35.212.46.254*) echo "FATAL: JOIST_BASE=$JOIST_BASE is a blocked/paused host (host-guard allowlist; renders only target localhost:8001 or JOIST_TRAINING_BASE)"; exit 1;; esac'
 // abs composites from rebaseline-2 (build-absolute, current honest grader)
 const ABS = { tailwind: 0.592, supabase: 0.553, resend: 0.519, framer: 0.516, vercel: 0.501, reactdev: 0.53, linear: 0.46 }
 const SITES = [

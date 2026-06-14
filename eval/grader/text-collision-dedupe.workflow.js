@@ -8,7 +8,7 @@ export const meta = {
   ],
 }
 const GRADER = '/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader'
-const AUTH = 'source /tmp/joist-auth.env && [ "$JOIST_BASE" = "https://georges232.sg-host.com" ] || { echo "FATAL wrong JOIST_BASE=$JOIST_BASE"; exit 1; }'
+const AUTH = 'source /tmp/joist-auth.env && export JOIST_BASE="${JOIST_BASE:-http://localhost:8001}"; case "$JOIST_BASE" in *sg-host.com*|*georges232*|*35.212.46.254*) echo "FATAL: JOIST_BASE=$JOIST_BASE is a blocked/paused host (host-guard allowlist; renders only target localhost:8001 or JOIST_TRAINING_BASE)"; exit 1;; esac'
 const HARD = 'Back up the file you edit FIRST (cp <file> /tmp/ev-bk-<file>-collide.mjs). Edit ONLY the ONE file the diagnosis identifies (capture-layout.mjs OR build-absolute.mjs) — NOT both, NOT grade-*/perelement. AUTH before every WP command: ' + AUTH + '. Never print JOIST_AUTH_B64. Custom-tree changes are fine; if a PUT 422 atomic_save_silent_failure occurs on an unchanged tree, empty-then-rebuild to A/B.'
 
 const DSCHEMA = { type: 'object', additionalProperties: false, properties: {

@@ -7,7 +7,7 @@ export const meta = {
   ],
 }
 const GRADER = '/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader'
-const AUTH = 'source /tmp/joist-auth.env && [ "$JOIST_BASE" = "https://georges232.sg-host.com" ] || { echo "FATAL wrong JOIST_BASE=$JOIST_BASE"; exit 1; }'
+const AUTH = 'source /tmp/joist-auth.env && export JOIST_BASE="${JOIST_BASE:-http://localhost:8001}"; case "$JOIST_BASE" in *sg-host.com*|*georges232*|*35.212.46.254*) echo "FATAL: JOIST_BASE=$JOIST_BASE is a blocked/paused host (host-guard allowlist; renders only target localhost:8001 or JOIST_TRAINING_BASE)"; exit 1;; esac'
 const HARD = 'Edit ONLY build-absolute.mjs. STEP 0: cp build-absolute.mjs /tmp/ev-bk-buildabs-bgprobe.mjs AND VERIFY grep -c BGPROBE /tmp/ev-bk-buildabs-bgprobe.mjs == 0 (clean base). Do NOT edit capture/grade/perelement. Do NOT enable #29 suppression (keep BENCHTEXT default-OFF). AUTH before every WP command: ' + AUTH + '. Never print JOIST_AUTH_B64. Use bench/bench-run.mjs (deterministic) AND a live A/B (the bench-overfit lesson). 422 silent-save w/ tree persisted = ok.'
 
 const impl = await agent([HARD,

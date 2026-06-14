@@ -8,7 +8,7 @@ const GRADER = '/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader'
 const SUPA = '/tmp/glob-supa.json'
 const BASELINE_OFF = '/tmp/colwidth-baseline.json'   // all-recipe-flags-OFF supabase dry dump (sha 11e8aba2)
 const PAGE = '12446'                                  // scratch (NOT 12157 — keep the user's good page)
-const CLONE_URL = 'https://georges232.sg-host.com/incomplete-clone-scratch-was-12999/'
+const CLONE_URL = '' + (process.env.JOIST_BASE || 'http://localhost:8001') + '/incomplete-clone-scratch-was-12999/'
 
 phase('Build+Gate')
 const build = await agent(

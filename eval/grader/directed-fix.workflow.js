@@ -26,7 +26,7 @@ const SITES = [
   { name: 'vercel', url: 'https://vercel.com', page: 4296 },
   { name: 'reactdev', url: 'https://react.dev', page: 4771 },
 ]
-const cloneUrl = (p) => 'https://georges232.sg-host.com/?page_id=' + p
+const cloneUrl = (p) => '' + (process.env.JOIST_BASE || 'http://localhost:8001') + '/?page_id=' + p
 const GRADE_SCHEMA = { type: 'object', additionalProperties: false, properties: { site: { type: 'string' }, composite: { type: 'number' }, composites: { type: 'array', items: { type: 'number' } }, structuralFidelity: { type: 'number' }, visual: { type: 'number' }, editability: { type: 'number' } }, required: ['site', 'composite', 'composites', 'structuralFidelity'] }
 
 function gradeRepsPrompt(s) {

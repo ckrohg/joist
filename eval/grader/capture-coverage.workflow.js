@@ -16,7 +16,7 @@ const SITES = [
   { name: 'resend', url: 'https://resend.com', page: 2988 },
   { name: 'framer', url: 'https://www.framer.com', page: 2990 },
 ]
-const cloneUrl = (p) => 'https://georges232.sg-host.com/?page_id=' + p
+const cloneUrl = (p) => '' + (process.env.JOIST_BASE || 'http://localhost:8001') + '/?page_id=' + p
 const GRADE_SCHEMA = { type: 'object', additionalProperties: false, properties: { site: { type: 'string' }, composite: { type: 'number' }, composites: { type: 'array', items: { type: 'number' } }, structuralFidelity: { type: 'number' }, editability: { type: 'number' }, defects: { type: 'array', items: { type: 'object', additionalProperties: false, properties: { why: { type: 'array', items: { type: 'string' } } }, required: ['why'] } } }, required: ['site', 'composite', 'composites', 'structuralFidelity'] }
 
 function gradeRepsPrompt(s) {

@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "tenet-context": {
-      "command": "tenet-context-hub-mcp",
-      "args": []
-    }
-  }
-}

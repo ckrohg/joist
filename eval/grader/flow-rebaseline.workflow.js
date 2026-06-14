@@ -25,9 +25,9 @@ const SCHEMA = { type: 'object', additionalProperties: false, properties: {
 
 phase('Regrade')
 const out = await parallel(SITES.map((s) => () => agent([HARD_RULE,
-  'RE-GRADE one already-published clone in BOTH grader modes. Work in ' + GRADER + '. site=' + s.name + ' url=' + s.url + ' clone=sg-host page ' + s.page + ' (builder=' + s.builder + '). You MUST end by calling StructuredOutput. Do NOT rebuild — grade the live published page as-is.',
-  'STEP 1 (HONEST = deep-flatten ON, default): node grade-sections.mjs --source ' + s.url + ' --clone "https://georges232.sg-host.com/?page_id=' + s.page + '" --out /tmp/rb-' + s.name + '-on ; read composite + areaCoverage (perElement coverage).',
-  'STEP 2 (OLD = deflating): GRADER_NO_DEEP_FLATTEN=1 node grade-sections.mjs --source ' + s.url + ' --clone "https://georges232.sg-host.com/?page_id=' + s.page + '" --out /tmp/rb-' + s.name + '-off ; read composite + areaCoverage.',
+  'RE-GRADE one already-published clone in BOTH grader modes. Work in ' + GRADER + '. site=' + s.name + ' url=' + s.url + ' clone=configured-host page ' + s.page + ' (builder=' + s.builder + '). You MUST end by calling StructuredOutput. Do NOT rebuild — grade the live published page as-is.',
+  'STEP 1 (HONEST = deep-flatten ON, default): node grade-sections.mjs --source ' + s.url + ' --clone "' + (process.env.JOIST_BASE || 'http://localhost:8001') + '/?page_id=' + s.page + '" --out /tmp/rb-' + s.name + '-on ; read composite + areaCoverage (perElement coverage).',
+  'STEP 2 (OLD = deflating): GRADER_NO_DEEP_FLATTEN=1 node grade-sections.mjs --source ' + s.url + ' --clone "' + (process.env.JOIST_BASE || 'http://localhost:8001') + '/?page_id=' + s.page + '" --out /tmp/rb-' + s.name + '-off ; read composite + areaCoverage.',
   'Report compositeHonest (ON), compositeOld (OFF), deltaFromDeepFlatten = honest-old, areaCoverageHonest, areaCoverageOld. For the ABS control: confirm the delta is ~0 (absolute clones are shallow -> deep-flatten should barely change them; if the abs delta is large, FLAG it — the fix may be over-counting).',
   'Return {site, page, builder, compositeHonest, compositeOld, deltaFromDeepFlatten, areaCoverageHonest, areaCoverageOld, note}.',
 ].join('\n'), { label: 'rb:' + s.name, phase: 'Regrade', schema: SCHEMA }))).then((rs) => rs.filter(Boolean))

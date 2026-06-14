@@ -1,13 +1,13 @@
 export const meta = {
   name: 'corpus-rebaseline',
-  description: 'RE-GROUND the flywheel: the manifest means (abs 0.648 / flow 0.616 / router 0.671) are STALE-grader (pre-detectors / block-merge / per-element struct-invariant / chrome-unpin / fluid-fonts). Re-baseline all 7 corpus sites on the CURRENT honest grader (grade-sections, all keeps live) + canonical sg-host auth, building with build-absolute (router PRIMARY). Returns per-site composite + sub-scores (visual/editability/structural/responsive) + the top defect per site, then a synth ranks the corpus-wide defect classes so the NEXT rounds target the biggest REAL gap objectively (the Driver Protocol auto-target-top-miss, grounded in measured truth not guesses). Read-only on builders/grader (build+grade only).',
+  description: 'RE-GROUND the flywheel: the manifest means (abs 0.648 / flow 0.616 / router 0.671) are STALE-grader (pre-detectors / block-merge / per-element struct-invariant / chrome-unpin / fluid-fonts). Re-baseline all 7 corpus sites on the CURRENT honest grader (grade-sections, all keeps live) + canonical host auth, building with build-absolute (router PRIMARY). Returns per-site composite + sub-scores (visual/editability/structural/responsive) + the top defect per site, then a synth ranks the corpus-wide defect classes so the NEXT rounds target the biggest REAL gap objectively (the Driver Protocol auto-target-top-miss, grounded in measured truth not guesses). Read-only on builders/grader (build+grade only).',
   phases: [
     { title: 'Rebaseline', detail: 'build-absolute + grade-sections on all 7 corpus sites (canonical auth), per-site composite + sub-scores + top defect' },
     { title: 'Rank', detail: 'corpus mean + ranked defect classes + the single biggest gap -> next-round target' },
   ],
 }
 const GRADER = '/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader'
-const AUTH = 'source /tmp/joist-auth.env && [ "$JOIST_BASE" = "https://georges232.sg-host.com" ] || { echo "FATAL wrong JOIST_BASE=$JOIST_BASE"; exit 1; }'
+const AUTH = 'source /tmp/joist-auth.env && export JOIST_BASE="${JOIST_BASE:-http://localhost:8001}"; case "$JOIST_BASE" in *sg-host.com*|*georges232*|*35.212.46.254*) echo "FATAL: JOIST_BASE=$JOIST_BASE is a blocked/paused host (host-guard allowlist; renders only target localhost:8001 or JOIST_TRAINING_BASE)"; exit 1;; esac'
 const SITES = [
   { name: 'tailwind', url: 'https://tailwindcss.com', page: 3146 },
   { name: 'supabase', url: 'https://supabase.com', page: 2986 },

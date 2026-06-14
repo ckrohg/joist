@@ -22,9 +22,12 @@
 import fs from 'fs';
 import { chromium } from 'playwright';
 import { PNG } from 'pngjs';
+import { assertAllowedBase, assertNotBlocked } from '../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: refuse a stray (e.g. paused *.sg-host.com) URL before any navigation.
 const arg = (n, d = null) => { const i = process.argv.indexOf('--' + n); return i > -1 && process.argv[i + 1] && !process.argv[i + 1].startsWith('--') ? process.argv[i + 1] : d; };
 const source = arg('source'), clone = arg('clone'), outDir = arg('out', '/tmp/structgrade'), W = 1440;
 if (!source || !clone) { console.error('need --source --clone'); process.exit(2); }
+// §0 SAFETY GUARD: assert every http(s) URL arg targets a training host (blocks the paused shared host) BEFORE any chromium.goto.
+if (clone && /^https?:/i.test(clone)) assertAllowedBase(clone); if (source && /^https?:/i.test(source)) assertNotBlocked(source); /* source = external read-only; only the paused host is blocked */
 fs.mkdirSync(outDir, { recursive: true });
 
 // ---- visual (reused from grade-raster) ----

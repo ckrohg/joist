@@ -42,7 +42,7 @@ const REBASELINE = has('rebaseline');
 
 // ---- guardrails: never run against the wrong site, never proceed without auth ----
 // §0 SAFETY GUARD (INVERTED FROM THE INCIDENT): this bench previously HARD-REQUIRED
-// JOIST_BASE === 'https://georges232.sg-host.com' and FATAL-exited otherwise — i.e. it ENFORCED
+// JOIST_BASE === the paused shared host and FATAL-exited otherwise — i.e. it ENFORCED
 // the now-PAUSED shared host. resolveBase flips that: default to the local sandbox and REFUSE the
 // shared host (and any non-training host) LOUDLY before any render/PUT. The bench writes disposable
 // scratch pages, so per-run CSS regen on a shared host was a direct contributor to the overload.

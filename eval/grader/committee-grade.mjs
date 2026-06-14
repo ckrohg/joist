@@ -16,11 +16,15 @@ import fs from 'fs';
 import path from 'path';
 import { chromium } from 'playwright';
 import { PNG } from 'pngjs';
+import { assertAllowedBase, assertNotBlocked } from '../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: refuse a stray (e.g. paused *.sg-host.com) URL before any navigation.
 
 const arg = (n, d = null) => { const i = process.argv.indexOf('--' + n); return i > -1 && process.argv[i + 1] ? process.argv[i + 1] : d; };
 const has = (n) => process.argv.includes('--' + n);
 const source = arg('source'), clone = arg('clone'); const out = arg('out', './committee-out');
 if (!has('aggregate') && (!source || !clone)) { console.error('need --source --clone (or --aggregate <verdicts.json>)'); process.exit(2); }
+// §0 SAFETY GUARD: assert every http(s) URL arg targets a training host (blocks the paused shared host) BEFORE any
+// chromium.goto. (In --aggregate mode source/clone are absent → skipped.)
+if (clone && /^https?:/i.test(clone)) assertAllowedBase(clone); if (source && /^https?:/i.test(source)) assertNotBlocked(source); /* source = external read-only; only the paused host is blocked */
 fs.mkdirSync(out, { recursive: true });
 const VPS = [{ n: 'desktop', w: 1440 }, { n: 'tablet', w: 768 }, { n: 'mobile', w: 390 }];
 

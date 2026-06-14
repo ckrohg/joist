@@ -8,7 +8,7 @@ export const meta = {
   ],
 }
 const GRADER = '/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader'
-const AUTH = 'source /tmp/joist-auth.env && [ "$JOIST_BASE" = "https://georges232.sg-host.com" ] || { echo "FATAL wrong JOIST_BASE=$JOIST_BASE"; exit 1; }'
+const AUTH = 'source /tmp/joist-auth.env && export JOIST_BASE="${JOIST_BASE:-http://localhost:8001}"; case "$JOIST_BASE" in *sg-host.com*|*georges232*|*35.212.46.254*) echo "FATAL: JOIST_BASE=$JOIST_BASE is a blocked/paused host (host-guard allowlist; renders only target localhost:8001 or JOIST_TRAINING_BASE)"; exit 1;; esac'
 const HARD = 'Create NEW files ONLY under ' + GRADER + '/bench/ (blocks/*.html + bench-run.mjs). Do NOT edit capture-layout/build-absolute/grade-sections/perelement. AUTH before every WP command: ' + AUTH + '. Never print JOIST_AUTH_B64. Use scratch WP page ids for grading (reuse the framer slot 2990 + allocate a couple disposable ids; the bench OVERWRITES them per run, that is fine).'
 
 const impl = await agent([HARD,
