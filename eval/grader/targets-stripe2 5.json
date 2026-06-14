@@ -1,0 +1,4 @@
+[
+  { "name": "gradient", "clip": { "x": 560, "y": 60, "width": 880, "height": 840 } },
+  { "name": "logo", "selector": "header svg, header img, nav svg, a[aria-label*='Stripe' i] svg" }
+]
