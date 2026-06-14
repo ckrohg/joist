@@ -5216,6 +5216,22 @@
       "deepFinding": "author-completeness is fundamentally a source<->clone REGION-CORRESPONDENCE problem, not a filename problem: filename-matching false-positives on faithful re-hosting, and the compressed-screenshot vision judge misses abridgement (a 4-card clone of a 10-card source still looks locally faithful). The robust fix = CONTENT-BASED per-band correspondence (does the clone visually reproduce content at each source band's y-region) and/or perceptual-hash asset matching \u2014 NOT basename stems.",
       "verdict": "NO-GO as a pass/fail gate (do not ship as a hard stop). Salvageable as ADVISORY (surface asset+text omission HINTS, don't block) \u2014 it does correctly flag tailwind's abridgement. Promote to gate only after content-based asset anchoring + per-band content correspondence replace stem-matching.",
       "integrity": "orchestrator reproduced the inversion across all 3 sites; baselines untouched; this is the falsifier discipline catching a non-working grader (like the grid-reflow dim earlier)."
+    },
+    {
+      "name": "completeness-rail-v2-DISCRIMINATES",
+      "date": "2026-06-13",
+      "commit": "00d36f8 + e285300 + truncation-fix on main (grade-completeness-rail.mjs)",
+      "kind": "completeness check REBUILT on content-correspondence \u2014 inversion FIXED, orchestrator-reproduced",
+      "falsifier_v2": "DISCRIMINATES (independently reproduced, 2x): abridged tailwind 0.706 FAIL vs faithful clerk 1.0 + linear 1.0 PASS, ZERO false-positives on the faithful clones. PASS_THRESHOLD 0.85 in the wide 0.706->1.0 gap. (v1 was INVERTED 0.638/0.600/0.525.)",
+      "fix": "Dropped the anti-correlated filename-stem asset signal. New = per-band CONTENT correspondence (position-independent + re-hosting-robust): a source band is COVERED if its salient non-raster DOM text appears in the clone OR a clone region visually resembles the source band crop (dHash+pooled-luma-corr sliding window). RASTER-EXCLUSION (the clerk false-positive fix): subtract source text the capture baked into media/ui-mock rasters (gated to ui-mock crops textFrac<0.05 AND mediaFrac>=0.6 so mockup-WRAPPING containers with real headings aren't wrongly excluded). Truncation fixed so omissions name all dropped units.",
+      "shippableAsGate": "YES (with --clone-shot for determinism) \u2014 wire into clone.mjs: STOP on pass; on fail feed omissions{where,what,missingUnits} into the next plan-patch -> add -> re-render -> re-grade loop = 'finish the page'.",
+      "honestCaveats": [
+        "thresholds (visual dual 0.72/0.10|0.62/0.45 + raster textFrac<0.05/mediaFrac>0.6) are CALIBRATED ON n=3 (clerk/linear/tailwind) \u2014 generalization to a held-out 4th site UNPROVEN; two thin band-margins (tw s8 saved by 0.026 hashSim; clerk s21 by 0.043 corr); escalate to per-band vision-judge if a new cap defeats the thresholds",
+        "one confirmed FALSE-POSITIVE (tw s19): clone reproduces the template-showcase content RE-CUT from a 3D-tilted montage to a flat grid -> dHash finds no structural twin -> flagged. Harmless here (lands on a failing clone) but a perspective-transform/re-composition blind spot \u2014 would false-omit a faithful clone that flattens a tilted montage",
+        "band double-count (s7&s8, s11&s12 = same region at 2 nesting depths) inflates omitFrac, no false-positive",
+        "MUST run with --clone-shot (frozen) for determinism; bare --url has visual run-to-run noise"
+      ],
+      "verdict": "Completeness is now a WORKING discriminating rail on the corpus (the v1 inversion fixed via content-correspondence) \u2014 the deterministic falsifier discipline produced a working grader where the filename approach failed. Real but n=3-CALIBRATED: ship as gate + treat a threshold-defeating new cap as the trigger for a per-band vision-judge fallback. Generalization on a held-out site is the honest next validation."
     }
   ],
   "phase5backlog_wave3": [
