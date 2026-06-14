@@ -15,9 +15,13 @@ import { chromium } from 'playwright';
 import { PNG } from 'pngjs';
 import fs from 'fs';
 import { absPos, absSectionCss, needsAbsLayout, isMultiColumn } from './abs-positioning.mjs';
+import { resolveBase } from '../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: never render/PUT to a non-training host
 const arg = (n, d = null) => { const i = process.argv.indexOf('--' + n); return i > -1 && process.argv[i + 1] && !process.argv[i + 1].startsWith('--') ? process.argv[i + 1] : d; };
 const source = arg('source'), pageId = arg('page'), W = parseInt(arg('width', '1440'), 10), DRY = process.argv.includes('--dry');
-const base = process.env.JOIST_BASE || 'https://georges232.sg-host.com';
+// §0 SAFETY GUARD: default to the LOCAL sandbox (was the PAUSED shared host georges232.sg-host.com —
+// this default caused the strays). resolveBase() throws LOUDLY before any fetch/PUT if JOIST_BASE
+// points anywhere but localhost:8001 / JOIST_TRAINING_BASE / JOIST_ALLOWED_HOSTS.
+const base = resolveBase(process.env.JOIST_BASE || 'http://localhost:8001');
 const b64 = process.env.JOIST_AUTH_B64; if (!b64 || !source || (!pageId && !DRY)) { console.error('need --source --page + JOIST_AUTH_B64'); process.exit(2); }
 const srcTag = (source).replace(/^https?:\/\//, '').replace(/[^a-z0-9]/gi, '').slice(0, 14).toLowerCase();
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

@@ -53,6 +53,7 @@
  */
 import { spawn } from 'child_process';
 import fs from 'fs';
+import { resolveBase } from '../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: never render/PUT to a non-training host
 const arg = (n, d = null) => { const i = process.argv.indexOf('--' + n); return i > -1 && process.argv[i + 1] ? process.argv[i + 1] : d; };
 const has = (n) => process.argv.includes('--' + n);
 const source = arg('source'), page = arg('page'), mode = arg('mode', 'absolute');
@@ -60,7 +61,10 @@ const capDir = arg('cap');                                       // full source 
 const COMPLETENESS = process.env.JOIST_COMPLETENESS === '1';     // opt-in: run the finish-the-page rail
 const COMPLETENESS_HARD = process.env.JOIST_COMPLETENESS_GATE === '1'; // additionally: fail (exit≠0) when not pass
 const MOTION = process.env.JOIST_MOTION === '1';                 // opt-in: run grade-motion as a REPORT-ONLY shadow field (NEVER touches the composite)
-const base = process.env.JOIST_BASE || 'https://georges232.sg-host.com';
+// §0 SAFETY GUARD: default to the LOCAL sandbox (was the PAUSED shared host georges232.sg-host.com,
+// which agents strayed onto and tanked). resolveBase() throws LOUDLY before any network call if a
+// JOIST_BASE override points anywhere but localhost:8001 / JOIST_TRAINING_BASE / JOIST_ALLOWED_HOSTS.
+const base = resolveBase(process.env.JOIST_BASE || 'http://localhost:8001');
 if (!source || !page) { console.error('usage: node clone.mjs --source <url> --page <id> [--mode absolute|hybrid|raster] [--no-grade]'); process.exit(2); }
 const slug = source.replace(/^https?:\/\//, '').replace(/[^a-z0-9]/gi, '').slice(0, 16).toLowerCase();
 const layout = `/tmp/clone-layout-${slug}.json`;

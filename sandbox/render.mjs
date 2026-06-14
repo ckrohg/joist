@@ -35,6 +35,7 @@ import { randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertAllowedBase, withRenderLock } from './host-guard.mjs'; // §0 SAFETY GUARD + render throttle
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -65,7 +66,9 @@ export function ensureIds(tree) {
 
 // --- Sandbox topology (matches docker-compose.yml) ---------------------------
 export const PORT = Number(process.env.JOIST_LOCAL_PORT || 8001);
-export const BASE = process.env.JOIST_LOCAL_BASE || `http://localhost:${PORT}`;
+// §0 SAFETY GUARD: guard the BASE at module load so a JOIST_LOCAL_BASE override can never stray
+// onto a remote/paused host (localhost:8001 always passes; the local path is unaffected).
+export const BASE = assertAllowedBase(process.env.JOIST_LOCAL_BASE || `http://localhost:${PORT}`);
 const COMPOSE_DIR = __dirname;                       // sandbox/ holds docker-compose.yml
 const CLI_SERVICE = process.env.JOIST_CLI_SERVICE || 'wpcli-1';
 // Playwright lives in the grader's node_modules; reuse the proven install.
@@ -169,7 +172,11 @@ export function snapshot(url, { shot = join(tmpdir(), 'joist-render.png'), width
  * @returns {Promise<{pageId:number, url:string, screenshot:string|null, styled:object|null}>}
  */
 export async function render(tree, opts = {}) {
-  const { pageId, url } = injectTree(tree, opts);
+  // THROTTLE: the dominant host-overload cost is per-render Elementor CSS regeneration
+  // (injectTree runs `wp elementor flush_css`). With JOIST_RENDER_SERIAL=1, withRenderLock
+  // serializes concurrent renders so N parallel callers don't stampede one WP host's CSS regen.
+  // Default (unset): runs immediately, byte-identical to before.
+  const { pageId, url } = await withRenderLock(() => injectTree(tree, opts));
   if (opts.noShot) return { pageId, url, screenshot: null, styled: null };
   const { screenshot, styled } = snapshot(url, opts);
   return { pageId, url, screenshot, styled };
