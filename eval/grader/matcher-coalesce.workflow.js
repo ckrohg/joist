@@ -8,7 +8,7 @@ export const meta = {
   ],
 }
 const GRADER = '/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader'
-const AUTH = 'source /tmp/joist-auth.env && [ "$JOIST_BASE" = "https://georges232.sg-host.com" ] || { echo "FATAL wrong JOIST_BASE=$JOIST_BASE"; exit 1; }'
+const AUTH = 'source /tmp/joist-auth.env && export JOIST_BASE="${JOIST_BASE:-http://localhost:8001}"; case "$JOIST_BASE" in *sg-host.com*|*georges232*|*35.212.46.254*) echo "FATAL: JOIST_BASE=$JOIST_BASE is a blocked/paused host (host-guard allowlist; renders only target localhost:8001 or JOIST_TRAINING_BASE)"; exit 1;; esac'
 const HARD = 'Edit ONLY perelement-score.mjs. The base is ALREADY clean (coalesce=0). STEP 0: VERIFY clean base (grep -c -i coalesce perelement-score.mjs MUST be 0; if >0 STOP — restore /tmp/ev-TRUSTED-perelem-clean.mjs first), then cp perelement-score.mjs /tmp/ev-bk-perelem-coalesce2.mjs. The CANONICAL clean restore is /tmp/ev-TRUSTED-perelem-clean.mjs (content-verified coalesce=0). Do NOT edit capture/build/grade-sections. AUTH before every WP command: ' + AUTH + '. Never print JOIST_AUTH_B64.'
 
 const impl = await agent([HARD,

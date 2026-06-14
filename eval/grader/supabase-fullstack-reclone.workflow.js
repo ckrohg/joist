@@ -8,7 +8,7 @@ const GRADER = '/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader'
 const SRC = '/tmp/glob-supa.json'
 const SRC_PAGEH = 7578
 const PAGE = '12157'
-const CLONE_URL = 'https://georges232.sg-host.com/structured-supabase/'
+const CLONE_URL = '' + (process.env.JOIST_BASE || 'http://localhost:8001') + '/structured-supabase/'
 
 phase('Reclone+Grade+Report')
 const r = await agent(

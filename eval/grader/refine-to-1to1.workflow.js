@@ -8,7 +8,7 @@ export const meta = {
   ],
 }
 const GRADER = '/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader'
-const AUTH = 'source /tmp/joist-auth.env && [ "$JOIST_BASE" = "https://georges232.sg-host.com" ] || { echo "FATAL wrong JOIST_BASE=$JOIST_BASE"; exit 1; }'
+const AUTH = 'source /tmp/joist-auth.env && export JOIST_BASE="${JOIST_BASE:-http://localhost:8001}"; case "$JOIST_BASE" in *sg-host.com*|*georges232*|*35.212.46.254*) echo "FATAL: JOIST_BASE=$JOIST_BASE is a blocked/paused host (host-guard allowlist; renders only target localhost:8001 or JOIST_TRAINING_BASE)"; exit 1;; esac'
 const HARD = 'New refine driver = refine-clone.mjs (create it) OR fix/extend the existing refine.mjs. You MAY add a per-pair repair-map OUTPUT to perelement-score.mjs (additive, behind a flag, must keep self-test 1.0) but do NOT change its scoring math. Do NOT edit build-absolute/grade-sections scoring. The refine loop PATCHES the live PAGE tree (via the joist PUT), not the builders. Back up any edited existing file first (/tmp/ev-bk-<file>-refine.mjs). AUTH before every WP command: ' + AUTH + '. Never print JOIST_AUTH_B64. Build-then-grade in this round (consistent state). 422 silent-save w/ tree persisted = ok.'
 
 const ASCHEMA = { type: 'object', additionalProperties: false, properties: {

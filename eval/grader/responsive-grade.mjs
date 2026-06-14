@@ -9,9 +9,12 @@
 import fs from 'fs';
 import path from 'path';
 import { chromium } from 'playwright';
+import { assertAllowedBase, assertNotBlocked } from '../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: refuse a stray (e.g. paused *.sg-host.com) URL before any navigation.
 const arg = (n, d = null) => { const i = process.argv.indexOf('--' + n); return i > -1 && process.argv[i + 1] ? process.argv[i + 1] : d; };
 const source = arg('source'), clone = arg('clone'), out = arg('out', './responsive-out');
 if (!source || !clone) { console.error('need --source --clone'); process.exit(2); }
+// §0 SAFETY GUARD: assert every http(s) URL arg targets a training host (blocks the paused shared host) BEFORE any chromium.goto.
+if (clone && /^https?:/i.test(clone)) assertAllowedBase(clone); if (source && /^https?:/i.test(source)) assertNotBlocked(source); /* source = external read-only; only the paused host is blocked */
 fs.mkdirSync(out, { recursive: true });
 const WIDTHS = [1440, 1280, 1024, 820, 768, 600, 414, 390, 360];
 

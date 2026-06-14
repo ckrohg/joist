@@ -8,7 +8,7 @@ const GRADER = '/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader'
 const SRC_URL = 'https://vercel.com/'
 const SRC_OUT = '/tmp/vercel-src.json'
 const PAGE = '12446'
-const CLONE_URL = 'https://georges232.sg-host.com/incomplete-clone-scratch-was-12999/'
+const CLONE_URL = '' + (process.env.JOIST_BASE || 'http://localhost:8001') + '/incomplete-clone-scratch-was-12999/'
 
 const SCHEMA = {
   type: 'object', additionalProperties: true,

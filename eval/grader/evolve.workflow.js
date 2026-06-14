@@ -16,7 +16,7 @@ const SITES = [
   { name: 'resend', url: 'https://resend.com', page: 2988 },
   { name: 'framer', url: 'https://www.framer.com', page: 2990 },
 ]
-const cloneUrl = (p) => 'https://georges232.sg-host.com/?page_id=' + p
+const cloneUrl = (p) => '' + (process.env.JOIST_BASE || 'http://localhost:8001') + '/?page_id=' + p
 // Driver blacklist: blocks the overnight driver has retired (already built / no-op / non-landing) so auto-target
 // skips them. RELIABLE channel = DRIVER_EXCLUDE (the driver edits this line directly — workflow scripts can't
 // read files, and Workflow `args` can arrive as a JSON STRING so args.exclude silently no-ops). args is parsed

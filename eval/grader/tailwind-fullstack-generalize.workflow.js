@@ -8,7 +8,7 @@ const GRADER = '/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader'
 const SRC = '/tmp/cap-tailwind-off.json'   // tailwindcss.com source (pageH 11649, 8 sections)
 const SRC_PAGEH = 11649
 const PAGE = '12446'                        // scratch page (incomplete-clone-scratch — safe to reuse)
-const CLONE_URL = 'https://georges232.sg-host.com/incomplete-clone-scratch-was-12999/'
+const CLONE_URL = '' + (process.env.JOIST_BASE || 'http://localhost:8001') + '/incomplete-clone-scratch-was-12999/'
 
 const SCHEMA = {
   type: 'object', additionalProperties: true,

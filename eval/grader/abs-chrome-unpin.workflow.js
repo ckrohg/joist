@@ -8,8 +8,8 @@ export const meta = {
   ],
 }
 const GRADER = '/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader'
-const AUTH = 'source /tmp/joist-auth.env && [ "$JOIST_BASE" = "https://georges232.sg-host.com" ] || { echo "FATAL wrong JOIST_BASE=$JOIST_BASE"; exit 1; }'
-const HARD = 'Edit ONLY build-absolute.mjs. Back it up FIRST: cp build-absolute.mjs /tmp/ev-bk-buildabs-chromefix.mjs. Do NOT edit capture/grade/perelement/build-flow. AUTH before every WP command: ' + AUTH + '. Never print JOIST_AUTH_B64. Pro IS licensed on this sg-host 4.0.9 stack.'
+const AUTH = 'source /tmp/joist-auth.env && export JOIST_BASE="${JOIST_BASE:-http://localhost:8001}"; case "$JOIST_BASE" in *sg-host.com*|*georges232*|*35.212.46.254*) echo "FATAL: JOIST_BASE=$JOIST_BASE is a blocked/paused host (host-guard allowlist; renders only target localhost:8001 or JOIST_TRAINING_BASE)"; exit 1;; esac'
+const HARD = 'Edit ONLY build-absolute.mjs. Back it up FIRST: cp build-absolute.mjs /tmp/ev-bk-buildabs-chromefix.mjs. Do NOT edit capture/grade/perelement/build-flow. AUTH before every WP command: ' + AUTH + '. Never print JOIST_AUTH_B64. Pro IS licensed on this configured 4.0.9 stack.'
 
 const impl = await agent([HARD,
   'FIX the dominant abs mobile-overflow bug in build-absolute.mjs. Work in ' + GRADER + '. CONTEXT: a prior round proved that on EVERY abs clone the document is 1440px wide at the 390 viewport (horizontal scroll, content clipped off the left). Root cause: the editable full-width header <nav> + <footer> chrome (and some unclassed page-absolute bg/twin elements) are emitted at the SOURCE width (css width:1440px) and the existing <=1024 un-pin custom_css (scoped to .e-con>.elementor-absolute, ~lines 595-630) does NOT un-pin them (either they have an explicit fixed px width that overrides width:100%, or they are not matched by that selector).',

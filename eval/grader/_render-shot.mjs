@@ -8,10 +8,13 @@
  *   node _render-shot.mjs <url> <outPng> [width]
  */
 import { chromium } from 'playwright';
+import { assertAllowedBase } from '../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: refuse a stray (e.g. paused *.sg-host.com) URL before any navigation.
 
 const url = process.argv[2];
 const out = process.argv[3] || '/tmp/joist-render.png';
 const width = Number(process.argv[4] || 1200);
+// §0 SAFETY GUARD: assert the URL arg targets a training host (blocks the paused shared host) BEFORE any chromium.goto.
+if (url && /^https?:/i.test(url)) assertAllowedBase(url);
 
 const browser = await chromium.launch({ args: ['--disable-blink-features=AutomationControlled'] });
 try {

@@ -1,5 +1,0 @@
-[
-  { "name": "hero_gradient", "selector": "canvas" },
-  { "name": "logo", "selector": "header svg, header img, a[aria-label*='Stripe' i] svg, nav svg" },
-  { "name": "hero_region", "full": true }
-]

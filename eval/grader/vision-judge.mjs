@@ -90,6 +90,7 @@ import { execFileSync, execFile } from 'child_process';
 import { chromium } from 'playwright';
 import { PNG } from 'pngjs';
 import { settleLazy, crop } from './grade-vision-tiles.mjs';
+import { assertAllowedBase, assertNotBlocked } from '../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: refuse a stray (e.g. paused *.sg-host.com) URL before any navigation.
 
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i >= 0 && process.argv[i + 1] !== undefined ? process.argv[i + 1] : d; };
 const has = (k) => process.argv.includes('--' + k);
@@ -775,6 +776,10 @@ export { composeTile, captureFull, claudeOnce, RUBRIC, extractJson, drawLabel, b
 const IS_MAIN = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
 if (IS_MAIN) (async () => {
   if (!SOURCE || !CLONE) { console.error('usage: node vision-judge.mjs --source <url|file.png|cap:dir> --clone <url> [--pinned-source <file.png|cap:dir>] [--widths 1440,1100] [--out dir] [--gating] [--structure <grade-structure results.json>] [--manifest-only]'); process.exit(2); }
+  // §0 SAFETY GUARD: assert every http(s) URL arg targets a training host (blocks the paused shared host) BEFORE any
+  // chromium.goto. (SOURCE may be a file.png / cap:dir spec when PINNED — the http(s) test skips those; CLONE is the
+  // LIVE local clone URL we must keep on a training host.)
+  if (CLONE && /^https?:/i.test(CLONE)) assertAllowedBase(CLONE); for (const u of [SOURCE, PINNED_SOURCE]) { if (u && /^https?:/i.test(u)) assertNotBlocked(u); }
   if (PINNED) console.error(`[pin-src] PINNED-SOURCE mode ON (opt-in): source = FROZEN ${PIN_SPEC} (no live navigation); clone = LIVE ${CLONE}. Tiles will be labeled pinned-proportional (flat PNG has no DOM anchors).`);
   fs.mkdirSync(OUT, { recursive: true });
   const t0 = Date.now();

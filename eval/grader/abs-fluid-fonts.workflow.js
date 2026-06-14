@@ -8,8 +8,8 @@ export const meta = {
   ],
 }
 const GRADER = '/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader'
-const AUTH = 'source /tmp/joist-auth.env && [ "$JOIST_BASE" = "https://georges232.sg-host.com" ] || { echo "FATAL wrong JOIST_BASE=$JOIST_BASE"; exit 1; }'
-const HARD = 'Edit ONLY build-absolute.mjs. Back it up FIRST: cp build-absolute.mjs /tmp/ev-bk-buildabs-fluidfont.mjs. Do NOT edit capture/grade/perelement/build-flow. PRESERVE recipe #20 (abs-responsive-unpin) + #21 (abs-chrome-unpin) — build ON TOP. AUTH before every WP command: ' + AUTH + '. Never print JOIST_AUTH_B64. Pro IS licensed on sg-host 4.0.9.'
+const AUTH = 'source /tmp/joist-auth.env && export JOIST_BASE="${JOIST_BASE:-http://localhost:8001}"; case "$JOIST_BASE" in *sg-host.com*|*georges232*|*35.212.46.254*) echo "FATAL: JOIST_BASE=$JOIST_BASE is a blocked/paused host (host-guard allowlist; renders only target localhost:8001 or JOIST_TRAINING_BASE)"; exit 1;; esac'
+const HARD = 'Edit ONLY build-absolute.mjs. Back it up FIRST: cp build-absolute.mjs /tmp/ev-bk-buildabs-fluidfont.mjs. Do NOT edit capture/grade/perelement/build-flow. PRESERVE recipe #20 (abs-responsive-unpin) + #21 (abs-chrome-unpin) — build ON TOP. AUTH before every WP command: ' + AUTH + '. Never print JOIST_AUTH_B64. Pro IS licensed on the configured 4.0.9 host.'
 
 const impl = await agent([HARD,
   'IMPLEMENT clamp() FLUID FONTS in build-absolute.mjs (wall B responsive-type, router primary). Work in ' + GRADER + '. Read build-absolute.mjs: nativeTypo() / wherever it emits typography_font_size (the fixed {unit:"px",size:N}), the per-element scoped custom_css emission (recipe #20/#21 channel — find how a per-element rule keyed to an _element_id is appended to page custom_css), and the text-widget emit path.',

@@ -6,7 +6,7 @@ export const meta = {
   ],
 }
 const GRADER = '/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader'
-const HARD_RULE = 'READ/INSPECT ONLY — edit NO cloner/grader files. source /tmp/joist-auth.env. Never print JOIST_AUTH_B64. The clone under review is the supabase FLOW clone at https://georges232.sg-host.com/flow-native-clone-5/ (resolve its page_id via GET wp/v2/pages?search=flow-native-clone). Source of truth = https://supabase.com. Inspect with isolated Playwright at 1440 + 390.'
+const HARD_RULE = 'READ/INSPECT ONLY — edit NO cloner/grader files. source /tmp/joist-auth.env. Never print JOIST_AUTH_B64. The clone under review is the supabase FLOW clone at ' + (process.env.JOIST_BASE || 'http://localhost:8001') + '/flow-native-clone-5/ (resolve its page_id via GET wp/v2/pages?search=flow-native-clone). Source of truth = https://supabase.com. Inspect with isolated Playwright at 1440 + 390.'
 const SCHEMA = { type: 'object', additionalProperties: false, properties: {
   point: { type: 'string' },
   currentBehavior: { type: 'string' },
@@ -30,7 +30,7 @@ phase('Diagnose')
 const out = await parallel(STREAMS.map((s) => () => agent([HARD_RULE,
   'Diagnose ONE ground-truth user-feedback point on the supabase flow clone. Work in ' + GRADER + '. You MUST end by calling StructuredOutput. Be concrete + verify against the LIVE clone + source.',
   'POINT: ' + s.brief,
-  'Resolve the clone page_id (GET wp/v2/pages?search=flow-native-clone). Inspect the LIVE clone (https://georges232.sg-host.com/?page_id=<id> or the slug) vs source (https://supabase.com) with isolated Playwright at 1440 + 390. Read the relevant builder/grader code to ROOT-CAUSE (cite file + approx line/function). Then write a PRECISE targetedFixDirective (the specific change + which file) + what the GRADER should detect to catch this + an effort estimate + confidence.',
+  'Resolve the clone page_id (GET wp/v2/pages?search=flow-native-clone). Inspect the LIVE clone (' + (process.env.JOIST_BASE || 'http://localhost:8001') + '/?page_id=<id> or the slug) vs source (https://supabase.com) with isolated Playwright at 1440 + 390. Read the relevant builder/grader code to ROOT-CAUSE (cite file + approx line/function). Then write a PRECISE targetedFixDirective (the specific change + which file) + what the GRADER should detect to catch this + an effort estimate + confidence.',
   'Return {point, currentBehavior, rootCause, builderFileAndLoc, targetedFixDirective, graderShouldDetect, effort, confidence}.',
 ].join('\n'), { label: 'fb:' + s.key, phase: 'Diagnose', schema: SCHEMA }))).then((rs) => rs.filter(Boolean))
 

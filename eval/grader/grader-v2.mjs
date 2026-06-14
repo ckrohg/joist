@@ -19,6 +19,7 @@ import fs from 'fs';
 import path from 'path';
 import { chromium } from 'playwright';
 import { PNG } from 'pngjs';
+import { assertAllowedBase, assertNotBlocked } from '../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: refuse a stray (e.g. paused *.sg-host.com) URL before any navigation.
 
 const arg = (n, d = null) => { const i = process.argv.indexOf('--' + n); return i > -1 && process.argv[i + 1] && !process.argv[i + 1].startsWith('--') ? process.argv[i + 1] : d; };
 const has = (n) => process.argv.includes('--' + n);
@@ -205,6 +206,9 @@ const EXPECT = { good: 'PASS', greenHeadline: 'FAIL', wrongFont: 'FAIL', overlap
   // grades the LIVE clone against THAT frozen snapshot — the fair, reproducible fidelity measure.
   const frozenSrc = arg('frozen-source'), freeze = arg('freeze');
   if (!clone || (!source && !frozenSrc)) { console.error('need --clone and (--source or --frozen-source)'); process.exit(2); }
+  // §0 SAFETY GUARD: assert every http(s) URL arg targets a training host (blocks the paused shared host) BEFORE any
+  // chromium.goto. (--frozen-source / --freeze are local dirs, not URLs, so they are not guarded here.)
+  if (clone && /^https?:/i.test(clone)) assertAllowedBase(clone); if (source && /^https?:/i.test(source)) assertNotBlocked(source); /* source = external read-only; only the paused host is blocked */
   const ctx = await browser.newContext({ viewport: { width: W, height: 900 }, deviceScaleFactor: 1 });
   let src;
   if (frozenSrc) { src = { dom: JSON.parse(fs.readFileSync(path.join(frozenSrc, 'src-dom.json'), 'utf8')), shot: PNG.sync.read(fs.readFileSync(path.join(frozenSrc, 'src-shot.png'))) }; console.error(`[frozen-source] ${src.dom.texts.length} texts, pageH ${src.dom.pageH} ← ${frozenSrc}`); }

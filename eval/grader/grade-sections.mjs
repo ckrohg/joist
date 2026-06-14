@@ -17,6 +17,7 @@ import { fileURLToPath } from 'url';
 import { spawnSync } from 'child_process';
 import { chromium } from 'playwright';
 import { PNG } from 'pngjs';
+import { assertAllowedBase, assertNotBlocked } from '../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: refuse a stray (e.g. paused *.sg-host.com) URL before any navigation.
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const arg = (n, d = null) => { const i = process.argv.indexOf('--' + n); return i > -1 && process.argv[i + 1] && !process.argv[i + 1].startsWith('--') ? process.argv[i + 1] : d; };
 const has = (n) => process.argv.includes('--' + n);
@@ -27,6 +28,8 @@ const SELFTEST = has('selftest');
 const IS_MAIN = import.meta.url === `file://${process.argv[1]}` || (process.argv[1] && process.argv[1].endsWith('grade-sections.mjs'));
 if (IS_MAIN) {
   if (!source || (!clone && !SELFTEST)) { console.error('need --source --clone (or --source --selftest)'); process.exit(2); }
+  // §0 SAFETY GUARD: assert every http(s) URL arg targets a training host (blocks the paused shared host) BEFORE any chromium.goto.
+  if (clone && /^https?:/i.test(clone)) assertAllowedBase(clone); if (source && /^https?:/i.test(source)) assertNotBlocked(source); /* source = external read-only; only the paused host is blocked */
   fs.mkdirSync(outDir, { recursive: true });
 }
 const TGT = { visual: 0.97, editability: 0.95, hLo: 0.99, hHi: 1.01 };

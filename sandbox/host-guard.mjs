@@ -15,11 +15,15 @@
  *   • any host in env JOIST_ALLOWED_HOSTS        — comma-separated escape hatch.
  * Block policy (hard-block, wins even if somehow allowlisted):
  *   • /\.sg-host\.com$/i  and  /georges232/i     — the paused shared host. THROWS, never renders.
+ *   • /^35\.212\.46\.254(:\d+)?$/                — its resolved IP literal, so an operator can't
+ *                                                  re-add it to JOIST_ALLOWED_HOSTS via the raw IP.
  *
  * Usage:
- *   import { assertAllowedBase, resolveBase, ALLOWED_HOSTS, BLOCKED_PATTERNS } from './host-guard.mjs';
+ *   import { assertAllowedBase, resolveBase, guardedFetch, ALLOWED_HOSTS, BLOCKED_PATTERNS } from './host-guard.mjs';
  *   const base = resolveBase(arg('base'));          // explicit || JOIST_BASE || localhost:8001, guarded
  *   assertAllowedBase('http://localhost:8001');     // → returns base, or throws
+ *   await guardedFetch(`${base}/wp-json/...`);       // fetch that re-guards on any cross-host redirect
+ *   // CLI gate for shell/workflow strings:  node sandbox/host-guard.mjs <url>  (exit 0 = allowed)
  *
  * THROTTLE: the dominant overload cost is PER-RENDER Elementor CSS regeneration
  * (`wp elementor flush_css` / Document::save() regenerating per-post CSS). Two mitigations live here:
@@ -48,7 +52,7 @@ export const ALLOWED_HOSTS = (() => {
 })();
 
 /** Hard-block patterns — these THROW even if a host somehow ended up allowlisted. */
-export const BLOCKED_PATTERNS = [/\.sg-host\.com$/i, /georges232/i];
+export const BLOCKED_PATTERNS = [/\.sg-host\.com$/i, /georges232/i, /^35\.212\.46\.254(:\d+)?$/];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -89,6 +93,32 @@ export function assertAllowedBase(base) {
 }
 
 /**
+ * Assert that `url`'s host is not on the HARD-BLOCK list — WITHOUT the allowlist default-deny.
+ *
+ * For READ-ONLY captures of arbitrary EXTERNAL *source* sites (clerk.com, stripe.com, linear.app…):
+ * the source is legitimately NOT on the training allowlist, but it must never be the paused shared
+ * host. So this blocks sg-host / georges232 / the resolved IP and ALLOWS any other parseable host.
+ *
+ * Use for the `--source` arg and external-probe `--url` (read-only screenshots). Do NOT use for
+ * render / PUT / page-save targets — those mutate a WP host and MUST go through `assertAllowedBase`
+ * (allowlist), since per-render CSS regen is the overload vector that paused the shared host.
+ * @param {string} url  a source URL or 'host:port'
+ * @returns {string} the same `url`, when not blocked
+ */
+export function assertNotBlocked(url) {
+  const host = hostOf(url);
+  if (!host) {
+    throw new Error(`REFUSED: cannot parse a host from source ${JSON.stringify(url)}.`);
+  }
+  for (const re of BLOCKED_PATTERNS) {
+    if (re.test(host)) {
+      throw new Error(`REFUSED: ${host} is a blocked/paused host (shared SiteGround was overloaded 2026-06-14); it must never be captured even as a read-only source.`);
+    }
+  }
+  return url;
+}
+
+/**
  * Resolve the effective base — explicit || JOIST_BASE || localhost:8001 — then GUARD it,
  * so even the DEFAULT can never be a remote host and an env override can't stray.
  * @param {string} [explicit]  a CLI/-arg-supplied base, if any
@@ -97,6 +127,34 @@ export function assertAllowedBase(base) {
 export function resolveBase(explicit) {
   const base = explicit || process.env.JOIST_BASE || 'http://localhost:8001';
   return assertAllowedBase(base);
+}
+
+/**
+ * Guarded `fetch`. Closes the cross-host REDIRECT hole: a request to an allowed host could be
+ * 3xx-redirected to the paused host and the default `fetch` (redirect:'follow') would chase it
+ * un-revalidated, straight onto the blocked box. This helper:
+ *   1. asserts the REQUEST url is allowed BEFORE any network call;
+ *   2. forces `redirect:'manual'` so the runtime never auto-follows;
+ *   3. on a 3xx, re-asserts the `Location` header is allowed before following it once (manually).
+ * A redirect to a blocked/un-allowlisted Location THROWS rather than being followed.
+ * @param {string|URL} url   the request URL (must resolve to an allowed host)
+ * @param {RequestInit} [opts]  passed through to fetch; `redirect` is forced to 'manual'
+ * @returns {Promise<Response>}
+ */
+export async function guardedFetch(url, opts = {}) {
+  assertAllowedBase(String(url));
+  const res = await fetch(url, { ...opts, redirect: 'manual' });
+  // 3xx with a Location → re-validate the target host before following.
+  if (res.status >= 300 && res.status < 400) {
+    const loc = res.headers.get('location');
+    if (loc) {
+      // Resolve relative redirects against the original URL so we guard the real target host.
+      const target = new URL(loc, String(url)).toString();
+      assertAllowedBase(target); // THROWS if the redirect points at a blocked/un-allowlisted host
+      return guardedFetch(target, opts); // follow once, re-guarded (and re-manual)
+    }
+  }
+  return res;
 }
 
 // ── Throttle: serialize renders to spare per-render Elementor CSS regen ────────
@@ -145,6 +203,13 @@ async function selftest() {
   // 127.0.0.1:8001 PASSES (localhost variant)
   ok("assertAllowedBase('http://127.0.0.1:8001') PASSES", () => assertAllowedBase('http://127.0.0.1:8001'), true);
 
+  // assertNotBlocked (SOURCE-side): ALLOWS arbitrary external sources (not allowlist default-deny)…
+  ok("assertNotBlocked('https://clerk.com') PASSES (external source allowed)", () => assertNotBlocked('https://clerk.com'), true);
+  ok("assertNotBlocked('https://random-host.com/x') PASSES (external source allowed)", () => assertNotBlocked('https://random-host.com/x'), true);
+  // …but STILL blocks the paused shared host + its IP even as a read-only source.
+  ok("assertNotBlocked('https://georges232.sg-host.com') THROWS", () => assertNotBlocked('https://georges232.sg-host.com'), false);
+  ok("assertNotBlocked('http://35.212.46.254/x') THROWS", () => assertNotBlocked('http://35.212.46.254/x'), false);
+
   // a configured training base PASSES — exercise the REAL assertAllowedBase against the REAL
   // env-driven ALLOWED_HOSTS by re-importing this module in a child with JOIST_TRAINING_BASE set
   // (ALLOWED_HOSTS is computed at import time, so the env must be present BEFORE import).
@@ -163,6 +228,83 @@ async function selftest() {
     threw: childOut.code === 0 ? null : childOut.out.trim().split('\n').pop(),
   });
 
+  // (1) IP-LITERAL block wins over allowlist: even with the shared host's IP in JOIST_ALLOWED_HOSTS,
+  // assertAllowedBase('https://35.212.46.254/x') must THROW. ALLOWED_HOSTS is import-time, so set the
+  // env BEFORE import via a child process; we EXPECT a non-zero exit (the assert threw).
+  const ipBlockChild = (() => {
+    const r = spawnSync(process.execPath, [
+      '--input-type=module', '-e',
+      `import { assertAllowedBase } from ${JSON.stringify(import.meta.url)};` +
+      `assertAllowedBase('https://35.212.46.254/x');` +
+      `console.log('IP_NOT_BLOCKED');`,
+    ], { env: { ...process.env, JOIST_ALLOWED_HOSTS: '35.212.46.254' }, encoding: 'utf8' });
+    return { code: r.status, out: (r.stdout || '') + (r.stderr || '') };
+  })();
+  cases.push({
+    name: "JOIST_ALLOWED_HOSTS=35.212.46.254 → assertAllowedBase('https://35.212.46.254/x') THROWS (block wins)",
+    passed: ipBlockChild.code !== 0 && !/IP_NOT_BLOCKED/.test(ipBlockChild.out) && /REFUSED/.test(ipBlockChild.out),
+    threw: (ipBlockChild.out.match(/REFUSED:[^\n]*/) || [null])[0],
+  });
+  // also block the bare IP with a port
+  ok("assertAllowedBase('http://35.212.46.254:8001') THROWS", () => assertAllowedBase('http://35.212.46.254:8001'), false);
+
+  // (2) CLI branch exits non-zero on a blocked host (shell/workflow self-gating).
+  const cliBlocked = spawnSync(process.execPath, [process.argv[1], 'https://georges232.sg-host.com'], { encoding: 'utf8' });
+  cases.push({
+    name: "CLI `node host-guard.mjs https://georges232.sg-host.com` exits NON-ZERO",
+    passed: cliBlocked.status !== 0 && /REFUSED/.test((cliBlocked.stdout || '') + (cliBlocked.stderr || '')),
+    threw: cliBlocked.status !== 0 ? null : `exit ${cliBlocked.status} (expected non-zero)`,
+  });
+  // CLI exits 0 on an allowed host
+  const cliAllowed = spawnSync(process.execPath, [process.argv[1], 'http://localhost:8001'], { encoding: 'utf8' });
+  cases.push({
+    name: "CLI `node host-guard.mjs http://localhost:8001` exits 0",
+    passed: cliAllowed.status === 0 && /ALLOWED/.test(cliAllowed.stdout || ''),
+    threw: cliAllowed.status === 0 ? null : `exit ${cliAllowed.status} (expected 0)`,
+  });
+
+  // (3) guardedFetch rejects a manual-redirect whose Location points at a blocked host. We mock the
+  // global fetch with a stub that returns a 302 → blocked Location, then assert guardedFetch THROWS
+  // before following it. (Pure in-process; no real network.)
+  {
+    const realFetch = globalThis.fetch;
+    let followedBlocked = false;
+    globalThis.fetch = async (u, _o) => {
+      const s = String(u);
+      if (/georges232\.sg-host\.com/.test(s)) { followedBlocked = true; return { status: 200, headers: { get: () => null } }; }
+      // first hop (allowed host) → 302 to the paused shared host
+      return { status: 302, headers: { get: (h) => (h.toLowerCase() === 'location' ? 'https://georges232.sg-host.com/evil' : null) } };
+    };
+    let threw = null;
+    try { await guardedFetch('http://localhost:8001/redir'); } catch (e) { threw = e; }
+    globalThis.fetch = realFetch;
+    cases.push({
+      name: 'guardedFetch THROWS on a 302 → blocked Location (and does NOT follow it)',
+      passed: threw !== null && !followedBlocked && /REFUSED/.test(threw.message || ''),
+      threw: threw && !followedBlocked ? null : (followedBlocked ? 'FOLLOWED the blocked redirect' : 'did not throw'),
+    });
+  }
+  // guardedFetch FOLLOWS a redirect to an allowed host (positive control — don't over-block).
+  {
+    const realFetch = globalThis.fetch;
+    let hops = 0;
+    globalThis.fetch = async (u, o) => {
+      hops++;
+      // force-manual must be honored on every hop
+      if (o && o.redirect !== 'manual') throw new Error('redirect not forced to manual');
+      if (hops === 1) return { status: 302, headers: { get: (h) => (h.toLowerCase() === 'location' ? 'http://127.0.0.1:8001/final' : null) } };
+      return { status: 200, headers: { get: () => null } };
+    };
+    let res = null, threw = null;
+    try { res = await guardedFetch('http://localhost:8001/start'); } catch (e) { threw = e; }
+    globalThis.fetch = realFetch;
+    cases.push({
+      name: 'guardedFetch FOLLOWS a 302 → allowed Location (200, manual honored each hop)',
+      passed: threw === null && res && res.status === 200 && hops === 2,
+      threw: threw ? threw.message : (res && res.status === 200 ? null : `unexpected (hops=${hops})`),
+    });
+  }
+
   const failed = cases.filter((c) => !c.passed);
   for (const c of cases) {
     console.log(`${c.passed ? 'PASS' : 'FAIL'}  ${c.name}${c.threw && c.passed ? '  (threw: ' + c.threw.slice(0, 60) + ')' : ''}${!c.passed && c.threw ? '  threw: ' + c.threw : ''}${!c.passed && !c.threw ? '  (did not throw)' : ''}`);
@@ -175,9 +317,25 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   if (process.argv.includes('--selftest')) {
     selftest().then((pass) => process.exit(pass ? 0 : 1));
   } else {
-    console.log('ALLOWED_HOSTS:', [...ALLOWED_HOSTS].join(', '));
-    console.log('BLOCKED_PATTERNS:', BLOCKED_PATTERNS.map((r) => r.toString()).join(', '));
-    console.log('RENDER_SERIAL:', RENDER_SERIAL);
-    console.log('Run with --selftest to verify the guard offline.');
+    // CLI gate: `node sandbox/host-guard.mjs <url>` → exit 0 if allowed, non-zero (with the
+    // REFUSED message on stderr) if blocked, so shell/workflow strings can gate themselves, e.g.
+    //   node sandbox/host-guard.mjs "$BASE" && curl "$BASE/..."   # curl only runs if allowed
+    const urlArg = process.argv.slice(2).find((a) => !a.startsWith('-'));
+    if (urlArg) {
+      try {
+        assertAllowedBase(urlArg);
+        console.log(`ALLOWED: ${urlArg}`);
+        process.exit(0);
+      } catch (e) {
+        console.error(e.message);
+        process.exit(2);
+      }
+    } else {
+      console.log('ALLOWED_HOSTS:', [...ALLOWED_HOSTS].join(', '));
+      console.log('BLOCKED_PATTERNS:', BLOCKED_PATTERNS.map((r) => r.toString()).join(', '));
+      console.log('RENDER_SERIAL:', RENDER_SERIAL);
+      console.log('Usage: node sandbox/host-guard.mjs <url>   # exit 0 = allowed, non-zero = blocked');
+      console.log('Run with --selftest to verify the guard offline.');
+    }
   }
 }

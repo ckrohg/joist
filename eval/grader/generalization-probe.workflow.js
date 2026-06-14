@@ -7,7 +7,7 @@ export const meta = {
   ],
 }
 const GRADER = '/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader'
-const BASE = 'https://georges232.sg-host.com'
+const BASE = '' + (process.env.JOIST_BASE || 'http://localhost:8001') + ''
 const NEW = [
   { name: 'reactdev', url: 'https://react.dev' },
   { name: 'stripe', url: 'https://stripe.com' },

@@ -17,6 +17,7 @@ import pixelmatch from 'pixelmatch';
 import { PNG } from 'pngjs';
 import fs from 'fs';
 import path from 'path';
+import { assertAllowedBase, assertNotBlocked } from '../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: refuse a stray (e.g. paused *.sg-host.com) URL before any navigation.
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 const VIEWPORTS = [
@@ -312,6 +313,8 @@ async function visionGate(out) {
   const source = arg('source'), clone = arg('clone');
   const out = arg('out', './grader-out'); const label = arg('label', 'clone');
   if (!source || !clone) { console.error('need --source and --clone'); process.exit(2); }
+  // §0 SAFETY GUARD: assert every http(s) URL arg targets a training host (blocks the paused shared host) BEFORE any chromium.goto.
+  if (clone && /^https?:/i.test(clone)) assertAllowedBase(clone); if (source && /^https?:/i.test(source)) assertNotBlocked(source); /* source = external read-only; only the paused host is blocked */
   fs.mkdirSync(out, { recursive: true });
   const browser = await chromium.launch();
   const perVp = {}; const defects = [];

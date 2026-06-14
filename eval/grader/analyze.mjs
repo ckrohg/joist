@@ -11,7 +11,7 @@
  *
  * Usage: node analyze.mjs --report <out/report.json>
  *        [--lessons ../../plugin/skills/joist-clone/LESSONS.md] [--trend ./TREND.jsonl]
- *        [--post-prefs <base_url>]   # e.g. https://georges232.sg-host.com
+ *        [--post-prefs <base_url>]   # e.g. http://localhost:8001
  *
  * --post-prefs is OPTIONAL. When given AND env JOIST_WP_USER + JOIST_WP_APP_PASSWORD
  * are set, each derived rule is POSTed to <base_url>/wp-json/joist/v1/preferences
@@ -21,6 +21,7 @@
  */
 import fs from 'fs';
 import path from 'path';
+import { assertAllowedBase } from '../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: refuse a stray (e.g. paused *.sg-host.com) --post-prefs host before any POST.
 
 const arg = (n, d = null) => { const i = process.argv.indexOf('--' + n); return i > -1 && process.argv[i + 1] ? process.argv[i + 1] : d; };
 const hasFlag = (n) => process.argv.includes('--' + n);
@@ -128,6 +129,9 @@ async function postPrefs() {
   if (!hasFlag('post-prefs') || !baseUrl) {
     return; // no-op: payload file already written above.
   }
+  // §0 SAFETY GUARD: --post-prefs is a WP host we PUT/POST to; assert it targets a training host (blocks the
+  // paused shared host whose URL this flag's docs even cite as the example) BEFORE the fetch loop.
+  if (/^https?:/i.test(baseUrl)) assertAllowedBase(baseUrl);
   const user = process.env.JOIST_WP_USER;
   const appPw = process.env.JOIST_WP_APP_PASSWORD;
   if (!user || !appPw) {

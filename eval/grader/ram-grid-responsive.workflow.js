@@ -1,15 +1,15 @@
 export const meta = {
   name: 'ram-grid-responsive',
-  description: 'RESEARCH BACKLOG #3 (HIGH, wall B=multi-breakpoint responsive): Responsive-Aware-Minmax (RAM) grid. For any flow grid of >=3 comparable-width card/logo cells, set grid_columns_grid={unit:custom, size:repeat(auto-fit, minmax(min(<median-cell>px,100%),1fr))} via the native grid custom channel — TRUE 3->2->1 reflow with ZERO media query, kses-safe. Desktop (the container width fits N columns) renders IDENTICALLY to the current fixed-track grid; only narrow widths reflow. Lifts the 0.25 responsive(RLG) term + makes recovered/multi-card content actually responsive (the gap exposed by research #1). Reversible via FLOW_NO_RAMGRID=1. GATE: KEEP iff responsive term UP at 768/390 AND desktop(1440) render byte-comparable AND corpus composite no-regression on the canonical sg-host stack. Else auto-restore.',
+  description: 'RESEARCH BACKLOG #3 (HIGH, wall B=multi-breakpoint responsive): Responsive-Aware-Minmax (RAM) grid. For any flow grid of >=3 comparable-width card/logo cells, set grid_columns_grid={unit:custom, size:repeat(auto-fit, minmax(min(<median-cell>px,100%),1fr))} via the native grid custom channel — TRUE 3->2->1 reflow with ZERO media query, kses-safe. Desktop (the container width fits N columns) renders IDENTICALLY to the current fixed-track grid; only narrow widths reflow. Lifts the 0.25 responsive(RLG) term + makes recovered/multi-card content actually responsive (the gap exposed by research #1). Reversible via FLOW_NO_RAMGRID=1. GATE: KEEP iff responsive term UP at 768/390 AND desktop(1440) render byte-comparable AND corpus composite no-regression on the canonical host stack. Else auto-restore.',
   phases: [
     { title: 'Build', detail: 'RAM grid in build-flow for >=3-comparable-cell rows, behind FLOW_NO_RAMGRID=1; node --check + selftest 1.0' },
-    { title: 'Verify', detail: 'render at 1440/768/390 (reflow 3->2->1 + desktop identical) + responsive-term A/B + corpus no-reg on sg-host' },
+    { title: 'Verify', detail: 'render at 1440/768/390 (reflow 3->2->1 + desktop identical) + responsive-term A/B + corpus no-reg on the configured host' },
     { title: 'Gate', detail: 'keep iff responsive up + desktop holds + no-reg, else restore' },
   ],
 }
 const GRADER = '/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader'
 // AUTH GUARD (fixes the round-1 contamination: every agent MUST grade the SAME real stack)
-const AUTH = 'source /tmp/joist-auth.env && [ "$JOIST_BASE" = "https://georges232.sg-host.com" ] || { echo "FATAL: wrong JOIST_BASE=$JOIST_BASE (must be sg-host; do NOT use /tmp/joist-auth-1.env)"; exit 1; }'
+const AUTH = 'source /tmp/joist-auth.env && export JOIST_BASE="${JOIST_BASE:-http://localhost:8001}"; case "$JOIST_BASE" in *sg-host.com*|*georges232*|*35.212.46.254*) echo "FATAL: JOIST_BASE=$JOIST_BASE is a blocked/paused host (host-guard allowlist; renders only target localhost:8001 or JOIST_TRAINING_BASE)"; exit 1;; esac'
 const HARD = 'Edit ONLY build-flow.mjs. Back it up FIRST: cp build-flow.mjs /tmp/ev-bk-buildflow-ramgrid.mjs. Do NOT edit capture/grade/perelement/build-absolute. AUTH (run before every node command that talks to WP): ' + AUTH + '. Never print JOIST_AUTH_B64.'
 
 const impl = await agent([HARD,

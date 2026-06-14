@@ -360,7 +360,7 @@ POST ${base}/wp-json/wp/v2/pages/${pageId}  body { meta:{ _elementor_edit_mode:'
 - Endpoint is the **custom Joist REST route** `/wp-json/joist/v1/pages/{id}` (GET hash,
   PUT with `expected_hash` CAS) — **NOT** `wp/v2 _elementor_data` and **NOT** raw
   `Document::save`. (The PUT is what eventually calls `Document::save` server-side.)
-- `base = JOIST_BASE || https://georges232.sg-host.com`; `b64 = JOIST_AUTH_B64`.
+- `base = JOIST_BASE || http://localhost:8001`; `b64 = JOIST_AUTH_B64`.
 
 ### Page CREATION (fresh pages only — never corpus ids)
 - `build-flow.mjs` itself, like `build-absolute.mjs`, **requires `--page <freshId>` and

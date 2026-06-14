@@ -1,0 +1,29 @@
+#!/bin/sh
+# @purpose Pre-commit hook — block commits that (re)introduce a stray reference to the paused
+# shared host (georges232.sg-host.com / 35.212.46.254) or a numbered-duplicate file.
+# Delegates to the single source of truth: scripts/check-no-stray-host.sh.
+#
+# INSTALL (one-time, per clone):   git config core.hooksPath .githooks
+# This hook is TRACKED so it travels with the repo; the only manual step is the config line.
+#
+# POSIX sh. No network, no host access.
+
+set -eu
+
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+GATE="$ROOT/scripts/check-no-stray-host.sh"
+
+if [ ! -f "$GATE" ]; then
+  # Gate missing — do not silently allow; warn but don't block (keeps clones usable).
+  echo "pre-commit: $GATE not found; skipping stray-host gate." >&2
+  exit 0
+fi
+
+if ! sh "$GATE"; then
+  echo "" >&2
+  echo "pre-commit: BLOCKED by scripts/check-no-stray-host.sh (see above)." >&2
+  echo "  Fix the violations, or (rarely) bypass with: git commit --no-verify" >&2
+  exit 1
+fi
+
+exit 0

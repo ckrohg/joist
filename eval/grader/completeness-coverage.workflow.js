@@ -8,7 +8,7 @@ export const meta = {
   ],
 }
 const GRADER = '/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader'
-const AUTH = 'source /tmp/joist-auth.env && [ "$JOIST_BASE" = "https://georges232.sg-host.com" ] || { echo "FATAL wrong JOIST_BASE=$JOIST_BASE"; exit 1; }'
+const AUTH = 'source /tmp/joist-auth.env && export JOIST_BASE="${JOIST_BASE:-http://localhost:8001}"; case "$JOIST_BASE" in *sg-host.com*|*georges232*|*35.212.46.254*) echo "FATAL: JOIST_BASE=$JOIST_BASE is a blocked/paused host (host-guard allowlist; renders only target localhost:8001 or JOIST_TRAINING_BASE)"; exit 1;; esac'
 const HARD = 'Back up the file you edit FIRST (/tmp/ev-bk-<file>-completeness.mjs). Edit ONLY the ONE file the diagnosis identifies (capture-layout.mjs most likely). Do NOT edit grade-sections/perelement unless the fix is a symmetric capture-side merge that must mirror in the grader band-detection (then back up both). AUTH before every WP command: ' + AUTH + '. Never print JOIST_AUTH_B64.'
 
 const DSCHEMA = { type: 'object', additionalProperties: false, properties: {

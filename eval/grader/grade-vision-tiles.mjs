@@ -34,6 +34,7 @@ import fs from 'fs';
 import path from 'path';
 import { chromium } from 'playwright';
 import { PNG } from 'pngjs';
+import { assertAllowedBase, assertNotBlocked } from '../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: refuse a stray (e.g. paused *.sg-host.com) URL before any navigation.
 
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i >= 0 ? process.argv[i + 1] : d; };
 const source = arg('source'), clone = arg('clone'), outDir = arg('out', '/tmp/vtiles');
@@ -44,6 +45,8 @@ const MAX_DRIFT = +arg('maxdrift', 700); // px window each side to search for a 
 const IS_MAIN = import.meta.url === `file://${process.argv[1]}` || (process.argv[1] && process.argv[1].endsWith('grade-vision-tiles.mjs'));
 if (IS_MAIN) {
   if (!source || !clone) { console.error('need --source --clone'); process.exit(2); }
+  // §0 SAFETY GUARD: assert every http(s) URL arg targets a training host (blocks the paused shared host) BEFORE any chromium.goto.
+  if (clone && /^https?:/i.test(clone)) assertAllowedBase(clone); if (source && /^https?:/i.test(source)) assertNotBlocked(source); /* source = external read-only; only the paused host is blocked */
   fs.mkdirSync(outDir, { recursive: true });
 }
 

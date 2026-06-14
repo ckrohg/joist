@@ -10,9 +10,12 @@
  */
 import { chromium } from 'playwright';
 import { PNG } from 'pngjs';
+import { assertAllowedBase, assertNotBlocked } from '../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: refuse a stray (e.g. paused *.sg-host.com) URL before any navigation.
 const arg = (n, d = null) => { const i = process.argv.indexOf('--' + n); return i > -1 && process.argv[i + 1] ? process.argv[i + 1] : d; };
 const url = arg('url'), W = parseInt(arg('width', '1440'), 10);
 if (!url) { console.error('need --url'); process.exit(2); }
+// §0 SAFETY GUARD: assert the URL arg targets a training host (blocks the paused shared host) BEFORE any chromium.goto.
+if (url && /^https?:/i.test(url)) assertNotBlocked(url); /* probe target = arbitrary external site */
 
 // theme-agnostic content density: a rendered band has visual variation (text/images/UI); a blank or
 // un-rendered band is near-uniform regardless of being light OR dark. Measure fraction of sampled pixels

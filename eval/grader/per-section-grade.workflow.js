@@ -10,7 +10,7 @@ export const meta = {
 const GRADER = '/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader'
 const SRC = '/tmp/pe-layout-gsec-supabasecom-mq2hv9sv-src.json'              // supabase.com source box-tree (206 leaves)
 const INCOMPLETE = '/tmp/pe-layout-gsec-supabasecom-mq2hv9sv-clone.json'    // incomplete clone (57 leaves) - anti-gaming control
-const GOODCLONE_URL = 'https://georges232.sg-host.com/structured-supabase/' // the production good clone (page 12157)
+const GOODCLONE_URL = '' + (process.env.JOIST_BASE || 'http://localhost:8001') + '/structured-supabase/' // the production good clone (page 12157)
 
 const BUILD_SCHEMA = {
   type: 'object',

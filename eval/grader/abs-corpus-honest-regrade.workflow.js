@@ -25,8 +25,8 @@ const FLOW = { tailwind: 0.646, supabase: 0.671, resend: 0.492, framer: 0.550, v
 
 phase('Regrade')
 const out = await parallel(SITES.map((s) => () => agent([HARD_RULE,
-  'Grade ONE already-published ABSOLUTE clone on the honest grader. Work in ' + GRADER + '. site=' + s.name + ' clone=sg-host page ' + s.page + ' (absolute builder). flow-honest for this site = ' + (FLOW[s.name] || 0) + '. You MUST end by calling StructuredOutput. Do NOT rebuild — grade the live published page as-is.',
-  'node grade-sections.mjs --source ' + s.url + ' --clone "https://georges232.sg-host.com/?page_id=' + s.page + '" --out /tmp/absrg-' + s.name + ' ; read composite, visualMean, ssimRaw, structuralFidelity, editabilityMean, responsive, hRatio.',
+  'Grade ONE already-published ABSOLUTE clone on the honest grader. Work in ' + GRADER + '. site=' + s.name + ' clone=configured-host page ' + s.page + ' (absolute builder). flow-honest for this site = ' + (FLOW[s.name] || 0) + '. You MUST end by calling StructuredOutput. Do NOT rebuild — grade the live published page as-is.',
+  'node grade-sections.mjs --source ' + s.url + ' --clone "' + (process.env.JOIST_BASE || 'http://localhost:8001') + '/?page_id=' + s.page + '" --out /tmp/absrg-' + s.name + ' ; read composite, visualMean, ssimRaw, structuralFidelity, editabilityMean, responsive, hRatio.',
   'Report the honest ABSOLUTE composite + sub-scores. Compare to flowHonest=' + (FLOW[s.name] || 0) + ' (which builder wins this site on the honest grader?).',
   'Return {site, page, composite, visual, ssim, struct, edit, responsive, hRatio, flowHonest, note}.',
 ].join('\n'), { label: 'absrg:' + s.name, phase: 'Regrade', schema: SCHEMA }))).then((rs) => rs.filter(Boolean))
