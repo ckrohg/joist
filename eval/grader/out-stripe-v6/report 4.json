@@ -1,0 +1,711 @@
+{
+  "source": "https://stripe.com",
+  "clone": "https://georges232.sg-host.com/stripe-clone-v6-layout-aware-honest/",
+  "label": "stripe-v6",
+  "graded_at_utc": "2026-06-01T04:55:29Z",
+  "fidelity_pct": 13,
+  "dimensions_pct": {
+    "layout_structure": 31,
+    "pixel_viewport": 12,
+    "color": 0,
+    "imagery_assets": 40,
+    "typography": 100,
+    "motion_dynamic": 100,
+    "visual_integrity": 35
+  },
+  "defects": [
+    {
+      "viewport": "desktop",
+      "location": "desktop",
+      "severity": "high",
+      "root_cause_tag": "truncation",
+      "capability_gap_tag": "section_completeness",
+      "observed": "clone 7408px tall",
+      "expected": "source 14739px",
+      "remedy": "author EVERY top-level source section; count before grading"
+    },
+    {
+      "viewport": "desktop",
+      "location": "desktop",
+      "severity": "high",
+      "root_cause_tag": "asset_not_captured",
+      "capability_gap_tag": "asset_capture",
+      "observed": "13 <img>",
+      "expected": "43",
+      "remedy": "capture+host real images; do not drop or placeholder"
+    },
+    {
+      "viewport": "desktop",
+      "location": "desktop",
+      "severity": "high",
+      "root_cause_tag": "asset_not_captured",
+      "capability_gap_tag": "asset_capture",
+      "observed": "no canvas/video",
+      "expected": "source has 1 canvas / 0 video",
+      "remedy": "capture animated art (WebGL/video) as looping video/sprite, host, embed"
+    },
+    {
+      "viewport": "desktop",
+      "location": "desktop",
+      "severity": "high",
+      "root_cause_tag": "color_mismatch",
+      "capability_gap_tag": "color_extraction",
+      "observed": "avg 62,45,45",
+      "expected": "source avg 241,221,225 (Δ309)",
+      "remedy": "match background + dominant palette (e.g. white+gradient, not flat fill)"
+    },
+    {
+      "viewport": "desktop",
+      "location": "desktop",
+      "severity": "high",
+      "root_cause_tag": "broken_visual",
+      "capability_gap_tag": "visual_integrity",
+      "observed": "a prominent heading has 1.3:1 contrast vs page background",
+      "expected": "≥3:1 (large text) / 4.5:1",
+      "remedy": "readable heading colors vs background; NEVER blind-apply an extracted/transient computed color (e.g. gradient-text rendering green)"
+    },
+    {
+      "viewport": "mobile",
+      "location": "mobile",
+      "severity": "high",
+      "root_cause_tag": "truncation",
+      "capability_gap_tag": "section_completeness",
+      "observed": "clone 8151px tall",
+      "expected": "source 20441px",
+      "remedy": "author EVERY top-level source section; count before grading"
+    },
+    {
+      "viewport": "mobile",
+      "location": "mobile",
+      "severity": "high",
+      "root_cause_tag": "asset_not_captured",
+      "capability_gap_tag": "asset_capture",
+      "observed": "13 <img>",
+      "expected": "43",
+      "remedy": "capture+host real images; do not drop or placeholder"
+    },
+    {
+      "viewport": "mobile",
+      "location": "mobile",
+      "severity": "high",
+      "root_cause_tag": "asset_not_captured",
+      "capability_gap_tag": "asset_capture",
+      "observed": "no canvas/video",
+      "expected": "source has 1 canvas / 0 video",
+      "remedy": "capture animated art (WebGL/video) as looping video/sprite, host, embed"
+    },
+    {
+      "viewport": "mobile",
+      "location": "mobile",
+      "severity": "high",
+      "root_cause_tag": "color_mismatch",
+      "capability_gap_tag": "color_extraction",
+      "observed": "avg 154,147,147",
+      "expected": "source avg 232,215,237 (Δ137)",
+      "remedy": "match background + dominant palette (e.g. white+gradient, not flat fill)"
+    },
+    {
+      "viewport": "desktop",
+      "location": "desktop",
+      "severity": "med",
+      "root_cause_tag": "extraction_miss",
+      "capability_gap_tag": "structure_parser",
+      "observed": "24 headings",
+      "expected": "57",
+      "remedy": "capture all headings/sections"
+    },
+    {
+      "viewport": "desktop",
+      "location": "desktop",
+      "severity": "med",
+      "root_cause_tag": "motion_not_reproduced",
+      "capability_gap_tag": "motion_runtime",
+      "observed": "0/1 clone els respond to hover",
+      "expected": "8/8 source els respond",
+      "remedy": "add hover states (transform/color/shadow) to buttons, links, cards"
+    },
+    {
+      "viewport": "desktop",
+      "location": "desktop",
+      "severity": "med",
+      "root_cause_tag": "layout_drift",
+      "capability_gap_tag": "section_completeness",
+      "observed": "full-page mismatch 49% (width-normalized)",
+      "expected": "≤45%",
+      "remedy": "fix below-the-fold layout: section order, spacing, and content that drifts off the first screen"
+    },
+    {
+      "viewport": "mobile",
+      "location": "mobile",
+      "severity": "med",
+      "root_cause_tag": "extraction_miss",
+      "capability_gap_tag": "structure_parser",
+      "observed": "24 headings",
+      "expected": "57",
+      "remedy": "capture all headings/sections"
+    },
+    {
+      "viewport": "mobile",
+      "location": "mobile",
+      "severity": "med",
+      "root_cause_tag": "type_mismatch",
+      "capability_gap_tag": "typography_match",
+      "observed": "heading 56px",
+      "expected": "34px",
+      "remedy": "match heading font-size scale"
+    },
+    {
+      "viewport": "mobile",
+      "location": "mobile",
+      "severity": "med",
+      "root_cause_tag": "motion_not_reproduced",
+      "capability_gap_tag": "motion_runtime",
+      "observed": "0/0 clone els respond to hover",
+      "expected": "4/4 source els respond",
+      "remedy": "add hover states (transform/color/shadow) to buttons, links, cards"
+    },
+    {
+      "viewport": "desktop",
+      "location": "desktop",
+      "severity": "low",
+      "root_cause_tag": "type_mismatch",
+      "capability_gap_tag": "typography_match",
+      "observed": "font ui-sans-serif",
+      "expected": "sohne-var",
+      "remedy": "match font-family (closest web font if proprietary)"
+    },
+    {
+      "viewport": "desktop",
+      "location": "desktop",
+      "severity": "low",
+      "root_cause_tag": "motion_not_reproduced",
+      "capability_gap_tag": "motion_runtime",
+      "observed": "clone hover-change 0.00%",
+      "expected": "source 26.06%",
+      "remedy": "reproduce hover states"
+    },
+    {
+      "viewport": "mobile",
+      "location": "mobile",
+      "severity": "low",
+      "root_cause_tag": "type_mismatch",
+      "capability_gap_tag": "typography_match",
+      "observed": "font ui-sans-serif",
+      "expected": "sohne-var",
+      "remedy": "match font-family (closest web font if proprietary)"
+    },
+    {
+      "viewport": "mobile",
+      "location": "mobile",
+      "severity": "low",
+      "root_cause_tag": "motion_not_reproduced",
+      "capability_gap_tag": "motion_runtime",
+      "observed": "clone hover-change 0.00%",
+      "expected": "source 37.20%",
+      "remedy": "reproduce hover states"
+    }
+  ],
+  "metrics": {
+    "desktop": {
+      "dims": {
+        "layout_structure": 0.3078882496967706,
+        "pixel_viewport": 0.12243287037037032,
+        "color": 0,
+        "imagery_assets": 0.4011627906976744,
+        "typography": 1,
+        "motion_dynamic": 1,
+        "visual_integrity": 0.35
+      },
+      "source": {
+        "pageHeight": 14739,
+        "sections": 135,
+        "headings": 57,
+        "images": 43,
+        "bgImages": 1,
+        "videos": 0,
+        "canvas": 1,
+        "svgs": 183,
+        "buttons": 113,
+        "links": 178,
+        "textLen": 11690,
+        "bodyBg": "rgba(0, 0, 0, 0)",
+        "bodyColor": "rgb(0, 0, 0)",
+        "biggestHeading": {
+          "text": "The backbone of global commerce",
+          "fontSizePx": 56,
+          "fontWeight": "300",
+          "fontFamily": "sohne-var",
+          "color": "rgb(6, 27, 49)",
+          "letterSpacing": "-1.4px",
+          "lineHeight": "57.68px"
+        },
+        "headingStyles": [
+          {
+            "sizePx": 48,
+            "color": "rgb(129, 184, 26)"
+          },
+          {
+            "sizePx": 48,
+            "color": "rgba(0, 14, 255, 0.5)"
+          },
+          {
+            "sizePx": 32,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 26,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 26,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 26,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 26,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 26,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 26,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 26,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 56,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 32,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 26,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 26,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 26,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 32,
+            "color": "rgb(255, 255, 255)"
+          },
+          {
+            "sizePx": 26,
+            "color": "rgb(255, 255, 255)"
+          },
+          {
+            "sizePx": 26,
+            "color": "rgb(255, 255, 255)"
+          },
+          {
+            "sizePx": 26,
+            "color": "rgb(255, 255, 255)"
+          },
+          {
+            "sizePx": 32,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 32,
+            "color": "rgb(6, 27, 49)"
+          }
+        ],
+        "aPills": 0
+      },
+      "clone": {
+        "pageHeight": 7408,
+        "sections": 0,
+        "headings": 24,
+        "images": 13,
+        "bgImages": 1,
+        "videos": 0,
+        "canvas": 0,
+        "svgs": 1,
+        "buttons": 0,
+        "links": 23,
+        "textLen": 3524,
+        "bodyBg": "rgb(255, 255, 255)",
+        "bodyColor": "rgb(0, 0, 0)",
+        "biggestHeading": {
+          "text": "The backbone of global commerce",
+          "fontSizePx": 56,
+          "fontWeight": "300",
+          "fontFamily": "ui-sans-serif",
+          "color": "rgb(6, 27, 49)",
+          "letterSpacing": "-0.4px",
+          "lineHeight": "62.72px"
+        },
+        "headingStyles": [
+          {
+            "sizePx": 32,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 26,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 26,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 26,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 56,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 32,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 26,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 32,
+            "color": "rgb(255, 255, 255)"
+          },
+          {
+            "sizePx": 26,
+            "color": "rgb(255, 255, 255)"
+          },
+          {
+            "sizePx": 26,
+            "color": "rgb(255, 255, 255)"
+          },
+          {
+            "sizePx": 32,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(6, 27, 49)"
+          }
+        ],
+        "aPills": 2
+      },
+      "scrollMag": {
+        "source": 0.321,
+        "clone": 0.583
+      },
+      "hoverDelta": {
+        "source": 0.2606,
+        "clone": 0
+      },
+      "hoverSweep": {
+        "source_samples": [
+          0.26058,
+          0.07223,
+          0.04183,
+          0.12212,
+          0.1858,
+          0.02047,
+          0.02344,
+          0.02123
+        ],
+        "clone_samples": [
+          0
+        ],
+        "source_hover_elements_with_response": 8,
+        "clone_hover_elements_with_response": 0
+      },
+      "timeLapseSelfDiff": {
+        "source": 0.0045,
+        "clone": 0.3849
+      },
+      "fullPageDrift": 0.4884
+    },
+    "mobile": {
+      "dims": {
+        "layout_structure": 0.2732700103078007,
+        "pixel_viewport": 0.5681613804836554,
+        "color": 0.23809854498072147,
+        "imagery_assets": 0.4011627906976744,
+        "typography": 0.8035714285714286,
+        "motion_dynamic": 0.5795581068933433,
+        "visual_integrity": 0.82
+      },
+      "source": {
+        "pageHeight": 20441,
+        "sections": 135,
+        "headings": 57,
+        "images": 43,
+        "bgImages": 1,
+        "videos": 0,
+        "canvas": 1,
+        "svgs": 183,
+        "buttons": 113,
+        "links": 178,
+        "textLen": 11708,
+        "bodyBg": "rgba(0, 0, 0, 0)",
+        "bodyColor": "rgb(0, 0, 0)",
+        "biggestHeading": {
+          "text": "Financial infrastructure to grow your revenue.",
+          "fontSizePx": 34,
+          "fontWeight": "300",
+          "fontFamily": "sohne-var",
+          "color": "rgb(129, 184, 26)",
+          "letterSpacing": "-0.34px",
+          "lineHeight": "35.02px"
+        },
+        "headingStyles": [
+          {
+            "sizePx": 34,
+            "color": "rgb(129, 184, 26)"
+          },
+          {
+            "sizePx": 34,
+            "color": "rgba(0, 14, 255, 0.5)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 34,
+            "color": "rgb(255, 255, 255)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(255, 255, 255)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(6, 27, 49)"
+          }
+        ],
+        "aPills": 0
+      },
+      "clone": {
+        "pageHeight": 8151,
+        "sections": 0,
+        "headings": 24,
+        "images": 13,
+        "bgImages": 1,
+        "videos": 0,
+        "canvas": 0,
+        "svgs": 1,
+        "buttons": 0,
+        "links": 23,
+        "textLen": 3524,
+        "bodyBg": "rgb(255, 255, 255)",
+        "bodyColor": "rgb(0, 0, 0)",
+        "biggestHeading": {
+          "text": "The backbone of global commerce",
+          "fontSizePx": 56,
+          "fontWeight": "300",
+          "fontFamily": "ui-sans-serif",
+          "color": "rgb(6, 27, 49)",
+          "letterSpacing": "-0.4px",
+          "lineHeight": "62.72px"
+        },
+        "headingStyles": [
+          {
+            "sizePx": 32,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 26,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 26,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 26,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 56,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 32,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 26,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 32,
+            "color": "rgb(255, 255, 255)"
+          },
+          {
+            "sizePx": 26,
+            "color": "rgb(255, 255, 255)"
+          },
+          {
+            "sizePx": 26,
+            "color": "rgb(255, 255, 255)"
+          },
+          {
+            "sizePx": 32,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(6, 27, 49)"
+          },
+          {
+            "sizePx": 22,
+            "color": "rgb(6, 27, 49)"
+          }
+        ],
+        "aPills": 2
+      },
+      "scrollMag": {
+        "source": 0.482,
+        "clone": 0.279
+      },
+      "hoverDelta": {
+        "source": 0.372,
+        "clone": 0
+      },
+      "hoverSweep": {
+        "source_samples": [
+          0.00272,
+          0.00324,
+          0.00609,
+          0.37197
+        ],
+        "clone_samples": [],
+        "source_hover_elements_with_response": 4,
+        "clone_hover_elements_with_response": 0
+      },
+      "timeLapseSelfDiff": {
+        "source": 0.0049,
+        "clone": 0.2839
+      },
+      "fullPageDrift": 0.3986
+    }
+  },
+  "note": "Inverted/evidence-gated: dimensions earned from measured similarity. No uncloneable escape — every gap carries a capability_gap_tag."
+}
