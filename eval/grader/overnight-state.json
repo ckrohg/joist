@@ -5317,6 +5317,22 @@
       ],
       "verdict": "The true-1:1 architecture is PROVEN + BUILT + on main: flow+preserve hybrid deterministically reaches authored-parity on the absolute/grid/overflow class flow can't express (hRatio 1.000 vs 10.7), productionized into the plugin (reversible, content-editable), router demonstrated (hybrid 0.462 > flow-only 0.315 on full clerk). The per-axis split answers 'is true-1:1 + editable achievable': YES, per-section. Distance to actual 1:1 = refine past parity + wire the builder + enforce the gate.",
       "integrity": "orchestrator reproduced the structural hRatio facts + the productionized==mu-plugin render; hash-bound scores persisted; baseline 83 untouched; 100% local docker; no shared-host stray (rails held)."
+    },
+    {
+      "name": "foundation-end-to-end-BUILT-guard-protected",
+      "date": "2026-06-14",
+      "kind": "FOUNDATION ready \u2014 single-command guard-protected local end-to-end auto-clone; orchestrator-verified",
+      "shipped": "\u00a70 base-allowlist host-guard (sandbox/host-guard.mjs, selftest 6/6 reproduced \u2014 blocks sg-host/georges232/un-allowlisted, allows localhost+JOIST_TRAINING_BASE; default bases flipped to local; JOIST_RENDER_SERIAL throttle) + \u00a71 end-to-end (eval/grader/build-hybrid-flow.mjs: capture->flow+preserve hybrid[byHash-attached]->render fresh LOCAL pages->auto-revert gate->grade, ONE command). byHash content-addressed (86/86, 581/581 on clerk; flag-off->0). Auto-revert ENFORCED (measure-sections.mjs re-measures rendered bands, reverts failing preserve sections to byte-equiv flow + re-renders; 11-case selftest ALL PASS, discriminating). Merged to main.",
+      "smoke": "clerk e2e exit 0, 100% localhost:8001, guardHeld TRUE (only WP URLs = localhost 256/257; only non-local = clerk.com SOURCE). HYBRID 257 composite 0.461 vs FLOW-only 256 0.325 (+0.136 > noise; hRatio 1.83->1.15), reproduces the anchor. preserveCoverageFrac 0.58/0.88. 0/7 sections reverted (genuine gate pass). Baselines untouched.",
+      "honest_gaps": [
+        "PROVISIONER not built (the #1 new-instance gap): no provision script; chain targets a hand-built localhost:8001. Need pinned Elementor(+Pro) + Joist plugin w/ PreserveCSS Emitter + @font-face mu-plugin + elementor_canvas template + auth, then point JOIST_TRAINING_BASE + re-smoke.",
+        "PRESERVE PAINT/COLOR/IMAGERY gap (next true-1:1 quality lever): paint-only capture renders preserve boxes MONOCHROME (LOOK-confirmed: clerk purple CTA + warm panels + SVG icons muted/dropped, rasterless SVGs skipped); structure 1:1 but surface grayscale; designSystem 0.913 OVER-credits palette.",
+        "@media breakpoint-carry UNVERIFIED (clerk had 0 max-width rules on those elements \u2014 wiring correct, responsive-carry untested on a real-breakpoint site)",
+        "smoke was --max-preserve 2 THROTTLED partial (0.461 is NOT a headline number; re-run un-throttled all 7 preserve sections)",
+        "carousel clip-state not captured; editability-navigator marking (which sections are layout-frozen) not surfaced"
+      ],
+      "verdict": "FOUNDATION READY (honest scope): single-command guard-protected local end-to-end auto-clone with enforced auto-revert + content-addressed byHash, all reversible (2 env flags + PHP kill-switch + git). The spine is built + proven locally. Remaining = PROVISIONING (for the sized instance) + breadth/quality (preserve paint is the next lever) \u2014 NOT an architectural wall. grade-structure 0.461 is a rails/throttled-partial number, not the vision-judge headline.",
+      "integrity": "orchestrator reproduced host-guard 6/6 + LOOKed at the hybrid render (structure 1:1, paint monochrome); guard held (no shared host); merged to main; baselines untouched."
     }
   ],
   "phase5backlog_wave3": [
