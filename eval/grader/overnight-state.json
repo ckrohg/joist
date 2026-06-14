@@ -5232,6 +5232,23 @@
         "MUST run with --clone-shot (frozen) for determinism; bare --url has visual run-to-run noise"
       ],
       "verdict": "Completeness is now a WORKING discriminating rail on the corpus (the v1 inversion fixed via content-correspondence) \u2014 the deterministic falsifier discipline produced a working grader where the filename approach failed. Real but n=3-CALIBRATED: ship as gate + treat a threshold-defeating new cap as the trigger for a per-band vision-judge fallback. Generalization on a held-out site is the honest next validation."
+    },
+    {
+      "name": "completeness-gate-WIRED-and-PROVEN",
+      "date": "2026-06-13",
+      "commit": "4bbc646 + fa81b5f on feat/completeness-gate-wiring (ready to merge to main)",
+      "kind": "completeness gate wired into the author loop + PROVEN to close the fidelity-at-density gap; orchestrator-verified",
+      "proof": "The gate->omissions->add->re-gate loop closed the abridged tailwind gap: completeness 0.706 FAIL -> 0.882 PASS (orchestrator-reproduced on fresh page 242 with frozen --clone-shot). The author added all 9 omitted bento cards (P3 colors, CSS grid, Transitions, Cascade layers, Logical properties, Container queries, Gradients, 3D transforms, Real-time performance) + the 'Tailwind in the wild' section. LOOK-confirmed by me: the full dense bento masonry is now present (was 4 cards, now ~13). 2 residual omissions = tiny cosmetic footer image bands (not structural). lint clean 100% (259 constructs).",
+      "wiring": "clone.mjs grade step: opt-in completeness gate (JOIST_COMPLETENESS=1 + --cap; default OFF = byte-identical prior flow; JOIST_COMPLETENESS_GATE=1 makes a failing gate exit non-zero for CI). Renders frozen clone shot -> grade-completeness-rail --clone-shot -> writes completeness-rail.json + reports score/pass/omissions. The finish-the-page CONTRACT (render->grade->completeness; if fail, author MUST add result.omissions before STOP) encoded in clone.mjs header + joist-clone SKILL.md Phase 5b/6.",
+      "significance": "grade-structure was BLIND to the dropped cards (a 4-card clone of a 13-card source looks locally fine); the completeness rail CAUGHT them, NAMED exactly what to add (with where/crop), and re-gating after the author added them confirmed the fix. The agent now FINISHES the page instead of quietly abridging \u2014 closing the fidelity-at-density gap the n=3 breadth test exposed.",
+      "honestCaveats": [
+        "wiring opt-in (needs JOIST_COMPLETENESS=1 + --cap); auto-detect-cap-dir is a follow-up",
+        "step 4 (author adds omissions) is agentic/not scriptable \u2014 contract encoded in clone.mjs + skill, relies on the author loop honoring it",
+        "wiring on a feature branch (feat/completeness-gate-wiring) \u2014 merge to main pending",
+        "completeness rail still n=3-calibrated (thresholds + perspective-transform blind spot); per-band vision-judge escalation is the documented fallback",
+        "live end-to-end clone.mjs --cap not exercised against the real WP/Joist site (gate logic validated in isolation + selftest)"
+      ],
+      "integrity": "completeness 0.882/pass reproduced; full-bento LOOK-confirmed; baselines 83/185/232 untouched; selftest PASS; default clone.mjs flow unchanged."
     }
   ],
   "phase5backlog_wave3": [
