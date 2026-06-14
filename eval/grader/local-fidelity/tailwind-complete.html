@@ -1,0 +1,490 @@
+<!doctype html>
+<!-- @purpose Local static reproduction of https://tailwindcss.com — n=3 BREADTH test (3rd UNSEEN
+archetype: a DOCS/MARKETING site, light-theme) authored from the UPGRADED capture (/tmp/genz/tw2/cap)
+under the P2 authoring contract (knowledge/AUTHORING_CONTRACT.md): flex-only layout, <=4 container
+nesting, kebab classes, no absolute/grid/gradient/script. Tailwind is LIGHT (#fff / gray-950 #0a0a0a ink).
+The archetype-specific hard construct — SYNTAX-HIGHLIGHTED CODE BLOCKS — is authored NATIVELY via the
+contract's `code-panel` rule: <pre> dark editor, <br> line breaks (V-PRE-NEWLINE discipline), token
+colors as inline <span style="color:…"> using tailwind's resolved palette (slate-400 #94a3b8, pink-400
+#f472b6, sky-300 #7dd3fc, slate-300 #cbd5e1, emerald-300 #6ee7b7, green-400 #4ade80). Sponsor-logo wall =
+36 EXACT source SVGs wired straight from the upgraded valid-standalone assets (lab()/var() fills
+normalized to gray-950 so they render standalone — NO geometry hand-patch). The bento feature grid
+(responsive house, dark-mode phones, filters, template thumbs) rides the region-raster channel as in-flow
+<img> crops sourced from cap/assets PNGs — those are genuine product mockups, not reconstructible text. All
+section copy COPY-PASTED from outline.txt / source.html (post-JS DOM), not transcribed by eye. No WordPress.
+COMPLETENESS PASS (tailwind-complete.html): the completeness gate flagged the bento was ABRIDGED (only 4 of
+~13 cards) and the "Tailwind in the wild" showcase was DROPPED. This file ADDS the omitted bento tail
+(P3 colors, CSS grid layout, Transitions and animations, Cascade layers, Logical properties, Container
+queries, Gradients, 3D transforms, Redefining real-time performance) and the full "Tailwind in the wild"
+section. Per-card text is authored NATIVELY from outline.txt; non-reconstructible product mockups (P3 swatch
+grid, browse-properties photo grid, easing-slider demo, RTL review cards, perf portrait, wild montage) ride
+the region-raster channel as in-flow <img> sliced from cap/sections/w1440-s5.png & s11.png. Two demo cards
+(Cascade layers, Container queries) use the native code-panel construct; Gradients/3D transforms/perf-bars are
+authored natively (reconstructible CSS gradients/transforms). The bento stays flex-row (V-GRID banned), so the
+source's asymmetric masonry is approximated as flex rows. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tailwind CSS - Rapidly build modern websites without ever leaving your HTML.</title>
+<style>
+/* ============ reset + tokens (tailwind palette, resolved) ============ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#ffffff;
+  --ink:#0a0a0a;        /* gray-950 */
+  --ink2:#1e293b;       /* slate-800 */
+  --mut:#64748b;        /* slate-500 */
+  --mut2:#475569;       /* slate-600 */
+  --dim:#94a3b8;        /* slate-400 */
+  --line:#e2e8f0;       /* slate-200 hairline */
+  --line2:#f1f5f9;      /* slate-100 */
+  --sky:#0ea5e9;        /* sky-500 inline-code link */
+  --editor:#0f172a;     /* slate-900 code editor bg */
+  --editor2:#020617;    /* slate-950 darker editor */
+}
+html{font-size:16px;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+body{font-family:'Inter Variable','Inter',-apple-system,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;color:var(--ink2);background:var(--bg);font-weight:400;line-height:1.5}
+img{display:block;max-width:100%}
+a{color:inherit;text-decoration:none}
+
+/* ============ header / nav (site part) ============ */
+.hdr{display:flex;align-items:center;justify-content:space-between;height:56px;padding:0 24px;background:var(--bg);border-bottom:1px solid rgba(0,0,0,.05)}
+.hdr-left{display:flex;align-items:center;gap:16px}
+.hdr-logo img{height:20px;width:auto}
+.hdr-ver{display:flex;align-items:center;gap:4px;height:22px;padding:0 8px;background:var(--line2);border-radius:6px;font-size:12px;font-weight:500;color:var(--mut2)}
+.hdr-right{display:flex;align-items:center;gap:8px}
+.hdr-search{display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;color:var(--mut);font-size:14px}
+.hdr-nav{display:flex;align-items:center;gap:4px}
+.hdr-nav a{padding:6px 10px;font-size:14px;font-weight:500;color:var(--ink2)}
+.hdr-plus{color:var(--sky) !important}
+.hdr-gh{display:flex;align-items:center;padding:6px 8px;color:var(--mut2)}
+.hdr-gh svg{width:20px;height:20px;display:block}
+
+/* ============ hero (LEFT-aligned per source) ============ */
+.hero{max-width:1344px;margin:0 auto;padding:128px 32px 0}
+.hero-anno{font-family:'JetBrains Mono','SF Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.02em;color:var(--dim)}
+.hero h1{font-size:84px;line-height:.95;font-weight:700;letter-spacing:-.035em;color:var(--ink);max-width:1000px;margin:8px 0}
+.hero-sub{font-size:18px;line-height:1.6;color:var(--mut2);max-width:620px;margin-top:24px}
+.hero-sub .uc{font-family:'JetBrains Mono','SF Mono',ui-monospace,monospace;font-size:15px;font-weight:600;color:var(--sky)}
+.hero-actions{display:flex;align-items:center;gap:12px;margin-top:32px}
+.btn-dark{display:flex;align-items:center;height:40px;padding:0 18px;background:var(--ink);color:#fff !important;border-radius:12px;font-size:14px;font-weight:600}
+.search-box{display:flex;align-items:center;justify-content:space-between;gap:12px;height:40px;width:280px;padding:0 12px;background:var(--bg);border:1px solid var(--line);border-radius:12px;color:var(--mut);font-size:14px}
+.search-box .kbd{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--dim)}
+
+/* hero showcase row: code editor (left, grows) + product card (right) */
+.hero-show{display:flex;gap:24px;margin-top:48px;align-items:flex-start}
+.editor{flex:1;border-radius:16px;background:var(--editor);overflow:hidden;box-shadow:0 24px 48px -12px rgba(15,23,42,.25)}
+.editor-bar{display:flex;align-items:center;gap:8px;height:40px;padding:0 16px;background:#172033;border-bottom:1px solid #1e293b}
+.dot{width:11px;height:11px;border-radius:50%}
+.dot-r{background:#f87171}.dot-y{background:#fbbf24}.dot-g{background:#34d399}
+.code{display:flex;font-family:'JetBrains Mono','SF Mono',ui-monospace,monospace;font-size:13px;line-height:1.85;padding:18px 0 22px}
+.code-ln{flex:0 0 44px;text-align:right;padding-right:16px;color:#475569;user-select:none}
+.code-body{flex:1;color:#e2e8f0;white-space:pre;overflow-x:auto;padding-right:18px}
+/* product card (right) */
+.prod-card{flex:0 0 240px;background:var(--bg);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 12px 32px -8px rgba(15,23,42,.12)}
+.prod-img-wrap{position:relative;border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+.prod-img-wrap img{width:100%;display:block}
+.prod-card h3{font-size:16px;font-weight:600;color:var(--ink);margin-top:14px}
+.prod-card p{font-size:14px;color:var(--mut2);line-height:1.4;margin-top:2px}
+
+/* ============ sponsor logo wall ============ */
+.spon{max-width:1216px;margin:0 auto;padding:80px 32px 24px}
+.spon-tag{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.06em;color:var(--sky);text-transform:uppercase}
+.spon h2{font-size:36px;font-weight:700;letter-spacing:-.025em;color:var(--ink);margin-top:8px}
+.spon-sub{font-size:16px;line-height:1.6;color:var(--mut2);max-width:520px;margin-top:16px}
+.spon-cta{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 16px;background:var(--ink);color:#fff !important;border-radius:999px;font-size:13px;font-weight:600;margin-top:24px}
+.logo-wall{display:flex;flex-wrap:wrap;margin-top:48px;border-top:1px solid var(--line);border-left:1px solid var(--line)}
+.logo-cell{flex:0 0 25%;display:flex;align-items:center;justify-content:center;height:104px;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+.logo-cell img{height:28px;width:auto;max-width:160px}
+
+/* ============ section header (shared, kicker + big head + sub) ============ */
+.feat-intro{max-width:1216px;margin:0 auto;padding:96px 32px 0}
+.kicker{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.08em;color:var(--sky);text-transform:uppercase}
+.feat-intro h2{font-size:40px;font-weight:700;letter-spacing:-.025em;color:var(--ink);margin-top:10px}
+.feat-intro p{font-size:17px;line-height:1.6;color:var(--mut2);max-width:560px;margin-top:14px}
+
+/* ============ bento feature grid (region-raster product mockups) ============ */
+.bento{max-width:1216px;margin:0 auto;padding:48px 32px 0;display:flex;flex-direction:column;gap:24px}
+.bento-row{display:flex;gap:24px}
+.bento-card{flex:1;display:flex;flex-direction:column;background:var(--bg);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,.05)}
+.bento-card.wide{flex:2}
+.bc-pad{padding:28px 28px 0}
+.bc-pad h3{font-size:18px;font-weight:600;color:var(--ink)}
+.bc-pad p{font-size:15px;line-height:1.55;color:var(--mut2);margin-top:8px;max-width:340px}
+.bc-media{margin-top:20px}
+.bc-media img{width:100%;display:block}
+.bento-card.dark{background:var(--editor);border-color:#1e293b}
+.bento-card.dark h3{color:#fff}.bento-card.dark p{color:#94a3b8}
+/* ============ tailwind in the wild (showcase montage) ============ */
+.wild{max-width:1216px;margin:0 auto;padding:96px 32px 0}
+.wild .kicker{color:var(--sky)}
+.wild h2{font-size:40px;font-weight:700;letter-spacing:-.025em;color:var(--ink);margin-top:10px;max-width:720px}
+.wild p{font-size:17px;line-height:1.6;color:var(--mut2);max-width:620px;margin-top:14px}
+.wild-gallery{margin-top:48px;border-radius:16px;overflow:hidden;border:1px solid var(--line)}
+.wild-gallery img{width:100%;display:block}
+
+/* ============ ship faster — second code editor ============ */
+.ship{max-width:1216px;margin:0 auto;padding:96px 32px 0}
+.ship .kicker{color:var(--sky)}
+.ship h2{font-size:40px;font-weight:700;letter-spacing:-.025em;color:var(--ink);margin-top:10px}
+.ship p{font-size:17px;line-height:1.6;color:var(--mut2);max-width:600px;margin-top:14px}
+.ship-editor{margin-top:48px;border-radius:16px;background:var(--editor);overflow:hidden;box-shadow:0 24px 48px -12px rgba(15,23,42,.2)}
+.ship-tabs{display:flex;align-items:center;gap:4px;height:44px;padding:0 16px;background:#020617;border-bottom:1px solid #1e293b}
+.tab{display:flex;align-items:center;height:28px;padding:0 12px;border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#64748b}
+.tab.on{background:#1e293b;color:#e2e8f0}
+
+/* ============ tailwind plus (templates) ============ */
+.plus-cards{max-width:1216px;margin:0 auto;padding:40px 32px 0;display:flex;gap:24px}
+.plus-card{flex:1;display:flex;flex-direction:column;gap:14px;background:var(--line2);border-radius:16px;padding:24px}
+.plus-card .pk{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.06em;color:var(--sky);text-transform:uppercase}
+.plus-card p{font-size:14px;line-height:1.55;color:var(--mut2)}
+.plus-thumb{display:flex;gap:16px;max-width:1216px;margin:48px auto 0;padding:0 32px}
+.plus-thumb img{flex:1;width:100%;border-radius:12px;border:1px solid var(--line)}
+
+/* ============ footer ============ */
+.foot{max-width:1216px;margin:96px auto 0;padding:48px 32px 80px;border-top:1px solid var(--line)}
+.foot-cols{display:flex;gap:24px}
+.foot-col{flex:1;display:flex;flex-direction:column;gap:12px}
+.foot-col .h{font-size:14px;font-weight:600;color:var(--ink);margin-bottom:4px}
+.foot-col a{font-size:14px;color:var(--mut2)}
+
+/* ============ responsive (desktop-first; tailwind reflows TALLER & 1-col at narrow widths) ============ */
+@media (max-width:1024px){
+  .hero{padding:104px 24px 0}
+  .hero h1{font-size:60px}
+  .hero-show{flex-direction:column}
+  .prod-card{flex:0 0 auto;width:280px}
+  .spon{padding:64px 24px 24px}
+  .logo-cell{flex:0 0 33.333%}
+  .feat-intro{padding:72px 24px 0}
+  .feat-intro h2,.ship h2,.wild h2{font-size:32px}
+  .wild{padding:72px 24px 0}
+  .bento-row{flex-direction:column}
+  .bento-card.wide{flex:1}
+  .plus-cards{flex-wrap:wrap}
+  .plus-card{flex:1 1 45%}
+  .plus-thumb{flex-direction:column}
+  .foot-cols{flex-wrap:wrap}
+  .foot-col{flex:1 1 40%}
+}
+@media (max-width:640px){
+  .hdr-nav{display:none}
+  .hdr-search{display:none}
+  .hero{padding:88px 20px 0}
+  .hero h1{font-size:40px;letter-spacing:-.03em}
+  .hero-sub{font-size:16px}
+  .search-box{display:none}
+  .code{font-size:11px}
+  .spon{padding:56px 20px 24px}
+  .spon h2{font-size:28px}
+  .logo-cell{flex:0 0 50%;height:88px}
+  .logo-cell img{height:22px}
+  .feat-intro{padding:56px 20px 0}
+  .feat-intro h2,.ship h2,.wild h2{font-size:26px}
+  .bento{padding:32px 20px 0}
+  .ship{padding:64px 20px 0}
+  .wild{padding:56px 20px 0}
+  .plus-cards{flex-direction:column}
+  .plus-card{flex:1 1 100%}
+  .foot{padding:40px 20px 64px}
+  .foot-cols{flex-direction:column}
+  .foot-col{flex:1 1 100%}
+}
+</style>
+</head>
+<body>
+
+<!-- ================= header (site part) ================= -->
+<header class="hdr">
+  <div class="hdr-left">
+    <a class="hdr-logo" href="#"><img src="tailwind-assets/logo-wordmark.svg" alt="Tailwind CSS"></a>
+    <span class="hdr-ver">v4.3</span>
+  </div>
+  <div class="hdr-right">
+    <span class="hdr-search">Search<span class="kbd">&#8984;K</span></span>
+    <nav class="hdr-nav">
+      <a href="#">Docs</a>
+      <a href="#">Blog</a>
+      <a href="#">Showcase</a>
+      <a href="#">Partners</a>
+      <a class="hdr-plus" href="#">Plus</a>
+    </nav>
+    <a class="hdr-gh" href="#" aria-label="GitHub"><svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12c0 4.42 2.87 8.17 6.84 9.5.5.09.66-.22.66-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02a9.6 9.6 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.69-4.57 4.94.36.31.68.92.68 1.85v2.74c0 .27.16.58.67.48A10 10 0 0 0 22 12c0-5.52-4.48-10-10-10z"/></svg></a>
+  </div>
+</header>
+
+<!-- ================= hero (left-aligned; utility-class chips; code editor + product card) ================= -->
+<section class="hero">
+  <div class="hero-anno">text-8xl text-gray-950 tracking-tighter text-balance</div>
+  <h1>Rapidly build modern websites without ever leaving your HTML.</h1>
+  <p class="hero-sub">A utility-first CSS framework packed with classes like <span class="uc">flex</span>, <span class="uc">pt-4</span>, <span class="uc">text-center</span> and <span class="uc">rotate-90</span> that can be composed to build any design, directly in your markup.</p>
+  <div class="hero-actions">
+    <a class="btn-dark" href="#">Get started</a>
+    <a class="search-box" href="#"><span>Quick search</span><span class="kbd">&#8984;K</span></a>
+  </div>
+
+  <div class="hero-show">
+    <div class="editor">
+      <div class="editor-bar"><span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span></div>
+      <div class="code">
+        <div class="code-ln">1<br>2<br>3<br>4<br>5<br>6<br>7<br>8<br>9<br>10<br>11<br>12<br>13<br>14</div>
+        <div class="code-body"><span style="color:#94a3b8">&lt;</span><span style="color:#f472b6">div</span> <span style="color:#cbd5e1">class</span><span style="color:#94a3b8">=</span><span style="color:#7dd3fc">"flex flex-col items-center p-7 rounded-2xl"</span><span style="color:#94a3b8">&gt;</span><br>  <span style="color:#94a3b8">&lt;</span><span style="color:#f472b6">div</span><span style="color:#94a3b8">&gt;</span><br>    <span style="color:#94a3b8">&lt;</span><span style="color:#f472b6">img</span> <span style="color:#cbd5e1">class</span><span style="color:#94a3b8">=</span><span style="color:#7dd3fc">"size-48 shadow-xl rounded-md"</span> <span style="color:#cbd5e1">alt</span><span style="color:#94a3b8">=</span><span style="color:#7dd3fc">""</span> <span style="color:#cbd5e1">src</span><span style="color:#94a3b8">=</span><span style="color:#7dd3fc">"/img/cover.png"</span> <span style="color:#94a3b8">/&gt;</span><br>  <span style="color:#94a3b8">&lt;/</span><span style="color:#f472b6">div</span><span style="color:#94a3b8">&gt;</span><br>  <span style="color:#94a3b8">&lt;</span><span style="color:#f472b6">div</span> <span style="color:#cbd5e1">class</span><span style="color:#94a3b8">=</span><span style="color:#7dd3fc">"flex"</span><span style="color:#94a3b8">&gt;</span><br>    <span style="color:#94a3b8">&lt;</span><span style="color:#f472b6">span</span><span style="color:#94a3b8">&gt;</span>Class Warfare<span style="color:#94a3b8">&lt;/</span><span style="color:#f472b6">span</span><span style="color:#94a3b8">&gt;</span><br>    <span style="color:#94a3b8">&lt;</span><span style="color:#f472b6">span</span><span style="color:#94a3b8">&gt;</span>The Anti-Patterns<span style="color:#94a3b8">&lt;/</span><span style="color:#f472b6">span</span><span style="color:#94a3b8">&gt;</span><br>    <span style="color:#94a3b8">&lt;</span><span style="color:#f472b6">span</span> <span style="color:#cbd5e1">class</span><span style="color:#94a3b8">=</span><span style="color:#7dd3fc">"flex"</span><span style="color:#94a3b8">&gt;</span><br>      <span style="color:#94a3b8">&lt;</span><span style="color:#f472b6">span</span><span style="color:#94a3b8">&gt;</span>No.&nbsp;4<span style="color:#94a3b8">&lt;/</span><span style="color:#f472b6">span</span><span style="color:#94a3b8">&gt;</span><br>      <span style="color:#94a3b8">&lt;</span><span style="color:#f472b6">span</span><span style="color:#94a3b8">&gt;&lt;/</span><span style="color:#f472b6">span</span><span style="color:#94a3b8">&gt;</span><br>      <span style="color:#94a3b8">&lt;</span><span style="color:#f472b6">span</span><span style="color:#94a3b8">&gt;</span>2025<span style="color:#94a3b8">&lt;/</span><span style="color:#f472b6">span</span><span style="color:#94a3b8">&gt;</span><br>    <span style="color:#94a3b8">&lt;/</span><span style="color:#f472b6">span</span><span style="color:#94a3b8">&gt;</span><br>  <span style="color:#94a3b8">&lt;/</span><span style="color:#f472b6">div</span><span style="color:#94a3b8">&gt;</span><br><span style="color:#94a3b8">&lt;/</span><span style="color:#f472b6">div</span><span style="color:#94a3b8">&gt;</span></div>
+      </div>
+    </div>
+    <div class="prod-card">
+      <div class="prod-img-wrap"><img src="tailwind-assets/cover.png" alt="The Anti-Patterns album cover"></div>
+      <h3>Class Warfare</h3>
+      <p>The Anti-Patterns<br>No. 4&middot;2025</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= sponsor logo wall (36 exact source SVGs) ================= -->
+<section class="spon">
+  <div class="spon-tag">Sponsors</div>
+  <h2>Supported by the best.</h2>
+  <p class="spon-sub">Tailwind is supported by incredible partners and sponsors who make it possible for a team of talented designers and engineers to maintain the framework full-time.</p>
+  <a class="spon-cta" href="#"><span>Become a sponsor</span><span>&rarr;</span></a>
+  <div class="logo-wall">
+    <div class="logo-cell"><img src="tailwind-assets/logo-clerk.svg" alt="Clerk"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-profound.svg" alt="Profound"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-webflow.svg" alt="Webflow"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-cursor.svg" alt="Cursor"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-lovable.svg" alt="Lovable"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-kiro.svg" alt="Kiro"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-serpapi.svg" alt="SerpApi"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-vercel.svg" alt="Vercel"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-graphite.svg" alt="Graphite"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-supabase.svg" alt="supabase"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-postmark.svg" alt="Postmark"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-v0.svg" alt="v0"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-mintlify.svg" alt="mintlify"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-unblocked.svg" alt="Unblocked"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-namespace.svg" alt="namespace"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-google-ai-studio.svg" alt="Google AI Studio"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-base-ui.svg" alt="base ui"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-momentic.svg" alt="momentic"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-shopify.svg" alt="shopify"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-greptile.svg" alt="greptile"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-tiptap.svg" alt="Tiptap"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-nutrient.svg" alt="Nutrient"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-sanity.svg" alt="Sanity"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-mux.svg" alt="MUX"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-coderabbit.svg" alt="CodeRabbit"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-bolt.svg" alt="bolt.new"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-imagekit.svg" alt="imagekit.io"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-syntax.svg" alt="Syntax"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-resend.svg" alt="Resend"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-fin.svg" alt="Fin"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-railway.svg" alt="Railway"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-polar.svg" alt="Polar"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-auth0.svg" alt="auth0"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-posthog.svg" alt="PostHog"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-browserbase.svg" alt="Browserbase"></div>
+    <div class="logo-cell"><img src="tailwind-assets/logo-braintrust.svg" alt="Braintrust"></div>
+  </div>
+</section>
+
+<!-- ================= built for the modern web (intro + bento grid) ================= -->
+<section class="feat-intro">
+  <div class="kicker">Why Tailwind CSS?</div>
+  <h2>Built for the modern web.</h2>
+  <p>Tailwind is unapologetically modern, and takes advantage of all the latest and greatest CSS features to make the developer experience as enjoyable as possible.</p>
+</section>
+
+<section class="bento">
+  <div class="bento-row">
+    <div class="bento-card wide">
+      <div class="bc-pad">
+        <h3>Responsive design</h3>
+        <p>Okay, it's not exactly cutting edge, but just throw a screen size in front of literally any utility to apply it at a specific breakpoint.</p>
+      </div>
+      <div class="bc-media"><img src="tailwind-assets/responsive-1.png" alt="Responsive Beach House listing card at three breakpoints"></div>
+    </div>
+    <div class="bento-card">
+      <div class="bc-pad">
+        <h3>Filters</h3>
+        <p>What's a website these days without a few backdrop blurs? Keep stacking filters until your designer asks you to please, please stop.</p>
+      </div>
+      <div class="bc-media"><img src="tailwind-assets/filters.png" alt="Backdrop blur and filter demo"></div>
+    </div>
+  </div>
+  <div class="bento-row">
+    <div class="bento-card dark">
+      <div class="bc-pad">
+        <h3>Dark mode</h3>
+        <p>If you're not a fan of burning your retinas, just stick dark: in front of any color to apply it in dark mode.</p>
+      </div>
+      <div class="bc-media"><img src="tailwind-assets/dark-mode-dark.png" alt="Currency converter UI shown in dark mode"></div>
+    </div>
+    <div class="bento-card">
+      <div class="bc-pad">
+        <h3>CSS variables &amp; theming</h3>
+        <p>Customizing your theme is as simple as creating a few CSS variables.</p>
+      </div>
+      <div class="bc-media"><img src="tailwind-assets/responsive-2.png" alt="Theme customization with CSS variables"></div>
+    </div>
+    <div class="bento-card">
+      <div class="bc-pad">
+        <h3>P3 colors</h3>
+        <p>The color palette now uses more vibrant wide gamut colors without you needing to understand what any of that even means.</p>
+      </div>
+      <div class="bc-media"><img src="tailwind-assets/bento-p3.png" alt="Wide-gamut P3 color swatch grid"></div>
+    </div>
+  </div>
+  <div class="bento-row">
+    <div class="bento-card">
+      <div class="bc-pad">
+        <h3>CSS grid layout</h3>
+        <p>Using grid utilities directly in your HTML makes it so much easier to reason about complex layouts.</p>
+      </div>
+      <div class="bc-media"><img src="tailwind-assets/bento-grid-photos.png" alt="Browse properties photo grid: Treehouses, Mansions, Lakefront cottages, Designer homes"></div>
+    </div>
+    <div class="bento-card">
+      <div class="bc-pad">
+        <h3>Transitions and animations</h3>
+        <p>Transitions that work the way you'd expect — throw a few utilities on an element and you're in business.</p>
+      </div>
+      <div class="bc-media"><img src="tailwind-assets/bento-transitions.png" alt="Easing demo: linear, ease-out, ease-in-out, ease-in transition sliders"></div>
+    </div>
+  </div>
+  <div class="bento-row">
+    <div class="bento-card">
+      <div class="bc-pad">
+        <h3>Cascade layers</h3>
+        <p>Tailwind uses CSS layers so you don't have to worry about specificity issues.</p>
+      </div>
+      <div class="bc-media"><img src="tailwind-assets/bento-cascade.png" alt="Code editor showing @layer theme, base, components, utilities cascade layers"></div>
+    </div>
+    <div class="bento-card">
+      <div class="bc-pad">
+        <h3>Logical properties</h3>
+        <p>Supporting multiple language text directions is no longer a nightmare.</p>
+      </div>
+      <div class="bc-media"><img src="tailwind-assets/bento-reviews.png" alt="RTL/LTR review cards with reviewer avatars"></div>
+    </div>
+    <div class="bento-card">
+      <div class="bc-pad">
+        <h3>Container queries</h3>
+        <p>Tag an element as a container to let children adapt to changes in its size.</p>
+      </div>
+      <div class="bc-media"><img src="tailwind-assets/bento-container.png" alt="Code editor showing @container with @sm:grid-cols-2 responsive grid"></div>
+    </div>
+  </div>
+  <div class="bento-row">
+    <div class="bento-card">
+      <div class="bc-pad">
+        <h3>Gradients</h3>
+        <p>No need to remember that complicated gradient syntax — create silky-smooth gradients with just a few utility classes.</p>
+      </div>
+    </div>
+    <div class="bento-card">
+      <div class="bc-pad">
+        <h3>3D transforms</h3>
+        <p>Sometimes two dimensions aren't enough. Scale, rotate, and translate any element in 3D space to add a touch of depth.</p>
+      </div>
+    </div>
+    <div class="bento-card wide">
+      <div class="bc-pad">
+        <h3>Redefining real-time performance</h3>
+        <p>Our next-generation rendering engine delivers unmatched speed and efficiency, empowering creators to push boundaries like never before.</p>
+      </div>
+      <div class="bc-media"><img src="tailwind-assets/bento-perfbars.png" alt="Performance bars: render time, real-time frame rate, multi-platform build time"></div>
+      <div class="bc-media"><img src="tailwind-assets/bento-portrait.png" alt="Portrait photo demonstrating rendering fidelity"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= ship faster — second code editor (file tabs) ================= -->
+<section class="ship">
+  <div class="kicker">How it works</div>
+  <h2>Ship faster and smaller.</h2>
+  <p>Tailwind automatically removes all unused CSS when building for production, which means your final CSS bundle is the smallest it could possibly be. In fact, most Tailwind projects ship less than 10kB of CSS to the client.</p>
+  <div class="ship-editor">
+    <div class="ship-tabs">
+      <span class="tab on">index.html</span>
+      <span class="tab">app.css</span>
+      <span class="tab">package.json</span>
+    </div>
+    <div class="code">
+      <div class="code-ln">1<br>2<br>3<br>4<br>5<br>6<br>7<br>8<br>9<br>10<br>11<br>12</div>
+      <div class="code-body"><span style="color:#94a3b8">&lt;!</span><span style="color:#f472b6">DOCTYPE</span> <span style="color:#cbd5e1">html</span><span style="color:#94a3b8">&gt;</span><br><span style="color:#94a3b8">&lt;</span><span style="color:#f472b6">html</span> <span style="color:#cbd5e1">lang</span><span style="color:#94a3b8">=</span><span style="color:#7dd3fc">"en"</span><span style="color:#94a3b8">&gt;</span><br>  <span style="color:#94a3b8">&lt;</span><span style="color:#f472b6">head</span><span style="color:#94a3b8">&gt;</span><br>    <span style="color:#94a3b8">&lt;</span><span style="color:#f472b6">meta</span> <span style="color:#cbd5e1">charset</span><span style="color:#94a3b8">=</span><span style="color:#7dd3fc">"UTF-8"</span> <span style="color:#94a3b8">/&gt;</span><br>    <span style="color:#94a3b8">&lt;</span><span style="color:#f472b6">meta</span> <span style="color:#cbd5e1">name</span><span style="color:#94a3b8">=</span><span style="color:#7dd3fc">"viewport"</span> <span style="color:#cbd5e1">content</span><span style="color:#94a3b8">=</span><span style="color:#7dd3fc">"width=device-width, initial-scale=1.0"</span> <span style="color:#94a3b8">/&gt;</span><br>    <span style="color:#94a3b8">&lt;</span><span style="color:#f472b6">title</span><span style="color:#94a3b8">&gt;</span>Tailwind CSS<span style="color:#94a3b8">&lt;/</span><span style="color:#f472b6">title</span><span style="color:#94a3b8">&gt;</span><br>    <span style="color:#94a3b8">&lt;</span><span style="color:#f472b6">link</span> <span style="color:#cbd5e1">rel</span><span style="color:#94a3b8">=</span><span style="color:#7dd3fc">"stylesheet"</span> <span style="color:#cbd5e1">href</span><span style="color:#94a3b8">=</span><span style="color:#7dd3fc">"/build.css"</span> <span style="color:#94a3b8">/&gt;</span><br>  <span style="color:#94a3b8">&lt;/</span><span style="color:#f472b6">head</span><span style="color:#94a3b8">&gt;</span><br>  <span style="color:#94a3b8">&lt;</span><span style="color:#f472b6">body</span><span style="color:#94a3b8">&gt;</span><br>    <span style="color:#94a3b8">&lt;</span><span style="color:#f472b6">button</span> <span style="color:#cbd5e1">class</span><span style="color:#94a3b8">=</span><span style="color:#7dd3fc">"…"</span><span style="color:#94a3b8">&gt;&lt;/</span><span style="color:#f472b6">button</span><span style="color:#94a3b8">&gt;</span><br>  <span style="color:#94a3b8">&lt;/</span><span style="color:#f472b6">body</span><span style="color:#94a3b8">&gt;</span><br><span style="color:#94a3b8">&lt;/</span><span style="color:#f472b6">html</span><span style="color:#94a3b8">&gt;</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= tailwind in the wild (showcase montage gallery) ================= -->
+<section class="wild">
+  <div class="kicker">Tailwind in the wild</div>
+  <h2>Build whatever you want, without touching your CSS file.</h2>
+  <p>Because Tailwind is so low-level, it never encourages you to design the same site twice. Some of your favorite sites are built with Tailwind, and you probably had no idea.</p>
+  <div class="wild-gallery">
+    <img src="tailwind-assets/wild-montage.png" alt="Showcase montage of real sites built with Tailwind CSS: Gumroad, The Verge, Google I/O, MILK CHOCOLATE and more">
+  </div>
+</section>
+
+<!-- ================= move even faster with Tailwind Plus ================= -->
+<section class="feat-intro">
+  <div class="kicker">Ready-made Components</div>
+  <h2>Move even faster with Tailwind Plus.</h2>
+  <p>Tailwind Plus is a collection of beautiful, fully responsive UI components, designed and developed by us, the creators of Tailwind CSS. It's got hundreds of ready-to-use examples to choose from.</p>
+  <a class="spon-cta" href="#" style="margin-top:24px"><span>Explore Tailwind Plus</span><span>&rarr;</span></a>
+</section>
+
+<section class="plus-cards">
+  <div class="plus-card">
+    <div class="pk">Templates</div>
+    <p>Visually-stunning, easy to customize site templates built with React and Next.js.</p>
+  </div>
+  <div class="plus-card">
+    <div class="pk">UI Blocks</div>
+    <p>Over 500+ professionally designed, fully responsive, expertly crafted components.</p>
+  </div>
+  <div class="plus-card">
+    <div class="pk">UI Kit</div>
+    <p>A starter kit for building your own component systems with React and Tailwind CSS.</p>
+  </div>
+</section>
+
+<section class="plus-thumb">
+  <img src="tailwind-assets/templates-col-1.png" alt="Tailwind Plus template thumbnails column 1">
+  <img src="tailwind-assets/templates-col-2.png" alt="Tailwind Plus template thumbnails column 2">
+  <img src="tailwind-assets/templates-col-3.png" alt="Tailwind Plus template thumbnails column 3">
+</section>
+
+<!-- ================= footer ================= -->
+<footer class="foot">
+  <div class="foot-cols">
+    <div class="foot-col">
+      <span class="h">Tailwind CSS</span>
+      <a href="#">Documentation</a>
+      <a href="#">Playground</a>
+      <a href="#">Blog</a>
+      <a href="#">Showcase</a>
+      <a href="#">Sponsor</a>
+    </div>
+    <div class="foot-col">
+      <span class="h">Tailwind Plus</span>
+      <a href="#">UI Blocks</a>
+      <a href="#">Templates</a>
+      <a href="#">UI Kit</a>
+    </div>
+    <div class="foot-col">
+      <span class="h">Resources</span>
+      <a href="#">Refactoring UI</a>
+      <a href="#">Headless UI</a>
+      <a href="#">Heroicons</a>
+      <a href="#">Hero Patterns</a>
+    </div>
+    <div class="foot-col">
+      <span class="h">Community</span>
+      <a href="#">GitHub</a>
+      <a href="#">Discord</a>
+      <a href="#">X</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
