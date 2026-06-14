@@ -1,11 +1,12 @@
 // @purpose One-off isolated capture for the resend human-fidelity audit (no shared MCP profile).
 import { chromium } from 'playwright';
+import { resolveBase } from '../../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: never navigate a non-training host
 import path from 'path';
 
 const OUT = '/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader/.audit-resend';
 const targets = [
   { name: 'src',   url: 'https://resend.com' },
-  { name: 'clone', url: 'https://georges232.sg-host.com/?page_id=2988' },
+  { name: 'clone', url: `${resolveBase(process.env.JOIST_BASE || 'http://localhost:8001')}/?page_id=2988` },
 ];
 const MID_Y = 3400;
 

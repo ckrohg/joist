@@ -1,5 +1,6 @@
 // @purpose One-off isolated capture for human-eye fidelity audit: source vs clone, fold + mid band, 1440w.
 import { chromium } from 'playwright';
+import { resolveBase } from '../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: never navigate a non-training host
 import fs from 'node:fs';
 
 const OUT = '/Users/ckrohg/Documents/Claude/tenet-elementor/eval/grader/.audit';
@@ -7,7 +8,7 @@ fs.mkdirSync(OUT, { recursive: true });
 
 const TARGETS = [
   { name: 'source', url: 'https://supabase.com/' },
-  { name: 'clone',  url: 'https://georges232.sg-host.com/?page_id=2986' },
+  { name: 'clone',  url: `${resolveBase(process.env.JOIST_BASE || 'http://localhost:8001')}/?page_id=2986` },
 ];
 
 async function settle(page) {

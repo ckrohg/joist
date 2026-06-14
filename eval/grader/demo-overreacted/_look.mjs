@@ -1,6 +1,7 @@
 // @purpose One-off LOOK harness for the overreacted blog demo: viewport shots of clone top + middle (+ source same spots).
 import { chromium } from 'playwright'
-const CLONE = 'https://georges232.sg-host.com/?page_id=11067'
+import { resolveBase } from '../../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: never navigate a non-training host
+const CLONE = `${resolveBase(process.env.JOIST_BASE || 'http://localhost:8001')}/?page_id=11067`;
 const SRC = 'https://overreacted.io/a-complete-guide-to-useeffect/'
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
 const browser = await chromium.launch({ headless: true })

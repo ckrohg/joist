@@ -34,7 +34,7 @@
  *        (internally runs segment.mjs on the capture; or accept a precomputed --seg <segjson>)
  *      node build-structured.mjs --layout <capture.json> --seg <segjson> --selftest   (DRY tree-dump + invariants)
  *      node build-structured.mjs --layout <capture.json> --dry                          (DRY tree-dump only)
- * Env: JOIST_BASE (default georges232.sg-host.com), JOIST_AUTH_B64 (source /tmp/joist-auth.env).
+ * Env: JOIST_BASE (default http://localhost:8001 — §0 host-guard refuses non-training hosts), JOIST_AUTH_B64 (source /tmp/joist-auth.env).
  *      STRUCT_NO_GLOBALS=1 → inline-only (no kit write); ABS_GLOBAL_TYPO=1 → bind typography globals too.
  */
 import fs from 'fs';

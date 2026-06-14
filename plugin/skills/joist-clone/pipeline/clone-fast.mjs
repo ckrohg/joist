@@ -8,18 +8,21 @@
  * whose default 'absolute' mode pulls in capture-ensemble/build-absolute (not bundled).
  *
  * Usage: node clone-fast.mjs --source <url> --page <id> [--no-grade]
- * Env:   JOIST_AUTH_B64 (WP app-password basic auth), JOIST_BASE (default https://georges232.sg-host.com).
+ * Env:   JOIST_AUTH_B64 (WP app-password basic auth), JOIST_BASE (default http://localhost:8001 — §0 host-guard refuses non-training hosts).
  * Prereq: npm i  &&  npx playwright install chromium   (see README.md).
  */
 import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { resolveBase } from './host-guard.mjs'; // §0 SAFETY GUARD: never render/PUT to a non-training host
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const arg = (n, d = null) => { const i = process.argv.indexOf('--' + n); return i > -1 && process.argv[i + 1] && !process.argv[i + 1].startsWith('--') ? process.argv[i + 1] : d; };
 const has = (n) => process.argv.includes('--' + n);
 const source = arg('source'), page = arg('page');
-const base = process.env.JOIST_BASE || 'https://georges232.sg-host.com';
+// §0 SAFETY GUARD: default flipped from the PAUSED shared host georges232.sg-host.com → local sandbox;
+// resolveBase() throws LOUDLY before any fetch/PUT if JOIST_BASE points to a non-training host.
+const base = resolveBase(process.env.JOIST_BASE || 'http://localhost:8001');
 if (!source || !page) { console.error('usage: node clone-fast.mjs --source <url> --page <id> [--no-grade]'); process.exit(2); }
 const run = (file, args) => new Promise((res, rej) => { const p = spawn(process.execPath, [path.join(__dirname, file), ...args], { stdio: 'inherit', env: process.env }); p.on('close', (c) => (c === 0 ? res() : rej(new Error(`${file} → exit ${c}`)))); });
 
