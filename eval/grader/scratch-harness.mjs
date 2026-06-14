@@ -28,8 +28,11 @@
  * Env: JOIST_AUTH_B64 (or parsed from /tmp/joist-auth.env — value never printed), JOIST_BASE.
  */
 import fs from 'fs';
+// §0 SAFETY GUARD: default flipped from the PAUSED shared host georges232.sg-host.com → local sandbox;
+// resolveBase() throws LOUDLY before any fetch/PUT if JOIST_BASE points to a non-training host.
+import { resolveBase } from '../../sandbox/host-guard.mjs';
 
-export const BASE = process.env.JOIST_BASE || 'https://georges232.sg-host.com';
+export const BASE = resolveBase(process.env.JOIST_BASE || 'http://localhost:8001');
 // graded corpus — NEVER written, NEVER deleted (hard rail).
 export const CORPUS = new Set([3146, 2986, 2988, 2990, 4296, 4297, 4771, 11067]);
 export const TAG = 'JOIST-SCRATCH';

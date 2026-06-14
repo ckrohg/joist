@@ -1,9 +1,14 @@
 // @purpose (a) source docH @390 (the target), (b) clone height decomposition: imgWidgets / non-img abs / con / margins / header
 import { chromium } from 'playwright';
+import { resolveBase } from '../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: clone probe must target a training host
 
+// §0 SAFETY GUARD: the clone `url`s were hardcoded to the PAUSED shared host (navigation triggers
+// server-side render + CSS regen = the overload path). Rebuild them on the guarded training base; the
+// external `src`s are public sites being probed, not WP hosts we write to, so they stay as-is.
+const B = resolveBase(process.env.JOIST_BASE || 'http://localhost:8001');
 const CLONES = [
-  { name: 'supabase', url: 'https://georges232.sg-host.com/native-flextree-supabase/', src: 'https://supabase.com/' },
-  { name: 'framer',   url: 'https://georges232.sg-host.com/native-flextree-framer/',   src: 'https://www.framer.com/' },
+  { name: 'supabase', url: `${B}/native-flextree-supabase/`, src: 'https://supabase.com/' },
+  { name: 'framer',   url: `${B}/native-flextree-framer/`,   src: 'https://www.framer.com/' },
 ];
 
 const cloneProbe = async (page) => page.evaluate(() => {

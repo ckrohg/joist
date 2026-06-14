@@ -4,9 +4,18 @@
 // trigger lazy content (mirrors capture-layout), then composes a labeled two-column image via Playwright itself.
 import { chromium } from 'playwright'
 import fs from 'fs'
+import { assertAllowedBase } from '../../sandbox/host-guard.mjs' // §0 SAFETY GUARD: clone shot must target a training host
 
 const SRC = process.argv[2] || 'https://tailwindcss.com'
-const CLONE = process.argv[3] || 'https://georges232.sg-host.com/?page_id=3146'
+// §0 SAFETY GUARD: the CLONE side is one of OUR rendered pages — it must live on a training host.
+// Default flipped from the PAUSED shared host to the local sandbox; assertAllowedBase guards both the
+// default AND any argv-supplied CLONE URL, throwing LOUDLY before navigation if it strays. (SRC is an
+// external public site being screenshotted, not a WP host we write to, so it is intentionally unguarded.)
+const CLONE = (() => {
+  const u = process.argv[3] || 'http://localhost:8001/?page_id=3146'
+  assertAllowedBase(u) // throws on a non-training clone host (e.g. *.sg-host.com)
+  return u
+})()
 const W = 1440
 const OUT_SRC = '/tmp/cmp-src.png'
 const OUT_CLONE = '/tmp/cmp-clone.png'

@@ -12,7 +12,10 @@
 import fs from 'fs';
 
 const arg = (n, d = null) => { const i = process.argv.indexOf('--' + n); return i > -1 && process.argv[i + 1] ? process.argv[i + 1] : d; };
-const base = process.env.JOIST_BASE || 'https://georges232.sg-host.com';
+// §0 SAFETY GUARD: default flipped from the PAUSED shared host georges232.sg-host.com → local sandbox;
+// resolveBase() throws LOUDLY before any fetch/PUT if JOIST_BASE points to a non-training host.
+import { resolveBase } from '../../sandbox/host-guard.mjs';
+const base = resolveBase(process.env.JOIST_BASE || 'http://localhost:8001');
 const b64 = process.env.JOIST_AUTH_B64;
 if (!b64) { console.error('missing JOIST_AUTH_B64'); process.exit(2); }
 const bp = JSON.parse(fs.readFileSync(arg('blueprint'), 'utf8'));
@@ -20,7 +23,9 @@ const title = arg('title', 'Agent clone');
 const headers = { Authorization: 'Basic ' + b64, 'Content-Type': 'application/json', 'X-Joist-Session-Id': 'agent-clone-' + bp.blockCount };
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-const GRADIENT_URL = 'https://georges232.sg-host.com/wp-content/uploads/2026/06/gradient.png';
+// §0 SAFETY GUARD: was a hardcoded asset on the PAUSED shared host — baked into the rendered clone's
+// CSS it would make every page view fetch from that host. Point it at the guarded training base instead.
+const GRADIENT_URL = `${base}/wp-content/uploads/2026/06/gradient.png`;
 const parseRGB = (s) => { const m = String(s).match(/(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/); return m ? [+m[1], +m[2], +m[3]] : null; };
 const lum = ([r, g, b]) => { const f = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
 const contrast = (rgb, bg) => { const l1 = lum(rgb), l2 = lum(bg); return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05); };
