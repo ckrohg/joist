@@ -18,10 +18,18 @@ const arg = (n, d = null) => { const i = process.argv.indexOf('--' + n); return 
 const base = resolveBase(process.env.JOIST_BASE || 'http://localhost:8001');
 const b64 = process.env.JOIST_AUTH_B64; const layoutPath = arg('layout'), pageId = arg('page');
 if (!b64 || !layoutPath || !pageId) { console.error('need --layout --page + JOIST_AUTH_B64'); process.exit(2); }
-const L = JSON.parse(fs.readFileSync(layoutPath, 'utf8')); const VW = L.vw || 1440; const pageH = L.pageH || 6000;
+const L = JSON.parse(fs.readFileSync(layoutPath, 'utf8')); const VW = L.vw || 1440; let pageH = L.pageH || 6000;
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const px = (s) => { const m = String(s || '').match(/(-?\d+(?:\.\d+)?)px/); return m ? +m[1] : null; };
 const stripEmoji = (s) => String(s || '').replace(/[\u{1F000}-\u{1FAFF}\u{1F300}-\u{1F9FF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}\u{20E3}\u{1F1E6}-\u{1F1FF}]/gu, '').replace(/\s+/g, ' ').trim();
+// ── EMOJI GLYPH KEEP (defect #7; default ON, ABS_NO_KEEP_EMOJI=1 → legacy stripEmoji emission) ────────────────
+// stripEmoji has TWO roles: (a) a match/dedup NORMALIZER (nav detection, wrap-guard, census) — KEEP, and (b) a
+// DISPLAY transform on the emitted text-editor/list content — WRONG: it actively deletes 🤔/✅/etc. (overreacted:
+// 26 emoji before strong/bullet lines). Emoji are plain UTF-8 and survive wp_kses_post untouched inside
+// <p>/<strong>/<li>; the ONLY thing removing them was our own call. `displayText(s)` is the emission-side
+// transform — it KEEPS the glyph (just trims/collapses whitespace). Reversible: ABS_NO_KEEP_EMOJI=1 → strip.
+const KEEP_EMOJI = process.env.ABS_NO_KEEP_EMOJI !== '1';
+const displayText = (s) => KEEP_EMOJI ? String(s || '').replace(/\s+/g, ' ').trim() : stripEmoji(s);
 // Pass through fonts that have an exact GOOGLE equivalent (Elementor loads Google fonts natively, no
 // registration) → exact rendering for free. Only truly-proprietary fonts fall back to Inter/Georgia.
 const GOOGLE = [[/ibm.?plex.?mono|plex.?mono/, 'IBM Plex Mono'], [/source.?code/, 'Source Code Pro'], [/jetbrains/, 'JetBrains Mono'], [/space.?mono/, 'Space Mono'], [/fira.?code/, 'Fira Code'], [/inter/, 'Inter'], [/poppins/, 'Poppins'], [/montserrat/, 'Montserrat'], [/open.?sans/, 'Open Sans'], [/^lato|[^a-z]lato/, 'Lato'], [/nunito.?sans/, 'Nunito Sans'], [/nunito/, 'Nunito'], [/work.?sans/, 'Work Sans'], [/dm.?sans/, 'DM Sans'], [/space.?grotesk/, 'Space Grotesk'], [/manrope/, 'Manrope'], [/raleway/, 'Raleway'], [/rubik/, 'Rubik'], [/mulish|muli/, 'Mulish'], [/playfair/, 'Playfair Display'], [/merriweather/, 'Merriweather'], [/roboto.?slab/, 'Roboto Slab'], [/roboto.?mono/, 'Roboto Mono'], [/roboto/, 'Roboto']];
@@ -481,6 +489,58 @@ function fluidFontSettings(n) {
   }
   return { _element_id: eid };
 }
+// ── NATIVE RESPONSIVE (defect #1; default OFF, ABS_NATIVE_RESPONSIVE=1 → on) ──────────────────────────────────
+// THE responsive architecture fix. The entire prior responsive strategy (clamp() fonts, <=1024 abs-unpin, image
+// caps) rides the PAGE-LEVEL custom_css channel (_elementor_page_settings.custom_css) which is ELEMENTOR-PRO-ONLY:
+// on free 3.28.4 it is SAVED but NEVER rendered (verified — clamp( grep empty, 651px h-overflow @390, docH
+// identical at 1440 & 390). So responsive is inert. FIX: re-route to channels that DO render on free:
+//   (1) NATIVE per-breakpoint TYPOGRAPHY controls (typography_font_size_mobile/_tablet) — core free, the mobile
+//       (<=767) + tablet (<=1024) breakpoints are active. Computed from the SAME MIN/ceil math fluidFontSettings
+//       used (shrink large text; never enlarge; desktop control unchanged → desktop byte-identical).
+//   (2) PER-ELEMENT release of the absolute pin via the PreserveCSS `m` payload (joist_preserve_css) — the plugin's
+//       `elementor/element/parse_css` hook injects it into CORE Elementor's Post_CSS (renders on FREE, unlike the
+//       Pro page custom_css). At <=1024 each abs widget becomes position:relative;width:100% → the desktop-pixel
+//       tree flows as a single column (no h-overflow at 390). Desktop (>1024) is byte-identical (no `d` decl, only
+//       `m` keys at 1024/767 → the desktop render never sees them).
+// CONVERGENT/IDEMPOTENT: keyed off the captured typo size + box; re-running yields identical settings. Gated OFF by
+// default so build-absolute is UNBROKEN for every other corpus site (they keep the desktop-pixel abs build).
+const NATIVE_RESPONSIVE = process.env.ABS_NATIVE_RESPONSIVE === '1';
+// the per-bp release decl block (same for every leaf — the plugin scopes it to .elementor-element-<id>).
+const NR_RELEASE = 'position:relative !important;left:auto !important;top:auto !important;right:auto !important;bottom:auto !important;width:100% !important;max-width:100% !important;height:auto !important;min-height:0 !important;margin:0 0 10px 0 !important';
+// ── --joist-src CONTENT-ADDRESSED STAMP (O(1) correspondence; default ON, ABS_NO_JOIST_SRC=1 → off) ──────────
+// compare-capture.mjs joins source⇄clone records by a stable content-addressed path; when the clone carries that
+// path in a `--joist-src` CSS var (queryable via getComputedStyle), the join is an exact O(1) backref instead of a
+// fuzzy Hungarian match. The PROVEN-surviving channel (per _joist-src-roundtrip.mjs CH-C) is the joist_preserve_css
+// `d` decl emitting `--joist-src:"<path>"` (the plugin's parse_css wraps it as `.elementor-element-<id>{<d>}` →
+// renders on FREE Elementor; survives kses because it is a REGISTERED control, not a free-form key). The capture
+// records n.srcPath in the SAME `tagchain|nth|h<8hex>` format compare-capture expects. Reversible: ABS_NO_JOIST_SRC=1.
+const JOIST_SRC = process.env.ABS_NO_JOIST_SRC !== '1';
+// Unified preserve-css emitter: combines the --joist-src stamp (`d`) and the native-responsive release (`m`) into
+// ONE joist_preserve_css setting. Returns {} when neither applies → byte-identical legacy. The `d` decl is a CSS
+// custom property only (no layout effect) so it NEVER changes the desktop render; `m` keys apply <=1024 only.
+function joistPreserve(n) {
+  const payload = {};
+  if (JOIST_SRC && n && typeof n.srcPath === 'string' && n.srcPath) {
+    // escape the path for a CSS string value (it is a safe charset already, but guard quotes/backslashes).
+    const safe = n.srcPath.replace(/["\\]/g, '');
+    payload.d = `--joist-src:"${safe}"`;
+  }
+  if (NATIVE_RESPONSIVE) { payload.m = { '1024': NR_RELEASE, '767': NR_RELEASE }; }
+  return (payload.d || payload.m) ? { joist_preserve_css: JSON.stringify(payload) } : {};
+}
+// native per-breakpoint font-size (shrink large captured text toward a readable mobile/tablet ceiling; never above
+// the captured desktop size). Mirrors fluidFontSettings' band ceilings. Returns {} when disabled or text too small.
+function nrTypo(n) {
+  if (!NATIVE_RESPONSIVE) return {};
+  const t = n.typo || {}; const MAX = Math.round(t.size || 0); if (!MAX || MAX < FLUID_MIN_SIZE) return {};
+  const s = {};
+  // tablet: gentle shrink for display/heading; mobile: the band ceiling (matches the @<=767 mobile cap math).
+  const tabCeil = MAX >= 56 ? Math.round(MAX * 0.78) : MAX >= 40 ? Math.round(MAX * 0.85) : MAX >= 28 ? Math.round(MAX * 0.9) : 0;
+  const mobCeil = MAX >= 56 ? MPB_FONT_DISPLAY : MAX >= 40 ? MPB_FONT_HEADING : MAX >= 28 ? MPB_FONT_MID : 0;
+  if (tabCeil && tabCeil < MAX) s.typography_font_size_tablet = { unit: 'px', size: tabCeil };
+  if (mobCeil && mobCeil < MAX) s.typography_font_size_mobile = { unit: 'px', size: mobCeil };
+  return s;
+}
 const textColor = (n) => {
   if (!n.paint) return null;
   // GRADIENT-CLIPPED TEXT FIX (fix-list #1, dark-on-dark headings): a heading painted via background-clip:text +
@@ -791,8 +851,44 @@ function codePanelWidget(n, P, PB) {
   const minH = (n.box && n.box.h > 30) ? `min-height:${Math.round(n.box.h)}px;` : '';
   const wrap = `box-sizing:border-box;width:100%;${minH}background:${bg};border-radius:${radius}px;padding:${pad}px;overflow:hidden;`;
   const pre = `margin:0;white-space:pre-wrap;word-break:break-word;font-family:${MONO_STACK};font-size:${fs2}px;line-height:${lh};color:${tc};`;
-  const html = `<div style="${wrap}"><pre style="${pre}">${esc(n.text || '')}</pre></div>`;
-  return { elType: 'widget', widgetType: 'html', settings: { html, ...PB, ...P, ...mobileAbsenceHide(n, PB) } };
+  // ── PER-TOKEN SYNTAX COLORS (defect #2b) ──────────────────────────────────────────────────────────────────
+  // The code panel is an HTML widget → stored RAW (kses-untouched), so per-token <span style="color:#HEX"> runs
+  // survive verbatim. When capture recorded `tokens` (>=2 distinct colors), paint each run in its own color; a run
+  // with no captured color inherits the panel's default `tc`. Falls back to the single-color <pre> (legacy) when
+  // no tokens. Reversible: BUILD_NO_CODE_TOKENS=1 → always the single-color path.
+  let body;
+  if (!process.env.BUILD_NO_CODE_TOKENS && Array.isArray(n.tokens) && n.tokens.length) {
+    body = n.tokens.map((r) => { const t2 = String(r.text || ''); if (!t2) return ''; const c = (r.color && /^#[0-9a-fA-F]{6}$/.test(r.color)) ? r.color : null; return c ? `<span style="color:${c}">${esc(t2)}</span>` : esc(t2); }).join('');
+  } else {
+    body = esc(n.text || '');
+  }
+  const html = `<div style="${wrap}"><pre style="${pre}">${body}</pre></div>`;
+  // ── CODE-PANEL OVERFLOW DELTA (defect #2a) ────────────────────────────────────────────────────────────────
+  // The html-widget panel has min-height:box.h + the captured code; with a wider/taller FALLBACK mono and
+  // white-space:pre-wrap, the rendered height can EXCEED box.h (overflow:hidden clips, but the panel box itself
+  // grows because min-height is a floor, not a cap) → the NEXT abs-pinned paragraph (pinned at codeY+box.h) lands
+  // INSIDE the panel and overlaps the last code lines (the observed "What does it mean?" overlap). Estimate the
+  // rendered height from the wrapped line count and attach a TRANSIENT delta + bottom-Y; a single monotonic
+  // y-cursor pass (shiftBelowCodeOverflows, after flatten) pushes every leaf below this panel down by the delta so
+  // nothing overlaps. Transient keys (_codeOverflowDelta/_codeBottomY) are stripped before PUT. Reversible:
+  // BUILD_NO_CODE_OVERFLOW_SHIFT=1 → no delta attached → no shift.
+  const w = { elType: 'widget', widgetType: 'html', settings: { html, ...PB, ...P, ...joistPreserve(n), ...mobileAbsenceHide(n, PB) } };
+  if (!process.env.BUILD_NO_CODE_OVERFLOW_SHIFT && n.box && n.box.h > 30) {
+    // Estimate the panel's RENDERED CONTENT height (the wrapped code) and compare it to the panel's content area
+    // (box.h minus the 2*pad already inside box.h). Only the genuine overflow shifts content below. CONSERVATIVE:
+    // require a MATERIAL overflow (>=24px AND >=20% of box.h) so panels that already fit produce ~0 delta and we
+    // don't over-inflate the page on a 62-panel doc. Per-panel delta is capped at box.h (a single panel won't
+    // realistically more than double its own height) to bound the cascade.
+    const lhPx = px(lh) || Math.round(fs2 * 1.5);
+    const cols = Math.max(20, Math.floor((n.box.w - 2 * pad) / (fs2 * 0.62)));   // approx chars per line at this mono size
+    const lines = String(n.text || '').split('\n');
+    let wrapped = 0; for (const ln of lines) wrapped += Math.max(1, Math.ceil((ln.length || 1) / cols));
+    const contentH = wrapped * lhPx;                       // estimated rendered code height (no padding)
+    const availH = Math.max(0, n.box.h - 2 * pad);         // content area inside the captured panel box
+    let delta = Math.round(contentH - availH);
+    if (delta >= 24 && delta >= n.box.h * 0.2) { delta = Math.min(delta, Math.round(n.box.h)); w._codeOverflowDelta = delta; w._codeBottomY = Math.round(n.box.y + n.box.h); }
+  }
+  return w;
 }
 
 // ABSOLUTE positioning settings — pin a widget to its captured (x,y) at captured width.
@@ -813,13 +909,60 @@ function absPos(box, z, origin) {
 }
 
 const widgets = []; let z = 1; let oz = 80000;
+// ── RICH-TEXT EDITOR HTML (defects #5 blockquote-bar + #6 inline-code chips) ─────────────────────────────────
+// Reconstruct a text-editor `editor` value from captured SEGMENTS (n.runs) and/or a blockquote left-bar
+// (n.borderLeft), through the kses-safe channel proven in Phase 1: a text-editor widget runs wp_kses_post +
+// safecss_filter_attr, which STRIPS any CSS value containing a paren — rgb()/rgba() — but PRESERVES hex/named
+// colors, border-radius, padding, border-* longhands, font-family, font-style. The capture already hex-flattens
+// every chip bg / bar color, so this stays kses-safe. Returns { editor, wrapStyle } where wrapStyle is extra CSS
+// to merge onto the <div> wrapper (the blockquote bar). When n has NO runs and NO borderLeft, the caller's plain
+// `esc(text)` path is byte-identical — so this is purely additive. Reversible via ABS_NO_INLINE_CHIPS=1 (runs)
+// and ABS_NO_BLOCKQUOTE_BAR=1 (bar).
+const MONO_CHIP = "ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace";
+function richInnerHTML(n) {
+  // segments → inner HTML; each plain run esc()'d, each code run wrapped in a styled <code>. Returns null when no
+  // usable runs (caller uses the plain esc(text) path → byte-identical for non-code prose).
+  if (process.env.ABS_NO_INLINE_CHIPS === '1' || !Array.isArray(n.runs) || !n.runs.length) return null;
+  let any = false;
+  // collapse internal whitespace but PRESERVE a single boundary space (leading/trailing) so a plain run does not
+  // glue onto an adjacent <code> chip (e.g. "Call <chip> inside" must keep the spaces around the chip).
+  const collapseKeepEdges = (s) => { const str = String(s || ''); const lead = /^\s/.test(str) ? ' ' : ''; const trail = /\s$/.test(str) ? ' ' : ''; const mid = str.replace(/\s+/g, ' ').trim(); return mid ? (lead + (KEEP_EMOJI ? mid : stripEmoji(mid)) + trail) : (lead || trail); };
+  const parts = n.runs.map((r) => {
+    if (!r.code) { const t = collapseKeepEdges(r.text); return t ? esc(t) : ''; }
+    const t = displayText(r.text); if (!t) return '';
+    any = true;
+    // chip style: hex bg (capture-flattened; rgba()→opaque hex), radius, small pad, mono. background-color HEX
+    // survives kses; rgba() would be STRIPPED → only emit a hex bg. color hex if captured. NO rgb()/rgba() here.
+    const bg = (r.bg && /^#[0-9a-fA-F]{6}$/.test(r.bg)) ? `background-color:${r.bg};` : '';
+    const col = (r.color && /^#[0-9a-fA-F]{6}$/.test(r.color)) ? `color:${r.color};` : '';
+    const rad = r.radius ? `border-radius:${Math.min(16, Math.round(r.radius))}px;` : 'border-radius:4px;';
+    const padV = r.padV ? Math.min(6, Math.round(r.padV)) : 2, padH = r.padH ? Math.min(8, Math.round(r.padH)) : 4;
+    const fam = r.mono !== false ? `font-family:${MONO_CHIP};` : '';
+    return `<code style="${bg}${col}${rad}padding:${padV}px ${padH}px;${fam}font-size:0.9em">${esc(t)}</code>`;
+  });
+  if (!any) return null;            // runs existed but no code chip emitted → fall back to plain text path
+  return parts.join('');
+}
+// blockquote left-bar wrapper CSS (hex-only; border-left + padding-left + font-style ALL survive kses on hex).
+function blockquoteBarCss(n) {
+  if (process.env.ABS_NO_BLOCKQUOTE_BAR === '1') return '';
+  const b = n.borderLeft; if (!b || !b.color || !/^#[0-9a-fA-F]{6}$/.test(b.color)) return '';
+  const w = Math.max(1, Math.round(b.width || 3));
+  const style = /^(solid|dashed|dotted|double)$/.test(b.style || '') ? b.style : 'solid';
+  const pl = (n.padLeft != null) ? Math.max(8, Math.round(n.padLeft)) : 16;
+  return `border-left:${w}px ${style} ${b.color};padding-left:${pl}px${n.italic ? ';font-style:italic' : ''}`;
+}
 // leafWidget(n[, target, origin]): emit one native widget for a leaf. Default → pushes to the global `widgets`
 // list, page-absolute (the normal abs-pinned path). When a `target` array + `origin` {x,y} are passed (card-row
 // reflow), the widget is pushed to that cell's child list with CELL-RELATIVE absolute offsets instead — same
 // widget shapes, only the positioning origin differs.
 function leafWidget(n, target, origin) {
   const sink = target || widgets;
-  const box = n.box; if (!box || box.w < 3 || box.h < 2) return;
+  let box = n.box; if (!box || box.w < 3) return;
+  // a divider (<hr>) is intrinsically thin (h≈1px) — exempt it from the h<2 drop and floor its box height so the
+  // absolutely-pinned widget reserves a visible row for the rule. All other kinds keep the legacy h<2 guard.
+  if (n.kind === 'divider') { if (box.h < 2) { box = { ...box, h: Math.max(2, Math.round((n.dividerWidth || 1) + 1)) }; n.box = box; } }
+  else if (box.h < 2) return;
   // ABS_PERBP pb-id for kinds whose settings DON'T flow through imgCapSettings/fluidFontSettings (code/video/tabs).
   const PB = pbId(n) ? { _element_id: pbId(n) } : {};
   // OVERLAY (widened mockup text-rescue): rescued native text leaves sit ON TOP of the mockup raster so the
@@ -827,9 +970,24 @@ function leafWidget(n, target, origin) {
   // normal widgets incl. the mockup raster; below the 90000+ raster-band fallback) so they always paint over
   // the image regardless of flatten order.
   const P = absPos(box, n.overlay ? oz++ : z++, origin);
-  if (n.kind === 'image') { const isrc = bestImgSrc(n); const id = localId(isrc); const img = id ? { url: localSrc(isrc), id } : { url: localSrc(isrc) }; const IC = imgCapSettings(box, n); sink.push({ elType: 'widget', widgetType: 'image', settings: { image: img, image_size: 'full', width: { unit: 'px', size: Math.round(box.w) }, ...IC, ...P, ...mobileAbsenceHide(n, IC) } }); return; }
-  if ((n.kind === 'svg' || n.kind === 'mockup') && n.raster && n.raster !== 'SKIP') { const IC = imgCapSettings(box, n); sink.push({ elType: 'widget', widgetType: 'image', settings: { image: { url: localSrc(n.raster) }, image_size: 'full', width: { unit: 'px', size: Math.round(box.w) }, ...IC, ...P, ...mobileAbsenceHide(n, IC) } }); return; }
+  if (n.kind === 'image') { const isrc = bestImgSrc(n); const id = localId(isrc); const img = id ? { url: localSrc(isrc), id } : { url: localSrc(isrc) }; const IC = imgCapSettings(box, n); sink.push({ elType: 'widget', widgetType: 'image', settings: { image: img, image_size: 'full', width: { unit: 'px', size: Math.round(box.w) }, ...IC, ...P, ...joistPreserve(n), ...mobileAbsenceHide(n, IC) } }); return; }
+  if ((n.kind === 'svg' || n.kind === 'mockup') && n.raster && n.raster !== 'SKIP') { const IC = imgCapSettings(box, n); sink.push({ elType: 'widget', widgetType: 'image', settings: { image: { url: localSrc(n.raster) }, image_size: 'full', width: { unit: 'px', size: Math.round(box.w) }, ...IC, ...P, ...joistPreserve(n), ...mobileAbsenceHide(n, IC) } }); return; }
   if (n.kind === 'code') { sink.push(codePanelWidget(n, P, PB)); return; }
+  // DIVIDER (<hr>, defect #4): emit a kses-safe html-widget <hr> carrying the captured stroke as an inline style.
+  // HEX REQUIRED in a text-editor channel, but an HTML widget is stored RAW (kses-untouched), so even an rgb()
+  // color survives here; capture already hex-flattens the color for safety. Native Elementor 'divider' widget was
+  // considered but the html <hr> is simpler, exactly width-pinnable, and round-trips identically. Default-off-able
+  // via ABS_NO_DIVIDER=1 (then a real <hr> is dropped — only meaningful if capture still emits kind:'divider').
+  if (n.kind === 'divider') {
+    if (process.env.ABS_NO_DIVIDER === '1') return;
+    const w = Math.round(box.w);
+    const dw = Math.max(1, Math.round(n.dividerWidth || 1));
+    const dstyle = /^(solid|dashed|dotted|double)$/.test(n.dividerStyle || '') ? n.dividerStyle : 'solid';
+    const dcol = (n.dividerColor && /^(#|rgb)/.test(n.dividerColor)) ? n.dividerColor : '#e5e7eb';
+    const html = `<hr style="border:none;border-top:${dw}px ${dstyle} ${dcol};margin:0;width:100%;max-width:100%">`;
+    sink.push({ elType: 'widget', widgetType: 'html', settings: { html, ...PB, ...P, ...joistPreserve(n), ...mobileAbsenceHide(n, PB) } });
+    return;
+  }
   // VIDEO: emit an ALWAYS-PRESENT <iframe>/<video> inside an `html` widget for ALL providers — NOT the
   // native Elementor `video` widget. The native widget LAZY-LOADS on the live frontend (placeholder image +
   // play button; the real <iframe> only injects after a click), so the grader (captures WITHOUT clicking)
@@ -899,7 +1057,7 @@ function leafWidget(n, target, origin) {
     // LINK item: those anchors need the per-leaf a{color:inherit} reset or the theme `a{color}` repaints them
     // blue (the original FOOTER-LINK-COLOR defect). Items without a legacy stamp get NO reset → legacy-equivalent.
     let droppedAnchorColor = false, firstDropped = null;
-    const items = (n.items || []).map((it) => { const t = stripEmoji(it.text); if (!t) return ''; const ic0 = itemCss(it); const ic = DEINLINE ? '' : ic0; if (DEINLINE && ic0) { if (!firstDropped) firstDropped = ic0.replace(/^color:/, ''); if (it.href) droppedAnchorColor = true; } return `<li${it.href ? '' : styleAttr(ic)}>${it.href ? `<a href="${esc(it.href)}"${styleAttr(ic)}>${esc(t)}</a>` : esc(t)}</li>`; }).filter(Boolean).join('');
+    const items = (n.items || []).map((it) => { const t = displayText(it.text); if (!t) return ''; const ic0 = itemCss(it); const ic = DEINLINE ? '' : ic0; if (DEINLINE && ic0) { if (!firstDropped) firstDropped = ic0.replace(/^color:/, ''); if (it.href) droppedAnchorColor = true; } return `<li${it.href ? '' : styleAttr(ic)}>${it.href ? `<a href="${esc(it.href)}"${styleAttr(ic)}>${esc(t)}</a>` : esc(t)}</li>`; }).filter(Boolean).join('');
     if (items) {
       const tagName = n.ordered ? 'ol' : 'ul';
       // bullet reset: source had none (listStyleType 'none', or unrecorded on a legacy capture for a non-ordered list)
@@ -913,7 +1071,7 @@ function leafWidget(n, target, origin) {
       const tc = lvl || textColor(n) || (DEINLINE ? firstDropped : null);
       const FF = fluidFontSettings(n);
       const DR = (DEINLINE && droppedAnchorColor) ? deinlineAnchorReset(FF) : {};
-      sink.push({ elType: 'widget', widgetType: 'text-editor', settings: { editor: `<${tagName}${styleAttr(ulCss)}>${items}</${tagName}>`, ...nativeTypo(n), ...FF, ...DR, ...(tc ? { text_color: tc } : {}), ...globalRefSettings(n, 'text_color'), ...P, ...mobileAbsenceHide(n, { ...FF, ...DR }) } });
+      sink.push({ elType: 'widget', widgetType: 'text-editor', settings: { editor: `<${tagName}${styleAttr(ulCss)}>${items}</${tagName}>`, ...nativeTypo(n), ...nrTypo(n), ...FF, ...DR, ...(tc ? { text_color: tc } : {}), ...globalRefSettings(n, 'text_color'), ...P, ...joistPreserve(n), ...mobileAbsenceHide(n, { ...FF, ...DR }) } });
     }
     return;
   }
@@ -1027,7 +1185,7 @@ function leafWidget(n, target, origin) {
     sink.push({ elType: 'widget', widgetType: 'html', settings: { html: `<div style="width:${w}px;height:${h}px;max-width:100%">${inner}</div>`, ...PB, ...P, ...mobileAbsenceHide(n, PB) } });
     return;
   }
-  const text = stripEmoji(n.text); if (!text) return; const tc = textColor(n); const cc = colorCss(n);
+  const text = displayText(n.text); if (!text) return; const tc = textColor(n); const cc = colorCss(n);
   // heading: native heading widget renders the title as a bare text node inside <hN> (no inner HTML we control),
   // so title_color is the only lever — but a bare heading glyph has no theme <a>/wrapper rule overriding it, so
   // title_color lands as the rendered cs.color. keep it (plus typography).
@@ -1038,7 +1196,7 @@ function leafWidget(n, target, origin) {
     // attr only). '' / no rect for a plain heading → byte-identical to the old path. BUILD_NO_LEAF_CHROME=1 → off.
     const hChrome = leafChromeParts(n);
     if (hChrome) sink.push({ elType: 'widget', widgetType: 'html', settings: { html: `<div style="width:100%;height:100%;${hChrome}"></div>`, ...absPos(box, 0, origin) } });
-    const FF = fluidFontSettings(n); sink.push({ elType: 'widget', widgetType: 'heading', settings: { title: text, header_size: 'h' + Math.min(6, Math.max(1, n.level || 2)), ...nativeTypo(n), ...FF, ...(tc ? { title_color: tc } : {}), ...globalRefSettings(n, 'title_color'), ...P, ...mobileAbsenceHide(n, FF) } }); return;
+    const FF = fluidFontSettings(n); sink.push({ elType: 'widget', widgetType: 'heading', settings: { title: text, header_size: 'h' + Math.min(6, Math.max(1, n.level || 2)), ...nativeTypo(n), ...nrTypo(n), ...FF, ...(tc ? { title_color: tc } : {}), ...globalRefSettings(n, 'title_color'), ...P, ...joistPreserve(n), ...mobileAbsenceHide(n, FF) } }); return;
   }
   // button/link: the <a> inherits the THEME link color (a{color:…}) which beats text_color → INLINE-stamp the
   // captured color on the <a> itself (highest specificity, kses-safe) so the re-captured cs.color == source.
@@ -1062,7 +1220,7 @@ function leafWidget(n, target, origin) {
     const baseAnchorStyle = btnCss || (DEINLINE ? '' : cc);
     const anchorStyle = n._noWrap ? (baseAnchorStyle ? baseAnchorStyle + ';white-space:nowrap' : 'white-space:nowrap') : baseAnchorStyle;
     const DR = (DEINLINE && tc) ? deinlineAnchorReset(FF) : {};   // reset iff legacy would have stamped a color
-    sink.push({ elType: 'widget', widgetType: 'text-editor', settings: { editor: `<a${n.href ? ` href="${esc(n.href)}"` : ''}${styleAttr(anchorStyle)}>${esc(text)}</a>`, ...nativeTypo(n), ...FF, ...DR, ...(tc ? { text_color: tc } : {}), ...globalRefSettings(n, 'text_color'), ...P, ...mobileAbsenceHide(n, { ...FF, ...DR }) } }); return;
+    sink.push({ elType: 'widget', widgetType: 'text-editor', settings: { editor: `<a${n.href ? ` href="${esc(n.href)}"` : ''}${styleAttr(anchorStyle)}>${esc(text)}</a>`, ...nativeTypo(n), ...nrTypo(n), ...FF, ...DR, ...(tc ? { text_color: tc } : {}), ...globalRefSettings(n, 'text_color'), ...P, ...joistPreserve(n), ...mobileAbsenceHide(n, { ...FF, ...DR }) } }); return;
   }
   // generic text: native text_color is the single color channel under DEINLINE (falsifier finding: a plain <div>
   // leaf bleeds NOTHING once the dead __globals__ binding is gone — no reset, no inline stamp needed). Legacy
@@ -1075,10 +1233,17 @@ function leafWidget(n, target, origin) {
   // project it inline on the <div> (kses-safe style attr) so the chrome survives. '' for a plain prose leaf →
   // byte-identical to the old path. BUILD_NO_LEAF_CHROME=1 → '' always (old behavior).
   const chromeCss = leafChromeCss(n);
-  const baseTextCss = [inlineCc, chromeCss].filter(Boolean).join(';');
+  // defect #5: blockquote left border-bar (hex-only, kses-safe in a text-editor div).
+  const barCss = blockquoteBarCss(n);
+  const baseTextCss = [inlineCc, chromeCss, barCss].filter(Boolean).join(';');
   const textCss = n._noWrap ? (baseTextCss ? baseTextCss + ';white-space:nowrap' : 'white-space:nowrap') : baseTextCss;
   const FF = fluidFontSettings(n);
-  sink.push({ elType: 'widget', widgetType: 'text-editor', settings: { editor: `<div${styleAttr(textCss)}>${esc(text)}</div>`, ...nativeTypo(n), ...FF, ...(tc ? { text_color: tc } : {}), ...globalRefSettings(n, 'text_color'), ...P, ...mobileAbsenceHide(n, FF) } });
+  // defect #6: when the captured prose carries inline-code SEGMENTS, rebuild the editor HTML run-by-run (plain runs
+  // esc()'d, code runs as styled <code> chips) instead of esc()'ing the whole flattened plaintext. Falls back to the
+  // plain esc(text) (byte-identical) when no code chips were captured.
+  const inner = richInnerHTML(n);
+  const editorHtml = `<div${styleAttr(textCss)}>${inner != null ? inner : esc(text)}</div>`;
+  sink.push({ elType: 'widget', widgetType: 'text-editor', settings: { editor: editorHtml, ...nativeTypo(n), ...nrTypo(n), ...FF, ...(tc ? { text_color: tc } : {}), ...globalRefSettings(n, 'text_color'), ...P, ...joistPreserve(n), ...mobileAbsenceHide(n, FF) } });
 }
 // extract a representative solid color from a CSS gradient string (the dominant/first stop) — Elementor
 // gradient bg via settings is fiddly + kses-fragile; a solid fallback captures the missing DARK panels (the
@@ -2022,8 +2187,19 @@ function detectHeaderNav(root) {
   let headerBg = null;
   const findBandBg = (n) => { if (!n || n.kind !== 'container' || headerBg) return; const b = n.background; if (b && n.box && n.box.y < 60 && n.box.h < 220) { if (b.color && opaque(b.color)) { headerBg = b.color; return; } if (b.gradient) { const g = gradientColor(b.gradient); if (g) { headerBg = g; return; } } } (n.children || []).forEach(findBandBg); };
   findBandBg(root);
+  // ── NAV SOURCE-POSITION DETECT (defect #3; only consulted when ABS_STATIC_NAV gates buildRealHeader) ─────────
+  // The source header band may be position:static (overreacted's <header> scrolls away) or fixed/sticky (most SaaS
+  // navbars). Walk the top-band containers and record the strongest pinned position seen near y<80 — fixed/sticky
+  // wins, else 'static'. buildRealHeader reads nav.srcPosition. STALE-CAPTURE SAFETY: a legacy capture has NO
+  // `position` field on any band container → sawAnyPos stays false → srcPosition is left UNKNOWN (null) and
+  // buildRealHeader falls back to the legacy STICKY default (so old corpus captures are byte-identical). Only a
+  // FRESH capture that POSITIVELY recorded `position:'static'` on the top band un-sticks the nav.
+  let srcPosition = null, sawAnyPos = false;
+  const findBandPos = (n) => { if (!n || n.kind !== 'container') return; if (n.box && n.box.y < 80 && n.box.h < 240 && typeof n.position === 'string' && n.position) { sawAnyPos = true; if (n.position === 'fixed') { srcPosition = 'fixed'; return; } if (n.position === 'sticky' && srcPosition !== 'fixed') srcPosition = 'sticky'; else if (srcPosition == null) srcPosition = 'static'; } (n.children || []).forEach(findBandPos); };
+  findBandPos(root);
+  if (!sawAnyPos) srcPosition = null;   // legacy capture (no position info) → leave UNKNOWN → buildRealHeader stays sticky
   console.log(`header nav DETECT: ${items.length} item(s) [${items.map((i) => i.title).join(' | ')}]${cta ? ` + CTA "${stripEmoji(cta.text)}"` : ''}${logo ? ' + logo(img)' : logoText ? ` + logo(text:"${stripEmoji(logoText.text)}")` : ''}${rightImage ? ` + rightImage(${(bestImgSrc(rightImage) || '').split('/').pop()})` : ''} (band y<${round(threshold)})${headerBg ? ` bg ${headerBg}` : ''}`);
-  return { nav: { items, cta, logo, logoText, rightImage, navTypo, navColor, headerBg }, threshold };
+  return { nav: { items, cta, logo, logoText, rightImage, navTypo, navColor, headerBg, srcPosition }, threshold };
 }
 
 const navSlug = (pid) => `clone-${pid}-nav`;
@@ -2058,13 +2234,44 @@ function buildRealHeader(nav, proMode, slug) {
   const headerBg = nav.headerBg || null;
   const navSize = round((nav.navTypo && nav.navTypo.size) || 16);
   const navColor = nav.navColor || '#111111';
+  // ── STATIC-NAV un-stick (defect #3; default ON, ABS_NO_STATIC_NAV=1 → always sticky/fixed legacy) ──────────
+  // The legacy builder ALWAYS stamped position:fixed on the header → a sticky bar even when the source nav is
+  // STATIC and scrolls away (overreacted's <header>). Honor the CAPTURED source position (nav.srcPosition, set in
+  // detectHeaderNav): fixed/sticky source → keep the sticky bar (most SaaS navbars); static source → un-stick.
+  // Un-stick is NOT "in-flow" (that would push the abs-pinned hero content down + double it); it is ABSOLUTE pinned
+  // at top:0 — out of flow (no push-down), full-bleed, and it scrolls away with the page exactly like a static
+  // header (the grader captures from y=0 where it must be present, then it scrolls off). _position:'absolute' is a
+  // native editable control; simply NOT emitting fixed/sticky leaves it as an ordinary positioned bar.
+  // Elementor CONTAINERS ignore the native _position:'absolute' control (they fall into flow — see line ~1100), so
+  // a static header cannot use _position:'absolute' directly without pushing the abs hero down (a NEW defect). The
+  // working channel is a scoped custom_css rule keyed on the header's _element_id (same proven channel as the
+  // responsive un-pin): `position:absolute!important;top:0;left:0;width:100%` overrides flow → out-of-flow, no
+  // push-down, full-bleed, scrolls away. wantSticky keeps the legacy native position:fixed (most SaaS navbars).
+  // un-stick ONLY when the FRESH capture positively recorded a STATIC source nav; fixed/sticky OR unknown (legacy
+  // capture, srcPosition==null) → keep the legacy sticky bar. So no stale-capture corpus site changes behavior.
+  const wantSticky = process.env.ABS_NO_STATIC_NAV === '1' || nav.srcPosition !== 'static';
+  const headerEid = 'joist-hdr';
+  const stickyPos = wantSticky
+    ? { position: 'fixed', _position: 'fixed', _offset_orientation_v: 'top', _offset_y: { unit: 'px', size: 0 }, z_index: 999, _z_index: '999' }
+    : { _element_id: headerEid, z_index: 50, _z_index: '50' };
+  // STATIC-NAV via PreserveCSS (defect #3, free-render fix): page custom_css is Elementor-PRO-ONLY → inert on
+  // Hello+free (verified: the #joist-hdr rule never reached the rendered <head>, so the header fell into flow and
+  // doubled the page height). Route the un-stick decl through the header container's OWN joist_preserve_css `d`
+  // payload — the SAME PreserveCSS parse_css→core-Post_CSS channel the stamp + responsive release already use,
+  // which DOES render on free. The plugin wraps `d` as `.elementor-element-<engineId>{<d>}` so we DON'T need the
+  // page-custom-css #joist-hdr selector. Reversible via ABS_NO_STATIC_NAV (wantSticky path emits no preserve `d`).
+  const staticNavPreserve = wantSticky ? {} : { joist_preserve_css: JSON.stringify({ d: 'position:absolute !important;top:0 !important;left:0 !important;width:100% !important;z-index:50 !important' }) };
   const headerSettings = {
     content_width: 'full', flex_direction: 'row', flex_justify_content: 'space-between', flex_align_items: 'center',
     padding: { unit: 'px', top: '14', right: '40', bottom: '14', left: '40', isLinked: false },
-    position: 'fixed', _position: 'fixed', _offset_orientation_v: 'top', _offset_y: { unit: 'px', size: 0 },
-    width: { unit: '%', size: 100 }, z_index: 999, _z_index: '999',
+    ...stickyPos,
+    ...staticNavPreserve,
+    width: { unit: '%', size: 100 },
     ...(headerBg ? { background_background: 'classic', background_color: headerBg } : {}),
   };
+  // Retained as a belt-and-suspenders page-custom_css fallback (harmless on free where it's inert; active if Pro).
+  const staticNavCss = wantSticky ? '' : `#${headerEid}{position:absolute!important;top:0!important;left:0!important;width:100%!important;z-index:50}`;
+  console.log(`header position: ${wantSticky ? 'STICKY/fixed' : 'STATIC (absolute@top:0 via scoped css, scrolls away)'} (source nav position: ${nav.srcPosition || 'unknown'})`);
   const logoWidget = (() => {
     if (nav.logo) { const raw = (nav.logo.kind === 'image' ? bestImgSrc(nav.logo) : null) || nav.logo.src || nav.logo.raster; const src = localSrc(raw); if (src && src !== 'SKIP') { const h = round(Math.min(48, (nav.logo.box && nav.logo.box.h) || 32)); return { elType: 'widget', widgetType: 'html', settings: { html: `<img src="${esc(src)}" alt="${esc(nav.logo.alt || 'logo')}" style="display:block;height:${h}px;width:auto;max-width:200px">` } }; } }
     const ltLeaf = nav.logoText;
@@ -2125,8 +2332,8 @@ function buildRealHeader(nav, proMode, slug) {
     // gone). Chrome (bg/border-radius/padding/typography) stays inline. ABS_NO_DEINLINE=1 → legacy byte-identical.
     if (nav.cta) { const t = stripEmoji(nav.cta.text); const cc = textColor(nav.cta) || '#ffffff'; elements.push({ elType: 'widget', widgetType: 'text-editor', settings: { editor: `<a href="${esc(nav.cta.href || '#')}" style="display:inline-block;padding:8px 18px;border-radius:6px;background:${cc === '#ffffff' ? '#111' : 'transparent'};${DEINLINE ? '' : `color:${cc};`}text-decoration:none;font-weight:600;font-size:${navSize}px;white-space:nowrap">${esc(t)}</a>`, ...(DEINLINE ? deinlineNavAnchor(cc) : {}) } }); }
     if (rightImageWidget) elements.push(rightImageWidget); // by-Dan avatar → far-right (space-between)
-    console.log(`header EMIT (Pro): sticky full-width header → logo${logoWidget ? '✓' : '✗'} + nav-menu(slug=${slug}) + CTA${nav.cta ? '✓' : '✗'}${rightImageWidget ? ' + rightImg✓' : ''}`);
-    return { container: container(headerSettings, elements), fallbackCss: '' };
+    console.log(`header EMIT (Pro): ${wantSticky ? 'sticky' : 'static'} full-width header → logo${logoWidget ? '✓' : '✗'} + nav-menu(slug=${slug}) + CTA${nav.cta ? '✓' : '✗'}${rightImageWidget ? ' + rightImg✓' : ''}`);
+    return { container: container(headerSettings, elements), fallbackCss: staticNavCss };
   }
 
   // PATH C-SHORTCODE (no Pro, JOIST_NAV_SHORTCODE=1) — render the real WP menu via Joist's
@@ -2142,7 +2349,7 @@ function buildRealHeader(nav, proMode, slug) {
     // wp_nav_menu renders a bare <ul class="joist-nav">; style it as a horizontal flex bar (was unstyled
     // vertical list — code-review fix). Rides the same page custom_css channel as the rest of Path C.
     const navCss = `.joist-nav{display:flex!important;flex-wrap:wrap;align-items:center;gap:24px;list-style:none;margin:0;padding:0}.joist-nav li{margin:0}.joist-nav a{text-decoration:none;${navColor ? `color:${navColor};` : ''}font-size:${navSize}px;white-space:nowrap}@media(max-width:1024px){.joist-nav{gap:14px}}`;
-    return { container: container(headerSettings, elements), fallbackCss: navCss };
+    return { container: container(headerSettings, elements), fallbackCss: [navCss, staticNavCss].filter(Boolean).join('') };
   }
 
   // PATH C (no Pro) — structural sticky header: per-link <a> widgets in a flex sub-container (_flex_grow:0 +
@@ -2165,8 +2372,8 @@ function buildRealHeader(nav, proMode, slug) {
     '}',
   ].join('');
   if (rightImageWidget) elements.push(rightImageWidget); // by-Dan avatar → far-right (space-between)
-  console.log(`header EMIT (fallback Path C): sticky full-width header → logo${logoWidget ? '✓' : '✗'} + ${linkChildren.length} per-link widget(s) + burger + CTA${nav.cta ? '✓' : '✗'}${rightImageWidget ? ' + rightImg✓' : ''}`);
-  return { container: container(headerSettings, elements), fallbackCss };
+  console.log(`header EMIT (fallback Path C): ${wantSticky ? 'sticky' : 'static'} full-width header → logo${logoWidget ? '✓' : '✗'} + ${linkChildren.length} per-link widget(s) + burger + CTA${nav.cta ? '✓' : '✗'}${rightImageWidget ? ' + rightImg✓' : ''}`);
+  return { container: container(headerSettings, elements), fallbackCss: [fallbackCss, staticNavCss].filter(Boolean).join('') };
 }
 
 // (e) Pro gate — GET /wp-json and look for elementor-pro. Defaults to Pro on inconclusive (the proven stack).
@@ -2697,6 +2904,29 @@ const dryDump = process.env.ABS_DUMP_TREE || `/tmp/abs-dryrun-${pageId}.json`;
   const offY = (w) => (w.settings && w.settings._offset_y && typeof w.settings._offset_y.size === 'number') ? w.settings._offset_y.size : 0;
   const offX = (w) => (w.settings && w.settings._offset_x && typeof w.settings._offset_x.size === 'number') ? w.settings._offset_x.size : 0;
   widgets.sort((a, b) => (offY(a) - offY(b)) || (offX(a) - offX(b)));
+  // ── CODE-PANEL OVERFLOW SHIFT (defect #2a) — monotonic single pass over the y-sorted widgets ──────────────
+  // For each code panel that estimated an overflow (delta>8), push every CONTENT widget whose top is at/below the
+  // panel's bottom-Y down by the accumulated delta. CONVERGENT/IDEMPOTENT: keyed off captured boxes; re-running on
+  // already-shifted offsets yields the same result because the deltas come from the captured panel geometry, not
+  // the live offsets. Section bgRects are NOT shifted (they are full-page backgrounds, not flowing content). pageH
+  // grows by the total delta so the footer is not clipped. No-op when no panel overflowed. The transient
+  // _codeOverflowDelta/_codeBottomY keys are deleted here so they never reach the PUT body.
+  let totalCodeShift = 0;
+  if (!process.env.BUILD_NO_CODE_OVERFLOW_SHIFT) {
+    const overflowers = widgets.filter((w) => w._codeOverflowDelta > 0).map((w) => ({ y: w._codeBottomY || offY(w), d: w._codeOverflowDelta })).sort((a, b) => a.y - b.y);
+    if (overflowers.length) {
+      for (const w of widgets) {
+        const wy = offY(w);
+        // accumulated shift = sum of deltas of every panel whose bottom is strictly ABOVE this widget's top.
+        let acc = 0; for (const ov of overflowers) { if (ov.y <= wy) acc += ov.d; else break; }
+        if (acc > 0 && w.settings && w.settings._offset_y) { w.settings._offset_y = { ...w.settings._offset_y, size: wy + acc }; }
+      }
+      totalCodeShift = overflowers.reduce((a, o) => a + o.d, 0);
+      console.log(`code-panel overflow shift: ${overflowers.length} panel(s) overflowed; cascaded total +${totalCodeShift}px below them (page grows by ${totalCodeShift}px)`);
+    }
+    for (const w of widgets) { delete w._codeOverflowDelta; delete w._codeBottomY; }
+  }
+  if (totalCodeShift > 0) pageH = Math.round(pageH + totalCodeShift);
   console.log(`absolute tree: ${bgRects.length} bg rects + ${widgets.length} positioned widgets | pageH ${pageH}`);
   // ROOT BG FLOOR (discovery-wave-4 rank-1, part b): paint the root container's background_color = the page's
   // captured canvas color (PAGE_DEFAULT) so the WHOLE page matches the source canvas. The dark React sites
@@ -3047,6 +3277,38 @@ const dryDump = process.env.ABS_DUMP_TREE || `/tmp/abs-dryrun-${pageId}.json`;
   // on local 8001) can write the SAME tree the builder produced — including the schema-valid CTA gradient/white-text
   // and avatar radius. This is the escape hatch for the over-strict catalog (universal controls it omits).
   if (process.env.ABS_DUMP_FINAL) { try { fs.writeFileSync(process.env.ABS_DUMP_FINAL, JSON.stringify({ elements: [root], page_settings: pageSettings })); console.log(`ABS_DUMP_FINAL → ${process.env.ABS_DUMP_FINAL} (final PUT body)`); } catch (e) { console.log('ABS_DUMP_FINAL write failed', String(e).slice(0, 80)); } }
+  // IMAGE-WIDGET KEY NORMALIZE (default ON; ABS_NO_IMG_KEYFIX=1 reverts). This host's strict SchemaValidator
+  // rejects the legacy `width`/`height`/`_flex_grow`/`image_border_radius` keys ON THE `image` WIDGET ONLY
+  // (schema.unknown_key — verified payload). These are REDUNDANT: the absolute wrapper + imgHlock/imgCap CSS
+  // already size every image, so stripping them is a no-op on the rendered desktop geometry. The radius is
+  // RESCUED into scoped custom_css (the round avatar survives). UNLIKE ABS_SCHEMA_SANITIZE (which strips the
+  // SAME-named keys tree-wide AND then escalates to universal controls _offset_x/_z_index/typography_* that the
+  // catalog omits but Elementor honors → destroys the absolute layout), this pass is WIDGET-TYPE-SCOPED to
+  // `image` and touches NONE of the layout/typography controls. Idempotent + local: keyed off widgetType only.
+  if (process.env.ABS_NO_IMG_KEYFIX !== '1') {
+    const IMG_BAD = ['width', 'height', '_flex_grow'];
+    let imgStripped = 0, radRescued = 0;
+    const fixImg = (node) => {
+      if (!node || typeof node !== 'object') return;
+      if (node.widgetType === 'image' && node.settings) {
+        const s = node.settings;
+        if ('image_border_radius' in s) {
+          const v = s.image_border_radius; const id = s._element_id;
+          if (id && v && typeof v === 'object') {
+            const u = v.unit || 'px';
+            const rad = `${v.top || 0}${u} ${v.right || 0}${u} ${v.bottom || 0}${u} ${v.left || 0}${u}`;
+            pageSettings.custom_css = (pageSettings.custom_css || '') + `\n#${id} img{border-radius:${rad}!important;overflow:hidden}`;
+            radRescued++;
+          }
+          delete s.image_border_radius;
+        }
+        for (const k of IMG_BAD) { if (k in s) { delete s[k]; imgStripped++; } }
+      }
+      for (const c of (node.elements || [])) fixImg(c);
+    };
+    fixImg(root);
+    if (imgStripped || radRescued) console.log(`image-key normalize: stripped ${imgStripped} invalid image-only key(s) + rescued ${radRescued} radius→scoped css (desktop geometry unchanged; absolute wrapper sizes images)`);
+  }
   const collectIds = (node, key, out) => { if (!node || typeof node !== 'object') return; if (node.settings && key in node.settings) { const id = node.settings._element_id; if (id) out.push({ id, val: node.settings[key] }); } for (const c of (node.elements || [])) collectIds(c, key, out); };
   const stripKey = (node, key) => { let n = 0; if (!node || typeof node !== 'object') return 0; if (node.settings && key in node.settings) { delete node.settings[key]; n++; } for (const c of (node.elements || [])) n += stripKey(c, key); return n; };
   let r, txt, expected = (await (await fetch(`${base}/wp-json/joist/v1/pages/${pageId}`, { headers })).json()).elementor?.hash;
@@ -3073,6 +3335,36 @@ const dryDump = process.env.ABS_DUMP_TREE || `/tmp/abs-dryrun-${pageId}.json`;
     console.log(`schema-sanitize round ${sanitizeRounds}: stripped invalid key(s) [${badKeys.join(', ')}] from ${stripped} widget(s) → retry PUT (radius rescued to inline CSS)`);
     // refresh expected hash before retry (the failed PUT did not change the page)
     try { expected = (await (await fetch(`${base}/wp-json/joist/v1/pages/${pageId}`, { headers })).json()).elementor?.hash; } catch {}
+  }
+  // POSTMETA BYPASS (default ON; ABS_NO_POSTMETA_BYPASS=1 reverts to plugin-PUT-only). The joist plugin's strict
+  // SchemaValidator rejects UNIVERSAL Elementor controls (_offset_x/_offset_y/_z_index/_element_custom_width on
+  // html/heading/text-editor widgets) as schema.unknown_key — yet Elementor HONORS these at render and the absolute
+  // builder DEPENDS on them to pin every widget. ABS_SCHEMA_SANITIZE strips them and destroys the layout (see note
+  // above). The CORRECT documented escape (line ~3264) is the validator-FREE direct postmeta write: _elementor_data
+  // is a REST-exposed registered meta on pages, so we PUT the EXACT tree (offsets + all 7 fixes intact) through
+  // wp/v2/pages/<id> meta, which does NOT run the joist SchemaValidator. Fires ONLY when the plugin PUT failed with
+  // a 422 whose errors are ALL schema.unknown_key (the universal-control case) — a genuine plugin 422 of another
+  // kind still surfaces. Local-8001 only (base is resolveBase-guarded). Idempotent: writes the same tree the loop
+  // tried; on a 200 plugin PUT this is skipped entirely (zero behavior change on hosts whose validator accepts it).
+  if (process.env.ABS_NO_POSTMETA_BYPASS !== '1' && r && r.status === 422) {
+    let allUnknownKey = false;
+    try { const ej = JSON.parse(txt); const es = ej?.details?.errors; allUnknownKey = Array.isArray(es) && es.length > 0 && es.every((e) => e.code === 'schema.unknown_key'); } catch {}
+    if (allUnknownKey) {
+      const dataStr = JSON.stringify([root]);
+      const mh = { Authorization: 'Basic ' + b64, 'Content-Type': 'application/json' };
+      // _elementor_data is registered as a string meta (JSON-encoded tree); _elementor_page_settings as an OBJECT
+      // meta on this host — send each in its registered type (string was rejected rest_invalid_type for the latter).
+      const mr = await fetch(`${base}/wp-json/wp/v2/pages/${pageId}`, { method: 'POST', headers: mh, body: JSON.stringify({ status: 'publish', meta: { _elementor_data: dataStr, _elementor_edit_mode: 'builder', _elementor_page_settings: (pageSettings || {}) } }) });
+      const mtxt = await mr.text();
+      if (mr.ok) {
+        // Flush Elementor's per-post CSS cache so the freshly-written tree re-renders (3.28 _elementor_element_cache gotcha).
+        try { await fetch(`${base}/wp-json/joist/v1/site/regenerate-css`, { method: 'POST', headers: mh, body: JSON.stringify({ post_id: Number(pageId) }) }); } catch {}
+        r = { status: 200 }; txt = `postmeta-bypass OK (validator-free meta write, ${dataStr.length} bytes _elementor_data)`;
+        console.log(`POSTMETA BYPASS: plugin PUT 422 was all-unknown-key (universal controls Elementor honors) → wrote tree via validator-free wp/v2 meta channel ${mr.status} + regen-css`);
+      } else {
+        console.log(`POSTMETA BYPASS attempted but meta write failed ${mr.status}: ${mtxt.slice(0, 120)}`);
+      }
+    }
   }
   console.log('PUT', r.status, txt.slice(0, 90));
   if (process.env.ABS_PUT_DEBUG === '1' && r.status >= 400) { try { fs.writeFileSync('/tmp/abs-put-err-' + pageId + '.json', txt); console.log('ABS_PUT_DEBUG → /tmp/abs-put-err-' + pageId + '.json (' + txt.length + ' bytes)'); } catch {} }

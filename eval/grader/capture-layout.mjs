@@ -460,9 +460,42 @@ function cropPng(png, box, dpr) {
   // CTA gradient fix (absolute-child fill recovery): CAPTURE_NO_ABSCHILD_FILL=1 → __NO_ABSCHILD_FILL true →
   // a button's covering absolute-inset gradient child is NOT adopted as the button fill → byte-identical legacy.
   try { await page.evaluate((off) => { window.__NO_ABSCHILD_FILL = off; }, process.env.CAPTURE_NO_ABSCHILD_FILL === '1'); } catch {}
+  // CONTENT-ADDRESSED SOURCE-PATH STAMP feed (default ON; CAPTURE_NO_SRCPATH=1 → __NO_SRCPATH true → no srcPath on
+  // any node → builder emits no --joist-src stamp → compare-capture falls back to Hungarian). EXACT format parity
+  // with compare-capture.mjs srcPathOf (tagchain|nth|h<8hex>) — see the in-page srcPathOf above.
+  try { await page.evaluate((off) => { window.__NO_SRCPATH = off; }, process.env.CAPTURE_NO_SRCPATH === '1'); } catch {}
+  // DIVIDER <hr> KEEP (default ON; CAPTURE_NO_HR=1 → __NO_HR true → legacy textless null-drop of every <hr>).
+  try { await page.evaluate((off) => { window.__NO_HR = off; }, process.env.CAPTURE_NO_HR === '1'); } catch {}
+  // INLINE-CODE CHIPS + BLOCKQUOTE LEFT-BAR capture (default ON; CAPTURE_NO_INLINE_RUNS=1 → __NO_INLINE_RUNS true →
+  // a text leaf carries no `runs`/`borderLeft` → the builder emits flat esc()'d prose → byte-identical legacy).
+  try { await page.evaluate((off) => { window.__NO_INLINE_RUNS = off; }, process.env.CAPTURE_NO_INLINE_RUNS === '1'); } catch {}
+  // PER-TOKEN SYNTAX COLORS for code panels (default ON; CAPTURE_NO_CODE_TOKENS=1 → __NO_CODE_TOKENS true → a
+  // code leaf carries tokens:[] → the builder paints the whole <pre> in the single dominant codeColor (legacy)).
+  try { await page.evaluate((off) => { window.__NO_CODE_TOKENS = off; }, process.env.CAPTURE_NO_CODE_TOKENS === '1'); } catch {}
 
   const data = await page.evaluate(() => {
     const MAXD = 8; const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
+    // ── CONTENT-ADDRESSED SOURCE-PATH STAMP (default ON; CAPTURE_NO_SRCPATH=1 → omit srcPath) ───────────────────
+    // O(1)-CORRESPONDENCE FEED: compare-capture.mjs joins source⇄clone records by a STABLE content-addressed path
+    // `tagchain|nth|h<8hex>` (srcPathOf there). The clone carries the SAME string in a `--joist-src` CSS var (built
+    // by build-absolute via the proven joist_preserve_css channel) → the join is an exact O(1) backref instead of a
+    // fuzzy Hungarian match. For that join to fire, the CAPTURE must record each leaf's content-addressed srcPath so
+    // build-absolute can stamp it. EXACT-FORMAT PARITY with compare-capture.mjs:147-163 is mandatory (same fnv-1a
+    // textHash8, same tagchain from <body>, same nth-of-type) — any divergence breaks the O(1) join. Reversible:
+    // CAPTURE_NO_SRCPATH=1 → no srcPath on any node (byte-identical legacy capture; builder then emits no stamp).
+    const NO_SRCPATH = window.__NO_SRCPATH === true;
+    const _textHash8 = (s) => { let t = String(s || '').trim().slice(0, 24), h = 0x811c9dc5 >>> 0; for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return ('00000000' + h.toString(16)).slice(-8); };
+    const srcPathOf = (el) => {
+      if (NO_SRCPATH || !el || el.nodeType !== 1) return null;
+      try {
+        const chain = [], nodes = [];
+        for (let n = el; n && n.nodeType === 1 && n.tagName !== 'HTML'; n = n.parentElement) nodes.unshift(n);
+        for (let i = 0; i < nodes.length; i++) chain.push(nodes[i].tagName.toLowerCase());
+        let nth = 1, sib = el; while ((sib = sib.previousElementSibling)) if (sib.tagName === el.tagName) nth++;
+        const txt = (el.textContent || '').replace(/\s+/g, ' ').trim();
+        return chain.join('>') + '|' + nth + '|h' + _textHash8(txt);
+      } catch { return null; }
+    };
     // LOADED-FACE family set (normalized, lowercased, quotes/space stripped) — the families document.fonts reports as
     // actually loaded. resolveFamily(stack) walks the CSS font-family stack and returns the FIRST family whose
     // normalized name is in this set, so a dead leading family (supabase `Circular` — no @font-face, never served)
@@ -665,6 +698,39 @@ function cropPng(png, box, dpr) {
         if (best) out.codeColor = best; else { const mc = getComputedStyle(monoEl).color; if (rgbToArr(mc)) out.codeColor = mc; } } catch {}
       return out;
     };
+    // ── PER-TOKEN SYNTAX COLORS (defect #2b; default ON, CAPTURE_NO_CODE_TOKENS=1 → []) ─────────────────────────
+    // codePanelStyle tallies ONE dominant color → build paints the whole <pre> in a single gray (62 token-colors
+    // lost on overreacted). Capture the SYNTAX-HIGHLIGHT runs in DOM/text order as [{text, color(hex)}] so the
+    // builder can emit the <pre> as concatenated colored <span>s inside the html-widget (raw/kses-untouched → even
+    // rgb()/hex both fine, but we hex-normalize for uniformity). PRESERVES newlines + indentation (the text walk
+    // keeps raw textContent). Bounded scan. Returns [] when no per-token color variation (single-color blocks stay
+    // on the existing codeColor path, byte-identical). _hexFromRgb mirrors build-absolute's needs.
+    const _hh = (n) => ('0' + Math.max(0, Math.min(255, Math.round(n))).toString(16)).slice(-2);
+    const _colHex = (col) => { const a = rgbToArr(col); if (!a) return null; if (a.length >= 4 && a[3] < 0.4) return null; return '#' + _hh(a[0]) + _hh(a[1]) + _hh(a[2]); };
+    const codeTokens = (el) => {
+      if (window.__NO_CODE_TOKENS === true) return [];
+      try {
+        const monoEl = el.matches('pre') ? el : (el.querySelector('pre') || el);
+        const runs = []; let nodes = 0; const seen = new Set();
+        // depth-first text walk: each text node inherits the color of its NEAREST element ancestor.
+        const tw = document.createTreeWalker(monoEl, NodeFilter.SHOW_TEXT, null);
+        let node;
+        while ((node = tw.nextNode())) {
+          if (++nodes > 4000) break;
+          const txt = node.textContent; if (!txt) continue;
+          const pe = node.parentElement; if (!pe) continue;
+          let col = null; try { col = _colHex(getComputedStyle(pe).color); } catch {}
+          // coalesce consecutive runs of the same color.
+          if (runs.length && runs[runs.length - 1].color === col) runs[runs.length - 1].text += txt;
+          else runs.push({ text: txt, color: col });
+          if (col) seen.add(col);
+        }
+        if (seen.size < 2) return [];   // single color → not worth per-token; existing codeColor path covers it.
+        // cap total serialized size (safety): trim trailing runs past 6000 chars.
+        let total = 0; const capped = []; for (const r of runs) { total += r.text.length; capped.push(r); if (total > 6000) break; }
+        return capped;
+      } catch { return []; }
+    };
     const boxModel = (cs) => ({ padding: [cs.paddingTop, cs.paddingRight, cs.paddingBottom, cs.paddingLeft], margin: [cs.marginTop, cs.marginRight, cs.marginBottom, cs.marginLeft] });
     const hasOwnText = (el) => { for (const n of el.childNodes) if (n.nodeType === 3 && clean(n.textContent)) return true; return false; };
     // ownText (image-honesty gap-map #3): a node is "text-bearing" if it OWNS a visible non-empty text node
@@ -805,10 +871,95 @@ function cropPng(png, box, dpr) {
     // srcURL = best fetchable variant (may differ from painted `src`); natW/natH 0 = never loaded (lazy-fail
     // signal — builder must fetch by URL); objectPosition completes objectFit for crop reproduction.
     const imgMeta = (im, ics) => (window.__NO_IMGMETA === true ? {} : { srcURL: imgUrl(im), natW: im.naturalWidth || 0, natH: im.naturalHeight || 0, objectPosition: ics.objectPosition });
+    // rgb(a)/named → opaque #hex flatten over a backdrop (default white). kses STRIPS any CSS value with a paren
+    // (rgb()/rgba()) when stamped into a TEXT-EDITOR widget, so a chip bg/border MUST be hex. A translucent chip
+    // (rgba alpha<1, e.g. the overreacted #ffe564 @20%) is alpha-composited over the backdrop so the opaque hex
+    // reads the SAME visual tint. Returns null for transparent (no chip). Mirrors build-absolute's needs.
+    const _hex2 = (n) => ('0' + Math.max(0, Math.min(255, Math.round(n))).toString(16)).slice(-2);
+    const toHexOpaque = (col, backdrop) => {
+      if (!col) return null;
+      const m = String(col).match(/^#([0-9a-fA-F]{3,8})$/);
+      if (m) { let h = m[1]; if (h.length === 3) h = h.split('').map((c) => c + c).join(''); if (h.length >= 6) return '#' + h.slice(0, 6); }
+      const rm = String(col).match(/rgba?\(([^)]+)\)/); if (!rm) return null;
+      const p = rm[1].split(',').map((x) => parseFloat(x)); if (p.length < 3) return null;
+      const a = p.length >= 4 ? p[3] : 1;
+      if (a <= 0.01) return null; // fully transparent → no chip
+      const bg = backdrop || [255, 255, 255];
+      const r = p[0] * a + bg[0] * (1 - a), g = p[1] * a + bg[1] * (1 - a), b = p[2] * a + bg[2] * (1 - a);
+      return '#' + _hex2(r) + _hex2(g) + _hex2(b);
+    };
+    // ── INLINE-CODE CHIPS + BLOCKQUOTE BAR capture (default ON; CAPTURE_NO_INLINE_RUNS=1 → {} legacy) ───────────
+    // (defect #6) A prose <p> with inline <code> kids is whole-leafed by the mixed-inline merge (innerText →
+    // plaintext): the <code> boundaries + the chip bg/radius/pad are LOST (overreacted: 236 inline <code>). Capture
+    // ORDERED SEGMENTS [{text, code, bg(hex), radius, pad, mono}] off the element's child nodes so build-absolute can
+    // rebuild the editor HTML segment-by-segment, wrapping each code run in a styled <code>. ONLY populated when at
+    // least one inline <code>/<kbd>/<samp> child exists → a plain prose leaf returns {} (byte-identical legacy).
+    // (defect #5) A <blockquote> (or any element) with a non-zero border-LEFT (overreacted: 3px solid #222 italic)
+    // → record borderLeft (hex)+padLeft+italic so the builder prepends the bar via a kses-safe inline style.
+    function inlineRuns(el, cs) {
+      if (window.__NO_INLINE_RUNS === true) return {};
+      const out = {};
+      // (defect #5) blockquote / left-bar: a visible border-left stroke. Read it off whichever element actually
+      // PAINTS the bar — the LEAF itself, OR a near (<=2 hops) <blockquote>/blockquote-styled ancestor whose own
+      // text the leaf carries (overreacted: <blockquote> 3px #222 italic wraps a single <p>; longTextSplit then
+      // returns the inner <p> leaf, so the bar must be inherited from the ancestor or it is lost).
+      const readBar = (cssIn, italicEl) => { const blw = parseFloat(cssIn.borderLeftWidth) || 0; if (blw > 0 && cssIn.borderLeftStyle !== 'none' && cssIn.borderLeftColor && cssIn.borderLeftColor !== 'rgba(0, 0, 0, 0)') { const bhex = toHexOpaque(cssIn.borderLeftColor, [255, 255, 255]); if (bhex) { out.borderLeft = { width: Math.max(1, Math.round(blw)), style: cssIn.borderLeftStyle, color: bhex }; const pl = parseFloat(cssIn.paddingLeft) || 0; if (pl > 0) out.padLeft = Math.round(pl); if ((cssIn.fontStyle === 'italic') || (italicEl && getComputedStyle(italicEl).fontStyle === 'italic')) out.italic = true; return true; } } return false; };
+      if (!readBar(cs, null)) {
+        try { let a = el.parentElement, hops = 0; while (a && hops < 2) { if (a.tagName === 'BLOCKQUOTE') { if (readBar(getComputedStyle(a), el)) break; } a = a.parentElement; hops++; } } catch {}
+      }
+      // (defect #6) inline-code chips: ordered child-node walk → segments. Only if a code-ish inline child exists.
+      try {
+        const codeKids = [...el.children].filter((c) => /^(code|kbd|samp)$/i.test(c.tagName));
+        if (codeKids.length) {
+          // backdrop for the alpha-flatten = the leaf's own painted bg if opaque, else white.
+          let backdrop = [255, 255, 255];
+          const obg = cs.backgroundColor && cs.backgroundColor !== 'rgba(0, 0, 0, 0)' ? cs.backgroundColor.match(/rgba?\(([^)]+)\)/) : null;
+          if (obg) { const q = obg[1].split(',').map((x) => parseFloat(x)); if (q.length >= 3 && (q.length < 4 || q[3] >= 0.99)) backdrop = [q[0], q[1], q[2]]; }
+          const runs = []; let codeCount = 0;
+          // preserve a single boundary space on EACH side so a plain run never glues onto an adjacent <code> chip.
+          const pushPlain = (t) => { const c2 = clean(t); const lead = /^\s/.test(t) ? ' ' : ''; const trail = /\s$/.test(t) ? ' ' : ''; if (c2) runs.push({ text: lead + c2 + trail }); else if (lead || trail) runs.push({ text: ' ' }); };
+          // walk DIRECT child nodes in document order; nested non-code inline tags (<a>,<strong>,<em>) contribute
+          // their innerText as plain text (their chips, if any, are a rare 2nd-order case we accept as plain prose).
+          for (const node of el.childNodes) {
+            if (node.nodeType === 3) { pushPlain(node.textContent); continue; }
+            if (node.nodeType !== 1) continue;
+            const ct = node.tagName.toLowerCase();
+            if (/^(code|kbd|samp)$/.test(ct)) {
+              const ccs = getComputedStyle(node); const t2 = clean(node.innerText || node.textContent); if (!t2) continue;
+              const bg = toHexOpaque(ccs.backgroundColor, backdrop);
+              const rad = parseFloat(ccs.borderTopLeftRadius) || 0;
+              const padT = parseFloat(ccs.paddingTop) || 0, padR = parseFloat(ccs.paddingRight) || 0;
+              const mono = /\bmono|consol|courier|menlo|sf ?mono|jetbrains|fira|source ?code|cascadia|ui-monospace|monospace/.test((ccs.fontFamily || '').toLowerCase());
+              const ccol = (ccs.color && ccs.color !== 'rgba(0, 0, 0, 0)') ? toHexOpaque(ccs.color, backdrop) : null;
+              runs.push({ text: t2, code: true, bg: bg || null, radius: rad ? Math.round(rad) : 0, padV: padT ? +(padT).toFixed(1) : 0, padH: padR ? +(padR).toFixed(1) : 0, mono, color: ccol });
+              codeCount++;
+            } else { pushPlain(node.innerText || node.textContent); }
+          }
+          if (codeCount > 0 && runs.length) out.runs = runs;
+        }
+      } catch {}
+      return out;
+    }
     function leaf(el, cs) {
       const tag = el.tagName.toLowerCase(); const box = rectOf(el);
-      if (tag === 'img') { const src = el.currentSrc || el.src; if (!src || src.startsWith('data:') || box.w < 8) return null; return { kind: 'image', tag, src, alt: el.alt || '', objectFit: cs.objectFit, box, radius: cs.borderTopLeftRadius, boxShadow: nz(cs.boxShadow) ? cs.boxShadow : null, backdropFilter: bdfOf(cs), ...imgMeta(el, cs) }; }
-      if (tag === 'svg') { if (box.w < 6) return null; return { kind: 'svg', tag, svg: el.outerHTML.slice(0, 4000), box }; }
+      if (tag === 'img') { const src = el.currentSrc || el.src; if (!src || src.startsWith('data:') || box.w < 8) return null; return { kind: 'image', tag, src, alt: el.alt || '', objectFit: cs.objectFit, box, radius: cs.borderTopLeftRadius, boxShadow: nz(cs.boxShadow) ? cs.boxShadow : null, backdropFilter: bdfOf(cs), srcPath: srcPathOf(el), ...imgMeta(el, cs) }; }
+      if (tag === 'svg') { if (box.w < 6) return null; return { kind: 'svg', tag, svg: el.outerHTML.slice(0, 4000), box, srcPath: srcPathOf(el) }; }
+      // ── DIVIDER KEEP (<hr>) (default ON; CAPTURE_NO_HR=1 → legacy textless-drop) ──────────────────────────────
+      // An <hr> is TEXTLESS → the `if (!t) return null` below dropped it at capture (overreacted: 15 <hr> rules all
+      // vanished). The rule is painted by a 1px border (border-top OR border-bottom, depending on the reset) or, on
+      // some resets, by background-color on a thin box. Record a kind:'divider' carrying the captured stroke so
+      // build-absolute emits a real <hr>/native divider. Local + additive: fires ONLY on a real <hr> tag, never on
+      // other textless elements (those keep the legacy null-drop). Reversible: CAPTURE_NO_HR=1.
+      if (tag === 'hr' && window.__NO_HR !== true) {
+        if (box.w < 8) return null;
+        // pick whichever edge actually paints a visible stroke (top first, then bottom); width/style/color recorded.
+        let bw = parseFloat(cs.borderTopWidth) || 0, bstyle = cs.borderTopStyle, bcolor = cs.borderTopColor;
+        if (!(bw > 0 && bstyle !== 'none' && nz(bcolor))) { const bbw = parseFloat(cs.borderBottomWidth) || 0; if (bbw > 0 && cs.borderBottomStyle !== 'none' && nz(cs.borderBottomColor)) { bw = bbw; bstyle = cs.borderBottomStyle; bcolor = cs.borderBottomColor; } }
+        // fall back to background-color (thin rule drawn as a filled bar) when no border stroke is present.
+        let fill = null; if (!(bw > 0)) { const h = box.h || 1; bw = Math.max(1, Math.round(h)); bstyle = 'solid'; if (cs.backgroundColor && cs.backgroundColor !== 'rgba(0, 0, 0, 0)') fill = cs.backgroundColor; }
+        const color = (bcolor && nz(bcolor)) ? bcolor : (fill || 'rgb(229, 231, 235)');
+        return { kind: 'divider', tag, box, dividerWidth: Math.max(1, Math.round(bw)), dividerStyle: bstyle || 'solid', dividerColor: color, srcPath: srcPathOf(el) };
+      }
       let t = clean(el.innerText || el.textContent); if (!t) return null;
       if (t.length > 600) { // LONG-TEXT KEEP (see block comment above) — legacy: silent drop
         if (window.__NO_LONGTEXT === true) return null; // CAPTURE_NO_LONGTEXT=1 → byte-identical legacy path
@@ -866,7 +1017,7 @@ function cropPng(png, box, dpr) {
           }
         }
       }
-      return { kind: isH ? 'heading' : (isBtn ? 'button' : 'text'), tag, level: isH ? +tag[1] : null, text: t, href: isBtn && el.href ? el.href : null, paint: paintOf(cs), typo: typo(cs), box, bg: (cs.backgroundColor !== 'rgba(0, 0, 0, 0)' ? cs.backgroundColor : null), bgImage: ctaBgImage, border: ctaBorder, btnPad: ctaPad, radius: cs.borderTopLeftRadius, boxShadow: shadowOf(cs.boxShadow), backdropFilter: bdfOf(cs), interactive: Object.keys(ia).length ? ia : null, cfx };
+      return { kind: isH ? 'heading' : (isBtn ? 'button' : 'text'), tag, level: isH ? +tag[1] : null, text: t, href: isBtn && el.href ? el.href : null, paint: paintOf(cs), typo: typo(cs), box, bg: (cs.backgroundColor !== 'rgba(0, 0, 0, 0)' ? cs.backgroundColor : null), bgImage: ctaBgImage, border: ctaBorder, btnPad: ctaPad, radius: cs.borderTopLeftRadius, boxShadow: shadowOf(cs.boxShadow), backdropFilter: bdfOf(cs), interactive: Object.keys(ia).length ? ia : null, cfx, srcPath: srcPathOf(el), ...inlineRuns(el, cs) };
     }
     // ─── WAVE-5 #4 SYMMETRIC DECORATIVE-FRAGMENT MERGE (completeness fix) ─────────────────────────────
     // WHY: the per-element grader (perelement-score.mjs) flattens this box-tree into a leaf+container node
@@ -957,6 +1108,10 @@ function cropPng(png, box, dpr) {
       }
       const tag = el.tagName.toLowerCase(); const cs = getComputedStyle(el);
       if (tag === 'img' || tag === 'svg') return leaf(el, cs);
+      // DIVIDER (<hr>): a textless single tag → the generic recursion below produces empty children and the box
+      // is dropped. Intercept EARLY (mirrors the img/svg early return) and route to leaf()'s kind:'divider' branch
+      // so the captured stroke survives. Reversible via __NO_HR (CAPTURE_NO_HR=1).
+      if (tag === 'hr' && window.__NO_HR !== true) return leaf(el, cs);
       // FORM CONTROLS (form-recovery fix): <input>/<textarea>/<select> are SINGLE tags whose visible content
       // (value/placeholder/options) lives in ATTRIBUTES, not text nodes, so the generic recursion below reaches
       // leaf() which reads innerText/textContent (empty) and returns null → the control is silently DROPPED. That
@@ -1176,7 +1331,7 @@ function cropPng(png, box, dpr) {
         // is bounded to its VISIBLE clientHeight so box.h does not anchor to the full code length (hRatio drift fix).
         if (/^(auto|scroll)$/.test(cs.overflowY) && el.clientHeight < el.scrollHeight && el.clientHeight > 20) pb.h = el.clientHeight;
         const cps = codePanelStyle(el, cs, pb); const ty = typo(cs); if (cps.mono) ty.family = cps.mono;
-        return { kind: 'code', text: t.slice(0, 3000), box: pb, typo: ty, paint: paintOf(cs), codeColor: cps.codeColor, bg: cps.bg, radius: cps.radius || cs.borderTopLeftRadius }; }
+        return { kind: 'code', text: t.slice(0, 3000), box: pb, typo: ty, paint: paintOf(cs), codeColor: cps.codeColor, bg: cps.bg, radius: cps.radius || cs.borderTopLeftRadius, tokens: codeTokens(el), srcPath: srcPathOf(el) }; }
       // DIV-BASED CODE EDITOR (capture-recovery): modern docs render code in <div>s with syntax-highlight
       // <span> tokens (NOT <pre>) → the walk recurses into per-token spans and DROPS them (resend's code
       // samples = the bulk of its capture-loss). Detect a MONOSPACE container with code-like multiline text
@@ -1237,7 +1392,7 @@ function cropPng(png, box, dpr) {
           if (/^(auto|scroll)$/.test(cs.overflowY) && el.clientHeight < el.scrollHeight && el.clientHeight > 20) mb.h = el.clientHeight;
           if (cl.length >= 20 && cl.length <= 4000 && (t.includes('\n') || el.querySelectorAll('span,code').length >= 3) && mb.w >= 100 && mb.h >= 30) {
             const cps = codePanelStyle(el, cs, mb); const ty = typo(cs); if (cps.mono) ty.family = cps.mono;
-            return { kind: 'code', text: t.slice(0, 4000), box: mb, typo: ty, paint: paintOf(cs), codeColor: cps.codeColor, bg: cps.bg, radius: cps.radius || cs.borderTopLeftRadius }; } } }
+            return { kind: 'code', text: t.slice(0, 4000), box: mb, typo: ty, paint: paintOf(cs), codeColor: cps.codeColor, bg: cps.bg, radius: cps.radius || cs.borderTopLeftRadius, tokens: codeTokens(el), srcPath: srcPathOf(el) }; } } }
       // VISUAL MOCKUP: a composite-media region (product dashboard, gradient promo card, brand-story card,
       // chart/diagram). Recursing LEAKS its table cells / tokens as one-text-widget-per-line AND drops the
       // visual, leaving an 800–1500px white VOID (the #1 Stripe defect per the vision diagnostic). Region-
