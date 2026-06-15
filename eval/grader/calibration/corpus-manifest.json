@@ -1,0 +1,200 @@
+{
+  "_purpose": "Sequestered, archetype-diverse human-corpus scaffold for calibrating the UPLEVELED grader (grade-element-crops.mjs axis-delta tolerances + region-judge rollup). This is the DENOMINATOR the path-to-1:1 protocol calibrates against: every entry names a (source_url, clone_page) pair, an archetype (blog|marketing|saas), a DEV|HOLDOUT split, and a human_ledger that is EITHER a real recorded human audit (slotted from the labels we already own) OR null (pending a fresh, out-of-sample human audit — NEVER fabricated).",
+  "_generated_by": "corpus-scaffold subagent (uplevel-grader fusion verdict)",
+  "_generated_at_utc": "2026-06-15",
+  "_principle": "The grader is calibrated/tuned ONLY on the DEV split. The HOLDOUT split is sequestered: its human_ledger MUST stay null until a human scores it BLIND (no grader number shown first), so HOLDOUT is a true out-of-sample generalization test and cannot leak into tolerance tuning. Do NOT auto-fill HOLDOUT human scores from grader output — that would collapse the holdout into a self-fulfilling fit.",
+
+  "archetypes": {
+    "blog": "long editorial/article pages (single-column prose, inline code, footnotes, markdown-derived). Stress: text fidelity, inline-link styling, code chips, emoji/dividers — the FINE defects the full-page thumbnail cannot resolve.",
+    "marketing": "landing/docs/product pages with a hero, logo strip, primary CTA, feature panels. Stress: logo fidelity, hero richness, CTA chrome, imagery panels — the human-salient fatal classes.",
+    "saas": "app/dashboard/pricing/auth pages with dense componentry (forms, tables, cards, nav rails). Stress: layout density, responsive reflow, component chrome."
+  },
+
+  "human_ledger_schema": {
+    "_doc": "Per-pair human audit. null until a human scores the pair. When recorded, this shape:",
+    "overall_0_100": "integer 0-100. 0 = totally wrong/broken/worthless clone; 100 = indistinguishable from source. This is the SCALAR calibration anchor (regress grader composite against it).",
+    "per_defect": {
+      "_doc": "Array of the human-salient defect CLASSES the human ticked, each with a severity. Classes align 1:1 with the grader's axis-delta `class` field + region-judge FATAL_OF buckets so a human tick can be matched to a fired axis.",
+      "shape": "[{ defect_class: 'wrong-logo'|'missing-logo'|'invisible-heading'|'invisible-text'|'blank-hero'|'unstyled-cta'|'missing-imagery'|'missing-section'|'overlapping-sections'|'wrong-layout'|'color-off'|'font-off'|'image-missing', severity: 'fatal'|'high'|'med'|'low', note?: string }]"
+    },
+    "scored_by": "human initials/email (provenance).",
+    "scored_at_utc": "ISO date.",
+    "blind": "boolean — true if the human scored WITHOUT seeing any grader number first (required for HOLDOUT; preserves out-of-sample integrity).",
+    "source_label_file": "provenance: which existing label file this ledger was slotted from (human-results.json | midrange-human-results.json), or 'fresh-audit' for a new score.",
+    "source_label_id": "the pair_id in that file (P01..P18 | M01..M04), where applicable."
+  },
+
+  "_label_provenance": {
+    "human-results.json": "18 BROKEN clones (P01-P18) scored 0-6/100 by the user — the low-band anchor. Defects listed as free-text human disqualifier phrases; normalized into per_defect classes here. These are SCREENSHOT-PAIR anchors (the scored artifact is a static PNG pair in the tree; most have NO live local clone_page — clone_page=null, and the screenshot paths are carried in clone_img/source_img so the ledger is still usable for region-judge PNG calibration).",
+    "midrange-human-results.json": "4 PROJECTION clones (M01-M04) scored 0-5/100 — overreacted/tailwind/vercel/stripe. M03 (overreacted) + M01 (tailwind) have LIVE local clone_pages (341, 268) and are the two pairs the resolution-win proof runs on; M02/M04 are screenshot-only.",
+    "_honesty": "ALL existing human scores cluster 0-6/100 (every labeled pair is a BROKEN clone — the user audited the grader's own 'best' outputs and found them worthless). The corpus therefore has NO mid/high human anchors yet. Calibrating tolerances on a 0-6 band alone fits only the floor; the HOLDOUT split (and future GOOD clones) MUST be human-scored to anchor the upper range. This gap is flagged on every HOLDOUT entry."
+  },
+
+  "pairs": [
+    {
+      "page_id": 341,
+      "archetype": "blog",
+      "source_url": "https://overreacted.io/a-complete-guide-to-useeffect/",
+      "clone_page": 341,
+      "clone_url": "http://localhost:8001/?page_id=341",
+      "split": "DEV",
+      "compare_blob": "/tmp/compare-341.json",
+      "human_ledger": {
+        "overall_0_100": 5,
+        "per_defect": [
+          {"defect_class": "wrong-logo", "severity": "high"},
+          {"defect_class": "unstyled-cta", "severity": "high", "note": "no button chrome"},
+          {"defect_class": "missing-imagery", "severity": "high", "note": "missing imagery or panels"},
+          {"defect_class": "font-off", "severity": "high", "note": "markdown '# ' prefix rendered literally; inline links lost pink underline (grader-confirmed at native crop res)"}
+        ],
+        "scored_by": "ctkrohg@gmail.com",
+        "scored_at_utc": "2026-06-14",
+        "blind": false,
+        "source_label_file": "midrange-human-results.json",
+        "source_label_id": "M03"
+      },
+      "_note": "PRIMARY resolution-win pair. overreacted v4 projection clone. Live local page 341. human=5 vs grader (legacy region-judge) historically overstated ~31 — the 26pt overstatement this whole uplevel targets."
+    },
+    {
+      "page_id": 268,
+      "archetype": "marketing",
+      "source_url": "https://tailwindcss.com/docs",
+      "clone_page": 268,
+      "clone_url": "http://localhost:8001/?page_id=268",
+      "split": "DEV",
+      "compare_blob": null,
+      "human_ledger": {
+        "overall_0_100": 0,
+        "per_defect": [
+          {"defect_class": "wrong-logo", "severity": "fatal"},
+          {"defect_class": "invisible-heading", "severity": "fatal", "note": "invisible/missing heading"},
+          {"defect_class": "blank-hero", "severity": "fatal"},
+          {"defect_class": "unstyled-cta", "severity": "fatal", "note": "no button chrome"},
+          {"defect_class": "missing-imagery", "severity": "high", "note": "missing imagery or panels"},
+          {"defect_class": "overlapping-sections", "severity": "fatal", "note": "overlapping/colliding sections"}
+        ],
+        "scored_by": "ctkrohg@gmail.com",
+        "scored_at_utc": "2026-06-14",
+        "blind": false,
+        "source_label_file": "midrange-human-results.json",
+        "source_label_id": "M01"
+      },
+      "_note": "MARKETING resolution-win pair. Live local page 268 (calib-tailwind-vite-docs). human=0 — all six fatal classes. The marketing-sweep (logo/hero/CTA) is re-proven here."
+    },
+    {
+      "page_id": null,
+      "archetype": "marketing",
+      "source_url": "https://vercel.com",
+      "clone_page": null,
+      "clone_url": null,
+      "source_img": "eval/grader/calibration (screenshot-pair only — no scored report path in M02 entry)",
+      "split": "DEV",
+      "compare_blob": null,
+      "human_ledger": {
+        "overall_0_100": 0,
+        "per_defect": [
+          {"defect_class": "wrong-logo", "severity": "fatal"},
+          {"defect_class": "invisible-heading", "severity": "fatal"},
+          {"defect_class": "blank-hero", "severity": "fatal"},
+          {"defect_class": "unstyled-cta", "severity": "fatal"},
+          {"defect_class": "overlapping-sections", "severity": "fatal"},
+          {"defect_class": "missing-imagery", "severity": "high"}
+        ],
+        "scored_by": "ctkrohg@gmail.com",
+        "scored_at_utc": "2026-06-14",
+        "blind": false,
+        "source_label_file": "midrange-human-results.json",
+        "source_label_id": "M02"
+      },
+      "_note": "Screenshot-pair anchor (no live clone_page). Usable for region-judge PNG calibration only; grade-element-crops needs a compare blob (DOM correspondence) which does not exist for this pair."
+    },
+    {
+      "page_id": null,
+      "archetype": "marketing",
+      "source_url": "https://stripe.com",
+      "clone_page": null,
+      "clone_url": null,
+      "split": "DEV",
+      "compare_blob": null,
+      "human_ledger": {
+        "overall_0_100": 0,
+        "per_defect": [
+          {"defect_class": "wrong-logo", "severity": "fatal"},
+          {"defect_class": "invisible-heading", "severity": "fatal"},
+          {"defect_class": "blank-hero", "severity": "fatal"},
+          {"defect_class": "unstyled-cta", "severity": "fatal"},
+          {"defect_class": "overlapping-sections", "severity": "fatal"},
+          {"defect_class": "missing-imagery", "severity": "high"}
+        ],
+        "scored_by": "ctkrohg@gmail.com",
+        "scored_at_utc": "2026-06-14",
+        "blind": false,
+        "source_label_file": "midrange-human-results.json",
+        "source_label_id": "M04"
+      },
+      "_note": "Screenshot-pair anchor (no live clone_page)."
+    },
+
+    {"page_id": null, "archetype": "marketing", "source_url": "https://stripe.com", "clone_page": null, "source_img": "eval/grader/out-stripe-v6/source-desktop.png", "clone_img": "eval/grader/out-stripe-v6/clone-desktop.png", "split": "DEV", "compare_blob": null, "human_ledger": {"overall_0_100": 0, "per_defect": [{"defect_class": "wrong-logo", "severity": "fatal"}, {"defect_class": "invisible-heading", "severity": "fatal"}, {"defect_class": "blank-hero", "severity": "fatal"}, {"defect_class": "unstyled-cta", "severity": "fatal"}, {"defect_class": "wrong-layout", "severity": "fatal"}, {"defect_class": "missing-section", "severity": "fatal"}], "scored_by": "ctkrohg@gmail.com", "scored_at_utc": "2026-06-14", "blind": true, "source_label_file": "human-results.json", "source_label_id": "P01"}, "_note": "Broken low-band anchor (screenshot pair). region-judge PNG calibration only."},
+    {"page_id": null, "archetype": "marketing", "source_url": "https://resend.com", "clone_page": null, "source_img": "eval/grader/.audit-resend/src-fold.png", "clone_img": "eval/grader/.audit-resend/clone-fold.png", "split": "DEV", "compare_blob": null, "human_ledger": {"overall_0_100": 0, "per_defect": [{"defect_class": "wrong-logo", "severity": "fatal"}, {"defect_class": "invisible-heading", "severity": "fatal"}, {"defect_class": "blank-hero", "severity": "fatal"}, {"defect_class": "unstyled-cta", "severity": "fatal"}, {"defect_class": "wrong-layout", "severity": "fatal"}, {"defect_class": "missing-section", "severity": "fatal"}], "scored_by": "ctkrohg@gmail.com", "scored_at_utc": "2026-06-14", "blind": true, "source_label_file": "human-results.json", "source_label_id": "P02"}, "_note": "Broken low-band anchor (screenshot pair)."},
+    {"page_id": null, "archetype": "marketing", "source_url": "https://resend.com", "clone_page": null, "source_img": "eval/grader/.audit-resend/src-full.png", "clone_img": "eval/grader/.audit-resend/clone-full.png", "split": "DEV", "compare_blob": null, "human_ledger": {"overall_0_100": 0, "per_defect": [{"defect_class": "wrong-logo", "severity": "fatal"}, {"defect_class": "invisible-heading", "severity": "fatal"}, {"defect_class": "blank-hero", "severity": "fatal"}, {"defect_class": "unstyled-cta", "severity": "fatal"}, {"defect_class": "wrong-layout", "severity": "fatal"}, {"defect_class": "missing-section", "severity": "fatal"}], "scored_by": "ctkrohg@gmail.com", "scored_at_utc": "2026-06-14", "blind": true, "source_label_file": "human-results.json", "source_label_id": "P03"}, "_note": "Broken low-band anchor (screenshot pair)."},
+    {"page_id": null, "archetype": "marketing", "source_url": "https://stripe.com", "clone_page": null, "source_img": "eval/grader/grader-widgets/source-desktop.png", "clone_img": "eval/grader/grader-widgets/clone-desktop.png", "split": "DEV", "compare_blob": null, "human_ledger": {"overall_0_100": 0, "per_defect": [{"defect_class": "wrong-logo", "severity": "fatal"}, {"defect_class": "invisible-heading", "severity": "fatal"}, {"defect_class": "blank-hero", "severity": "fatal"}, {"defect_class": "unstyled-cta", "severity": "fatal"}, {"defect_class": "wrong-layout", "severity": "fatal"}, {"defect_class": "missing-section", "severity": "fatal"}], "scored_by": "ctkrohg@gmail.com", "scored_at_utc": "2026-06-14", "blind": true, "source_label_file": "human-results.json", "source_label_id": "P04"}, "_note": "Broken low-band anchor (screenshot pair; clone ~900px near-empty)."},
+    {"page_id": null, "archetype": "marketing", "source_url": "https://stripe.com", "clone_page": null, "source_img": "eval/grader/grader-v11/source-desktop.png", "clone_img": "eval/grader/grader-v11/clone-desktop.png", "split": "DEV", "compare_blob": null, "human_ledger": {"overall_0_100": 5, "per_defect": [{"defect_class": "wrong-logo", "severity": "high"}, {"defect_class": "wrong-layout", "severity": "high"}, {"defect_class": "missing-section", "severity": "high"}], "scored_by": "ctkrohg@gmail.com", "scored_at_utc": "2026-06-14", "blind": true, "source_label_file": "human-results.json", "source_label_id": "P05"}, "_note": "Broken low-band anchor (screenshot pair)."},
+    {"page_id": null, "archetype": "marketing", "source_url": "https://stripe.com", "clone_page": null, "source_img": "eval/grader/out-stripe-v2/source-desktop.png", "clone_img": "eval/grader/out-stripe-v2/clone-desktop.png", "split": "DEV", "compare_blob": null, "human_ledger": {"overall_0_100": 6, "per_defect": [{"defect_class": "wrong-logo", "severity": "high"}, {"defect_class": "wrong-layout", "severity": "high"}, {"defect_class": "missing-section", "severity": "high"}], "scored_by": "ctkrohg@gmail.com", "scored_at_utc": "2026-06-14", "blind": true, "source_label_file": "human-results.json", "source_label_id": "P06"}, "_note": "Broken low-band anchor (screenshot pair)."},
+    {"page_id": null, "archetype": "saas", "source_url": "https://clerk.com", "clone_page": null, "source_img": "eval/grader/.shots/heldout-clerk-source-1440.png", "clone_img": "eval/grader/.shots/heldout-clerk-1280.png", "split": "DEV", "compare_blob": null, "human_ledger": {"overall_0_100": 0, "per_defect": [{"defect_class": "wrong-logo", "severity": "fatal"}, {"defect_class": "invisible-heading", "severity": "fatal"}, {"defect_class": "blank-hero", "severity": "fatal"}, {"defect_class": "unstyled-cta", "severity": "fatal"}, {"defect_class": "missing-section", "severity": "fatal"}, {"defect_class": "wrong-layout", "severity": "fatal"}], "scored_by": "ctkrohg@gmail.com", "scored_at_utc": "2026-06-14", "blind": true, "source_label_file": "human-results.json", "source_label_id": "P07"}, "_note": "saas archetype anchor (clerk auth/product; viewport-width mismatch src 1440 vs clone 1280)."},
+    {"page_id": null, "archetype": "blog", "source_url": "https://overreacted.io", "clone_page": null, "source_img": "eval/grader/demo-overreacted/source-top.png", "clone_img": "eval/grader/demo-overreacted/clone-top.png", "split": "DEV", "compare_blob": null, "human_ledger": {"overall_0_100": 0, "per_defect": [{"defect_class": "wrong-logo", "severity": "fatal"}, {"defect_class": "invisible-heading", "severity": "fatal"}, {"defect_class": "blank-hero", "severity": "fatal"}, {"defect_class": "unstyled-cta", "severity": "fatal"}, {"defect_class": "wrong-layout", "severity": "fatal"}, {"defect_class": "missing-section", "severity": "fatal"}], "scored_by": "ctkrohg@gmail.com", "scored_at_utc": "2026-06-14", "blind": true, "source_label_file": "human-results.json", "source_label_id": "P08"}, "_note": "blog archetype anchor (overreacted top band; the ONLY P-pair where editability was historically measured)."},
+    {"page_id": null, "archetype": "marketing", "source_url": "https://stripe.com", "clone_page": null, "source_img": "eval/grader/out-stripe-v3/source-desktop.png", "clone_img": "eval/grader/out-stripe-v3/clone-desktop.png", "split": "DEV", "compare_blob": null, "human_ledger": {"overall_0_100": 2, "per_defect": [{"defect_class": "invisible-heading", "severity": "high"}, {"defect_class": "blank-hero", "severity": "high"}, {"defect_class": "unstyled-cta", "severity": "high"}, {"defect_class": "wrong-layout", "severity": "high"}, {"defect_class": "missing-section", "severity": "high"}], "scored_by": "ctkrohg@gmail.com", "scored_at_utc": "2026-06-14", "blind": true, "source_label_file": "human-results.json", "source_label_id": "P09"}, "_note": "Broken low-band anchor (screenshot pair)."},
+    {"page_id": null, "archetype": "marketing", "source_url": "https://resend.com", "clone_page": null, "source_img": "eval/grader/.audit-resend/src-mid.png", "clone_img": "eval/grader/.audit-resend/clone-mid.png", "split": "DEV", "compare_blob": null, "human_ledger": {"overall_0_100": 0, "per_defect": [{"defect_class": "wrong-logo", "severity": "fatal"}, {"defect_class": "invisible-heading", "severity": "fatal"}, {"defect_class": "blank-hero", "severity": "fatal"}, {"defect_class": "unstyled-cta", "severity": "fatal"}, {"defect_class": "wrong-layout", "severity": "fatal"}, {"defect_class": "missing-section", "severity": "fatal"}], "scored_by": "ctkrohg@gmail.com", "scored_at_utc": "2026-06-14", "blind": true, "source_label_file": "human-results.json", "source_label_id": "P10"}, "_note": "Broken low-band anchor (screenshot pair)."},
+    {"page_id": null, "archetype": "marketing", "source_url": "https://stripe.com", "clone_page": null, "source_img": "eval/grader/out-stripe-v4/source-desktop.png", "clone_img": "eval/grader/out-stripe-v4/clone-desktop.png", "split": "DEV", "compare_blob": null, "human_ledger": {"overall_0_100": 1, "per_defect": [{"defect_class": "wrong-logo", "severity": "high"}, {"defect_class": "invisible-heading", "severity": "high"}, {"defect_class": "blank-hero", "severity": "high"}, {"defect_class": "unstyled-cta", "severity": "high"}, {"defect_class": "wrong-layout", "severity": "high"}, {"defect_class": "missing-section", "severity": "high"}], "scored_by": "ctkrohg@gmail.com", "scored_at_utc": "2026-06-14", "blind": true, "source_label_file": "human-results.json", "source_label_id": "P11"}, "_note": "Broken low-band anchor (screenshot pair)."},
+    {"page_id": null, "archetype": "marketing", "source_url": "https://linear.app", "clone_page": null, "source_img": "eval/grader/audit-linear/src-mid.png", "clone_img": "eval/grader/audit-linear/clone-mid.png", "split": "DEV", "compare_blob": null, "human_ledger": {"overall_0_100": 3, "per_defect": [{"defect_class": "wrong-logo", "severity": "high"}, {"defect_class": "invisible-heading", "severity": "high"}, {"defect_class": "wrong-layout", "severity": "high"}, {"defect_class": "missing-section", "severity": "high"}, {"defect_class": "blank-hero", "severity": "high"}], "scored_by": "ctkrohg@gmail.com", "scored_at_utc": "2026-06-14", "blind": true, "source_label_file": "human-results.json", "source_label_id": "P12"}, "_note": "Broken low-band anchor (screenshot pair)."},
+    {"page_id": null, "archetype": "marketing", "source_url": "https://stripe.com", "clone_page": null, "source_img": "eval/grader/out-stripe-v5/source-desktop.png", "clone_img": "eval/grader/out-stripe-v5/clone-desktop.png", "split": "DEV", "compare_blob": null, "human_ledger": {"overall_0_100": 1, "per_defect": [{"defect_class": "wrong-logo", "severity": "high"}, {"defect_class": "blank-hero", "severity": "high"}, {"defect_class": "unstyled-cta", "severity": "high"}, {"defect_class": "wrong-layout", "severity": "high"}, {"defect_class": "missing-section", "severity": "high"}], "scored_by": "ctkrohg@gmail.com", "scored_at_utc": "2026-06-14", "blind": true, "source_label_file": "human-results.json", "source_label_id": "P13"}, "_note": "Broken low-band anchor (screenshot pair)."},
+    {"page_id": null, "archetype": "marketing", "source_url": "https://stripe.com", "clone_page": null, "source_img": "eval/grader/grader-v13/source-desktop.png", "clone_img": "eval/grader/grader-v13/clone-desktop.png", "split": "DEV", "compare_blob": null, "human_ledger": {"overall_0_100": 1, "per_defect": [{"defect_class": "wrong-layout", "severity": "high", "note": "no explicit class list in label; overall=1 broken"}], "scored_by": "ctkrohg@gmail.com", "scored_at_utc": "2026-06-14", "blind": true, "source_label_file": "human-results.json", "source_label_id": "P14"}, "_note": "Broken low-band anchor (screenshot pair; label had no class list — overall only)."},
+    {"page_id": null, "archetype": "marketing", "source_url": "https://stripe.com", "clone_page": null, "source_img": "eval/grader/out-stripe-v8/source-desktop.png", "clone_img": "eval/grader/out-stripe-v8/clone-desktop.png", "split": "DEV", "compare_blob": null, "human_ledger": {"overall_0_100": 0, "per_defect": [{"defect_class": "wrong-layout", "severity": "high", "note": "no explicit class list in label; overall=0 broken"}], "scored_by": "ctkrohg@gmail.com", "scored_at_utc": "2026-06-14", "blind": true, "source_label_file": "human-results.json", "source_label_id": "P15"}, "_note": "Broken low-band anchor (screenshot pair; overall only)."},
+    {"page_id": null, "archetype": "marketing", "source_url": "https://linear.app", "clone_page": null, "source_img": "eval/grader/audit-linear/src-atf.png", "clone_img": "eval/grader/audit-linear/clone-atf.png", "split": "DEV", "compare_blob": null, "human_ledger": {"overall_0_100": 2, "per_defect": [{"defect_class": "wrong-logo", "severity": "high"}], "scored_by": "ctkrohg@gmail.com", "scored_at_utc": "2026-06-14", "blind": true, "source_label_file": "human-results.json", "source_label_id": "P16"}, "_note": "Broken low-band anchor (linear ATF, cleanest band — single wrong-logo tick; useful negative for the OTHER classes)."},
+    {"page_id": null, "archetype": "marketing", "source_url": "https://stripe.com", "clone_page": null, "source_img": "eval/grader/committee-v4/src-desktop.png", "clone_img": "eval/grader/committee-v4/cln-desktop.png", "split": "DEV", "compare_blob": null, "human_ledger": {"overall_0_100": 1, "per_defect": [{"defect_class": "wrong-layout", "severity": "high", "note": "overall only"}], "scored_by": "ctkrohg@gmail.com", "scored_at_utc": "2026-06-14", "blind": true, "source_label_file": "human-results.json", "source_label_id": "P17"}, "_note": "Broken low-band anchor (committee desktop; overall only)."},
+    {"page_id": null, "archetype": "marketing", "source_url": "https://stripe.com", "clone_page": null, "source_img": "eval/grader/committee-v4/src-mobile.png", "clone_img": "eval/grader/committee-v4/cln-mobile.png", "split": "DEV", "compare_blob": null, "human_ledger": {"overall_0_100": 0, "per_defect": [{"defect_class": "wrong-layout", "severity": "high", "note": "mobile responsive failure; overall only"}], "scored_by": "ctkrohg@gmail.com", "scored_at_utc": "2026-06-14", "blind": true, "source_label_file": "human-results.json", "source_label_id": "P18"}, "_note": "Broken low-band anchor (mobile 390px responsive failure; overall only)."},
+
+    {
+      "page_id": null,
+      "archetype": "saas",
+      "source_url": "https://supabase.com",
+      "clone_page": null,
+      "clone_url": null,
+      "split": "HOLDOUT",
+      "compare_blob": null,
+      "human_ledger": null,
+      "_needs_fresh_human_audit": true,
+      "_note": "SEQUESTERED holdout (saas). supabase is the north-star 1:1+editable pair (memory: supabase 0.878). It is a GOOD clone — exactly the mid/high human anchor the corpus currently lacks. Build a fresh local clone_page, then a human MUST score it BLIND before its ledger is filled. Do NOT fill from grader output."
+    },
+    {
+      "page_id": null,
+      "archetype": "marketing",
+      "source_url": "https://posthog.com",
+      "clone_page": null,
+      "clone_url": null,
+      "split": "HOLDOUT",
+      "compare_blob": null,
+      "human_ledger": null,
+      "_needs_fresh_human_audit": true,
+      "_note": "SEQUESTERED holdout (marketing). posthog renders headless (memory: headless_walls_stale). Fresh clone + BLIND human audit pending."
+    },
+    {
+      "page_id": null,
+      "archetype": "blog",
+      "source_url": "https://react.dev/learn",
+      "clone_page": null,
+      "clone_url": null,
+      "split": "HOLDOUT",
+      "compare_blob": null,
+      "human_ledger": null,
+      "_needs_fresh_human_audit": true,
+      "_note": "SEQUESTERED holdout (blog). CAVEAT: react.dev source assets are BLOCKED in this network (memory: reactdev_source_render_blocked) → source renders unstyled/~3.5x too tall; the source-side capture is INVALID here. Use a different blog source (e.g. a second overreacted article) if react.dev cannot be captured at audit time. Fresh BLIND human audit pending."
+    }
+  ],
+
+  "_split_summary": {
+    "DEV": "22 pairs (P01-P18 + M01-M04 normalized). All human-scored, all in the BROKEN 0-6/100 band. Two (page 341 blog, page 268 marketing) have LIVE local clone_pages + DOM correspondence (grade-element-crops works end-to-end); the rest are screenshot-pair anchors (region-judge PNG calibration only).",
+    "HOLDOUT": "3 pairs (supabase saas, posthog marketing, react.dev blog), human_ledger=null, _needs_fresh_human_audit=true. Sequestered: tolerances are NEVER tuned on these; a human scores them BLIND to anchor generalization + the mid/high range the DEV split lacks.",
+    "archetype_coverage": {"blog": "341 (DEV) + overreacted P08 (DEV) + react.dev (HOLDOUT)", "marketing": "268 + vercel/stripe/resend/linear (DEV) + posthog (HOLDOUT)", "saas": "clerk P07 (DEV) + supabase (HOLDOUT)"}
+  }
+}

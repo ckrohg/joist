@@ -46,6 +46,11 @@ import { PNG } from 'pngjs';
 import { crop } from './grade-vision-tiles.mjs';
 import { composeTile, extractJson, LABEL_STRIP } from './vision-judge.mjs';
 import { assertNotBlocked } from '../../sandbox/host-guard.mjs';
+// RE-POINT (RJ_USE_CROPS) — reuse the correspondence-aligned, native-res, fact-injected machinery from
+// grade-element-crops.mjs UNCHANGED. When the flag is OFF (default) NOTHING below is imported-into-behavior:
+// these symbols are referenced only inside the judgePairCrops path, which the CLI/judgePair never enters unless
+// RJ_USE_CROPS=1. So the import is inert for every current caller (byte no-op on the default full-page-tile path).
+import { readPairs, axisDeltas, verifyDefect, measuredFacts, elementPrompt, shootFull } from './grade-element-crops.mjs';
 
 // ── inspectOnce: the proven `claude -p` vision invocation, BYTE-FOR-BYTE the same flags claudeOnce uses ───────
 // (vision-judge.mjs lines 713-716): -p <prompt> --model <m> --output-format json --allowedTools Read
@@ -115,6 +120,16 @@ const RJ_FORCE_REGION_ENUM = process.env.RJ_FORCE_REGION_ENUM !== '0';
 const RJ_GRADED_FLOOR = process.env.RJ_GRADED_FLOOR !== '0';
 const RJ_STEP_FLOOR = process.env.RJ_STEP_FLOOR !== '0';
 const RJ_OVERLAP_DETECT = process.env.RJ_OVERLAP_DETECT !== '0';
+//   RJ_USE_CROPS          — RE-POINT (default OFF, opt-IN). Routes the vision pass to CORRESPONDENCE-ALIGNED,
+//                           NATIVE-RESOLUTION element/band crops + INJECTED measured facts (from grade-element-crops),
+//                           instead of the legacy proportional full-page band tiles fed at a downscaled thumbnail
+//                           resolution. This is the resolution-catastrophe fix applied to region-judge: it consumes a
+//                           --compare blob (DOM correspondence) rather than two flat PNGs, so the vision model sees a
+//                           1px divider / code chip / emoji at native res. The hallucination VERIFIER (verifyDefect)
+//                           runs after every call against the SAME measured facts. The rollup (rollup/regionScore/the
+//                           step+graded floors) is REUSED verbatim — only the tile SOURCE changes. =1 enables; unset
+//                           leaves judgePair (the PNG path) byte-for-byte unchanged for every current caller.
+const RJ_USE_CROPS = process.env.RJ_USE_CROPS === '1';
 
 // ── fatal-class taxonomy (calibration mandate: logo/heading/hero/CTA = FATAL; layout/sections = structural) ───
 // defect_class -> fatalClass bucket (null = structural, contributes to region score but does NOT trip the floor).
@@ -687,6 +702,121 @@ async function pool(items, n, fn) {
   return results;
 }
 
+// ── RE-POINTED entrypoint (RJ_USE_CROPS): judge from CORRESPONDENCE-ALIGNED, NATIVE-RES, FACT-INJECTED crops ──────
+// Consumes a compare-capture blob (DOM correspondence) instead of two flat full-page PNGs. The vision model NEVER sees
+// a downscaled full-page thumbnail: it sees per-corresponded-element A/B tiles + uniform native-res bands, each issued
+// with the AUTHORITATIVE measured-fact block (elementPrompt). The hallucination VERIFIER (verifyDefect) runs after every
+// call against the SAME measured facts. We map the element-crop findings into the region shape rollup() consumes, so the
+// step+graded fatal floors are REUSED VERBATIM — only the tile SOURCE is upgraded. This is region-judge's resolution fix.
+export async function judgePairCrops({ compare, outDir = '/tmp/region-judge-crops', model = 'sonnet', vision = true, widths, topN = 20, jobs = 3, srcShot, cloneShot }) {
+  fs.mkdirSync(outDir, { recursive: true });
+  const blob = JSON.parse(fs.readFileSync(compare, 'utf8'));
+  const report = blob.report;
+  if (report.source) assertNotBlocked(report.source);                 // external source read-only
+  // (host-guard on the clone base is enforced upstream by compare-capture/grade-element-crops; this is a PNG/blob read.)
+  const WIDTHS = (widths && widths.length ? widths : (report.widths || [1440]))
+    .filter((w) => blob.sourceCapture.records.some((r) => r.box && r.box[w]));
+  const joinW = WIDTHS[0];
+
+  // full-res PNGs are the CROP SOURCE ONLY (never a vision input) — reuse the hardened grade-element-crops shooter.
+  const shots = {};
+  for (const vw of WIDTHS) {
+    if (vw === joinW && srcShot && cloneShot && fs.existsSync(srcShot) && fs.existsSync(cloneShot)) {
+      shots[vw] = { src: PNG.sync.read(fs.readFileSync(srcShot)), clone: PNG.sync.read(fs.readFileSync(cloneShot)) };
+    } else {
+      const [s, c] = await Promise.all([shootFull(report.source, vw), shootFull(report.clone, vw)]);
+      shots[vw] = { src: s, clone: c };
+    }
+  }
+
+  // anomaly-rank the corresponded pairs by axis-delta magnitude × a simple role salience, take topN + a fixed sweep
+  // (logo / primary CTA / hero) per width — the bounded vision set (vision is never spent on the whole page).
+  const ROLE_W = { heading: 3.0, banner: 2.5, img: 2.0, button: 2.2, link: 1.2, navigation: 1.4, contentinfo: 0.6 };
+  const targets = [];                       // { ref, vw, sEl, cEl, why, sweep }
+  const seen = new Set();
+  for (const vw of WIDTHS) {
+    const { pairs } = readPairs(blob, vw);
+    const scored = [];
+    for (const { ref, sEl, cEl } of pairs) {
+      if (!cEl) continue;
+      const rows = axisDeltas(sEl, cEl, vw).filter((r) => r.flagged);
+      if (!rows.length) continue;
+      const mag = rows.reduce((a, r) => a + (r.delta || 0) + 1, 0);
+      const role = sEl.role || '';
+      let sal = ROLE_W[role] || 1.0;
+      if (/logo|brand|wordmark/i.test(sEl.text || sEl.ownText || '')) sal += 1.5;
+      if (sEl.asset && sEl.asset.isImage) sal = Math.max(sal, 2.0);
+      scored.push({ ref, vw, sEl, cEl, mag: mag * sal, why: 'anomaly:' + rows.map((r) => r.axis).join('+') });
+    }
+    scored.sort((a, b) => b.mag - a.mag);
+    for (const t of scored.slice(0, topN)) { const k = t.ref + '@' + vw; if (!seen.has(k)) { seen.add(k); targets.push(t); } }
+    // fixed marketing sweep (independent of anomaly): logo / primary CTA / hero by area, all in the top fold.
+    const fold = pairs.filter((p) => p.cEl && p.sEl.box[vw] && p.sEl.box[vw].y < 1000);
+    const logo = fold.find((p) => (/logo|brand|wordmark/i.test(p.sEl.text || p.sEl.ownText || '')) || (p.sEl.asset && p.sEl.asset.isImage && p.sEl.box[vw].y < 160));
+    const cta = fold.find((p) => (p.sEl.role === 'button' || p.sEl.role === 'link') && /rgb/.test((p.sEl.style || {}).backgroundColor || ''));
+    let hero = null, ha = 0; for (const p of fold) { const b = p.sEl.box[vw]; const a = b ? b.w * b.h : 0; if (a > ha) { ha = a; hero = p; } }
+    for (const [sw, p] of [['logo', logo], ['cta', cta], ['hero', hero]]) {
+      if (!p) continue; const k = p.ref + '@' + vw; if (seen.has(k)) { const t = targets.find((x) => x.ref === p.ref && x.vw === vw); if (t) t.why += ',sweep:' + sw; continue; }
+      seen.add(k); targets.push({ ref: p.ref, vw, sEl: p.sEl, cEl: p.cEl, why: 'sweep:' + sw, sweep: sw });
+    }
+  }
+
+  // emit native-res A/B tiles + measure facts + (optionally) run the SAME fact-injected adversarial prompt + verifier.
+  const findings = [], verifierCatches = [];
+  let cost = 0;
+  await pool(targets, jobs, async (t) => {
+    const sb = t.sEl.box[t.vw], cb = t.cEl.box[t.vw];
+    if (!sb || !cb) return;
+    const sCrop = crop(shots[t.vw].src, sb.x | 0, sb.y | 0, Math.max(2, sb.w | 0), Math.max(8, sb.h | 0));
+    const cCrop = crop(shots[t.vw].clone, cb.x | 0, cb.y | 0, Math.max(2, cb.w | 0), Math.max(8, cb.h | 0));
+    const comp = composeTile(sCrop, cCrop, sb.w | 0, sb.y | 0, { src: `SRC ${t.vw}`, clone: `CLN ${t.vw}` });
+    const safe = t.ref.replace(/[^a-z0-9]+/gi, '_').slice(0, 48) + '_' + t.vw;
+    const tilePath = path.join(outDir, `el-${safe}.png`);
+    fs.writeFileSync(tilePath, PNG.sync.write(comp));
+    const facts = measuredFacts({ src: sCrop, clone: cCrop }, { src: t.sEl, clone: t.cEl });
+    const f = { ref: t.ref, viewport: t.vw, role: t.sEl.role, why: t.why, sweep: t.sweep || null, tilePath, facts, visionDefects: [], droppedByVerifier: [] };
+    if (vision) {
+      let res = await inspectOnce(elementPrompt(tilePath, t.ref, facts, t.sEl.role, t.sweep || ''), { model, cwd: outDir });
+      if (!res.ok) res = await inspectOnce(elementPrompt(tilePath, t.ref, facts, t.sEl.role, '') + '\nOutput ONLY raw JSON {"defects":[...]}.', { model, cwd: outDir });
+      cost += res.cost || 0;
+      if (res.ok) {
+        for (const d of res.defects) {
+          const v = verifyDefect(d, facts);
+          if (v.keep) {
+            const dc = String(d.defect_class || '').toLowerCase().replace(/\s+/g, '-');
+            f.visionDefects.push({ element: String(d.element || '').slice(0, 120), defect_class: dc, severity: SEVERITY_RANK[String(d.severity || 'med').toLowerCase()] ? String(d.severity).toLowerCase() : 'med', evidence: String(d.evidence || '').slice(0, 240), fatalClass: FATAL_OF[dc] ?? null, source: 'vision' });
+          } else { f.droppedByVerifier.push({ defect: d, reason: v.reason }); verifierCatches.push({ ref: t.ref, viewport: t.vw, defect: d.defect_class, claim: (d.evidence || d.element || '').slice(0, 80), reason: v.reason }); }
+        }
+      } else f.visionError = res.error;
+    }
+    findings.push(f);
+  });
+
+  // map findings into the region shape rollup() consumes (one synthetic region per finding). det.vetoes empty (the
+  // det signal here is the axis-delta, already folded into target selection); visionDefects carry the fatalClasses.
+  const regionsForRollup = findings.map((f) => ({
+    name: f.ref, role: f.role || 'body', aboveFold: f.facts && f.facts.tag ? true : false, weight: f.sweep === 'hero' || f.role === 'heading' ? 2.0 : 1.0,
+    det: { vetoes: [] }, visionDefects: f.visionDefects,
+    score: regionScore({}, [], f.visionDefects),
+  }));
+  const ru = rollup(regionsForRollup, {});
+
+  const defects = [];
+  for (const f of findings) for (const d of f.visionDefects) defects.push({ region: f.ref, element: d.element, defect_class: d.defect_class, severity: d.severity, evidence: d.evidence, source: 'vision', fatalClass: d.fatalClass });
+  defects.sort((a, b) => (SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity]) || 0);
+
+  const result = {
+    mode: 'crops', score: ru.score, base: ru.base, cap: ru.cap, fatalClasses: ru.fatalClasses,
+    stepFloor: ru.stepFloor, disqualifiers: ru.disqualifiers,
+    source: report.source, clone: report.clone, compare, widths: WIDTHS, model, costUsd: +cost.toFixed(4), vision,
+    visionTargets: targets.length, visionDefects: defects.length, verifierDrops: verifierCatches.length,
+    findings: findings.map((f) => ({ ref: f.ref, viewport: f.viewport, role: f.role, why: f.why, facts: f.facts, visionDefects: f.visionDefects, droppedByVerifier: f.droppedByVerifier, tilePath: f.tilePath })),
+    verifierCatches, defects,
+  };
+  fs.writeFileSync(path.join(outDir, 'results.json'), JSON.stringify(result, null, 2));
+  return result;
+}
+
 // ── MAIN judge entrypoint (importable: judgePair) ────────────────────────────────────────────────────────────
 export async function judgePair({ sourcePng, clonePng, outDir = '/tmp/region-judge', model = 'sonnet', blind = true, vision = true, maxRegions = 8, jobs = 3 }) {
   fs.mkdirSync(outDir, { recursive: true });
@@ -807,8 +937,26 @@ export async function judgePair({ sourcePng, clonePng, outDir = '/tmp/region-jud
 // ── CLI ──────────────────────────────────────────────────────────────────────────────────────────────────────
 const IS_MAIN = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
 if (IS_MAIN) (async () => {
+  // RE-POINT: RJ_USE_CROPS=1 + --compare <blob.json> routes to the correspondence-aligned, native-res, fact-injected
+  // crop path (judgePairCrops). The legacy --source <png> --clone <png> path is untouched (default behavior preserved).
+  if (RJ_USE_CROPS && arg('compare')) {
+    const OUT = arg('out', '/tmp/region-judge-crops');
+    const r = await judgePairCrops({
+      compare: arg('compare'), outDir: OUT, model: arg('model', 'sonnet'),
+      vision: !has('no-vision'), widths: (arg('widths', '') || '').split(',').map((s) => parseInt(s, 10)).filter(Boolean),
+      topN: +arg('top-n', 20), jobs: +arg('jobs', 3), srcShot: arg('src-shot'), cloneShot: arg('clone-shot'),
+    });
+    if (has('json')) { console.log(JSON.stringify(r, null, 2)); return; }
+    console.log(JSON.stringify({
+      mode: 'crops', score: r.score, base: r.base, cap: r.cap, fatalClasses: r.fatalClasses, disqualifiers: r.disqualifiers,
+      visionTargets: r.visionTargets, visionDefects: r.visionDefects, verifierDrops: r.verifierDrops, costUsd: r.costUsd,
+      topDefects: r.defects.slice(0, 12).map((d) => `[${d.severity}|${d.defect_class}|${d.region.slice(-30)}] ${(d.element || d.evidence || '').slice(0, 80)}`),
+      out: path.join(OUT, 'results.json'),
+    }, null, 2));
+    return;
+  }
   const SOURCE = arg('source'), CLONE = arg('clone');
-  if (!SOURCE || !CLONE) { console.error('usage: node region-judge.mjs --source <png> --clone <png> [--out dir] [--model sonnet] [--no-vision] [--blind 0|1] [--json]'); process.exit(2); }
+  if (!SOURCE || !CLONE) { console.error('usage: node region-judge.mjs --source <png> --clone <png> [--out dir] [--model sonnet] [--no-vision] [--blind 0|1] [--json]\n   OR (re-point): RJ_USE_CROPS=1 node region-judge.mjs --compare <blob.json> [--widths 1440] [--no-vision] [--top-n 20]'); process.exit(2); }
   // §0 SAFETY: refuse a stray blocked host if a URL is ever passed (these pairs are PNGs; render nothing).
   for (const a of [SOURCE, CLONE]) if (/^https?:/i.test(a)) assertNotBlocked(a);
   for (const a of [SOURCE, CLONE]) if (!fs.existsSync(a)) { console.error(`not found: ${a}`); process.exit(2); }
@@ -827,4 +975,5 @@ if (IS_MAIN) (async () => {
   }, null, 2));
 })().catch(e => { console.error('REGION-JUDGE FAILED:', e && e.stack || e); process.exit(1); });
 
+// (judgePairCrops is already exported via its `export async function` declaration above.)
 export { segmentRegions, corroborate, rollup, regionScore, textContrast, inkMass, regionStats, saturatedMass, ssim, FATAL_OF, DEFECT_CLASSES, loadPng, inspectorPrompt, inspectOnce, overlapInkExcess, DISQUALIFYING_FATAL };
