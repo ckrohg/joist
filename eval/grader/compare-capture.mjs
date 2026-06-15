@@ -429,6 +429,13 @@ async function capturePage(url, { widths, scrollY, label, isSource }) {
   }
 }
 
+// ADDITIVE EXPORT (reversible; breaks no existing caller — only re-exposes the existing internal capture).
+// Consumed by axisdelta-floor.mjs to RECAPTURE the SAME source N times for the NOISE corpus (path (a):
+// scroll-jitter / lazy-load timing / anti-aliasing). Returns {url,label,records (box keyed by box[vw]),
+// pageHeightByVw,...} — the EXACT record shape readPairs()/axisDeltas() consume, captured by the SAME pipeline
+// the real source side uses, so the recapture noise is faithful (not a synthetic stand-in).
+export { capturePage };
+
 // ─────────────────────────────────────────────────────────────────────────────
 // CORRESPONDENCE
 // ─────────────────────────────────────────────────────────────────────────────

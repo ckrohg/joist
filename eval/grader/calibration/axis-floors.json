@@ -1,0 +1,1658 @@
+{
+  "_purpose": "FROZEN per-axis tolerance FLOORS for the upleveled grader (axisdelta-floor PHASE 2). Floors come ONLY from a label-blind NOISE corpus (recapture-jitter + optional clean-projection offset); NEVER from defect labels. Apply: excess = max(0, raw_delta − floor); trip = excess>0. Inspectable known-debt: each entry records floor, winning term, noise N, and caveats.",
+  "_generated_by": "axisdelta-floor.mjs --build",
+  "_generated_at_utc": "2026-06-15",
+  "_anti_overfit": {
+    "floors_from": "NOISE corpus only (label-blind by construction)",
+    "weights_from": "NOT in this file (perceptual-prior semantic_min only; ~15 axis WEIGHTS live elsewhere, also prior-not-fit)",
+    "labels_role": "VALIDATION ONLY — the 341/268 contamination audit below uses labels to PROVE the excluded clones are broken; no label tunes a floor",
+    "salience_tighten": "hero/logo/h1/cta buckets use P95 (tighter) on the noise term; body uses P99"
+  },
+  "k": 3,
+  "widths": [
+    1440,
+    390
+  ],
+  "semantic_min": {
+    "bbox-ratio": 0.05,
+    "color-deltaE": 3,
+    "text-contrast": 0.5,
+    "font-size-ratio": 0.03,
+    "h-overflow": 0.04,
+    "presence": 0.5,
+    "img-phash": 12,
+    "img-svghash": 1,
+    "img-src": 0.5
+  },
+  "one_sided_axes": [
+    "h-overflow"
+  ],
+  "salient_buckets": [
+    "hero",
+    "logo",
+    "h1",
+    "cta"
+  ],
+  "noiseCorpus": {
+    "recapture": {
+      "kind": "recapture",
+      "pairs": 51237,
+      "perSource": {
+        "overreacted": {
+          "archetype": "blog",
+          "runs": 3,
+          "recordPairs": 34488
+        },
+        "tailwind": {
+          "archetype": "marketing",
+          "runs": 3,
+          "recordPairs": 16749
+        }
+      }
+    },
+    "cleanProjection": {
+      "kind": "clean-projection",
+      "pairs": 0,
+      "perBlob": [],
+      "omitted": true,
+      "reason": "no VERIFIED-CLEAN round-trip clone supplied (--clean-blob). 341/268 are human-scored BROKEN and are DELIBERATELY excluded (using them would absorb real defects into the floor). Pending a clean bake / WP auth."
+    },
+    "totalLabelBlindSamples": 51237
+  },
+  "floors": {
+    "presence": {
+      "390": {
+        "body": {
+          "floor": 0.75,
+          "won": "P99(noise)",
+          "terms": {
+            "semantic_min": 0.5,
+            "noise_quantile": 0.75,
+            "median+kMAD": 0
+          },
+          "salienceTightened": false,
+          "noiseN": 5205,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 1,
+            "p99": 1,
+            "max": 1
+          },
+          "caveats": [
+            "BINARY-CAP: noise quantile 1.000 (≈positive unit) HARD-CAPPED to 0.75 so a true miss still trips. Observed benign-flicker rate=0.3326 (responsive-visibility/lazy churn at this width) — recorded as known debt, NOT silently absorbed into the floor."
+          ]
+        },
+        "cta": {
+          "floor": 0.5,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.5,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 42,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "logo": {
+          "floor": 0.5,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.5,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 9,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "hero": {
+          "floor": 0.5,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.5,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 39,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "h1": {
+          "floor": 0.5,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.5,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 6,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        }
+      },
+      "1440": {
+        "body": {
+          "floor": 0.5,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.5,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": false,
+          "noiseN": 5082,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": []
+        },
+        "cta": {
+          "floor": 0.5,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.5,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 132,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "logo": {
+          "floor": 0.5,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.5,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 30,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "hero": {
+          "floor": 0.5,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.5,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 51,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "h1": {
+          "floor": 0.5,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.5,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 6,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        }
+      }
+    },
+    "bbox-ratio": {
+      "390": {
+        "body": {
+          "floor": 0.05,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.05,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": false,
+          "noiseN": 3474,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": []
+        },
+        "cta": {
+          "floor": 0.05,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.05,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 42,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "logo": {
+          "floor": 0.05,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.05,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 9,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "hero": {
+          "floor": 0.05,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.05,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 39,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "h1": {
+          "floor": 0.05,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.05,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 6,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        }
+      },
+      "1440": {
+        "body": {
+          "floor": 0.05,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.05,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": false,
+          "noiseN": 5082,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": []
+        },
+        "cta": {
+          "floor": 0.05,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.05,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 132,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "logo": {
+          "floor": 0.05,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.05,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 30,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "hero": {
+          "floor": 0.05,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.05,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 51,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "h1": {
+          "floor": 0.05,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.05,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 6,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        }
+      }
+    },
+    "text-contrast": {
+      "390": {
+        "body": {
+          "floor": 0.5,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.5,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": false,
+          "noiseN": 2937,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": []
+        },
+        "cta": {
+          "floor": 0.5,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.5,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 12,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "hero": {
+          "floor": 0.5,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.5,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 39,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "h1": {
+          "floor": 0.5,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.5,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 3,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        }
+      },
+      "1440": {
+        "body": {
+          "floor": 0.5,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.5,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": false,
+          "noiseN": 3675,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": []
+        },
+        "cta": {
+          "floor": 0.5,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.5,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 15,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "hero": {
+          "floor": 0.5,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.5,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 51,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "h1": {
+          "floor": 0.5,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.5,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 3,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        }
+      }
+    },
+    "color-deltaE": {
+      "390": {
+        "body": {
+          "floor": 3,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 3,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": false,
+          "noiseN": 3090,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": []
+        },
+        "cta": {
+          "floor": 3,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 3,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 18,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "logo": {
+          "floor": 3,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 3,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 6,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "hero": {
+          "floor": 3,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 3,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 39,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "h1": {
+          "floor": 3,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 3,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 3,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        }
+      },
+      "1440": {
+        "body": {
+          "floor": 3,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 3,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": false,
+          "noiseN": 3840,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": []
+        },
+        "cta": {
+          "floor": 3,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 3,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 24,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "logo": {
+          "floor": 3,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 3,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 12,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "hero": {
+          "floor": 3,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 3,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 51,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "h1": {
+          "floor": 3,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 3,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 3,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        }
+      }
+    },
+    "font-size-ratio": {
+      "390": {
+        "body": {
+          "floor": 0.03,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.03,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": false,
+          "noiseN": 3474,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": []
+        },
+        "cta": {
+          "floor": 0.03,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.03,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 42,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "logo": {
+          "floor": 0.03,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.03,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 9,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "hero": {
+          "floor": 0.03,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.03,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 39,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "h1": {
+          "floor": 0.03,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.03,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 6,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        }
+      },
+      "1440": {
+        "body": {
+          "floor": 0.03,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.03,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": false,
+          "noiseN": 5082,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": []
+        },
+        "cta": {
+          "floor": 0.03,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.03,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 132,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "logo": {
+          "floor": 0.03,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.03,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 30,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "hero": {
+          "floor": 0.03,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.03,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 51,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "h1": {
+          "floor": 0.03,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.03,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 6,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        }
+      }
+    },
+    "h-overflow": {
+      "390": {
+        "body": {
+          "floor": 0.04,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.04,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": false,
+          "noiseN": 3474,
+          "noiseStats": {
+            "median": -0.059,
+            "mad": 0.030700000000000005,
+            "p95": 0,
+            "p99": 0,
+            "max": 0.4564
+          },
+          "caveats": [
+            "ONE_SIDED: delta is an absolute position not a symmetric src↔clone delta → noise term dropped; floor=semantic_min"
+          ]
+        },
+        "cta": {
+          "floor": 0.04,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.04,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 42,
+          "noiseStats": {
+            "median": -0.3282,
+            "mad": 0.182,
+            "p95": 0.1897,
+            "p99": 0.4154,
+            "max": 0.4154
+          },
+          "caveats": [
+            "ONE_SIDED: delta is an absolute position not a symmetric src↔clone delta → noise term dropped; floor=semantic_min",
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "logo": {
+          "floor": 0.04,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.04,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 9,
+          "noiseStats": {
+            "median": -0.3718,
+            "mad": 0.1795,
+            "p95": -0.0615,
+            "p99": -0.0615,
+            "max": -0.0615
+          },
+          "caveats": [
+            "ONE_SIDED: delta is an absolute position not a symmetric src↔clone delta → noise term dropped; floor=semantic_min",
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "hero": {
+          "floor": 0.04,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.04,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 39,
+          "noiseStats": {
+            "median": -0.041,
+            "mad": 0.010299999999999997,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "ONE_SIDED: delta is an absolute position not a symmetric src↔clone delta → noise term dropped; floor=semantic_min",
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "h1": {
+          "floor": 0.04,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.04,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 6,
+          "noiseStats": {
+            "median": -0.0513,
+            "mad": 0,
+            "p95": -0.041,
+            "p99": -0.041,
+            "max": -0.041
+          },
+          "caveats": [
+            "ONE_SIDED: delta is an absolute position not a symmetric src↔clone delta → noise term dropped; floor=semantic_min",
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        }
+      },
+      "1440": {
+        "body": {
+          "floor": 0.04,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.04,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": false,
+          "noiseN": 5082,
+          "noiseStats": {
+            "median": -0.4562,
+            "mad": 0.17559999999999998,
+            "p95": -0.0694,
+            "p99": -0.0444,
+            "max": 0
+          },
+          "caveats": [
+            "ONE_SIDED: delta is an absolute position not a symmetric src↔clone delta → noise term dropped; floor=semantic_min"
+          ]
+        },
+        "cta": {
+          "floor": 0.04,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.04,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 132,
+          "noiseStats": {
+            "median": -0.8229,
+            "mad": 0.11599999999999999,
+            "p95": -0.0639,
+            "p99": -0.0167,
+            "max": -0.0167
+          },
+          "caveats": [
+            "ONE_SIDED: delta is an absolute position not a symmetric src↔clone delta → noise term dropped; floor=semantic_min",
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "logo": {
+          "floor": 0.04,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.04,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 30,
+          "noiseStats": {
+            "median": -0.2833,
+            "mad": 0.2375,
+            "p95": -0.0167,
+            "p99": -0.0167,
+            "max": -0.0167
+          },
+          "caveats": [
+            "ONE_SIDED: delta is an absolute position not a symmetric src↔clone delta → noise term dropped; floor=semantic_min",
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "hero": {
+          "floor": 0.04,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.04,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 51,
+          "noiseStats": {
+            "median": -0.0611,
+            "mad": 0.0611,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "ONE_SIDED: delta is an absolute position not a symmetric src↔clone delta → noise term dropped; floor=semantic_min",
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "h1": {
+          "floor": 0.04,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.04,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 6,
+          "noiseStats": {
+            "median": -0.2806,
+            "mad": 0,
+            "p95": -0.0611,
+            "p99": -0.0611,
+            "max": -0.0611
+          },
+          "caveats": [
+            "ONE_SIDED: delta is an absolute position not a symmetric src↔clone delta → noise term dropped; floor=semantic_min",
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        }
+      }
+    },
+    "img-src": {
+      "390": {
+        "logo": {
+          "floor": 0.5,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.5,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 3,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "body": {
+          "floor": 0.5,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.5,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": false,
+          "noiseN": 36,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": []
+        }
+      },
+      "1440": {
+        "logo": {
+          "floor": 0.5,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.5,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 3,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "body": {
+          "floor": 0.5,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 0.5,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": false,
+          "noiseN": 36,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": []
+        }
+      }
+    },
+    "img-svghash": {
+      "390": {
+        "logo": {
+          "floor": 1,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 1,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 6,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "body": {
+          "floor": 1,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 1,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": false,
+          "noiseN": 30,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": []
+        }
+      },
+      "1440": {
+        "logo": {
+          "floor": 1,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 1,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": true,
+          "noiseN": 27,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": [
+            "SALIENCE-TIGHTEN: P95 (not P99) on this human-salient bucket"
+          ]
+        },
+        "body": {
+          "floor": 1,
+          "won": "semantic_min",
+          "terms": {
+            "semantic_min": 1,
+            "noise_quantile": 0,
+            "median+kMAD": 0
+          },
+          "salienceTightened": false,
+          "noiseN": 60,
+          "noiseStats": {
+            "median": 0,
+            "mad": 0,
+            "p95": 0,
+            "p99": 0,
+            "max": 0
+          },
+          "caveats": []
+        }
+      }
+    }
+  },
+  "selfConsistency": {
+    "presence": {
+      "n": 10602,
+      "fired": 1731,
+      "fireRate": 0.1633,
+      "maxExcess": 0.25,
+      "worst": {
+        "vw": 390,
+        "bucket": "body",
+        "delta": 1,
+        "floor": 0.75
+      },
+      "verdict": "binary known-debt (benign responsive/lazy flicker recorded under BINARY-CAP; a true miss still trips — see floor caveats)"
+    },
+    "bbox-ratio": {
+      "n": 8871,
+      "fired": 0,
+      "fireRate": 0,
+      "maxExcess": 0,
+      "worst": null,
+      "verdict": "OK (≈P95/P99 cut by construction)"
+    },
+    "text-contrast": {
+      "n": 6735,
+      "fired": 0,
+      "fireRate": 0,
+      "maxExcess": 0,
+      "worst": null,
+      "verdict": "OK (≈P95/P99 cut by construction)"
+    },
+    "color-deltaE": {
+      "n": 7086,
+      "fired": 0,
+      "fireRate": 0,
+      "maxExcess": 0,
+      "worst": null,
+      "verdict": "OK (≈P95/P99 cut by construction)"
+    },
+    "font-size-ratio": {
+      "n": 8871,
+      "fired": 0,
+      "fireRate": 0,
+      "maxExcess": 0,
+      "worst": null,
+      "verdict": "OK (≈P95/P99 cut by construction)"
+    },
+    "h-overflow": {
+      "n": 8871,
+      "fired": 24,
+      "fireRate": 0.0027,
+      "maxExcess": 0.4164,
+      "worst": {
+        "vw": 390,
+        "bucket": "body",
+        "delta": 0.4564,
+        "floor": 0.04
+      },
+      "verdict": "one-sided (noise term dropped — fire-rate here is BY DESIGN, not a leak)"
+    },
+    "img-src": {
+      "n": 78,
+      "fired": 0,
+      "fireRate": 0,
+      "maxExcess": 0,
+      "worst": null,
+      "verdict": "OK (≈P95/P99 cut by construction)"
+    },
+    "img-svghash": {
+      "n": 123,
+      "fired": 0,
+      "fireRate": 0,
+      "maxExcess": 0,
+      "worst": null,
+      "verdict": "OK (≈P95/P99 cut by construction)"
+    }
+  },
+  "contaminationAudit": [
+    {
+      "path": "/tmp/compare-341.json",
+      "label": "overreacted-341 (BROKEN, human=5)",
+      "humanScore": 5,
+      "axisRollup": {
+        "presence": {
+          "n": 668,
+          "tripped": 0,
+          "tripRate": 0,
+          "meanExcess": 0,
+          "maxExcess": 0
+        },
+        "bbox-ratio": {
+          "n": 668,
+          "tripped": 443,
+          "tripRate": 0.663,
+          "meanExcess": 0.276,
+          "maxExcess": 3.593
+        },
+        "text-contrast": {
+          "n": 638,
+          "tripped": 636,
+          "tripRate": 0.997,
+          "meanExcess": 9.424,
+          "maxExcess": 11.12
+        },
+        "color-deltaE": {
+          "n": 668,
+          "tripped": 668,
+          "tripRate": 1,
+          "meanExcess": 21.381,
+          "maxExcess": 32.385
+        },
+        "font-size-ratio": {
+          "n": 668,
+          "tripped": 4,
+          "tripRate": 0.006,
+          "meanExcess": 0.32,
+          "maxExcess": 0.57
+        },
+        "h-overflow": {
+          "n": 668,
+          "tripped": 0,
+          "tripRate": 0,
+          "meanExcess": 0,
+          "maxExcess": 0
+        }
+      },
+      "verdict": "CONTAMINATED — deltas far exceed the clean-noise floor (proves exclusion from the noise corpus was correct; this clone is BROKEN, not clean)"
+    },
+    {
+      "path": "/tmp/compare-268.json",
+      "label": "tailwind-268 (BROKEN, human=0)",
+      "humanScore": 0,
+      "axisRollup": {
+        "presence": {
+          "n": 364,
+          "tripped": 182,
+          "tripRate": 0.5,
+          "meanExcess": 0.25,
+          "maxExcess": 0.25
+        },
+        "bbox-ratio": {
+          "n": 182,
+          "tripped": 122,
+          "tripRate": 0.67,
+          "meanExcess": 2.714,
+          "maxExcess": 88.95
+        },
+        "font-size-ratio": {
+          "n": 182,
+          "tripped": 88,
+          "tripRate": 0.484,
+          "meanExcess": 0.119,
+          "maxExcess": 0.57
+        },
+        "h-overflow": {
+          "n": 182,
+          "tripped": 0,
+          "tripRate": 0,
+          "meanExcess": 0,
+          "maxExcess": 0
+        },
+        "text-contrast": {
+          "n": 57,
+          "tripped": 55,
+          "tripRate": 0.965,
+          "meanExcess": 10.601,
+          "maxExcess": 18.83
+        },
+        "color-deltaE": {
+          "n": 63,
+          "tripped": 61,
+          "tripRate": 0.968,
+          "meanExcess": 19.673,
+          "maxExcess": 71.237
+        }
+      },
+      "verdict": "CONTAMINATED — deltas far exceed the clean-noise floor (proves exclusion from the noise corpus was correct; this clone is BROKEN, not clean)"
+    }
+  ]
+}
