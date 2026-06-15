@@ -93,8 +93,28 @@ const has = (k) => process.argv.includes('--' + k);
 //                           separates MISSING (truly-fatal → hard cap low, protects the broken clones + game-test)
 //                           from PRESENT-BUT-WRONG (high → a bounded MID cap with partial credit), so a recognizable
 //                           clone lands ~30-55 and fixing a defect raises the score monotonically. =0 reverts.
+//   RJ_STEP_FLOOR         — STEP-FUNCTION fix (human recalibration). A human rates a clone with ANY obvious wrongness
+//                           BROKEN (0-5) — there is NO partial credit for a present-but-wrong disqualifier. This layers
+//                           a step floor OVER the graded floor: if ANY disqualifying defect (collision/overlap,
+//                           missing-imagery, wrong/missing-logo, unstyled-CTA, invisible-heading, blank-hero) is present
+//                           at high/fatal severity → HARD-CAP the page NEAR-0 (<=8), regardless of whether the element
+//                           is "present-but-wrong". This REMOVES the present-but-wrong escape for the disqualifying
+//                           classes (closing the 26pt overreacted overstatement: judge 31 → ~5-8 vs human 5). When NONE
+//                           are present → grade by visual fidelity on the weighted-region base with NO ceiling clamp, so
+//                           a genuinely-good future clone can still score HIGH (the floor is CONDITIONAL, never zeroes a
+//                           clean clone — synthetic-clean control stays ~95-100). Non-disqualifying structural defects
+//                           (color-off/font-off/minor missing-section/wrong-layout) keep graduated penalties. =0 reverts
+//                           to today's pure graded-floor branch (byte no-op).
+//   RJ_OVERLAP_DETECT     — adds a NEW disqualifying class 'overlapping-sections' (the dominant human disqualifier the
+//                           judge missed — text/regions drawn on top of each other). TWO signals: (1) a deterministic
+//                           ink-excess proxy (a clone ATF band with markedly more ink than its source band = collapsed/
+//                           absolutely-positioned blocks piling text → collision); (2) a vision cue (inspector prompt
+//                           calls out overlap/collision/text-on-top). Either feeds the step floor as a disqualifier.
+//                           Identity-safe (source-vs-itself never flags). =0 emits no overlap class + reverts the prompt.
 const RJ_FORCE_REGION_ENUM = process.env.RJ_FORCE_REGION_ENUM !== '0';
 const RJ_GRADED_FLOOR = process.env.RJ_GRADED_FLOOR !== '0';
+const RJ_STEP_FLOOR = process.env.RJ_STEP_FLOOR !== '0';
+const RJ_OVERLAP_DETECT = process.env.RJ_OVERLAP_DETECT !== '0';
 
 // ── fatal-class taxonomy (calibration mandate: logo/heading/hero/CTA = FATAL; layout/sections = structural) ───
 // defect_class -> fatalClass bucket (null = structural, contributes to region score but does NOT trip the floor).
@@ -103,15 +123,27 @@ const FATAL_OF = {
   'invisible-text': 'heading',
   'blank-hero': 'hero', 'image-missing': null,           // a non-hero missing image is structural, not fatal
   'unstyled-cta': 'CTA',
+  'overlapping-sections': 'overlap',                     // text/regions drawn on top of one another (disqualifying)
   'wrong-layout': null, 'missing-section': null, 'color-off': null, 'font-off': null,
 };
+// DISQUALIFYING classes (human step-function): a clone with ANY of these present at high/fatal severity is BROKEN
+// (human 0-5, NO partial credit). These are the fatalClass buckets the human ticked 3/4 or 4/4 across the mid-range:
+// overlapping-sections, missing-imagery (a fatal/high image-missing), wrong/missing-logo, unstyled-CTA, invisible-
+// heading, blank-hero. The step floor caps the page NEAR-0 when any is present (regardless of present-but-wrong).
+const DISQUALIFYING_FATAL = new Set(['logo', 'heading', 'hero', 'CTA', 'overlap', 'imagery']);
 // MISSING (truly-ruinous) defect classes vs PRESENT-BUT-WRONG. The element is GONE/blank/painted-invisible (cap
 // hard-low, keep the broken clones + game-test) vs the element is THERE but degraded (mispositioned logo, flat
 // CTA, off-color-but-readable heading → high severity, partial credit). The severity-graded floor reads this.
 const MISSING_DEFECT = new Set(['missing-logo', 'invisible-text', 'blank-hero']);  // CTA "blank" routes via severity
+// (overlapping-sections is NOT in MISSING_DEFECT: under RJ_STEP_FLOOR the missing/wrong split is ignored for the
+// disqualifying classes — overlap trips the near-0 cap either way — and in the LEGACY graded-floor branch we treat
+// a detected overlap as 'wrong' (present-but-degraded) so it does not over-distort the pre-fix mid-band math.)
 // classify a fatal-class defect as 'missing' (truly fatal) or 'wrong' (present-but-degraded). Honors an explicit
 // severity 'fatal' for the genuinely-absent classes; a present-but-wrong/unstyled element is 'wrong' even if the
 // (over-eager adversarial) vision model stamped it 'fatal' — provided the pixels prove the element is PRESENT.
+// NOTE: under RJ_STEP_FLOOR the rollup IGNORES this missing/wrong distinction for the DISQUALIFYING classes (both
+// kinds trip the near-0 step cap); fatalKind is then telemetry/severity-ordering only. It still governs the legacy
+// graded-floor branch (RJ_STEP_FLOOR=0) verbatim.
 function fatalKind(d) {
   if (!d || !d.fatalClass) return null;
   if (d._presentButWrong) return 'wrong';                 // det proved the element is present (demoted) → degraded
@@ -119,7 +151,9 @@ function fatalKind(d) {
   if (d.defect_class === 'unstyled-cta' && d.severity === 'fatal') return 'missing'; // CTA totally absent/unstyled
   return 'wrong';                                         // high (or fatal present-but-wrong) → degraded, partial credit
 }
-const DEFECT_CLASSES = ['wrong-logo', 'missing-logo', 'invisible-text', 'blank-hero', 'unstyled-cta', 'wrong-layout', 'missing-section', 'image-missing', 'color-off', 'font-off'];
+const DEFECT_CLASSES = RJ_OVERLAP_DETECT
+  ? ['wrong-logo', 'missing-logo', 'invisible-text', 'blank-hero', 'unstyled-cta', 'overlapping-sections', 'wrong-layout', 'missing-section', 'image-missing', 'color-off', 'font-off']
+  : ['wrong-logo', 'missing-logo', 'invisible-text', 'blank-hero', 'unstyled-cta', 'wrong-layout', 'missing-section', 'image-missing', 'color-off', 'font-off'];
 const SEVERITY_RANK = { fatal: 4, high: 3, med: 2, low: 1 };
 
 // ── PNG helpers (deterministic corroboration is PNG-derivable; NO DOM exists for the 18 pairs) ────────────────
@@ -205,6 +239,43 @@ function saturatedMass(img, x0, y0, x1, y1, step = 2) {
     if (mx - mn > 45 && mx > 60) sat++; n++;   // chromatic + not near-black
   }
   return n ? sat / n : 0;
+}
+
+// ── COLLISION / OVERLAP DETECTOR (deterministic ink-excess proxy) ─────────────────────────────────────────────
+// The dominant human disqualifier the judge missed: text/regions drawn ON TOP of each other (collapsed or
+// absolutely-positioned blocks pile glyphs, so LOCAL ink density spikes far above the source). We band the
+// above-the-fold area into fixed source bands, scale each clone band to its source band by clone-height/source-
+// height (the proportional path used elsewhere for flat PNGs), and compute clone-ink / source-ink per band. A band
+// where the clone has MARKEDLY more ink than the source (ratio >= OVERLAP_RATIO with source ink above OVERLAP_MIN_INK)
+// is a collision candidate. IDENTITY-SAFE BY CONSTRUCTION: source-vs-itself has ratio 1.0 in every band (cln==src,
+// r==1) so a clean clone is NEVER flagged. High precision (validated: vercel 2.26 / stripe >=1.45 flagged; identity
+// 1.0, overreacted 1.03, faithful tailwind top-bands NOT flagged → those fall to the vision pass for recall).
+const OVERLAP_RATIO = 1.45;        // clone band ink must be >=145% of source band ink to flag a pile-up
+const OVERLAP_MIN_INK = 0.004;     // source band must carry real ink (skip empty/whitespace bands)
+const OVERLAP_BAND = 200;          // source band height
+const OVERLAP_ATF = 2200;          // scan the above-the-fold window (where the human-salient hero/footer collisions live)
+function overlapInkExcess(src, cln) {
+  const r = cln.height / src.height;
+  // GUARD: the proportional-band ink ratio is only meaningful when source & clone heights are COMPARABLE. An extreme
+  // height mismatch (e.g. a full 53761px clone vs a 1000px source crop — the P07-class viewport mismatch) crushes a
+  // 200px source band onto a huge clone band and INFLATES the ratio artifactually. Abstain there (the overlap signal
+  // is unreliable; defer to the vision pass) rather than emit a false collision. Identity (r==1) always passes.
+  if (r < 0.5 || r > 2.0) return { flagged: false, maxRatio: null, bandAt: -1, veto: null, abstained: true, heightRatio: +r.toFixed(3) };
+  const lim = Math.min(OVERLAP_ATF, src.height);
+  let maxRatio = 0, bandAt = -1;
+  for (let sy = 0; sy < lim; sy += OVERLAP_BAND) {
+    const sy1 = Math.min(src.height, sy + OVERLAP_BAND);
+    const cy = Math.round(sy * r), cy1 = Math.min(cln.height, Math.round(sy1 * r));
+    if (cy1 - cy < 8) continue;
+    const sInk = inkMass(src, 0, sy, src.width, sy1);
+    const cInk = inkMass(cln, 0, cy, cln.width, cy1);
+    if (sInk > OVERLAP_MIN_INK) { const ratio = cInk / sInk; if (ratio > maxRatio) { maxRatio = ratio; bandAt = sy; } }
+  }
+  const flagged = maxRatio >= OVERLAP_RATIO;
+  const veto = flagged
+    ? { defect_class: 'overlapping-sections', fatalClass: 'overlap', severity: 'fatal', evidence: `ATF band @${bandAt}px: clone ink-density ${maxRatio.toFixed(2)}x source (>=${OVERLAP_RATIO}x — sections/text collapsed/piled on top of one another, collision)`, source: 'det' }
+    : null;
+  return { flagged, maxRatio: +maxRatio.toFixed(3), bandAt, veto };
 }
 
 // ── REGION SEGMENTATION ──────────────────────────────────────────────────────────────────────────────────────
@@ -405,7 +476,8 @@ Pay special attention to (these are what a visitor instantly notices and what ma
 - the brand LOGO / wordmark: missing, blank, or replaced by a different/wrong mark.
 - HEADINGS rendered invisible or near-invisible (text painted ~the same color as its background, washed out, or absent).
 - the HERO area blank, broken, collapsed, or missing its main image/illustration.
-- primary CALL-TO-ACTION buttons unstyled (no fill/color/shape — looks like a plain link), miscolored, or missing.
+- primary CALL-TO-ACTION buttons unstyled (no fill/color/shape — looks like a plain link), miscolored, or missing.${RJ_OVERLAP_DETECT ? `
+- OVERLAPPING / COLLIDING sections: text drawn ON TOP OF other text, headings overlapping body copy, footer/nav columns stacked over content, blocks piled on each other with no gutters/spacing — anything that looks like two things occupy the same space. Use defect_class "overlapping-sections" (severity fatal) for this.` : ''}
 - whole sections missing, layout collapsed/overflowing, wrong fonts, wrong colors.
 Output ONLY this JSON, no prose, no markdown fences:
 {"defects":[{"element":"<specific element>","defect_class":"<one of: ${DEFECT_CLASSES.join('|')}>","severity":"<fatal|high|med|low>","evidence":"<what you see that is wrong>"}]}
@@ -449,6 +521,16 @@ function parseVisionDefects(list, tilePath, cloneSide, cost, model, region = {})
       const ev = (d.element + ' ' + (d.evidence || '')).toLowerCase();
       if (/hero|illustration|banner|background|main (image|graphic|visual)|backdrop/.test(ev) || dc === 'blank-hero') fatalClass = 'hero';
     }
+    // MISSING-IMAGERY disqualifier (RJ_STEP_FLOOR): the human ticked "missing imagery or panels" 4/4 across the
+    // mid-range — a substantive dropped image/panel is a STEP disqualifier, not a structural nitpick. OUTSIDE the
+    // hero band (hero already routes above), a high/fatal image-missing — OR a missing-section whose evidence names
+    // imagery/panels/screenshots/cards — maps to the 'imagery' disqualifying class. PRECISE: requires high/fatal +
+    // an imagery word, so a clean clone (no such defect) is never flagged; an incidental low-severity graphic stays
+    // structural (fatalClass=null). =0 (RJ_STEP_FLOOR off) leaves these as today's structural defects.
+    if (RJ_STEP_FLOOR && !inHero && fatalClass == null && (sev === 'fatal' || sev === 'high')) {
+      const ev = (d.element + ' ' + (d.evidence || '')).toLowerCase();
+      if (dc === 'image-missing' || (dc === 'missing-section' && /image|imagery|panel|screenshot|illustration|graphic|photo|mockup|card|thumbnail|gallery|visual/.test(ev))) fatalClass = 'imagery';
+    }
     // RECALL (RJ_FORCE_REGION_ENUM): on ALREADY-BROKEN pages the model often routes a collapsed hero / invisible
     // headline through the GENERIC classes ('missing-section', 'wrong-layout') instead of the hero/heading classes —
     // the enumeration gap that left heading/hero recall low on busy pairs. Inside the hero+heading band, re-map a
@@ -488,6 +570,7 @@ function parseVisionDefects(list, tilePath, cloneSide, cost, model, region = {})
 }
 function inferClass(dc, d) {
   const s = (dc + ' ' + (d.element || '') + ' ' + (d.evidence || '')).toLowerCase();
+  if (RJ_OVERLAP_DETECT && /overlap|collid|colid|on top of|on-top|stacked over|piled|overlapping|over each other|same space|no gutters/.test(s)) return 'overlapping-sections';
   if (/logo|wordmark|brand/.test(s)) return /missing|absent|blank|gone/.test(s) ? 'missing-logo' : 'wrong-logo';
   if (/invisible|low.contrast|washed|same colou?r|unreadable/.test(s)) return 'invisible-text';
   if (/hero/.test(s)) return 'blank-hero';
@@ -515,7 +598,7 @@ function regionScore(region, vetoes, visionDefects) {
   }
   return Math.max(0, Math.round(score));
 }
-function rollup(regions) {
+function rollup(regions, opts = {}) {
   let sw = 0, ss = 0;
   const fatalClasses = new Set();
   // SEVERITY-GRADED accounting: a fatal class is recorded as MISSING (truly ruinous — gone/blank/invisible) or
@@ -531,7 +614,36 @@ function rollup(regions) {
       if (kind === 'missing' || !classKind.has(d.fatalClass)) classKind.set(d.fatalClass, kind);
     }
   }
+  // page-level overlap veto (deterministic ink-excess proxy) folds in as a disqualifying 'overlap' class.
+  if (opts.overlapVeto && opts.overlapVeto.fatalClass) {
+    fatalClasses.add(opts.overlapVeto.fatalClass);
+    if (!classKind.has(opts.overlapVeto.fatalClass)) classKind.set(opts.overlapVeto.fatalClass, fatalKind(opts.overlapVeto) || 'missing');
+  }
   let base = sw ? ss / sw : 0;
+
+  // ── STEP FLOOR (RJ_STEP_FLOOR): model the human step-function — a clone with ANY obvious wrongness is BROKEN
+  // (human 0-5), NO partial credit for a present-but-wrong disqualifier. If ANY DISQUALIFYING class (logo/heading/
+  // hero/CTA/overlap/imagery) is present at high/fatal severity → HARD-CAP NEAR-0 (<=8), regardless of missing-vs-
+  // wrong. This REMOVES the present-but-wrong escape that let the overreacted clone (wrong-logo + unstyled-CTA +
+  // missing-panels) land 31 (human 5). CONDITIONAL: when NO disqualifying class is present, fall through to the
+  // graded floor below — which, with no fatals, keeps cap=100 and grades by base (a clean/near-perfect clone still
+  // scores HIGH; the ceiling is NEVER clamped, so a genuinely-good future clone is not penalized). =0 reverts to the
+  // pure graded floor (byte no-op). The game-test passes a-fortiori (its injected disqualifiers trip this cap harder
+  // than the old graded cap). A SYNTHETIC-CLEAN control (source-vs-itself) produces ZERO disqualifiers → never zeroed.
+  if (RJ_STEP_FLOOR) {
+    const disq = [...fatalClasses].filter(c => DISQUALIFYING_FATAL.has(c));
+    if (disq.length) {
+      // any disqualifying defect present → step the page to near-0. Keep a tiny gradient (more disqualifiers → lower)
+      // purely for ordering, all within [0,8], so two broken clones still order by how broken they are.
+      const cap = Math.max(0, 8 - 2 * (disq.length - 1));   // 1 class → 8, 2 → 6, 3 → 4, 4+ → 2/0
+      const score = Math.round(Math.min(base, cap));
+      return { score, base: +base.toFixed(1), cap, fatalClasses: [...fatalClasses], stepFloor: true, disqualifiers: disq, classKind: Object.fromEntries(classKind) };
+    }
+    // NO disqualifier present → grade by visual fidelity (base) with NO ceiling clamp. A clean clone keeps its high
+    // base. (Non-disqualifying structural defects already debited the per-region base via regionScore.)
+    const score = Math.round(base);
+    return { score, base: +base.toFixed(1), cap: 100, fatalClasses: [...fatalClasses], stepFloor: true, disqualifiers: [], classKind: Object.fromEntries(classKind) };
+  }
 
   if (!RJ_GRADED_FLOOR) {
     // LEGACY count-only cap (RJ_GRADED_FLOOR=0): identical to the pre-fix behavior.
@@ -583,6 +695,9 @@ export async function judgePair({ sourcePng, clonePng, outDir = '/tmp/region-jud
   let cost = 0, usedModel = model;
   // deterministic corroboration is synchronous + cheap → compute up-front for every region.
   const dets = regions.map(region => corroborate(region, src, cln));
+  // page-level COLLISION/OVERLAP detector (deterministic ink-excess proxy). A new disqualifying class. Identity-safe
+  // (source-vs-itself → ratio 1.0 → never flags). Folds into the step floor as a disqualifier. =0 disables.
+  const overlap = RJ_OVERLAP_DETECT ? overlapInkExcess(src, cln) : { flagged: false, maxRatio: null, bandAt: -1, veto: null };
   // CONFIRMS (PRESENT & faithful, suppresses a hallucinated vision "missing X" fatal). SCOPING matters:
   //  - logo & CTA have a SINGLE canonical isolated cell, so their confirm is legitimately GLOBAL — the model often
   //    claims "logo/CTA missing" from a non-logo region whose local det has no logo probe; pixel presence in the
@@ -668,9 +783,12 @@ export async function judgePair({ sourcePng, clonePng, outDir = '/tmp/region-jud
       owners[0]._enumVerdict = sawPresent ? 'present-ok' : 'present-ok(default)';
     }
   }
-  const ru = rollup(out);
+  const ru = rollup(out, { overlapVeto: overlap.veto });
   // flatten the per-region defect map.
   const defects = [];
+  // page-level overlap veto enters the defect list as a det defect on a synthetic 'page' region (its disqualifier
+  // already folded into the step floor via rollup's overlapVeto).
+  if (overlap.veto) defects.push({ region: 'page', element: 'colliding sections', defect_class: overlap.veto.defect_class, severity: overlap.veto.severity, evidence: overlap.veto.evidence, source: 'det', fatalClass: overlap.veto.fatalClass });
   for (const r of out) {
     for (const v of r.det.vetoes) defects.push({ region: r.name, element: v.evidence.split(':')[0], defect_class: v.defect_class, severity: v.severity, evidence: v.evidence, source: 'det', fatalClass: v.fatalClass });
     for (const d of r.visionDefects) defects.push({ region: r.name, element: d.element, defect_class: d.defect_class, severity: d.severity, evidence: d.evidence, source: 'vision', fatalClass: d.fatalClass });
@@ -679,6 +797,7 @@ export async function judgePair({ sourcePng, clonePng, outDir = '/tmp/region-jud
   return {
     score: ru.score, base: ru.base, cap: ru.cap, fatalClasses: ru.fatalClasses,
     missingCount: ru.missingCount, wrongCount: ru.wrongCount, classKind: ru.classKind, regionVerdicts,
+    stepFloor: ru.stepFloor, disqualifiers: ru.disqualifiers, overlap: { flagged: overlap.flagged, maxRatio: overlap.maxRatio, bandAt: overlap.bandAt },
     source: sourcePng, clone: clonePng, model: usedModel, costUsd: +cost.toFixed(4), vision,
     regions: out.map(({ det, ...r }) => ({ ...r, det: { signals: det.signals, vetoes: det.vetoes, confirms: det.confirms || [], presence: det.presence || [] } })),
     defects,
@@ -708,4 +827,4 @@ if (IS_MAIN) (async () => {
   }, null, 2));
 })().catch(e => { console.error('REGION-JUDGE FAILED:', e && e.stack || e); process.exit(1); });
 
-export { segmentRegions, corroborate, rollup, regionScore, textContrast, inkMass, regionStats, saturatedMass, ssim, FATAL_OF, DEFECT_CLASSES, loadPng, inspectorPrompt, inspectOnce };
+export { segmentRegions, corroborate, rollup, regionScore, textContrast, inkMass, regionStats, saturatedMass, ssim, FATAL_OF, DEFECT_CLASSES, loadPng, inspectorPrompt, inspectOnce, overlapInkExcess, DISQUALIFYING_FATAL };

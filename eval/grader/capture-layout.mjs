@@ -457,6 +457,9 @@ function cropPng(png, box, dpr) {
   // existing objectFit for crop reproduction). ADDITIVE ONLY — no existing field is touched (alt already
   // exists). CAPTURE_NO_IMGMETA=1 → __NO_IMGMETA true → the new keys are not emitted → byte-identical legacy.
   try { await page.evaluate((off) => { window.__NO_IMGMETA = off; }, process.env.CAPTURE_NO_IMGMETA === '1'); } catch {}
+  // CTA gradient fix (absolute-child fill recovery): CAPTURE_NO_ABSCHILD_FILL=1 → __NO_ABSCHILD_FILL true →
+  // a button's covering absolute-inset gradient child is NOT adopted as the button fill → byte-identical legacy.
+  try { await page.evaluate((off) => { window.__NO_ABSCHILD_FILL = off; }, process.env.CAPTURE_NO_ABSCHILD_FILL === '1'); } catch {}
 
   const data = await page.evaluate(() => {
     const MAXD = 8; const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
@@ -836,6 +839,31 @@ function cropPng(png, box, dpr) {
         if (isBtn) {
           const bi = cs.backgroundImage; if (bi && bi !== 'none' && /gradient|url\(/.test(bi)) ctaBgImage = bi;
           ctaPad = [cs.paddingTop, cs.paddingRight, cs.paddingBottom, cs.paddingLeft];
+          // ── ABSOLUTE-CHILD FILL RECOVERY (CTA gradient fix; default ON, CAPTURE_NO_ABSCHILD_FILL=1 → legacy) ──
+          // overreacted's "Pay what you like" pill is <a><span class="tip-bg"></span>label</a>: the purple→pink
+          // linear-gradient lives on that .tip-bg span (position:absolute; inset:0; z-index:-1), NOT on the <a>
+          // and NOT on any ancestor — so cs.backgroundImage on the <a> reads `none` and the decorative zero-content
+          // span is dropped by the walk → the pill loses its fill, synthesizes a WHITE surface, and white captured
+          // text renders white-on-white. FIX: when the button has NO own fill, scan its DIRECT element children for
+          // a covering decorative layer — position:absolute, inset≈0 (covers the button), z-index<=0 — that carries
+          // a gradient/url background-image, and adopt that child's backgroundImage as the button fill. The build's
+          // existing hasGrad path then renders the real gradient pill and the already-captured white text reads on
+          // it. GATED: only fires when ctaBgImage is still null (own fill always wins), only on a covering absolute
+          // child (never a foreground content child), so a normally-painted button is byte-identical.
+          if (!ctaBgImage && window.__NO_ABSCHILD_FILL !== true) {
+            const br = box; // the button's own viewport rect
+            for (const c of el.children) {
+              let ccs; try { ccs = getComputedStyle(c); } catch { continue; }
+              if (ccs.position !== 'absolute') continue;
+              const cbi = ccs.backgroundImage; if (!cbi || cbi === 'none' || !/gradient|url\(/.test(cbi)) continue;
+              const zi = parseInt(ccs.zIndex, 10); if (Number.isFinite(zi) && zi > 0) continue; // must sit at/behind the label
+              const cr = rectOf(c);
+              // covers the button: child box within ~6px of the button box on all sides (inset≈0)
+              const covers = cr.w > 0 && cr.h > 0 && cr.w >= br.w - 12 && cr.h >= br.h - 12 &&
+                cr.x <= br.x + 6 && cr.y <= br.y + 6 && cr.x + cr.w >= br.x + br.w - 6 && cr.y + cr.h >= br.y + br.h - 6;
+              if (covers) { ctaBgImage = cbi; break; }
+            }
+          }
         }
       }
       return { kind: isH ? 'heading' : (isBtn ? 'button' : 'text'), tag, level: isH ? +tag[1] : null, text: t, href: isBtn && el.href ? el.href : null, paint: paintOf(cs), typo: typo(cs), box, bg: (cs.backgroundColor !== 'rgba(0, 0, 0, 0)' ? cs.backgroundColor : null), bgImage: ctaBgImage, border: ctaBorder, btnPad: ctaPad, radius: cs.borderTopLeftRadius, boxShadow: shadowOf(cs.boxShadow), backdropFilter: bdfOf(cs), interactive: Object.keys(ia).length ? ia : null, cfx };
@@ -1582,6 +1610,15 @@ function cropPng(png, box, dpr) {
       // (syntax-highlight line spans must keep recursing into the code-panel detectors). Children are NOT walked
       // → no parent+child double-capture by construction. Trade-off (accepted): inline links/code/kbd fold into
       // the text leaf as plain prose — their text was 100% lost before.
+      // DEFERRED (inline-code monospace chips): overreacted prose carries <code>componentDidMount</code>/<code>
+      // useEffect</code>/<code>[]</code> chips that this merge flattens to plain serif prose (innerText strips the
+      // <code> tag; 19 affected paragraphs). A correct fix changes leaf()'s innerText→whitelisted-innerHTML text
+      // contract used by EVERY site — re-opening the markup-token/div-soup regressions the stripMarkupTokens gate
+      // (above) was added to prevent — so it is NOT done in this single-page push (lowest human-salience: the big
+      // <pre> panels are 62 kind:'code' leaves that already render well). If pursued: scope NARROWLY behind a new
+      // default-OFF flag (CAPTURE_INLINE_CODE_HTML) that, in THIS merge path only, emits innerHTML with ONLY <code>
+      // spans preserved and has the builder pass a scoped `code{font-family:monospace}` to the text-editor — and
+      // validate against the markup-flow-gate corpus BEFORE default-on.
       if (window.__NO_INLINEMERGE !== true && hasOwnText(el) && sameSize && !isStructuralCode(el) && inlineKidsOnly(el)) {
         return leaf(el, cs);
       }

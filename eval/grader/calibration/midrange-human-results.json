@@ -1,0 +1,6 @@
+{"tool":"joist-midrange-calibration","version":1,"results":[
+{"pair_id":"M01","site":"tailwindcss.com/docs","overall":0,"defects":["wrong/missing logo","invisible/missing heading","blank/broken hero","unstyled CTA (no button chrome)","missing imagery or panels","overlapping/colliding sections"]},
+{"pair_id":"M04","site":"stripe.com","overall":0,"defects":["wrong/missing logo","invisible/missing heading","blank/broken hero","unstyled CTA (no button chrome)","overlapping/colliding sections","missing imagery or panels"]},
+{"pair_id":"M03","site":"overreacted.io","overall":5,"defects":["wrong/missing logo","unstyled CTA (no button chrome)","missing imagery or panels"]},
+{"pair_id":"M02","site":"vercel.com","overall":0,"defects":["wrong/missing logo","invisible/missing heading","blank/broken hero","unstyled CTA (no button chrome)","overlapping/colliding sections","missing imagery or panels"]}
+]}
