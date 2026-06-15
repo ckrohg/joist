@@ -373,9 +373,34 @@ const cacheKey = (url) => { if (NO_CONTENT_CACHE || !url || !url.startsWith('/')
 async function uploadImage(url) { if (!url || url.startsWith('data:')) return; const k = cacheKey(url); if (imgMap[k] && imgMap[k].full) return; try { let buf; if (url.startsWith('/')) buf = fs.readFileSync(url); else { const r = await fetch(url); if (!r.ok) { imgMap[k] = { full: url }; return; } buf = Buffer.from(await r.arrayBuffer()); } const name = (url.split('/').pop().split('?')[0] || 'img') + (/\.[a-z0-9]+$/i.test(url.split('?')[0]) ? '' : '.jpg'); const up = await fetch(base + '/wp-json/wp/v2/media', { method: 'POST', headers: { Authorization: 'Basic ' + b64, 'Content-Type': mimeOf(url), 'Content-Disposition': `attachment; filename="${name}"` }, body: buf }); const j = await up.json(); imgMap[k] = (up.ok && j.source_url) ? { id: j.id, full: j.source_url } : { full: url }; } catch { imgMap[k] = { full: url }; } }
 const localSrc = (s) => { const k = cacheKey(s); return (imgMap[k] && imgMap[k].full) || s; };
 const localId = (s) => { const k = cacheKey(s); return imgMap[k] && imgMap[k].id; };
+// ── LAZY / NEVER-PAINTED IMAGE SRC FALLBACK (projection fidelity fix #2 — default ON; ABS_NO_SRCURL_FALLBACK=1 → old) ──
+// The abs image branch keys off n.src (currentSrc — the PAINTED variant). A lazy image that NEVER painted before the
+// capture screenshot has n.src === a data:/blob: placeholder AND natW===0 (the capture-recorded never-loaded signal),
+// so uploadImage() skips it (data:) → the hero/logo lands as a broken/placeholder image. capture-layout's imgMeta
+// ALREADY records n.srcURL = the best fetchable srcset variant (currentSrc → src attr → highest-res srcset entry),
+// which IS a real http(s) URL even when the image never painted. Prefer n.srcURL over n.src ONLY when n.src is
+// unusable (data:/blob:) OR the image never loaded (natW===0) AND srcURL is a real fetchable http(s) URL. Otherwise
+// n.src is the painted variant and stays authoritative (byte-identical for every normally-painted image).
+const NO_SRCURL = process.env.ABS_NO_SRCURL_FALLBACK === '1';
+const _badSrc = (s) => !s || /^(data:|blob:)/.test(String(s));
+const bestImgSrc = (n) => {
+  if (!n) return null;
+  const src = n.src;
+  if (NO_SRCURL) return src;
+  const lazyFail = _badSrc(src) || n.natW === 0;
+  if (lazyFail && n.srcURL && /^https?:/.test(String(n.srcURL))) return n.srcURL;
+  return src;
+};
 
 // ---- native typography ----
-function nativeTypo(n) { const t = n.typo || {}; const s = {}; if (!(t.size || t.family)) return s; s.typography_typography = 'custom'; const fam = REGFONTS[t.family] ? t.family : gFont(t.family); if (fam) { s.typography_font_family = fam; if (REGFONTS[t.family]) usedFonts.add(t.family); } if (t.size) s.typography_font_size = { unit: 'px', size: Math.round(t.size) }; if (t.weight && /^\d+$/.test(String(t.weight))) s.typography_font_weight = String(t.weight); const lh = px(t.lineHeight); if (lh) s.typography_line_height = { unit: 'px', size: Math.round(lh) }; const ls = px(t.letterSpacing); if (ls !== null && t.letterSpacing !== 'normal') s.typography_letter_spacing = { unit: 'px', size: +ls.toFixed(1) }; if (t.transform && t.transform !== 'none') s.typography_text_transform = t.transform; if (t.style && t.style !== 'normal') s.typography_font_style = t.style.startsWith('oblique') ? 'oblique' : 'italic'; return s; }
+// NAMED-WEIGHT MAP (projection fidelity fix #4 — default ON; ABS_NO_NAMEDWEIGHT=1 → drop non-numeric weights, old
+// behavior). getComputedStyle.fontWeight is almost always numeric (the browser resolves 'bold'→700), but some
+// captures/fallbacks carry a NAMED weight ('bold'/'semibold'/'medium'/…). The old `/^\d+$/` guard DROPPED those →
+// the heading/button rendered at the theme default weight (a visible fidelity loss on display type). Map the common
+// CSS named weights to their numeric equivalents so the captured weight survives. Numeric weights are unchanged.
+const NAMED_WEIGHT = { thin: '100', hairline: '100', extralight: '200', ultralight: '200', light: '300', normal: '400', regular: '400', book: '400', medium: '500', semibold: '600', demibold: '600', bold: '700', extrabold: '800', ultrabold: '800', black: '900', heavy: '900' };
+const normWeight = (w) => { const s = String(w == null ? '' : w).trim(); if (/^\d+$/.test(s)) return s; if (process.env.ABS_NO_NAMEDWEIGHT === '1') return null; const k = s.toLowerCase().replace(/[\s-]/g, ''); return NAMED_WEIGHT[k] || null; };
+function nativeTypo(n) { const t = n.typo || {}; const s = {}; if (!(t.size || t.family)) return s; s.typography_typography = 'custom'; const fam = REGFONTS[t.family] ? t.family : gFont(t.family); if (fam) { s.typography_font_family = fam; if (REGFONTS[t.family]) usedFonts.add(t.family); } if (t.size) s.typography_font_size = { unit: 'px', size: Math.round(t.size) }; const wt = normWeight(t.weight); if (wt) s.typography_font_weight = wt; const lh = px(t.lineHeight); if (lh) s.typography_line_height = { unit: 'px', size: Math.round(lh) }; const ls = px(t.letterSpacing); if (ls !== null && t.letterSpacing !== 'normal') s.typography_letter_spacing = { unit: 'px', size: +ls.toFixed(1) }; if (t.transform && t.transform !== 'none') s.typography_text_transform = t.transform; if (t.style && t.style !== 'normal') s.typography_font_style = t.style.startsWith('oblique') ? 'oblique' : 'italic'; return s; }
 
 // ── FLUID FONTS via clamp() (wall B responsive-type — default ON; ABS_NO_FLUIDFONT=1 → old fixed px) ──────────
 // WHY: a fixed-px desktop heading (e.g. 48px) stays 48px at the 390 viewport → it overflows / wraps to many
@@ -587,6 +612,103 @@ function buttonPaint(n) {
   return parts.join(';');
 }
 
+// ── LEAF OWN-CHROME PROJECTION (projection fidelity fix #5 — default ON; BUILD_NO_LEAF_CHROME=1 → old, no chrome) ──
+// A non-button TEXT leaf (chip / badge / pill / card title) frequently carries its OWN captured visual chrome —
+// a background fill, a visible border, a non-zero border-radius, a box-shadow, and interior padding — that the
+// plain text-editor/heading path THREW AWAY (those branches emit only typography + color). The styling sat on the
+// leaf element itself (n.bg / n.border / n.radius / n.boxShadow / n.btnPad, captured at capture-layout leaf()@841),
+// so this is a pure OWN-leaf projection — NO ancestor synthesis (that is BUILD_ANCESTOR_CHROME's job, button-only).
+// We return a kses-safe inline style string (only style ATTRS, no <style> tag) carrying the captured chrome, applied
+// to the text-editor <div> wrapper (text leaves) or to a companion z0 chrome rect behind a heading (so the heading
+// widget itself stays a clean native heading with editable typography — the de-inline invariant is preserved).
+// STRICT GATE (anti-over-paint): fire ONLY when the leaf's OWN chrome is genuinely non-default — a real fill OR a
+// real border OR a real shadow. A bare 0px-radius transparent prose leaf gets NOTHING (returns null) → byte-identical
+// to the old path. radius/padding alone never trigger (they are meaningless without a fill/border/shadow surface).
+const NO_LEAF_CHROME = process.env.BUILD_NO_LEAF_CHROME === '1';
+const _realRadius = (r) => { const v = px(r); return v && v > 0 ? v : 0; };
+function leafChromeParts(n) {
+  if (NO_LEAF_CHROME) return null;
+  const hasSolid = _solidBg(n.bg);
+  const hasGrad = n.bgImage && /gradient|url\(/.test(String(n.bgImage));
+  const hasBorder = n.border && /^\d/.test(String(n.border)) && !/^0px/.test(String(n.border));
+  const hasShadow = !!n.boxShadow && /(#|rgb)/i.test(String(n.boxShadow)) && /-?\d*\.?\d+px/.test(String(n.boxShadow)) && !/^rgba\(0, 0, 0, 0\)/.test(String(n.boxShadow));
+  // require a genuine SURFACE signal (fill / border / shadow); radius+padding alone are not enough to invent chrome
+  if (!hasSolid && !hasGrad && !hasBorder && !hasShadow) return null;
+  const parts = ['box-sizing:border-box'];
+  if (hasGrad) parts.push(`background-image:${n.bgImage}`);
+  if (hasSolid) parts.push(`background-color:${n.bg}`);
+  if (hasBorder) parts.push(`border:${n.border}`);
+  const rad = _realRadius(n.radius); if (rad) parts.push(`border-radius:${rad}px`);
+  const pad = _padCss(n.btnPad); if (pad) parts.push(`padding:${pad}`);
+  if (hasShadow) parts.push(`box-shadow:${n.boxShadow}`);
+  return parts.join(';');
+}
+// chrome string for a text-editor <div> wrapper (display:inline-block so padding/border hug the text like the source
+// chip, not a full-width band). Returns '' when no chrome → caller's existing style stays byte-identical.
+function leafChromeCss(n) { const c = leafChromeParts(n); return c ? `display:inline-block;${c}` : ''; }
+
+// ── ANCESTOR-CHROME RECOVERY for CTAs (projection fidelity fix #1 — default ON; BUILD_NO_ANCESTOR_CHROME=1 → off) ──
+// THE biggest human-salient lever: the calibration "empty CTA" residual. When a source CTA paints its
+// fill/border/radius/shadow on an ANCESTOR container (the leaf's OWN n.bg/n.border/n.boxShadow are null → buttonPaint
+// returns null → a bare, near-invisible anchor), recover the pill chrome from the nearest painted ancestor — the same
+// ancestor-hop pattern codePanelRecover@633-647 uses (≤6 hops, area>=0.6·leafBand, anti-over-paint). We build a
+// child→parent map once from L.root (the box-tree containers carry background{color,gradient}, border, radius,
+// boxShadow), then for a chrome-less button leaf walk up to the nearest ancestor whose box reasonably matches the
+// leaf band (the button wrapper, not a huge section) and carries a genuine surface signal. The recovered chrome is
+// synthesized onto n.bg/n.bgImage/n.border/n.radius/n.boxShadow/n.btnPad IN PLACE (build-side only — the captured
+// tree is read, the leaf object is the build's own; not persisted) so buttonPaint() + leafChromeParts() pick it up
+// with zero new code paths. STRICT: only a button-LIKE leaf (short label, kind:'button') with NO own surface, and
+// only an ancestor that is tightly-sized around it (0.6..3.0× the leaf area) → never a section-wide flood.
+const NO_ANCESTOR_CHROME = process.env.BUILD_NO_ANCESTOR_CHROME === '1';
+let _parentMap = null;
+function buildParentMap() {
+  _parentMap = new WeakMap();
+  const walk = (n) => { if (!n || n.kind !== 'container') return; for (const c of (n.children || [])) { _parentMap.set(c, n); walk(c); } };
+  walk(L.root);
+}
+const _area = (b) => (b && b.w > 0 && b.h > 0) ? b.w * b.h : 0;
+// returns an ancestor container's chrome {bg,bgImage,border,radius,boxShadow} or null. Conservatively gated.
+function ancestorChrome(n) {
+  if (NO_ANCESTOR_CHROME || !n || !n.box) return null;
+  if (_parentMap === null) buildParentMap();
+  const leafArea = _area(n.box); if (leafArea < 1) return null;
+  let a = _parentMap.get(n), hops = 0;
+  while (a && hops < 6) {
+    const ar = _area(a.box);
+    // tightly-sized wrapper around the CTA: 0.6..3.0× the leaf area (a real button wrapper, not a section band)
+    if (ar >= leafArea * 0.6 && ar <= leafArea * 3.0) {
+      const bg = (a.background && a.background.color && opaque(a.background.color)) ? a.background.color : null;
+      const bgImage = (a.background && a.background.gradient) ? a.background.gradient : null;
+      const border = (a.border && /^\d/.test(String(a.border)) && !/^0px/.test(String(a.border))) ? a.border : null;
+      const radius = (a.radius && /^\d/.test(String(a.radius)) && !/^0px/.test(String(a.radius))) ? a.radius : null;
+      const shadow = (a.boxShadow && /(#|rgb)/i.test(String(a.boxShadow)) && /-?\d*\.?\d+px/.test(String(a.boxShadow))) ? a.boxShadow : null;
+      if (bg || bgImage || border || shadow) return { bg, bgImage, border, radius, boxShadow: shadow };
+    }
+    a = _parentMap.get(a); hops++;
+  }
+  return null;
+}
+let ANCESTOR_CHROME_HITS = 0;
+// MUTATE a chrome-less button leaf in place with recovered ancestor chrome (so buttonPaint/leafChromeParts pick it up).
+function applyAncestorChrome(n) {
+  if (NO_ANCESTOR_CHROME || !n || n.kind !== 'button') return;
+  const t = (n.text || '').trim(); if (!t || t.length > 48) return;       // short CTA label, not prose
+  const ownSolid = _solidBg(n.bg);
+  const ownGrad = n.bgImage && /gradient|url\(/.test(String(n.bgImage));
+  const ownBorder = n.border && /^\d/.test(String(n.border)) && !/^0px/.test(String(n.border));
+  const ownShadow = !!n.boxShadow && /(#|rgb)/i.test(String(n.boxShadow));
+  if (ownSolid || ownGrad || ownBorder || ownShadow) return;              // already has its own surface → leave it
+  const c = ancestorChrome(n); if (!c) return;
+  if (c.bg && !n.bg) n.bg = c.bg;
+  if (c.bgImage && !n.bgImage) n.bgImage = c.bgImage;
+  if (c.border && !n.border) n.border = c.border;
+  if (c.radius && (!n.radius || /^0px/.test(String(n.radius)))) n.radius = c.radius;
+  if (c.boxShadow && !n.boxShadow) n.boxShadow = c.boxShadow;
+  // give a recovered pill sensible interior padding if the leaf had none (so the fill hugs the label, not 0-pad text)
+  if (!n.btnPad && (c.bg || c.bgImage || c.border)) n.btnPad = ['8px', '18px', '8px', '18px'];
+  ANCESTOR_CHROME_HITS++;
+}
+
 // CODE-PANEL RENDER (code-panel-render fix): a kind:'code' leaf was rendered as a bare transparent <pre> with a
 // LIGHT captured text color (paint.value ≈ rgb(240,240,240)) and NO background → on resend/linear the dark panel
 // bg lived on an ANCESTOR (lost at capture as bg:null) so the panel rendered as a void / light-bg illegible run-on.
@@ -679,7 +801,7 @@ function leafWidget(n, target, origin) {
   // normal widgets incl. the mockup raster; below the 90000+ raster-band fallback) so they always paint over
   // the image regardless of flatten order.
   const P = absPos(box, n.overlay ? oz++ : z++, origin);
-  if (n.kind === 'image') { const id = localId(n.src); const img = id ? { url: localSrc(n.src), id } : { url: localSrc(n.src) }; const IC = imgCapSettings(box, n); sink.push({ elType: 'widget', widgetType: 'image', settings: { image: img, image_size: 'full', width: { unit: 'px', size: Math.round(box.w) }, ...IC, ...P, ...mobileAbsenceHide(n, IC) } }); return; }
+  if (n.kind === 'image') { const isrc = bestImgSrc(n); const id = localId(isrc); const img = id ? { url: localSrc(isrc), id } : { url: localSrc(isrc) }; const IC = imgCapSettings(box, n); sink.push({ elType: 'widget', widgetType: 'image', settings: { image: img, image_size: 'full', width: { unit: 'px', size: Math.round(box.w) }, ...IC, ...P, ...mobileAbsenceHide(n, IC) } }); return; }
   if ((n.kind === 'svg' || n.kind === 'mockup') && n.raster && n.raster !== 'SKIP') { const IC = imgCapSettings(box, n); sink.push({ elType: 'widget', widgetType: 'image', settings: { image: { url: localSrc(n.raster) }, image_size: 'full', width: { unit: 'px', size: Math.round(box.w) }, ...IC, ...P, ...mobileAbsenceHide(n, IC) } }); return; }
   if (n.kind === 'code') { sink.push(codePanelWidget(n, P, PB)); return; }
   // VIDEO: emit an ALWAYS-PRESENT <iframe>/<video> inside an `html` widget for ALL providers — NOT the
@@ -883,11 +1005,24 @@ function leafWidget(n, target, origin) {
   // heading: native heading widget renders the title as a bare text node inside <hN> (no inner HTML we control),
   // so title_color is the only lever — but a bare heading glyph has no theme <a>/wrapper rule overriding it, so
   // title_color lands as the rendered cs.color. keep it (plus typography).
-  if (n.kind === 'heading') { const FF = fluidFontSettings(n); sink.push({ elType: 'widget', widgetType: 'heading', settings: { title: text, header_size: 'h' + Math.min(6, Math.max(1, n.level || 2)), ...nativeTypo(n), ...FF, ...(tc ? { title_color: tc } : {}), ...globalRefSettings(n, 'title_color'), ...P, ...mobileAbsenceHide(n, FF) } }); return; }
+  if (n.kind === 'heading') {
+    // LEAF OWN-CHROME (#5, heading variant): a heading with its OWN captured fill/border/radius/shadow (a section
+    // title rendered as a pill/badge, a bordered eyebrow) keeps the heading widget CLEAN (native, editable
+    // typography) and paints the chrome on a companion z0 rect pinned to the SAME box behind it. kses-safe (style
+    // attr only). '' / no rect for a plain heading → byte-identical to the old path. BUILD_NO_LEAF_CHROME=1 → off.
+    const hChrome = leafChromeParts(n);
+    if (hChrome) sink.push({ elType: 'widget', widgetType: 'html', settings: { html: `<div style="width:100%;height:100%;${hChrome}"></div>`, ...absPos(box, 0, origin) } });
+    const FF = fluidFontSettings(n); sink.push({ elType: 'widget', widgetType: 'heading', settings: { title: text, header_size: 'h' + Math.min(6, Math.max(1, n.level || 2)), ...nativeTypo(n), ...FF, ...(tc ? { title_color: tc } : {}), ...globalRefSettings(n, 'title_color'), ...P, ...mobileAbsenceHide(n, FF) } }); return;
+  }
   // button/link: the <a> inherits the THEME link color (a{color:…}) which beats text_color → INLINE-stamp the
   // captured color on the <a> itself (highest specificity, kses-safe) so the re-captured cs.color == source.
   if (n.kind === 'button') {
     const FF = fluidFontSettings(n);
+    // ANCESTOR-CHROME RECOVERY (#1, the "empty CTA" residual): when this CTA's OWN fill/border/shadow are null but
+    // the source paints the pill on a near-ancestor container, recover that chrome onto the leaf IN PLACE so the
+    // buttonPaint() call below styles a real filled/outlined pill instead of a bare invisible anchor. No-op when the
+    // leaf already has its own surface, when no tight painted ancestor exists, or under BUILD_NO_ANCESTOR_CHROME=1.
+    applyAncestorChrome(n);
     // body-cta-paint fix: if the SOURCE styles this leaf as a button (fill/border/tag — see buttonPaint), emit a
     // styled inline-block <a> carrying the captured fill/border/radius/padding/shadow so a filled/outlined CTA
     // renders as a real button instead of near-invisible plain text. Else fall back to the bare colored anchor.
@@ -910,7 +1045,12 @@ function leafWidget(n, target, origin) {
   // captured width — keep it one line in the clone (white-space:nowrap) so the wider fallback font can't wrap it
   // to 2 lines and overlap the stacked headline below (see the wrap-guard pre-pass in main()).
   const inlineCc = DEINLINE ? '' : cc;
-  const textCss = n._noWrap ? (inlineCc ? inlineCc + ';white-space:nowrap' : 'white-space:nowrap') : inlineCc;
+  // LEAF OWN-CHROME (#5): a chip/badge/pill text leaf carries its own captured fill/border/radius/shadow/padding —
+  // project it inline on the <div> (kses-safe style attr) so the chrome survives. '' for a plain prose leaf →
+  // byte-identical to the old path. BUILD_NO_LEAF_CHROME=1 → '' always (old behavior).
+  const chromeCss = leafChromeCss(n);
+  const baseTextCss = [inlineCc, chromeCss].filter(Boolean).join(';');
+  const textCss = n._noWrap ? (baseTextCss ? baseTextCss + ';white-space:nowrap' : 'white-space:nowrap') : baseTextCss;
   const FF = fluidFontSettings(n);
   sink.push({ elType: 'widget', widgetType: 'text-editor', settings: { editor: `<div${styleAttr(textCss)}>${esc(text)}</div>`, ...nativeTypo(n), ...FF, ...(tc ? { text_color: tc } : {}), ...globalRefSettings(n, 'text_color'), ...P, ...mobileAbsenceHide(n, FF) } });
 }
@@ -1869,7 +2009,7 @@ function buildRealHeader(nav, proMode, slug) {
     ...(headerBg ? { background_background: 'classic', background_color: headerBg } : {}),
   };
   const logoWidget = (() => {
-    if (nav.logo) { const src = localSrc(nav.logo.src || nav.logo.raster); if (src && src !== 'SKIP') { const h = round(Math.min(48, (nav.logo.box && nav.logo.box.h) || 32)); return { elType: 'widget', widgetType: 'html', settings: { html: `<img src="${esc(src)}" alt="${esc(nav.logo.alt || 'logo')}" style="display:block;height:${h}px;width:auto;max-width:200px">` } }; } }
+    if (nav.logo) { const raw = (nav.logo.kind === 'image' ? bestImgSrc(nav.logo) : null) || nav.logo.src || nav.logo.raster; const src = localSrc(raw); if (src && src !== 'SKIP') { const h = round(Math.min(48, (nav.logo.box && nav.logo.box.h) || 32)); return { elType: 'widget', widgetType: 'html', settings: { html: `<img src="${esc(src)}" alt="${esc(nav.logo.alt || 'logo')}" style="display:block;height:${h}px;width:auto;max-width:200px">` } }; } }
     const lt = nav.logoText ? stripEmoji(nav.logoText.text) : '';
     // DE-INLINE (nav-channel, C r4): native text_color authoritative; plain <div> leaf bleeds nothing (C-r1
     // finding 4) → no reset. ABS_NO_DEINLINE=1 → legacy inline stamp, byte-identical.
@@ -2224,14 +2364,27 @@ async function registerSourceFonts(b64v) {
   console.log(`font-registration: ON — registered ${regCount} proprietary display family(ies) [${[...byFamily.keys()].join(', ')}] (${faceCount} face upload(s)) → REGFONTS populated, typography_font_family keeps the REAL face`);
 }
 
+// ── OFFLINE DRY-RUN / TREE CENSUS (projection self-test hook — default OFF; ABS_DRY_RUN=1 → no network, dump+exit) ──
+// Build the FULL widget tree from a captured layout.json WITHOUT touching the network: skip image uploads, font
+// registration, the raster-fallback playwright launch, the kit/menu/meta writes, and the page PUT. Dump the built
+// `root` tree to ABS_DUMP_TREE (or /tmp/abs-dryrun-<pageId>.json) and exit 0. This is what build-projection.mjs's
+// --census consumes to PROVE — offline — that body paragraphs + a CTA-with-label + the logo Image widget are all
+// PRESENT in the emitted tree (the exact things the retired LLM-reconstruction lineage dropped). resolveBase() still
+// guards `base`, but no fetch is ever issued in DRY_RUN, so it is safe against any host.
+const DRY_RUN = process.env.ABS_DRY_RUN === '1';
+const dryDump = process.env.ABS_DUMP_TREE || `/tmp/abs-dryrun-${pageId}.json`;
+
 (async () => {
   // upload images + rasters referenced by leaves
-  const srcs = new Set(); const collect = (n) => { if (!n) return; if (n.kind === 'image' && n.src) srcs.add(n.src); else if ((n.kind === 'svg' || n.kind === 'mockup') && n.raster && n.raster !== 'SKIP') srcs.add(n.raster); else if (n.kind === 'video' && !NO_VIDEO_ICONFIX && n.poster) srcs.add(n.poster); else if (n.kind === 'container') { if (n.background && n.background.image) srcs.add(n.background.image); (n.children || []).forEach(collect); } }; collect(L.root);
-  const fresh = [...srcs].filter((u) => { const k = cacheKey(u); return !(imgMap[k] && imgMap[k].full); }); console.log(`images: ${srcs.size} total, ${fresh.length} to upload…`);
-  for (const u of fresh) { await uploadImage(u); await sleep(250); } try { fs.writeFileSync(IMG_CACHE, JSON.stringify(imgMap, null, 2)); } catch {}
+  // collect() gathers every uploadable asset url. For images, prefer bestImgSrc(n) (n.srcURL when n.src is a
+  // data:/blob: placeholder or the image never painted, natW===0) so a lazy/never-painted hero/logo uploads its
+  // REAL fetchable variant instead of nothing — see bestImgSrc (ABS_NO_SRCURL_FALLBACK=1 → n.src only, old behavior).
+  const srcs = new Set(); const collect = (n) => { if (!n) return; if (n.kind === 'image') { const s = bestImgSrc(n); if (s && !_badSrc(s)) srcs.add(s); } else if ((n.kind === 'svg' || n.kind === 'mockup') && n.raster && n.raster !== 'SKIP') srcs.add(n.raster); else if (n.kind === 'video' && !NO_VIDEO_ICONFIX && n.poster) srcs.add(n.poster); else if (n.kind === 'container') { if (n.background && n.background.image) srcs.add(n.background.image); (n.children || []).forEach(collect); } }; collect(L.root);
+  const fresh = [...srcs].filter((u) => { const k = cacheKey(u); return !(imgMap[k] && imgMap[k].full); }); console.log(`images: ${srcs.size} total, ${fresh.length} to upload…${DRY_RUN ? ' [DRY_RUN — skipped]' : ''}`);
+  if (!DRY_RUN) { for (const u of fresh) { await uploadImage(u); await sleep(250); } try { fs.writeFileSync(IMG_CACHE, JSON.stringify(imgMap, null, 2)); } catch {} }
   // DISPLAY-FONT REGISTRATION — MUST run before flatten()/nativeTypo() (REGFONTS is read per-leaf there) and before
   // assignGlobals() (typo clusters check REGFONTS[sig._rawFam]). Self-hosts the source's proprietary display faces.
-  await registerSourceFonts(b64);
+  if (!DRY_RUN) await registerSourceFonts(b64);
 
   // pick a real (WP-hosted, non-data:) image url to reuse as the invisible textless probe child inside each
   // SOLID-color bgRect (so capture re-emits the bg div as a color-bearing container — round-44 background-color
@@ -2410,7 +2563,7 @@ async function registerSourceFonts(b64v) {
   emitLandmarks(L.root, headerThreshold);
   // RASTER FALLBACK bands: slice the SOURCE pixels for each grader-chosen band → absolute image widget(s)
   // (downscaled to 1440 = container width, split <2400 under WP's threshold). Covers what native couldn't.
-  if (rasterBands.length || bgBands.length) {
+  if ((rasterBands.length || bgBands.length) && !DRY_RUN) {
     console.log(`operators: raster ${rasterBands.length} band(s), bg ${bgBands.length} band(s)`);
     const { chromium } = await import('playwright');
     const br = await chromium.launch({ args: ['--disable-blink-features=AutomationControlled'] });
@@ -2486,18 +2639,20 @@ async function registerSourceFonts(b64v) {
   // its `--e-global-color-<tok>` / `--e-global-typography-<tok>-*` vars before the page references them. The token
   // VALUES == the captured values, so the global vars resolve to the exact captured pixels → render unchanged.
   // No-op under ABS_NO_GLOBALS=1. The inline fallbacks on every widget keep the render correct even if this fails.
-  await writeKitGlobals(headers);
+  if (!DRY_RUN) await writeKitGlobals(headers);
 
   // REAL HEADER NAVIGATION (USER-FEEDBACK #2 proven Path A): Pro gate → per-page WP menu → sticky full-width
   // header container holding a real nav-menu widget (or Path C structural fallback). PREPENDED to root.elements
   // (it is a flow position:fixed container, NOT .elementor-absolute, so the <=1024 un-pin rule never touches it).
+  // DRY_RUN: skip the Pro probe + menu CREATE network; still build the Path C (no-Pro, no-slug) header so the
+  // LOGO Image widget lands in the census tree (the census asserts the logo is a required present widget).
   let navFallbackCss = '';
   if (navInfo && navInfo.nav) {
-    const proMode = await detectPro(basicHeaders);
+    const proMode = DRY_RUN ? false : await detectPro(basicHeaders);
     let slug = null;
     // Create the real WP menu when Pro (binds the nav-menu widget) OR when the no-Pro
     // shortcode fallback is enabled (the [joist_nav_menu] needs a menu to point at).
-    if (proMode || NAV_SHORTCODE) slug = await createNavMenu(navInfo.nav.items, pageId, basicHeaders);
+    if (!DRY_RUN && (proMode || NAV_SHORTCODE)) slug = await createNavMenu(navInfo.nav.items, pageId, basicHeaders);
     const built = buildRealHeader(navInfo.nav, !!(proMode && slug), slug);
     root.elements.unshift(built.container);
     navFallbackCss = built.fallbackCss || '';
@@ -2722,9 +2877,20 @@ async function registerSourceFonts(b64v) {
   // is set to a file path, dump the EXACT built `root` tree that is about to be PUT so an external verifier can count
   // widgets carrying a `__globals__` settings sibling (the read endpoint returns only a tree_summary, not settings).
   if (process.env.ABS_DUMP_TREE) { try { fs.writeFileSync(process.env.ABS_DUMP_TREE, JSON.stringify(root)); console.log(`ABS_DUMP_TREE → ${process.env.ABS_DUMP_TREE}`); } catch (e) { console.log('ABS_DUMP_TREE write failed', String(e).slice(0, 80)); } }
+  console.log(`ancestor-chrome recovery: ${NO_ANCESTOR_CHROME ? 'OFF (BUILD_NO_ANCESTOR_CHROME=1)' : `ON — ${ANCESTOR_CHROME_HITS} CTA(s) recovered pill chrome from a painted ancestor`}`);
+  console.log(`leaf own-chrome projection: ${NO_LEAF_CHROME ? 'OFF (BUILD_NO_LEAF_CHROME=1)' : 'ON — chip/badge/card text leaves carry captured border/radius/shadow/bg'} | named-weight map: ${process.env.ABS_NO_NAMEDWEIGHT === '1' ? 'OFF' : 'ON'} | srcURL lazy-fallback: ${NO_SRCURL ? 'OFF' : 'ON'}`);
+  // OFFLINE DRY-RUN EXIT: dump the fully-built tree + page_settings and STOP before any page write. No PUT, no
+  // meta/template writes, no id-map read-back. This is the offline self-test surface (build-projection --census).
+  if (DRY_RUN) {
+    try { fs.writeFileSync(dryDump, JSON.stringify({ elements: [root], page_settings: pageSettings })); console.log(`DRY_RUN tree → ${dryDump} (${bgRects.length} bg rects + ${widgets.length} widgets; NO network write)`); } catch (e) { console.log('DRY_RUN dump write failed', String(e).slice(0, 100)); process.exit(1); }
+    if (!NO_ANCESTOR_CHROME) console.log(`ancestor-chrome recovery: ${ANCESTOR_CHROME_HITS} CTA(s) recovered pill chrome from a painted ancestor`);
+    console.log('PAGE: (dry-run — not published)');
+    return;
+  }
   let r, txt, expected = (await (await fetch(`${base}/wp-json/joist/v1/pages/${pageId}`, { headers })).json()).elementor?.hash;
   for (let a = 0; a < 5; a++) { const body = { expected_hash: expected, elements: [root], page_settings: pageSettings, title: 'Absolute 1:1 clone', intent: 'absolute-positioned native' }; r = await fetch(`${base}/wp-json/joist/v1/pages/${pageId}`, { method: 'PUT', headers, body: JSON.stringify(body) }); txt = await r.text(); if (r.status !== 409) break; try { expected = JSON.parse(txt).details.current_hash; } catch {} await sleep(400); }
   console.log('PUT', r.status, txt.slice(0, 90));
+  if (process.env.ABS_PUT_DEBUG === '1' && r.status >= 400) { try { fs.writeFileSync('/tmp/abs-put-err-' + pageId + '.json', txt); console.log('ABS_PUT_DEBUG → /tmp/abs-put-err-' + pageId + '.json (' + txt.length + ' bytes)'); } catch {} }
   // USER-FEEDBACK FIX #1 (full-width): set edit_mode=builder (else frontend serves post_content FALLBACK) AND
   // assign the Elementor Canvas template so the Jupiter X theme's boxed Bootstrap column
   // (#jupiterx-primary.col-lg-12, ~1100px) + injected "My WordPress + Search" navbar are bypassed —

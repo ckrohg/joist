@@ -1,0 +1,72 @@
+<!doctype html><html><head><meta charset=utf-8><title>Joist mid-range calibration — blind scoring</title>
+<style>
+ body{font:14px/1.5 -apple-system,system-ui,sans-serif;margin:0;background:#0e0f12;color:#e8e8ea}
+ header{position:sticky;top:0;background:#15171c;padding:12px 20px;border-bottom:1px solid #2a2d34;z-index:10}
+ h1{margin:0 0 4px;font-size:16px}.sub{color:#9aa0aa;font-size:12px;max-width:1040px}
+ .sub b{color:#e8e8ea}.hl{color:#ffcf5b}
+ .pair{border:1px solid #2a2d34;border-radius:10px;margin:18px 20px;padding:14px;background:#13151a}
+ .imgs{display:flex;gap:12px}.col{flex:1;min-width:0}
+ .col h3{margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+ .src h3{color:#5b9dff}.cln h3{color:#ff9d4d}
+ .view{height:520px;overflow:auto;border:1px solid #2a2d34;border-radius:6px;background:#fff}
+ .view img{width:100%;display:block}
+ .score{display:flex;align-items:center;gap:18px;margin-top:12px;flex-wrap:wrap}
+ .ov{display:flex;align-items:center;gap:8px}
+ .ov input{width:80px;font-size:18px;padding:5px;background:#0e0f12;color:#fff;border:1px solid #3a3d44;border-radius:5px}
+ .ov input:invalid{border-color:#c0563f}
+ .defects{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:#c7ccd4}
+ .defects label{display:flex;gap:4px;align-items:center;cursor:pointer}
+ details{margin-top:8px}.axes{display:flex;gap:12px;flex-wrap:wrap;margin-top:6px}
+ .axes label{font-size:11px;color:#9aa0aa;display:flex;flex-direction:column;gap:3px}
+ .axes input{width:64px;background:#0e0f12;color:#fff;border:1px solid #3a3d44;border-radius:4px;padding:3px}
+ footer{position:sticky;bottom:0;background:#15171c;border-top:1px solid #2a2d34;padding:10px 20px;display:flex;gap:14px;align-items:center}
+ button{background:#2d6cdf;color:#fff;border:0;border-radius:6px;padding:8px 14px;font-size:13px;cursor:pointer}
+ button.ghost{background:#272a31}#prog{color:#9aa0aa;font-size:12px}#saved{color:#5fd08a;font-size:12px;min-width:90px}
+ .meta{font-size:12px;color:#9aa0aa;margin-bottom:8px}
+</style></head><body>
+<header><h1>Joist mid-range calibration — blind human scoring</h1>
+<div class=sub>These are <b>projection-quality</b> clones — score what a <b>real visitor</b> perceives, not a pixel-diff.
+<b>0</b> = totally wrong / broken · <b>100</b> = indistinguishable from source.
+We need the <b class=hl>MID-RANGE</b>: these are recognizable-but-imperfect rebuilds, so most should land somewhere between "obviously a clone" and "near-perfect" — please use the whole 0–100 scale, not just the extremes.
+<b>Overall (0–100) is the only required field.</b> Tick any instantly-broken defect; per-axis is optional. Captures are tall — each panel scrolls independently. Your work <b>autosaves</b> in this browser — do it in any order, close &amp; come back, then <b>Download</b> (or Copy) when done.</div></header>
+<main id=main></main>
+<footer><span id=prog></span><span id=saved></span>
+ <button onclick=exportJSON()>⬇ Download results JSON</button>
+ <button class=ghost onclick=copyJSON()>📋 Copy JSON</button>
+ <button class=ghost onclick=clearAll()>Reset</button></footer>
+<script>
+const PAIRS=[
+ {"id":"M01","site":"tailwindcss.com/docs","band":"","src":"../.shots/calib-tailwind-source.png","cln":"../.shots/calib-tailwind-clone.png"},
+ {"id":"M04","site":"stripe.com","band":"","src":"../.shots/calib-stripe-source.png","cln":"../.shots/calib-stripe-clone.png"},
+ {"id":"M03","site":"overreacted.io (Guide to useEffect)","band":"","src":"../.shots/src-overreacted-top.png","cln":"../.shots/proj-overreacted-258-top.png"},
+ {"id":"M02","site":"vercel.com","band":"","src":"../.shots/calib-vercel-source.png","cln":"../.shots/calib-vercel-clone.png"}
+];
+const KEY='joist-midrange-v1';
+let data=JSON.parse(localStorage.getItem(KEY)||'{}');
+const DEFECTS=['wrong/missing logo','invisible/missing heading','blank/broken hero','unstyled CTA (no button chrome)','overlapping/colliding sections','missing imagery or panels'];
+const AXES=['pixel','responsive','motion','editability'];
+function el(h){const d=document.createElement('div');d.innerHTML=h;return d.firstElementChild}
+function render(){const m=document.getElementById('main');m.innerHTML='';
+ PAIRS.forEach((p,i)=>{const d=data[p.id]||{};
+  m.appendChild(el(`<div class=pair>
+   <div class=meta>Pair ${i+1} / ${PAIRS.length} · <code>${p.id}</code> · ${p.site}</div>
+   <div class=imgs>
+    <div class="col src"><h3>Source</h3><div class=view><img loading=lazy src="${p.src}"></div></div>
+    <div class="col cln"><h3>Clone</h3><div class=view><img loading=lazy src="${p.cln}"></div></div></div>
+   <div class=score><div class=ov><b>Overall</b>
+     <input type=number min=0 max=100 required placeholder="0–100" value="${d.overall??''}" oninput="set('${p.id}','overall',this.value)"></div>
+    <div class=defects>${DEFECTS.map(x=>`<label><input type=checkbox ${(d.defects||[]).includes(x)?'checked':''} onchange="tog('${p.id}','${x}',this.checked)">${x}</label>`).join('')}</div></div>
+   <details><summary style="cursor:pointer;color:#9aa0aa;font-size:12px">per-axis detail (optional)</summary>
+    <div class=axes>${AXES.map(a=>`<label>${a}<input type=number min=0 max=100 placeholder="0–100" value="${(d.axes||{})[a]??''}" oninput="setAx('${p.id}','${a}',this.value)"></label>`).join('')}</div></details></div>`));
+ });prog();}
+function save(){localStorage.setItem(KEY,JSON.stringify(data));const s=document.getElementById('saved');s.textContent='✓ autosaved';clearTimeout(window._t);window._t=setTimeout(()=>s.textContent='',1200);prog();}
+function set(id,k,v){data[id]=data[id]||{};data[id][k]=v===''?undefined:+v;save();}
+function setAx(id,a,v){data[id]=data[id]||{};data[id].axes=data[id].axes||{};data[id].axes[a]=v===''?undefined:+v;save();}
+function tog(id,x,on){data[id]=data[id]||{};const s=new Set(data[id].defects||[]);on?s.add(x):s.delete(x);data[id].defects=[...s];save();}
+function prog(){const n=PAIRS.filter(p=>data[p.id]&&data[p.id].overall!=null).length;document.getElementById('prog').textContent=`${n} / ${PAIRS.length} overall scored`;}
+function payload(){return{tool:'joist-midrange-calibration',version:1,results:PAIRS.map(p=>({pair_id:p.id,site:p.site,...(data[p.id]||{})}))};}
+function exportJSON(){const b=new Blob([JSON.stringify(payload(),null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='joist-midrange-results.json';a.click();}
+function copyJSON(){navigator.clipboard.writeText(JSON.stringify(payload(),null,2)).then(()=>{const s=document.getElementById('saved');s.textContent='✓ copied';setTimeout(()=>s.textContent='',1500);});}
+function clearAll(){if(confirm('Clear all your scores?')){data={};localStorage.removeItem(KEY);render();}}
+render();
+</script></body></html>
