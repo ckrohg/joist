@@ -3309,6 +3309,31 @@ const dryDump = process.env.ABS_DUMP_TREE || `/tmp/abs-dryrun-${pageId}.json`;
     fixImg(root);
     if (imgStripped || radRescued) console.log(`image-key normalize: stripped ${imgStripped} invalid image-only key(s) + rescued ${radRescued} radius→scoped css (desktop geometry unchanged; absolute wrapper sizes images)`);
   }
+  // ── ELEMENT-ID STAMP (default ON; ABS_NO_STAMP_IDS=1 reverts) ──────────────────────────────────
+  // ROOT-CAUSE FIX (2026-06-15): Elementor keys every per-element rule on `.elementor-element-<id>`
+  // where <id> is the NODE's own `id` field. The builder never set it — it relied on the server to
+  // stamp ids. But the POSTMETA-BYPASS write path (the production path, since the strict plugin PUT
+  // 422s on the universal abs controls) writes raw `_elementor_data` and SKIPS Elementor's id-stamping
+  // normalizer → every node ships id-less → the generated CSS is 2000+ EMPTY `.elementor-element-{`
+  // selectors → no per-element geometry binds → the whole absolute layout COLLAPSES to a ~150px sliver.
+  // (The "good" renders we saw were resting on EPHEMERAL in-memory ids Elementor assigns on first render;
+  // they do NOT survive a CSS regen.) Fix: stamp a unique Elementor-format 7-hex id on every node here,
+  // BEFORE either write path serializes the tree, so the selectors are real and the geometry binds durably.
+  if (process.env.ABS_NO_STAMP_IDS !== '1') {
+    const seenIds = new Set();
+    const genId = () => { let id; do { id = Math.random().toString(16).slice(2, 9).padEnd(7, '0'); } while (seenIds.has(id)); seenIds.add(id); return id; };
+    let stamped = 0, kept = 0;
+    const stampIds = (node) => {
+      if (!node || typeof node !== 'object') return;
+      if (node.elType) { // a real Elementor element (container/widget), not a settings leaf
+        if (node.id && /^[a-z0-9]{6,8}$/.test(String(node.id)) && !seenIds.has(node.id)) { seenIds.add(node.id); kept++; }
+        else { node.id = genId(); stamped++; }
+      }
+      for (const c of (node.elements || [])) stampIds(c);
+    };
+    stampIds(root);
+    console.log(`element-id stamp: assigned ${stamped} unique node id(s)${kept ? ` (+${kept} pre-existing kept)` : ''} → real .elementor-element-<id> selectors (durable geometry, survives CSS regen)`);
+  }
   const collectIds = (node, key, out) => { if (!node || typeof node !== 'object') return; if (node.settings && key in node.settings) { const id = node.settings._element_id; if (id) out.push({ id, val: node.settings[key] }); } for (const c of (node.elements || [])) collectIds(c, key, out); };
   const stripKey = (node, key) => { let n = 0; if (!node || typeof node !== 'object') return 0; if (node.settings && key in node.settings) { delete node.settings[key]; n++; } for (const c of (node.elements || [])) n += stripKey(c, key); return n; };
   let r, txt, expected = (await (await fetch(`${base}/wp-json/joist/v1/pages/${pageId}`, { headers })).json()).elementor?.hash;
