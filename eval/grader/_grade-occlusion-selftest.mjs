@@ -39,8 +39,14 @@ const ok = (name, pass, detail = '') => { results.push({ name, pass: !!pass, det
 
 // ── (B) offline replay on cached blobs ────────────────────────────────────────────────────────────────────────
 function loadBlob(p) { try { return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : null; } catch { return null; } }
-const CATASTROPHE = ['/tmp/compare-343.json', '/tmp/compare-392.json'];
-const CLEAN = ['/tmp/compare-341.json', '/tmp/compare-268.json', '/tmp/compare-439.json'];
+// GENUINE catastrophes (a real cross-section pile of UNIQUE-stamp content) — MUST still trip after the dedup-guard.
+const CATASTROPHE = ['/tmp/compare-343.json'];
+// CLEAN / NO-pile — MUST stay uncapped. compare-392 (linear) and compare-343-collisionfix were FALSE catastrophes:
+//   compare-392 → a PHANTOM panel collision from a deduped twin-SVG stamp (the bug this guard fixes); the two panels
+//     actually render correctly stacked (LOOK-confirmed). Pre-guard it false-tripped catastrophic (OCC 0.125).
+//   compare-343-collisionfix → the supabase blob AFTER the real builder collision fix (no genuine pile remains).
+const CLEAN = ['/tmp/compare-341.json', '/tmp/compare-268.json', '/tmp/compare-439.json',
+  '/tmp/compare-392.json', '/tmp/compare-343-collisionfix.json'];
 
 let replayRan = false;
 for (const p of CATASTROPHE) {
@@ -57,7 +63,37 @@ for (const p of CLEAN) {
   replayRan = true;
   const occ = computeOcclusion(blob, {});
   ok(`(B) ${p.split('/').pop()} (clean) → NOT catastrophic`, occ.catastrophic === false, `cata=${occ.catastrophic} OCC=${occ.OCC}`);
+  // OCC must be well below the lowest cap rung (0.10). compare-343-collisionfix carries a ~0.0015 mobile-viewport
+  // re-attribution sliver (two orders of magnitude below any threshold) — assert NOT-CAPPED, not literal-zero.
   ok(`(B) ${p.split('/').pop()} (clean) → NOT capped (occCeil=null)`, occ.occCeil == null, `occCeil=${occ.occCeil} OCC=${occ.OCC}`);
+}
+
+// ── (B′) DEDUP-GUARD before/after on the real linear blob: the load-bearing both-directions proof on real data.
+//   Guard OFF (HEAD) → compare-392 false-trips catastrophic (the phantom twin-SVG panel collision). Guard ON (fix)
+//   → cleared, NOT catastrophic, OCC strictly lower. Guard MUST NOT touch the genuine supabase catastrophe.
+{
+  const linear = loadBlob('/tmp/compare-392.json');
+  const supa = loadBlob('/tmp/compare-343.json');
+  if (linear) {
+    process.env.GRADER_NO_DEDUP_GUARD = '1';
+    const off = computeOcclusion(linear, {});
+    delete process.env.GRADER_NO_DEDUP_GUARD;
+    const on = computeOcclusion(linear, {});
+    ok('(B′) compare-392 guard-OFF re-exhibits the phantom catastrophe (HEAD behavior)', off.catastrophic === true, `off cata=${off.catastrophic} OCC=${off.OCC}`);
+    ok('(B′) compare-392 guard-ON clears the phantom (not catastrophic)', on.catastrophic === false, `on cata=${on.catastrophic} OCC=${on.OCC}`);
+    ok('(B′) compare-392 guard-ON drops OCC below guard-OFF (false-positive removed)', on.OCC < off.OCC, `on=${on.OCC} off=${off.OCC}`);
+  } else {
+    ok('(B′) compare-392 dedup-guard before/after', true, 'SKIPPED (blob absent)');
+  }
+  if (supa) {
+    process.env.GRADER_NO_DEDUP_GUARD = '1';
+    const off = computeOcclusion(supa, {});
+    delete process.env.GRADER_NO_DEDUP_GUARD;
+    const on = computeOcclusion(supa, {});
+    ok('(B′) compare-343 GENUINE catastrophe UNCHANGED by guard (recall preserved)', on.catastrophic === true && on.OCC === off.OCC, `on={OCC:${on.OCC},cata:${on.catastrophic}} off={OCC:${off.OCC},cata:${off.catastrophic}}`);
+  } else {
+    ok('(B′) compare-343 genuine-collision recall under guard', true, 'SKIPPED (blob absent)');
+  }
 }
 
 // ── (C) grade-fused integration + reversibility ───────────────────────────────────────────────────────────────

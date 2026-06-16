@@ -90,6 +90,25 @@ const MIN_BAND_WFRAC = 0.4;   // …and span at least 40% of viewport width (a r
 const MIN_RAIL_KIDS = 3;      // a rail must have ≥3 tiling children to be a "page of sections"
 const MIN_LEAVES_PER_SECTION = 2; // a clone section needs ≥2 resolved leaves to have a meaningful union bbox
 const PAIR_DELTA_EPS = 0;     // a pair contributes to OCC only when clone-IOU strictly exceeds source-IOU
+const DEDUP_BAND = 700;       // a stamp is AMBIGUOUS (reused, deduped asset) if its clone leaves span >this in clone-Y
+// DEDUP-GUARD (default-ON; GRADER_NO_DEDUP_GUARD=1 reverts to HEAD): the builder's image cache is content-addressed,
+// so two VISUALLY-IDENTICAL assets (e.g. linear's twin product-UI mockup SVGs svg|1|h811c9dc5) collapse to ONE
+// WP media URL and share ONE content-addressed --joist-src stamp. compare-capture then joins a BOTTOM-panel clone
+// leaf to the FIRST source occurrence (the TOP panel). The clone-leaf→section attribution below would then place
+// that bottom leaf in the TOP section, ballooning the top section's clone union-bbox down the page → a PHANTOM
+// cross-section overlap (linear: a spurious 0.71 clone-IOU between two correctly-stacked panels). DISCRIMINATOR vs a
+// GENUINE collision (a footer that really flows up): a genuine pile is made of UNIQUE stamps (the footer's own
+// content) at the wrong place; a phantom is a DEDUPED stamp — one content-hash shared by clone leaves at DISTINCT
+// clone-Y clusters (the same asset reused across sections). For an ambiguous (deduped) stamp we attribute each
+// occurrence to the section whose SOURCE band best matches THAT occurrence's OWN clone-Y (not the shared stamp's
+// srcY), so it can no longer extend a foreign section's union-bbox. UNIQUE-stamp leaves are untouched → genuine
+// collisions still fire. (Re-attribution, not dropping — strictly safer: every leaf stays, just in the right band.)
+// Read the flag at CALL time (not module-load) so callers/selftests can toggle it in-process (mirrors how grade-
+// fused exercises both paths). Default-ON; GRADER_NO_DEDUP_GUARD=1 → off (HEAD behavior).
+const dedupGuardOn = () => process.env.GRADER_NO_DEDUP_GUARD !== '1';
+// the content-addressed hash key of a stamp = its trailing "tag|N|hHASH" path component (the dedup is on the asset
+// content hash, NOT the full DOM path — six distinct DOM paths can all carry the one shared content hash).
+function stampHashKey(stamp) { return String(stamp || '').split('>').pop(); }
 
 // ── PURE GEOMETRY (byte-identical semantics to axisdelta-engine iou/pathOf/isAncestorPath; re-declared so this
 //    module is standalone and image-lib-free) ─────────────────────────────────────────────────────────────────
@@ -211,10 +230,9 @@ function sectionsForViewport(blob, vw) {
   const srcByPath = new Map();
   for (const r of sc) { const k = r.srcPath || r.ref; if (k != null && !srcByPath.has(k)) srcByPath.set(k, r); }
 
-  // assign a SOURCE leaf box to a section by y-band CONTAINMENT (NOT path-prefix — the |N|hHASH discriminator is
+  // assign a section by y-band CONTAINMENT of a given y-center (NOT path-prefix — the |N|hHASH discriminator is
   // leaf-only, so prefix-matching collapses sibling sections into one). tightest containing band wins.
-  const sectionOf = (srcBox) => {
-    const yc = srcBox.y + srcBox.h / 2;
+  const sectionOfYc = (yc) => {
     let best = null, bestH = Infinity;
     for (const s of sections) {
       const sb = boxAt(s, vw);
@@ -222,8 +240,30 @@ function sectionsForViewport(blob, vw) {
     }
     return best;
   };
+  const sectionOf = (srcBox) => sectionOfYc(srcBox.y + srcBox.h / 2);
+
+  // DEDUP-GUARD: pre-scan to find AMBIGUOUS (deduped/reused) content-hash keys — a key whose clone leaves span more
+  // than DEDUP_BAND in clone-Y is the SAME asset reused across sections; its shared stamp must NOT extend a foreign
+  // section's union-bbox via its srcY. (UNIQUE-stamp leaves are never flagged → genuine collisions preserved.)
+  const guardOn = dedupGuardOn();
+  const ambiguousKeys = new Set();
+  if (guardOn) {
+    const keyYs = new Map();
+    for (const c of cc) {
+      if (!c.stamp) continue;
+      const cb = boxAt(c, vw);
+      if (!cb) continue;
+      const k = stampHashKey(c.stamp);
+      const yc = cb.y + cb.h / 2;
+      const cur = keyYs.get(k);
+      if (!cur) keyYs.set(k, { min: yc, max: yc });
+      else { if (yc < cur.min) cur.min = yc; if (yc > cur.max) cur.max = yc; }
+    }
+    for (const [k, r] of keyYs) if (r.max - r.min > DEDUP_BAND) ambiguousKeys.add(k);
+  }
+
   const cloneBoxesBySection = new Map();
-  let resolved = 0, stampedClone = 0;
+  let resolved = 0, stampedClone = 0, reattributed = 0;
   for (const c of cc) {
     if (!c.stamp) continue;
     stampedClone++;
@@ -232,7 +272,12 @@ function sectionsForViewport(blob, vw) {
     const sr = srcByPath.get(c.stamp);
     const srcBox = boxAt(sr, vw);
     if (!srcBox) continue;
-    const sec = sectionOf(srcBox);
+    // for an AMBIGUOUS (deduped, reused-across-sections) stamp, attribute THIS occurrence by its OWN clone-Y band
+    // rather than the shared stamp's source band — so a bottom-panel leaf carrying the top panel's stamp no longer
+    // balloons the top section. UNIQUE stamps keep the canonical srcBox→section attribution (genuine collisions).
+    let sec;
+    if (guardOn && ambiguousKeys.has(stampHashKey(c.stamp))) { sec = sectionOfYc(cb.y + cb.h / 2); reattributed++; }
+    else sec = sectionOf(srcBox);
     if (!sec) continue;
     resolved++;
     const key = sec.srcPath || sec.ref;
@@ -248,7 +293,7 @@ function sectionsForViewport(blob, vw) {
       return { path: key, srcBox: boxAt(s, vw), cloneBox: unionBbox(cloneBoxes), leaves: cloneBoxes.length };
     })
     .filter(Boolean);
-  return { sections: resolvedSections, pageH, pageArea: vw * pageH, rails: sections.length, stampedClone, resolved };
+  return { sections: resolvedSections, pageH, pageArea: vw * pageH, rails: sections.length, stampedClone, resolved, reattributed, ambiguousKeys: ambiguousKeys.size };
 }
 
 // ── OCC over one viewport's resolved sections ─────────────────────────────────────────────────────────────────
@@ -343,17 +388,24 @@ function mkRec(srcPath, box1440, stamp) {
 // build a synthetic blob: srcSecs = array of {path, box} top-level source sections (under a common rail parent);
 // cloneMap = path → clone box (where each section's leaves landed). We synthesize ≥MIN_LEAVES_PER_SECTION clone
 // leaves per section, all stamped to that section's own srcPath (so they resolve to it and union to its clone box).
+// Each section's leaves carry a UNIQUE content hash (hHASH includes the section's own discriminator) — this mirrors
+// real captures, where two sections with different content get different content-addressed hashes, so a GENUINE
+// pile (case ii/v) is made of UNIQUE stamps and the DEDUP-GUARD never re-attributes them. A DEDUPED asset reused
+// across sections (the linear twin-SVG bug) is modeled explicitly by passing `sharedHash` (case vi).
 function mkBlob(railParent, srcSecs, cloneBoxByPath, pageH = 4000) {
   const srcRecords = [];
   const cloneRecords = [];
-  for (const s of srcSecs) {
+  for (let si = 0; si < srcSecs.length; si++) {
+    const s = srcSecs[si];
     // the SECTION record itself (a big band under the rail parent)
     srcRecords.push(mkRec(s.path, s.box));
     // a couple of LEAF records inside the section (children) carrying boxes within the section band — these are
     // what the clone leaves stamp back to. We give each leaf its own srcPath under the section.
     const cb = cloneBoxByPath[s.path] || s.box;
     for (let li = 0; li < 3; li++) {
-      const leafPath = `${s.path}>child|${li}|hL${li}`;
+      // UNIQUE per-section content hash (unless the section opts into a sharedHash to model a deduped asset).
+      const leafHash = s.sharedHash || `hL${si}_${li}`;
+      const leafPath = `${s.path}>child|${li}|${leafHash}`;
       const leafSrcBox = { x: s.box.x, y: s.box.y + 4 + li, w: s.box.w, h: Math.max(10, s.box.h - 8) };
       srcRecords.push(mkRec(leafPath, leafSrcBox));
       // clone leaf: stamped to the leaf's source path; its clone box lies within the section's CLONE band.
@@ -439,6 +491,70 @@ export function runSelftest() {
     const r = computeOcclusion(mkBlob(RAIL, cleanSecs, partial), { widths: [1440] });
     ok('(v) one big section piled onto another → catastrophic', r.catastrophic === true, `cata=${r.catastrophic}`);
     ok('(v) partial pile → capped', r.occCeil != null, `occCeil=${r.occCeil}`);
+  }
+
+  // (vi) DEDUP-GUARD FALSE-POSITIVE (the linear twin-SVG bug, modeled directly — this is the bug being fixed): two
+  //      CORRECTLY-STACKED panels (sections 1 & 2) each contain a VISUALLY-IDENTICAL mockup asset (shared content
+  //      hash 'hTWIN'). The builder's content-addressed image cache collapses them to ONE stamp, and compare-capture
+  //      joins a reused BOTTOM-band clone occurrence to the FIRST source occurrence's stamp. At HEAD this balloons
+  //      sections 1 & 2's clone union-bboxes DOWN to the bottom band → a PHANTOM cross-section collision (high
+  //      clone-IOU between two sections that actually render stacked, source-IOU=0). With the guard (default-ON) the
+  //      ambiguous (deduped) stamp's occurrences are re-attributed by their OWN clone-Y → no phantom. The fixture is
+  //      the synthetic twin of linear compare-392 (svg|1|h811c9dc5 reused across the two product-UI panels).
+  const mkTwinPhantomBlob = () => {
+    const railSecs = [
+      { p: `${RAIL}>div|1|hA`, y: 0, h: 1000 },
+      { p: `${RAIL}>div|2|hB`, y: 1000, h: 1000 },
+      { p: `${RAIL}>div|3|hC`, y: 2000, h: 1000 },
+    ];
+    const src = [], clone = [];
+    for (let i = 0; i < railSecs.length; i++) {
+      const s = railSecs[i];
+      src.push(mkRec(s.p, { x: 0, y: s.y, w: 1440, h: s.h }));   // full-width section band (a rail kid)
+      for (let li = 0; li < 4; li++) {                            // narrow UNIQUE leaves (width<576 → not rails)
+        const lp = `${s.p}>span|${li}|hU${i}_${li}`;
+        const b = { x: 50, y: s.y + 10 + li * 30, w: 500, h: 80 };
+        src.push(mkRec(lp, b)); clone.push(mkRec(`clone:${lp}`, b, lp));
+      }
+    }
+    // the deduped twin asset: ONE source occurrence in section 1 (top) and section 2 (mid), both width<576.
+    const twinA = `${RAIL}>div|1|hA>img|0|hTWIN`, twinB = `${RAIL}>div|2|hB>img|0|hTWIN`;
+    src.push(mkRec(twinA, { x: 50, y: 500, w: 500, h: 200 }));
+    src.push(mkRec(twinB, { x: 50, y: 1500, w: 500, h: 200 }));
+    clone.push(mkRec('clone:twinA@top', { x: 50, y: 500, w: 500, h: 200 }, twinA));   // legit top occurrences
+    clone.push(mkRec('clone:twinB@mid', { x: 50, y: 1500, w: 500, h: 200 }, twinB));
+    // content-cache bug: each twin is REUSED at the bottom band (y≈2200-2800) but its clone leaf carries the FIRST
+    // (top) occurrence's stamp → joins to the top srcY → at HEAD attributes to sections 1 & 2 → balloons both unions.
+    for (let i = 0; i < 4; i++) clone.push(mkRec(`clone:twinA@b${i}`, { x: 50, y: 2200 + i * 40, w: 1300, h: 600 }, twinA));
+    for (let i = 0; i < 4; i++) clone.push(mkRec(`clone:twinB@b${i}`, { x: 60, y: 2210 + i * 40, w: 1300, h: 600 }, twinB));
+    return { report: { widths: [1440], joinWidth: 1440, pageHeightByVw: { source: { 1440: 3000 }, clone: { 1440: 3000 } } },
+      sourceCapture: { records: src }, cloneCapture: { records: clone } };
+  };
+  {
+    const onR = computeOcclusion(mkTwinPhantomBlob(), { widths: [1440] });
+    ok('(vi) deduped twin asset → NO phantom catastrophic (guard ON)', onR.catastrophic === false, `cata=${onR.catastrophic} OCC=${onR.OCC}`);
+    ok('(vi) deduped twin asset → NOT capped (guard ON)', onR.occCeil == null, `occCeil=${onR.occCeil} OCC=${onR.OCC}`);
+    // reversibility + load-bearing proof: guard OFF → the phantom RETURNS (catastrophic, high clone-IOU). This proves
+    // the fixture genuinely reproduces the bug AND the guard is what clears it (call-time flag → in-process toggle).
+    process.env.GRADER_NO_DEDUP_GUARD = '1';
+    const offR = computeOcclusion(mkTwinPhantomBlob(), { widths: [1440] });
+    delete process.env.GRADER_NO_DEDUP_GUARD;
+    ok('(vi) reversible: guard OFF re-exhibits the phantom (catastrophic returns)', offR.catastrophic === true && offR.OCC > onR.OCC, `off={OCC:${offR.OCC},cata:${offR.catastrophic}} on={OCC:${onR.OCC},cata:${onR.catastrophic}}`);
+  }
+
+  // (vii) GENUINE COLLISION SURVIVES a co-present deduped asset (the load-bearing recall check): section 3 GENUINELY
+  //       piles onto section 1 with its OWN UNIQUE stamps, AND a decorative asset is deduped across every section.
+  //       The guard must neutralize ONLY the deduped asset — the unique-stamp pile MUST still fire catastrophic.
+  {
+    const partial = Object.fromEntries(cleanSecs.map((s) => [s.path, s.box]));
+    const PILED = `${RAIL}>div|3|hC`;
+    partial[PILED] = { x: 0, y: 0, w: 1440, h: 1000 };   // section 3 genuinely piles onto section 1
+    // a decorative asset is deduped across the OTHER sections (content hash 'hDECOR') → ambiguous across bands — but
+    // the genuinely-piled section keeps its OWN UNIQUE stamps (real piled content is not the shared decoration).
+    const sharedSecs = cleanSecs.map((s) => (s.path === PILED ? s : { ...s, sharedHash: 'hDECOR' }));
+    const r = computeOcclusion(mkBlob(RAIL, sharedSecs, partial), { widths: [1440] });
+    ok('(vii) genuine pile (unique stamps) STILL catastrophic despite a co-present deduped asset', r.catastrophic === true, `cata=${r.catastrophic} OCC=${r.OCC}`);
+    ok('(vii) genuine pile → still capped', r.occCeil != null, `occCeil=${r.occCeil}`);
   }
 
   const failed = cases.filter((c) => !c.pass);
