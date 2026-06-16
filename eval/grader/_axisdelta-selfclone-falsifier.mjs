@@ -38,6 +38,8 @@
  * Builder does NOT self-bless — the orchestrator re-executes this falsifier.
  */
 import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { PNG } from 'pngjs';
 import * as M from './grade-element-crops.mjs';
 
@@ -46,6 +48,7 @@ const has = (k) => process.argv.includes('--' + k);
 
 const COMPARE = arg('compare', '/tmp/compare-341.json');
 const AS_JSON = has('json');
+const __dir = path.dirname(fileURLToPath(import.meta.url));
 
 // ── deep-copy + wire a genuine SELF-CLONE compare blob: clone := source, every ref corresponds to ITSELF ──
 // This is the load-bearing construction. We do NOT fabricate a clean correspondence by hand-picking matches;
@@ -107,7 +110,83 @@ export function gradeSelfCloneAt(self, vw) {
   return { vw, pairs: pairs.length, present: present.length, missing: missing.length, totalRows, flaggedRows };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════════════
+// (#4) SELF-CLONE ACROSS STATES + WIDTHS — the false-positive discipline gate for the responsive + motion sweep.
+// A same-source pair (clone := deep copy of source, INCLUDING states.hover / states.scroll / states.reveal AND
+// box[768]/box[390] AND the source @media breakpoints, identical on both sides) MUST fire ZERO sweep defects on
+// EVERY new axis (h-overflow-bool / reflow-vector / sticky-delta / hover-dead / reveal-missing). This is the
+// delta-of-deltas invariant: identical states → 0 state-delta-of-deltas; identical boxes-per-width → 0 reflow/
+// overflow disagreement. If ANY sweep axis fires on identical input, the axis is a false-positive machine and must
+// not be trusted. Builder does NOT self-bless — the orchestrator re-executes this. New axes stay behind the flag
+// until this passes.
+async function statesGate() {
+  if (!fs.existsSync(COMPARE)) {
+    console.error(`STATES-GATE ERROR: compare blob not found: ${COMPARE} (run a CAPTURE_REVEAL=1 SWEEP_768=1 compare first, or pass --compare).`);
+    process.exit(2);
+  }
+  const S = await import('./axisdelta-sweep.mjs');
+  const floors = S.loadFloors(path.join(__dir, 'calibration', 'axis-floors.json'));
+  const blob = JSON.parse(fs.readFileSync(COMPARE, 'utf8'));
+
+  // build a genuine self-clone INCLUDING the source-side responsiveSweep + mediaBreakpoints + per-record states.
+  const src = blob.sourceCapture;
+  const self = {
+    report: JSON.parse(JSON.stringify(blob.report)),
+    sourceCapture: JSON.parse(JSON.stringify(src)),
+    cloneCapture: JSON.parse(JSON.stringify(src)), // CLONE IS THE SOURCE — states/reveal/boxes identical
+  };
+  const recs = src.records || [];
+  const r = self.report;
+  r.clone = r.source;
+  r.matched = recs.map((x) => ({ srcRef: x.ref, cloneRef: x.ref }));
+  r.relation = Object.fromEntries(recs.map((x) => [x.srcPath, [x.ref]]));
+  r.unmatchedSource = [];
+  const srcH = blob.report.pageHeightByVw && blob.report.pageHeightByVw.source;
+  r.pageHeightByVw = { source: JSON.parse(JSON.stringify(srcH || {})), clone: JSON.parse(JSON.stringify(srcH || {})) };
+  // a self-clone's responsiveSweep overflow must be symmetric: whatever the source overflows, the clone overflows
+  // too → overflowRows suppresses (sourceOverflows gate). Rebuild responsiveSweep from the self (both sides equal).
+  if (r.responsiveSweep && r.responsiveSweep.overflowByWidth) {
+    for (const w of Object.keys(r.responsiveSweep.overflowByWidth)) {
+      const e = r.responsiveSweep.overflowByWidth[w];
+      e.sourceOverflows = e.cloneOverflows; // identical sides ⇒ source overflows wherever the clone does
+    }
+  }
+
+  const widths = (blob.report.widths || [1440]).filter((w) => recs.some((rr) => rr.box && (rr.box[w] || rr.box[String(w)])));
+  const out = S.runSweep(self, floors, { widths });
+
+  const sweepDefects = out.events.length;
+  const firedAxes = Object.keys(out.byAxis || {});
+  const passes = sweepDefects === 0 && out.sweepScore >= 0.999;
+
+  const report = {
+    falsifierFile: 'eval/grader/_axisdelta-selfclone-falsifier.mjs --states',
+    compare: COMPARE, source: blob.report.source, widths,
+    revealCapturedOnSource: out.meta.revealCaptured,
+    sourceMediaBreakpoints: (out.meta.why && out.meta.why.sourceMediaBreakpoints) || [],
+    sweepScore: out.sweepScore, sweepDefects, firedAxes, byAxis: out.byAxis,
+    leakingSamples: out.events.slice(0, 8).map((e) => ({ ref: String(e.ref).slice(0, 50), vw: e.viewport, class: e.class, axes: e.firedAxes, severity: e.severity })),
+    passes,
+  };
+
+  console.log('\n==== SELF-CLONE-ACROSS-STATES+WIDTHS FALSIFIER (#4 sweep: responsive + motion) ====');
+  console.log(`compare blob : ${COMPARE}`);
+  console.log(`source       : ${blob.report.source}`);
+  console.log(`widths       : ${widths.join(', ')}  | revealCaptured ${out.meta.revealCaptured}  | source @media bps [${report.sourceMediaBreakpoints.join(',')}]`);
+  console.log(`sweepScore   : ${out.sweepScore}   (MUST be ~1.0)`);
+  console.log(`sweepDefects : ${sweepDefects}   (MUST be 0 — a sweep axis firing on IDENTICAL states/widths = false-positive)`);
+  if (sweepDefects) {
+    console.log(`\nLEAKING SWEEP AXES (fired on identical input — FIX BEFORE TRUSTING):`);
+    console.log(`  byAxis ${JSON.stringify(out.byAxis)}`);
+    for (const e of report.leakingSamples) console.log(`    ref=${e.ref}@${e.vw} class=${e.class} axes=${e.axes.join('+')} sev=${e.severity}`);
+  }
+  console.log(`\nRESULT: ${passes ? 'PASS — sweep axes are clean on identical states/widths; safe to trust the responsive + motion sweep.' : 'FALSIFIED — a sweep axis is false-positive on identical input; the sweep must NOT be trusted until fixed.'}`);
+  if (AS_JSON) console.log('\n' + JSON.stringify(report, null, 2));
+  process.exit(passes ? 0 : 1);
+}
+
 function main() {
+  if (has('states')) { statesGate(); return; } // (#4) responsive + motion sweep gate
   if (!fs.existsSync(COMPARE)) {
     const out = { falsifierFile: 'eval/grader/_axisdelta-selfclone-falsifier.mjs', error: `compare blob not found: ${COMPARE}`, passes: false };
     console.error(`FALSIFIER ERROR: compare blob not found: ${COMPARE}`);
