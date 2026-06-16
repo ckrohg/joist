@@ -318,6 +318,35 @@ async function capturePage(url, { widths, scrollY, label, isSource }) {
     for (const w of widths) perVw[w] = await captureAt(w);
     result.pageHeightByVw = Object.fromEntries(widths.map((w) => [w, perVw[w].pageHeight]));
 
+    // ── (#4 RESPONSIVE-2) SOURCE @media BREAKPOINT PARSE (additive, pure read) ────────────────────────────────
+    // Enumerate document.styleSheets for CSSMediaRule.media.mediaText, regex-extract (min|max)-width px values →
+    // a sorted-unique source-declared breakpoint list. The clone (Hello+free Elementor) can only reflow at its
+    // NATIVE breakpoints {768, 480/767}; a SOURCE bp OUTSIDE that set is a width where the clone structurally
+    // CANNOT reflow — the authoring WHY attached to a responsive defect, NOT the detector. Cross-origin sheets
+    // throw on .cssRules (caught + flagged). New field; ignored by every existing reader if unread.
+    try {
+      const mq = await page.evaluate(() => {
+        const bps = new Set(); let crossOriginSheets = 0, mediaRules = 0;
+        const px = (txt) => { const out = []; const re = /(min|max)-width\s*:\s*([\d.]+)px/gi; let m;
+          while ((m = re.exec(txt))) out.push(Math.round(parseFloat(m[2]))); return out; };
+        const walk = (rules) => { if (!rules) return;
+          for (const r of rules) {
+            try {
+              if (r.type === 4 /* CSSMediaRule */ && r.media && r.media.mediaText) { mediaRules++; for (const v of px(r.media.mediaText)) if (v > 0) bps.add(v); }
+              if (r.cssRules) walk(r.cssRules); // @supports / nested
+            } catch (e) {}
+          }
+        };
+        for (const sheet of document.styleSheets) {
+          let rules; try { rules = sheet.cssRules; } catch (e) { crossOriginSheets++; continue; }
+          walk(rules);
+        }
+        return { breakpoints: [...bps].sort((a, b) => a - b), crossOriginSheets, mediaRules };
+      });
+      result.mediaBreakpoints = mq.breakpoints;
+      result.mediaMeta = { crossOriginSheets: mq.crossOriginSheets, mediaRules: mq.mediaRules };
+    } catch (e) { result.mediaBreakpoints = []; result.mediaMeta = { error: String(e && e.message || e) }; }
+
     // canonical record list = the first-width capture; merge other-width boxes in by _idx.
     const base = perVw[widths[0]].records;
     const byIdx = Object.fromEntries(base.map((r) => [r._idx, r]));
@@ -418,6 +447,49 @@ async function capturePage(url, { widths, scrollY, label, isSource }) {
     result.stickySummary = Object.entries(atY).filter(([idx]) => {
       const a = at0[idx], b = atY[idx]; return a && b && Math.abs(a.top - b.top) < 24 && (a.top <= 64);
     }).map(([idx]) => ({ idx: Number(idx), position: atY[idx].position, top0: at0[idx] && at0[idx].top, topY: atY[idx].top }));
+
+    // ── (#4 MOTION-2) SCROLL-REVEAL capture (additive; opt-in CAPTURE_REVEAL=1 so existing scores never move) ──
+    // For below-fold elements, record opacity/transform BEFORE they enter the viewport vs AFTER (step-scroll them
+    // into view). A source AOS/Elementor-entrance reveal swings opacity 0→1 (or translateY→0); a static clone
+    // stays put. The engine diffs the source-state-delta vs the clone-state-delta (delta-of-deltas), so this is a
+    // pure capture field — it only lights an axis when source reveals AND clone does not. Bounded to ≤80 below-fold
+    // candidates. Reuses grade-motion's IntersectionObserver-free approach (a direct before/after read at the
+    // element's natural scroll position, which captures the entrance swing whether AOS or native-Elementor).
+    if (process.env.CAPTURE_REVEAL === '1') {
+      try {
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await page.waitForTimeout(120);
+        // pick below-fold candidates (y > viewport height at join width) with a stable idx; cap 80.
+        const candIdxs = base
+          .filter((r) => { const b = r.box && (r.box[widths[0]] || r.box[String(widths[0])]); return b && b.y > 900; })
+          .slice(0, 80).map((r) => r._idx);
+        // BEFORE: read each candidate's opacity/transform while it is still below the fold (page at top).
+        const before = await page.evaluate((idxs) => {
+          const all = document.body.querySelectorAll('*'); const out = {};
+          for (const idx of idxs) { const el = all[idx]; if (!el) continue; const cs = getComputedStyle(el);
+            out[idx] = { opacity: parseFloat(cs.opacity), transform: cs.transform }; }
+          return out;
+        }, candIdxs);
+        // step-scroll the whole page so every reveal observer/native entrance fires, then settle at bottom.
+        await page.evaluate(async () => {
+          await new Promise((res) => { let y = 0; const vh = window.innerHeight; const step = () => {
+            window.scrollTo(0, y); y += Math.round(vh * 0.5);
+            if (y < document.body.scrollHeight) setTimeout(step, 40); else setTimeout(res, 350); }; step(); });
+        });
+        await page.waitForTimeout(150);
+        // AFTER: read each candidate again (now scrolled into/through view → reveal has fired).
+        const after = await page.evaluate((idxs) => {
+          const all = document.body.querySelectorAll('*'); const out = {};
+          for (const idx of idxs) { const el = all[idx]; if (!el) continue; const cs = getComputedStyle(el);
+            out[idx] = { opacity: parseFloat(cs.opacity), transform: cs.transform }; }
+          return out;
+        }, candIdxs);
+        for (const idx of candIdxs) { const rec = byIdx[idx]; if (!rec) continue; const b = before[idx], a = after[idx];
+          if (b && a) rec.states.reveal = { opacityBefore: b.opacity, opacityAfter: a.opacity, transformBefore: b.transform, transformAfter: a.transform };
+        }
+        await page.evaluate(() => window.scrollTo(0, 0));
+      } catch (e) { /* reveal capture best-effort; never breaks the main capture */ }
+    }
 
     // strip the internal _idx before returning (keep ref as the identity)
     for (const r of base) delete r._idx;
@@ -608,7 +680,7 @@ const ELEMENT_RECORD_FIELDS = [
   'box.<viewport>.{x,y,w,h,xFrac,wFrac,right}',
   'style.{color,backgroundColor,backgroundImage,border{width,style,color},borderRadius,boxShadow,opacity,transform,zIndex,position,display,overflow,font{family,size,weight,lineHeight,letterSpacing},padding,margin,textDecoration,listStyle,whiteSpace}',
   'pseudo.{before,after,marker{content,backgroundColor,borderLeft}}',
-  'states.{hover:styleDelta, scroll:{top@0,top@<scrollY>,sticky}}',
+  'states.{hover:styleDelta, scroll:{top@0,top@<scrollY>,sticky}, reveal:{opacityBefore,opacityAfter,transformBefore,transformAfter} (CAPTURE_REVEAL=1)}',
   'asset.{isImage,naturalSrc,svgHash}',
 ];
 
@@ -622,7 +694,12 @@ async function main() {
     return;
   }
 
-  const widths = (arg('widths', '1440,390')).split(',').map((s) => parseInt(s, 10)).filter(Boolean);
+  // DEFAULT stays 1440,390 (reversible: changing it would move every existing caller's score). The #4 sweep
+  // wants 768 (the Elementor-native + keystone tablet breakpoint) captured — pass it explicitly via
+  // `--widths 1440,768,390`, or opt in with SWEEP_768=1 (folds 768 into the default without touching callers
+  // that pass --widths). box[768] then merges in automatically via the existing _idx merge.
+  const defaultWidths = process.env.SWEEP_768 === '1' ? '1440,768,390' : '1440,390';
+  const widths = (arg('widths', defaultWidths)).split(',').map((s) => parseInt(s, 10)).filter(Boolean);
   const joinW = widths[0];
   const scrollY = parseInt(arg('scroll', '800'), 10);
 
@@ -695,6 +772,36 @@ async function main() {
     cloneWronglySticky: ((clone.stickySummary || []).length > 0 && (src.stickySummary || []).length === 0),
   };
 
+  // ── (#4 RESPONSIVE-3) STAMP-INDEPENDENT per-width OVERFLOW boolean + source @media breakpoints ────────────────
+  // The h-overflow boolean needs NO correspondence (it reads only cBox.right vs vw), so it survives a broken narrow
+  // join AND the stamped-clone branch. We surface a per-width clone-overflow boolean at every narrow width plus the
+  // SOURCE-declared @media breakpoints folded against Elementor's native set {768,480} (a source bp outside it = a
+  // width the clone structurally cannot reflow — the authoring WHY). Additive: existing `responsive` is untouched.
+  const ELEMENTOR_NATIVE_BP = [768, 480];
+  const srcBps = src.mediaBreakpoints || [];
+  const overflowByWidth = {};
+  for (const w of widths.slice(1)) {
+    const overEls = clone.records.filter((r) => { const b = r.box && (r.box[w] || r.box[String(w)]); return b && b.right != null && b.right > w * 1.02; });
+    // source overflow at the same width (so we only flag where the SOURCE did NOT overflow — survives reflow).
+    const srcOverEls = src.records.filter((r) => { const b = r.box && (r.box[w] || r.box[String(w)]); return b && b.right != null && b.right > w * 1.02; });
+    overflowByWidth[w] = {
+      cloneOverflows: overEls.length > 0,
+      cloneOverflowCount: overEls.length,
+      sourceOverflows: srcOverEls.length > 0,
+      worstClonePx: overEls.reduce((mx, r) => { const b = r.box[w] || r.box[String(w)]; return Math.max(mx, b.right - w); }, 0),
+    };
+  }
+  const responsiveSweep = {
+    widths: widths.slice(1),
+    overflowByWidth,
+    sourceMediaBreakpoints: srcBps,
+    elementorNativeBreakpoints: ELEMENTOR_NATIVE_BP,
+    // a source bp NOT near a native Elementor bp (±32px) = a width the clone cannot reflow at (authoring WHY).
+    unreflowableSourceBreakpoints: srcBps.filter((bp) => !ELEMENTOR_NATIVE_BP.some((nb) => Math.abs(bp - nb) <= 32)),
+    sourceMediaMeta: src.mediaMeta || null,
+    note: 'overflow boolean is stamp-independent + correspondence-free → survives a broken narrow join; unreflowableSourceBreakpoints is the authoring WHY (NOT the detector — rendered overflow is ground truth).',
+  };
+
   const report = {
     source, clone: cloneUrl, clonePage: clonePage ? Number(clonePage) : null,
     widths, joinWidth: joinW, scrollY,
@@ -712,7 +819,7 @@ async function main() {
     syntheticJoistWrappers: join.syntheticJoistWrappers || [],
     relationSample: Object.fromEntries(Object.entries(join.relation).slice(0, 20)),
     relation: join.relation,
-    responsive, sticky,
+    responsive, sticky, responsiveSweep,
     pageHeightByVw: { source: src.pageHeightByVw, clone: clone.pageHeightByVw },
   };
 
