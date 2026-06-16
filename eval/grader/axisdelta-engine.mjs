@@ -69,6 +69,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import * as M from './grade-element-crops.mjs';
 import * as F from './axisdelta-floor.mjs';
+import { buildCloneIndex, confirmPresent, PRESENCE_CONFIRM_OFF } from './presence-confirm.mjs';
 
 const __dir = path.dirname(fileURLToPath(import.meta.url));
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i >= 0 && process.argv[i + 1] !== undefined ? process.argv[i + 1] : d; };
@@ -103,6 +104,9 @@ export const W = {
   'reading-order': 0.35, // sibling vertical order flipped (mild — content still present)
   // ── STATE axis (page-level scroll behaviour; reads the capture's stickySummary, NOT a layout delta) ──
   'state-pin': 0.50,     // the clone PINS a top-band box across scroll that the source does NOT (wrongly-sticky nav)
+  // ── DOWNGRADE axis: a source element with no 1:1 clone match whose content is CONFIRMED present (folded into a
+  //    parent/sibling widget). NOT a missing element — a low-weight structure note (restructured, not missing).
+  'folded-not-missing': 0.15,
 };
 // any axis without an explicit weight defaults here (a new axis is visible-but-unweighted, never zero, never
 // dominant). This keeps the engine EXTENSIBLE without a silent zero swallowing a real defect.
@@ -120,6 +124,7 @@ export const AXIS_FAMILY = {
   'img-src': 'asset', 'img-svghash': 'asset', 'img-phash': 'asset',
   presence: 'singleton',  // a missing element is its own event; it never propagates a defect onto a neighbour
   'state-pin': 'singleton', // a wrongly-sticky pin is a page-level behaviour, local to the pinned box; never propagates
+  'folded-not-missing': 'singleton', // a restructured-but-present element is local; never propagates a defect
 };
 export const familyOf = (axis) => AXIS_FAMILY[axis] || 'singleton';
 export const PROPAGATING_FAMILIES = new Set(['geometry', 'style']); // only these run the CC; asset/text/presence = singletons
@@ -176,10 +181,25 @@ function sourceContrastTerm(sEl) {
 // We re-use applyFloors (which already computes excess = max(0, directedMagnitude(raw) − floor) and trip), then
 // divide by the floor so every axis is in the SAME unit (multiples of its own JND-level floor).
 // ═══════════════════════════════════════════════════════════════════════════════════════════════════════════
+// reversible kill-switch for the text-contrast LEGIBILITY GUARD (default-ON). When off, the prior raw-floor
+// text-contrast behavior is restored byte-for-byte.
+export const CONTRAST_LEGIBILITY_GUARD_OFF = process.env.GRADER_NO_CONTRAST_GUARD === '1';
 export function flooredRows(floors, sEl, cEl, vw, opts = {}) {
   const rows = F.applyFloors(floors, sEl, cEl, vw, opts);
   return rows.map((r) => {
     if (!r.trip || r.floor == null || !(r.floor > 0)) return { ...r, magnitude: 0 };
+    // TEXT-CONTRAST LEGIBILITY GUARD (the invisible-heading false-positive fix): axisDeltas() flags a text-contrast
+    // row ONLY on a genuine CONTRAST COLLAPSE (clone far less readable AND clone contrast cC < 3.0 — actually
+    // illegible). applyFloors re-floors the contrast DELTA magnitude and trips even when the clone text is still
+    // perfectly legible (e.g. src cC≈18 → clone cC≈12: a visible but NON-fatal recolour, NOT an invisible heading).
+    // That false trip is what drove the invisible-heading/invisible-text DISQUALIFIER on recognizable clones. We
+    // DEMOTE a text-contrast trip whose own axisDeltas row was NOT flagged (clone still legible) to magnitude 0 so it
+    // cannot project to invisible-heading. A GENUINE collapse (clone illegible) stays flagged → keeps full magnitude.
+    if (!CONTRAST_LEGIBILITY_GUARD_OFF && r.axis === 'text-contrast' && r.flagged === false) {
+      // trip:false so runEngine's `.filter(r => r.trip)` drops it from firedAxes — it can NEITHER deduct severity
+      // NOR project to invisible-heading. (The visible recolour is still caught by the color-deltaE axis.)
+      return { ...r, magnitude: 0, trip: false, legibilityGuarded: true };
+    }
     return { ...r, magnitude: +(r.excess / r.floor).toFixed(4) };
   });
 }
@@ -436,6 +456,8 @@ export function projectName(dominantAxis, role, bucket, firedAxes) {
   // type-scale) and often ALSO drops text-contrast — the CTA context must win over the generic contrast label.
   if ((fired.has('color-deltaE') || fired.has('bbox-ratio') || fired.has('font-size-ratio') || fired.has('text-contrast')) && isCta) return 'unstyled-cta';
   if (fired.has('text-contrast')) return 'invisible-text';
+  // CONFIRMED-PRESENT downgrade: a restructured (folded) element is NOT missing — a non-disqualifying structure note.
+  if (fired.has('folded-not-missing')) return 'restructured-not-missing';
   if (fired.has('presence')) return isLogo ? 'missing-logo' : 'missing-section';
   if (fired.has('state-pin')) return 'wrongly-sticky'; // page-level scroll-pin behaviour (the spine's STATE axis)
   if (fired.has('collision') || fired.has('z-pile')) return 'overlapping-sections';
@@ -473,14 +495,44 @@ export function runEngine(blob, floorsObj, { topK = 24, widths = null } = {}) {
     allPairsByVw[vw] = pairs;
     presentPairsByVw[vw] = pairs.filter((p) => p.cEl);
 
+    // CONTENT-ABSENCE CONFIRMATION index (TRACK A): the projection builder collapses many source nodes into ONE
+    // clone widget, so an uncorresponded SOURCE element is NOT necessarily missing — its content is often FOLDED
+    // into a parent/sibling clone widget. We index the clone records at this viewport ONCE so a presence trip can
+    // be CONFIRMED-ABSENT (no clone box covers the region AND no clone text reproduces it) before it stands.
+    const cloneIdx = buildCloneIndex(blob.cloneCapture && blob.cloneCapture.records, vw);
+
     // element axis rows (floored → magnitude in floor units)
     for (const { ref, sEl, cEl } of pairs) {
-      const rows = flooredRows(floors, sEl, cEl, vw, {}).filter((r) => r.trip);
-      if (rows.length) elementRows.push({ ref, vw, sEl, cEl, rows, bucket: F.salienceBucket(sEl || cEl, vw) });
+      let rows = flooredRows(floors, sEl, cEl, vw, {}).filter((r) => r.trip);
+      // PRESENCE OVER-VETO FIX: if a presence trip fired (clone-missing element), confirm the content is GENUINELY
+      // absent before letting it stand as a missing-X disqualifier. If a clone widget COVERS the source region OR a
+      // clone text record REPRODUCES the source text, the content is PRESENT (folded into another widget) → DOWNGRADE
+      // the presence row to a low-severity 'folded-not-missing' structure note (no presence axis ⇒ naming-projection
+      // can no longer emit blank-hero/missing-logo/invisible-heading; the deterministic veto cannot trip on it).
+      let foldedPresent = null;
+      const presenceRow = rows.find((r) => r.axis === 'presence');
+      if (presenceRow && !PRESENCE_CONFIRM_OFF) {
+        const conf = confirmPresent(sEl, cloneIdx, vw, { pageH: ph });
+        if (conf.present) {
+          foldedPresent = conf;
+          rows = rows.filter((r) => r.axis !== 'presence');
+          rows.push({ ref, viewport: vw, axis: 'folded-not-missing', src: 1, clone: 1, delta: 0, floor: 1, excess: 0,
+            trip: true, magnitude: 0.15, flagged: true, uncalibrated: true, class: 'restructured-not-missing',
+            foldedInto: conf.coverRef || conf.textRef || null, coverFrac: conf.coverFrac, byText: conf.textReproduced });
+        }
+      }
+      if (rows.length) elementRows.push({ ref, vw, sEl, cEl, rows, bucket: F.salienceBucket(sEl || cEl, vw), foldedPresent });
       // UNMATCHED high-salience SOURCE element penalty (a missing logo/hero is a defect even with no clone node).
+      // GATED by the same confirmation: a high-salience SOURCE element whose content is folded into a clone widget is
+      // NOT a dropped image/panel — it must not feed unmatchedHiSal (which grade-fused turns into a deterministic
+      // missing-imagery/blank-hero/missing-logo disqualifier). Only a CONFIRMED-ABSENT element penalizes here.
       if (!cEl) {
-        const sal = salience(sEl, vw, ph);
-        if (sal >= 1.5) { unmatchedPenalty += Math.min(1, sal / 4); unmatchedHiSal.push({ ref, vw, salience: +sal.toFixed(2), bucket: F.salienceBucket(sEl, vw) }); }
+        const conf = (foldedPresent || (presenceRow && !PRESENCE_CONFIRM_OFF ? confirmPresent(sEl, cloneIdx, vw, { pageH: ph }) : null));
+        const confirmedAbsent = !(conf && conf.present);
+        if (confirmedAbsent) {
+          const sal = salience(sEl, vw, ph);
+          if (sal >= 1.5) { unmatchedPenalty += Math.min(1, sal / 4); unmatchedHiSal.push({ ref, vw, salience: +sal.toFixed(2), bucket: F.salienceBucket(sEl, vw) }); }
+        }
       }
     }
 
