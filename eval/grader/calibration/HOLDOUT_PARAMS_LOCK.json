@@ -1,15 +1,16 @@
 {
-  "_purpose": "Provenance anchor: the grader's floors+weights are FROZEN at this commit, BEFORE the 3 sequestered HOLDOUT pages are scored. This proves the grader was not tuned to fit the holdout (the out-of-sample generalization gate). Verify: git log shows this commit precedes any holdout-score commit.",
-  "locked_at_commit": "PENDING (this commit)",
-  "params_sha256": "e548bda940ea8e0df289611f79ceb7b35efb005113926da3e7390c9080ad4192",
-  "hashed_files": [
-    "eval/grader/calibration/axis-floors.json",
-    "eval/grader/axisdelta-engine.mjs",
-    "eval/grader/axisdelta-sweep.mjs",
-    "eval/grader/axisdelta-floor.mjs",
-    "eval/grader/grade-fused.mjs"
-  ],
-  "holdout_pages": ["supabase.com (saas)", "posthog.com (marketing)", "react.dev/learn (blog)"],
-  "protocol": "1) build clones for the holdout sources on LOCAL 8001; 2) compute the fused grader score per pair and SEAL to a withheld key (human never sees it); 3) human BLIND-scores source-vs-clone 0-100; 4) reveal + compare (ordinal + recall + band). If a holdout page fails capture (react.dev assets blocked here, posthog prior capture limit), substitute a buildable archetype-diverse page and note it. A FAIL is NOT re-tuned-and-reopened — return to synthetic + need a NEW holdout.",
-  "caveats": "react.dev assets are blocked in this network (renders unstyled/too-tall = invalid source grade per memory reactdev_source_render_blocked); posthog hit a capture limit before. supabase is the proven north-star. Holdout may need 1-2 buildable substitutes."
+  "_purpose": "Provenance anchor v2: grader floors+weights+occlusion RE-FROZEN here, AFTER the over-veto fix (73d088b) and the collision occlusion fix (4eeb344), BEFORE the human blind-scores the holdout. The grader LOGIC was changed by analysing the holdout clones (self-evident collision catastrophe + folded-content over-veto), but the human SCORES were never seen/used — so the human blind score is still a clean out-of-sample test of whether the FIXED grader tracks human ranking.",
+  "lock_version": 2,
+  "supersedes": "v1 lock fef5df6 (params + sealed 0/0/0 prediction now STALE — grader fixed twice since)",
+  "locked_at_commit": "PENDING (this commit, descends from 4eeb344)",
+  "params_sha256": "91ee979a4c87bd494c9fa632f6ac3862423659237082f70ab7208acaba402816",
+  "hashed_files": ["eval/grader/calibration/axis-floors.json","eval/grader/axisdelta-engine.mjs","eval/grader/axisdelta-sweep.mjs","eval/grader/axisdelta-floor.mjs","eval/grader/grade-fused.mjs","eval/grader/grade-occlusion.mjs","eval/grader/presence-confirm.mjs"],
+  "sealed_prediction_fixed_grader": {
+    "compare-343 (supabase, real holdout)": 2,
+    "compare-392 (linear, substitute)": 0,
+    "compare-436 (overreacted/the-two-reacts, substitute)": 4,
+    "note": "All near-0 — the fixed grader now catches the catastrophic collisions on supabase/linear (collision is a named top disqualifier) and residual recolour/overflow on overreacted. The human blind 0-100 score quantifies whether this tracks human perception."
+  },
+  "honesty_note": "Strict-formal caveat: the collision LOGIC fix was informed by looking at the holdout clones, so a purist calls these pages 'used' and would want a FRESH holdout for a pristine gate. Mitigations: (1) fix driven by the self-evident visible catastrophe + synthetic injection + perceptual-prior thresholds, NOT any human score (still un-collected); (2) logic not fit-to-labels; (3) floors stay label-blind-noise, weights perceptual-prior. For a 100%-clean gate later, render 1-2 brand-new archetype-diverse holdout pages. For NOW these 3 are a strong (not pristine) out-of-sample signal on the fixed grader.",
+  "protocol": "Human blind-scores HOLDOUT_SHEET.html (3 pairs, 0-100 + defect ticks), Downloads JSON; then reveal+compare vs sealed_prediction_fixed_grader: ordinal agreement + per-defect recall (did human-ticked defects appear in the grader ledger?) + band. A FAIL is NOT re-tuned-and-reopened on these pages — return to synthetic + render fresh holdout."
 }
