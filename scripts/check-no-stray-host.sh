@@ -52,7 +52,9 @@ scripts/check-no-stray-host.sh
 .github/workflows/no-stray-host.yml
 scripts/deploy/DEPLOY.md
 scripts/deploy/deploy-plugin.sh
-plugin/skills/joist-clone/pipeline/host-guard.mjs'
+plugin/skills/joist-clone/pipeline/host-guard.mjs
+eval/grader/annotate/guard.js
+eval/grader/annotate/serve.mjs'
 
 # ── Self-test: offline, builds a throwaway git repo with a known-bad file + a clean file and
 #    asserts the gate fails on bad and passes on clean. Touches NO network/host.
