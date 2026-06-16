@@ -1,0 +1,15 @@
+{
+  "_purpose": "Provenance anchor: the grader's floors+weights are FROZEN at this commit, BEFORE the 3 sequestered HOLDOUT pages are scored. This proves the grader was not tuned to fit the holdout (the out-of-sample generalization gate). Verify: git log shows this commit precedes any holdout-score commit.",
+  "locked_at_commit": "PENDING (this commit)",
+  "params_sha256": "e548bda940ea8e0df289611f79ceb7b35efb005113926da3e7390c9080ad4192",
+  "hashed_files": [
+    "eval/grader/calibration/axis-floors.json",
+    "eval/grader/axisdelta-engine.mjs",
+    "eval/grader/axisdelta-sweep.mjs",
+    "eval/grader/axisdelta-floor.mjs",
+    "eval/grader/grade-fused.mjs"
+  ],
+  "holdout_pages": ["supabase.com (saas)", "posthog.com (marketing)", "react.dev/learn (blog)"],
+  "protocol": "1) build clones for the holdout sources on LOCAL 8001; 2) compute the fused grader score per pair and SEAL to a withheld key (human never sees it); 3) human BLIND-scores source-vs-clone 0-100; 4) reveal + compare (ordinal + recall + band). If a holdout page fails capture (react.dev assets blocked here, posthog prior capture limit), substitute a buildable archetype-diverse page and note it. A FAIL is NOT re-tuned-and-reopened — return to synthetic + need a NEW holdout.",
+  "caveats": "react.dev assets are blocked in this network (renders unstyled/too-tall = invalid source grade per memory reactdev_source_render_blocked); posthog hit a capture limit before. supabase is the proven north-star. Holdout may need 1-2 buildable substitutes."
+}
