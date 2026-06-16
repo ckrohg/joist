@@ -1,0 +1,44 @@
+{
+  "meta": {
+    "vw": 980,
+    "pageH": 1100,
+    "scale": 1,
+    "count": 5,
+    "stampedCount": 5,
+    "stampRate": 1,
+    "source": "synthetic-fixture",
+    "shot": "source.svg"
+  },
+  "byPath": {
+    "body>header|1|haaaa0001": {
+      "x": 40,
+      "y": 24,
+      "w": 180,
+      "h": 48
+    },
+    "body>main>section>h1|1|hbbbb0002": {
+      "x": 60,
+      "y": 120,
+      "w": 720,
+      "h": 90
+    },
+    "body>main>section>a|1|hcccc0003": {
+      "x": 60,
+      "y": 240,
+      "w": 200,
+      "h": 56
+    },
+    "body>footer|1|hdddd0004": {
+      "x": 0,
+      "y": 900,
+      "w": 980,
+      "h": 160
+    },
+    "body>main>section|1|heeee0005": {
+      "x": 0,
+      "y": 100,
+      "w": 980,
+      "h": 420
+    }
+  }
+}

@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<!--
+  @purpose annotate/index.html — the STICKY-NOTE annotation tool (fusion cross-vendor convergent).
+  Point-and-click, ELEMENT-PRECISE human feedback on a rendered clone — replaces the blind page-level 0-100 sheet.
+
+  KEY ASSET: every clone widget carries a `--joist-src` CSS custom property (content-addressed stamp
+  `tagchain|nth|h<8hex>`, set via the PreserveCSS parse_css channel). We read it at runtime via
+  getComputedStyle(el).getPropertyValue('--joist-src'). The grader uses the SAME stamp for correspondence, so a
+  human pin keyed to --joist-src aligns EXACTLY with the grader ledger (see annotation-recall.mjs).
+
+  LIVE DOM, not a screenshot: the stamp + z-stack + bbox live in the DOM. We load the localhost clone in a
+  SAME-ORIGIN iframe + a transparent fixed overlay. On click: iframe.elementsFromPoint(x,y) (PLURAL — full z-stack,
+  topmost first); for each hit, walk up to the nearest element carrying --joist-src; collect ALL distinct stamped
+  widgets at that point (dedupe by stamp, cap 4 in the UI). COLLISION IS RELATIONAL: a pin stores a primary
+  element_ref + an optional colliding_with (a second stamp from the z-stack picker — "this footer is over this hero").
+
+  HARD RAILS:
+   • TARGETS the localhost clone ONLY. resolveBase() (JS mirror of sandbox/host-guard.mjs) hard-blocks
+     georges232 / *.sg-host.com / the IP literal, default-deny to localhost:8001/127.0.0.1:8001. A stray base
+     refuses to load the iframe.
+   • The SOURCE pane uses an EXISTING captured source screenshot (source-<id>.png) + the captured source-bbox JSON
+     (source-bbox-<id>.json) — it does NOT cross-origin-load the live external source.
+  PERSIST: localStorage (autosave) + a Download JSONL button. Each line:
+     { element_ref, colliding_with?, bbox, viewport_w, scroll_y, defect_class, severity, note, page_id, ts }
+-->
+<head>
+<meta charset="utf-8">
+<title>Joist sticky-note annotator</title>
+<style>
+  :root { --ink:#15161a; --panel:#1d1f25; --line:#2c2f37; --chartreuse:#c6f135; --muted:#8b909c; --warn:#ff5d5d; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:13px/1.4 -apple-system,Inter,system-ui,sans-serif; background:var(--ink); color:#e8eaef; }
+  header { display:flex; gap:10px; align-items:center; padding:8px 12px; background:var(--panel); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:50; flex-wrap:wrap; }
+  header input, header select { background:#0e0f12; color:#e8eaef; border:1px solid var(--line); border-radius:6px; padding:5px 8px; font:inherit; }
+  header input[type=text]{ width:230px; }
+  button { background:#272a31; color:#e8eaef; border:1px solid var(--line); border-radius:6px; padding:6px 10px; cursor:pointer; font:inherit; }
+  button.primary { background:var(--chartreuse); color:#0e0f12; font-weight:600; border-color:var(--chartreuse); }
+  button:hover { filter:brightness(1.15); }
+  .wrap { display:grid; grid-template-columns: 1fr 1fr; height: calc(100vh - 49px); }
+  .pane { position:relative; overflow:auto; border-right:1px solid var(--line); }
+  .pane.source { background:#0a0b0d; }
+  .pane h2 { position:sticky; top:0; margin:0; padding:5px 10px; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); background:rgba(14,15,18,.92); z-index:5; }
+  #srcImgWrap { position:relative; }
+  #srcImg { display:block; width:100%; }
+  #srcHi { position:absolute; border:2px solid var(--chartreuse); background:rgba(198,241,53,.14); pointer-events:none; display:none; box-shadow:0 0 0 9999px rgba(0,0,0,.35); }
+  .clone-host { position:relative; height:100%; }
+  iframe { width:100%; height:100%; border:0; background:#fff; }
+  #overlay { position:absolute; inset:0; z-index:10; cursor:crosshair; }
+  #overlay.lifted { pointer-events:none; }
+  .pin { position:absolute; width:22px; height:22px; margin:-11px 0 0 -11px; border-radius:50% 50% 50% 2px; background:var(--chartreuse); color:#0e0f12; font-weight:700; font-size:11px; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,.5); z-index:11; cursor:pointer; transform:rotate(-8deg); }
+  .pin.sev5 { background:var(--warn); color:#fff; }
+  #picker { position:fixed; z-index:200; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px; width:360px; box-shadow:0 12px 40px rgba(0,0,0,.6); display:none; }
+  #picker h3 { margin:0 0 6px; font-size:12px; color:var(--muted); }
+  .stack-item { padding:6px 8px; border:1px solid var(--line); border-radius:6px; margin-bottom:5px; cursor:pointer; font-family:ui-monospace,Menlo,monospace; font-size:11px; }
+  .stack-item:hover { border-color:var(--chartreuse); }
+  .stack-item.sel { border-color:var(--chartreuse); background:rgba(198,241,53,.1); }
+  .stack-item .role { color:var(--chartreuse); }
+  .field { margin:8px 0; }
+  .field label { display:block; font-size:11px; color:var(--muted); margin-bottom:3px; }
+  .field select, .field textarea { width:100%; background:#0e0f12; color:#e8eaef; border:1px solid var(--line); border-radius:6px; padding:6px; font:inherit; }
+  .sev { display:flex; gap:4px; }
+  .sev button { flex:1; padding:5px 0; }
+  .sev button.on { background:var(--chartreuse); color:#0e0f12; border-color:var(--chartreuse); }
+  .collide-row { display:flex; gap:6px; align-items:center; font-size:11px; color:var(--muted); }
+  #pinList { padding:6px 10px; font-size:11px; }
+  #pinList .row { padding:5px 6px; border-bottom:1px solid var(--line); display:flex; gap:8px; align-items:baseline; cursor:pointer; }
+  #pinList .row:hover { background:#16181d; }
+  #pinList .cls { color:var(--chartreuse); }
+  #pinList .ref { font-family:ui-monospace,monospace; color:var(--muted); font-size:10px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
+  .badge { background:#272a31; border:1px solid var(--line); border-radius:10px; padding:1px 7px; font-size:10px; color:var(--muted); }
+  .err { color:var(--warn); }
+  .ok { color:var(--chartreuse); }
+</style>
+</head>
+<body>
+<header>
+  <strong style="color:var(--chartreuse)">● sticky-note</strong>
+  <label class="badge">clone base</label>
+  <input id="base" type="text" value="http://localhost:8001" title="localhost ONLY — host-guarded">
+  <label class="badge">page_id</label>
+  <input id="pageId" type="text" value="" style="width:90px" placeholder="2551">
+  <button id="load">Load clone</button>
+  <span id="guardMsg"></span>
+  <label class="badge">source assets id</label>
+  <input id="srcId" type="text" value="" style="width:90px" placeholder="2551" title="loads source-<id>.png + source-bbox-<id>.json from this dir">
+  <button id="loadSrc">Load source</button>
+  <span style="flex:1"></span>
+  <span class="badge" id="count">0 pins</span>
+  <button id="download" class="primary">Download JSONL</button>
+  <button id="clear">Clear</button>
+</header>
+
+<div class="wrap">
+  <div class="pane source">
+    <h2>Source (captured screenshot + bbox highlight)</h2>
+    <div id="srcImgWrap">
+      <img id="srcImg" alt="load a source-<id>.png">
+      <div id="srcHi"></div>
+    </div>
+    <div id="srcEmpty" style="padding:14px;color:var(--muted)">No source loaded. Capture one with<br><code>node capture-source-bbox.mjs --url &lt;src&gt; --id &lt;id&gt;</code><br>then enter the id above and click <b>Load source</b>.</div>
+  </div>
+
+  <div class="pane">
+    <h2>Clone (live localhost DOM) — click to drop a pin &nbsp;·&nbsp; <span id="pinList-summary" class="badge">pins below</span></h2>
+    <div class="clone-host">
+      <iframe id="clone" sandbox="allow-same-origin allow-scripts"></iframe>
+      <div id="overlay"></div>
+    </div>
+  </div>
+</div>
+
+<div id="picker">
+  <h3>Stamped widgets at this point (topmost first)</h3>
+  <div id="stack"></div>
+  <div class="collide-row" id="collideRow" style="display:none">
+    <span>↳ colliding_with:</span> <span id="collideSel" class="ok">—</span>
+    <button id="clearCollide" style="padding:2px 6px;font-size:10px">clear</button>
+  </div>
+  <div class="field">
+    <label>defect_class</label>
+    <select id="defect">
+      <option>wrong-logo</option><option>invisible-heading</option><option>blank-hero</option>
+      <option>unstyled-cta</option><option>overlapping-sections</option><option>collision</option>
+      <option>missing-imagery</option><option>recolor</option><option>other</option>
+    </select>
+  </div>
+  <div class="field">
+    <label>severity (1 minor · 5 fatal)</label>
+    <div class="sev" id="sev">
+      <button data-s="1">1</button><button data-s="2">2</button><button data-s="3" class="on">3</button><button data-s="4">4</button><button data-s="5">5</button>
+    </div>
+  </div>
+  <div class="field">
+    <label>note (free text)</label>
+    <textarea id="note" rows="2" placeholder="what's wrong here?"></textarea>
+  </div>
+  <div style="display:flex;gap:6px;justify-content:flex-end">
+    <button id="cancel">Cancel</button>
+    <button id="save" class="primary">Add pin</button>
+  </div>
+</div>
+
+<div id="pinList"></div>
+
+<script>
+//─── HOST GUARD (JS mirror of sandbox/host-guard.mjs — default-deny to localhost, hard-block the shared host) ───
+const ALLOWED_HOSTS = new Set(['localhost:8001','127.0.0.1:8001','localhost:8002','127.0.0.1:8002']);
+const BLOCKED = [/\.sg-host\.com$/i, /georges232/i, /^35\.212\.46\.254(:\d+)?$/];
+function resolveBase(raw){
+  let u; try{ u = new URL(raw); }catch{ return { ok:false, msg:'invalid URL' }; }
+  const host = (u.host||'').toLowerCase();
+  for(const b of BLOCKED) if(b.test(host)) return { ok:false, msg:'BLOCKED host (shared/paused) — refused: '+host };
+  if(!ALLOWED_HOSTS.has(host)) return { ok:false, msg:'not allowlisted — localhost:8001 only (got '+host+')' };
+  return { ok:true, base:u.origin };
+}
+
+const $ = (s)=>document.querySelector(s);
+const PAGE_ID = ()=> $('#pageId').value.trim() || 'unknown';
+let pins = [];                       // {element_ref, colliding_with?, bbox, viewport_w, scroll_y, defect_class, severity, note, page_id, ts}
+let srcBbox = null;                  // {width, elements:[{stamp,bbox,...}]}
+let pending = null;                  // pin being authored: {x,y, stack:[{stamp,role,text,bbox}], primary, collide, vw, scroll}
+const LS_KEY = ()=> 'joist-annotations:'+PAGE_ID();
+
+//─── load the clone iframe (guarded) ───
+$('#load').onclick = ()=>{
+  const r = resolveBase($('#base').value.trim());
+  const gm = $('#guardMsg');
+  if(!r.ok){ gm.className='err'; gm.textContent = '✕ '+r.msg; return; }
+  const id = PAGE_ID();
+  const url = r.base + '/?page_id=' + encodeURIComponent(id);
+  gm.className='ok'; gm.textContent = '✓ '+url;
+  $('#clone').src = url;
+  pins = loadLS(); render();
+};
+
+//─── source pane: load captured screenshot + bbox json from THIS dir (no live external load) ───
+$('#loadSrc').onclick = async ()=>{
+  const id = $('#srcId').value.trim(); if(!id) return;
+  $('#srcImg').src = 'source-'+id+'.png';
+  $('#srcImg').onload = ()=>{ $('#srcEmpty').style.display='none'; };
+  $('#srcImg').onerror = ()=>{ $('#srcEmpty').innerHTML='<span class="err">source-'+id+'.png not found in this dir.</span>'; };
+  try{
+    const res = await fetch('source-bbox-'+id+'.json'); srcBbox = await res.json();
+  }catch(e){ srcBbox=null; }
+};
+
+//─── the click → z-stack pick (LIVE DOM, elementsFromPoint PLURAL) ───
+const overlay = $('#overlay');
+overlay.addEventListener('click', (e)=>{
+  const ifr = $('#clone'); const doc = ifr.contentDocument; if(!doc){ return; }
+  const host = ifr.getBoundingClientRect();
+  const x = e.clientX - host.left, y = e.clientY - host.top;     // overlay coords == iframe viewport coords
+  const win = ifr.contentWindow;
+  // PLURAL: full z-stack at the point, topmost first.
+  const stackEls = doc.elementsFromPoint(x, y);
+  const seen = new Set(); const stack = [];
+  for(const el of stackEls){
+    const owner = nearestStamped(el, win);                       // walk UP to the nearest --joist-src
+    if(!owner) continue;
+    if(seen.has(owner.stamp)) continue; seen.add(owner.stamp);
+    stack.push(owner);
+    if(stack.length>=4) break;                                   // cap 4 in the UI
+  }
+  if(!stack.length){ flashOverlay(e.clientX,e.clientY,'no --joist-src here'); return; }
+  pending = { x, y, clientX:e.clientX, clientY:e.clientY, stack, primary: stack[0].stamp, collide: null,
+              vw: win.innerWidth, scroll: win.scrollY };
+  openPicker(e.clientX, e.clientY);
+});
+
+// walk up the DOM to the nearest element carrying a non-empty --joist-src; return its stamp + bbox + role/text.
+function nearestStamped(el, win){
+  let n = el;
+  while(n && n.nodeType===1){
+    let v = '';
+    try{ v = win.getComputedStyle(n).getPropertyValue('--joist-src').trim(); }catch{ v=''; }
+    if(v){
+      const stamp = v.replace(/^["']|["']$/g,'');                // strip the quotes the CSS var carries
+      const r = n.getBoundingClientRect();
+      const role = n.getAttribute('role') || ({H1:'heading',H2:'heading',H3:'heading',IMG:'img',BUTTON:'button',A:'link'}[n.tagName]||null);
+      return { stamp, el:n, role, text:(n.textContent||n.getAttribute('alt')||'').trim().slice(0,60),
+               bbox:{ x:Math.round(r.left), y:Math.round(r.top+win.scrollY), w:Math.round(r.width), h:Math.round(r.height) } };
+    }
+    n = n.parentElement;
+  }
+  return null;
+}
+
+//─── picker UI ───
+function openPicker(cx, cy){
+  const p = $('#picker');
+  p.style.display='block';
+  p.style.left = Math.min(cx, window.innerWidth-380)+'px';
+  p.style.top  = Math.min(cy, window.innerHeight-360)+'px';
+  const sd = $('#stack'); sd.innerHTML='';
+  pending.stack.forEach((s,i)=>{
+    const d = document.createElement('div');
+    d.className='stack-item'+(i===0?' sel':'');
+    d.innerHTML = `<span class="role">${s.role||'·'}</span> ${escapeHtml(s.stamp)}<br><span style="color:#6b7080">“${escapeHtml(s.text)}”</span>`;
+    d.onclick = ()=>{
+      // first click = set primary; if primary already this one and there are ≥2, a second item click sets colliding_with.
+      if(pending.primary === s.stamp){ return; }
+      if(!pending.collideMode){ pending.primary = s.stamp; }
+      else { pending.collide = s.stamp; }
+      paintStack();
+    };
+    // shift-click (or the collide button) marks colliding_with — relational pin
+    d.oncontextmenu = (ev)=>{ ev.preventDefault(); pending.collide = (pending.collide===s.stamp?null:s.stamp); paintStack(); };
+    sd.appendChild(d);
+  });
+  paintStack(); highlightSource(pending.primary);
+}
+function paintStack(){
+  [...$('#stack').children].forEach((d,i)=>{
+    const stamp = pending.stack[i].stamp;
+    d.classList.toggle('sel', stamp===pending.primary);
+    d.style.outline = stamp===pending.collide ? '2px solid var(--warn)' : 'none';
+  });
+  const cr = $('#collideRow');
+  if(pending.collide){ cr.style.display='flex'; $('#collideSel').textContent = pending.collide; }
+  else cr.style.display='none';
+}
+$('#clearCollide').onclick = ()=>{ pending.collide=null; paintStack(); };
+$('#sev').addEventListener('click',(e)=>{ if(e.target.dataset.s){ [...$('#sev').children].forEach(b=>b.classList.remove('on')); e.target.classList.add('on'); }});
+$('#cancel').onclick = ()=>{ $('#picker').style.display='none'; pending=null; $('#srcHi').style.display='none'; };
+$('#save').onclick = ()=>{
+  if(!pending) return;
+  const sev = +($('#sev .on')?.dataset.s || 3);
+  const ifr = $('#clone'); const win = ifr.contentWindow;
+  const prim = pending.stack.find(s=>s.stamp===pending.primary) || pending.stack[0];
+  const pin = {
+    element_ref: pending.primary,
+    bbox: prim.bbox,
+    viewport_w: pending.vw,
+    scroll_y: pending.scroll,
+    defect_class: $('#defect').value,
+    severity: sev,
+    note: $('#note').value.trim(),
+    page_id: PAGE_ID(),
+    ts: new Date().toISOString(),
+  };
+  if(pending.collide) pin.colliding_with = pending.collide;     // RELATIONAL collision pin
+  pins.push(pin); saveLS(); render();
+  $('#picker').style.display='none'; $('#note').value=''; pending=null; $('#srcHi').style.display='none';
+};
+
+//─── SOURCE highlight: a stamp → its captured source bbox region ───
+function highlightSource(stamp){
+  const hi = $('#srcHi'); const img = $('#srcImg');
+  if(!srcBbox || !stamp || !img.naturalWidth){ hi.style.display='none'; return; }
+  const e = srcBbox.elements.find(x=>x.stamp===stamp) || srcBbox.elements.find(x=>x.stamp.split('|')[0]===stamp.split('|')[0]);
+  if(!e){ hi.style.display='none'; return; }
+  const scale = img.clientWidth / (srcBbox.width || img.naturalWidth);
+  hi.style.display='block';
+  hi.style.left = (e.bbox.x*scale)+'px'; hi.style.top = (e.bbox.y*scale)+'px';
+  hi.style.width = (e.bbox.w*scale)+'px'; hi.style.height = (e.bbox.h*scale)+'px';
+  hi.scrollIntoView({block:'center', behavior:'smooth'});
+}
+
+//─── render pins (overlay markers + list) ───
+function render(){
+  // overlay markers
+  [...overlay.querySelectorAll('.pin')].forEach(n=>n.remove());
+  const win = $('#clone').contentWindow;
+  pins.forEach((pin,i)=>{
+    const m = document.createElement('div');
+    m.className='pin'+(pin.severity>=5?' sev5':'');
+    m.textContent = i+1; m.title = pin.defect_class+' · sev'+pin.severity+(pin.colliding_with?' ⊕collide':'');
+    // position at the pin bbox top-left (in current iframe viewport coords, accounting for scroll)
+    const sy = win ? win.scrollY : 0;
+    m.style.left = (pin.bbox.x + 10)+'px';
+    m.style.top  = (pin.bbox.y - sy + 10)+'px';
+    m.onclick = ()=>{ highlightSource(pin.element_ref); };
+    overlay.appendChild(m);
+  });
+  // list
+  const pl = $('#pinList'); pl.innerHTML='';
+  pins.forEach((pin,i)=>{
+    const row = document.createElement('div'); row.className='row';
+    row.innerHTML = `<b>${i+1}</b> <span class="cls">${pin.defect_class}</span> <span class="badge">sev${pin.severity}</span>`
+      + `<span class="ref" title="${escapeHtml(pin.element_ref)}">${escapeHtml(pin.element_ref)}</span>`
+      + (pin.colliding_with?`<span class="badge" title="${escapeHtml(pin.colliding_with)}">⊕ collide</span>`:'')
+      + `<button data-del="${i}" style="padding:2px 6px;font-size:10px">✕</button>`;
+    row.onclick = (e)=>{ if(e.target.dataset.del!==undefined){ pins.splice(+e.target.dataset.del,1); saveLS(); render(); return; } highlightSource(pin.element_ref); };
+    pl.appendChild(row);
+  });
+  $('#count').textContent = pins.length+' pins';
+}
+// re-place markers on iframe scroll so they track their elements
+$('#clone').addEventListener('load', ()=>{
+  const win = $('#clone').contentWindow;
+  try{ win.addEventListener('scroll', ()=>render(), {passive:true}); }catch{}
+  render();
+});
+
+//─── persistence ───
+function saveLS(){ localStorage.setItem(LS_KEY(), JSON.stringify(pins)); $('#count').textContent = pins.length+' pins'; }
+function loadLS(){ try{ return JSON.parse(localStorage.getItem(LS_KEY())||'[]'); }catch{ return []; } }
+$('#clear').onclick = ()=>{ if(confirm('Clear all pins for page '+PAGE_ID()+'?')){ pins=[]; saveLS(); render(); } };
+$('#download').onclick = ()=>{
+  const jsonl = pins.map(p=>JSON.stringify(p)).join('\n')+'\n';
+  const blob = new Blob([jsonl], {type:'application/x-ndjson'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'annotations-'+PAGE_ID()+'.jsonl'; a.click();
+};
+
+//─── utils ───
+function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function flashOverlay(x,y,msg){
+  const f = document.createElement('div');
+  f.textContent = msg; f.style.cssText='position:fixed;z-index:300;background:#272a31;border:1px solid #2c2f37;color:#ff5d5d;padding:4px 8px;border-radius:6px;font-size:11px;pointer-events:none;left:'+x+'px;top:'+y+'px';
+  document.body.appendChild(f); setTimeout(()=>f.remove(), 1100);
+}
+// keyboard: 'c' toggles collide-mode (next stack click sets colliding_with instead of primary)
+window.addEventListener('keydown',(e)=>{
+  if(e.key==='Escape'){ $('#cancel').click(); }
+  if(e.key==='c' && pending){ pending.collideMode=!pending.collideMode; flashOverlay(pending.clientX,pending.clientY, pending.collideMode?'collide-mode: click the OTHER box':'primary-mode'); }
+});
+</script>
+</body>
+</html>

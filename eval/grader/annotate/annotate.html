@@ -1,0 +1,78 @@
+<!doctype html>
+<!-- @purpose Sticky-note annotation tool shell. Side-by-side: captured SOURCE screenshot (left) +
+     LIVE clone iframe (right, localhost:8001 only via guard.js). A transparent overlay over the clone
+     catches clicks → annotate.js reads the iframe document with elementsFromPoint → z-stack picker →
+     label panel → JSONL pins in localStorage + Download. Serve same-origin via serve.mjs so the iframe
+     document is readable (elementsFromPoint / getComputedStyle need same-origin). -->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Joist — sticky-note annotator</title>
+  <link rel="stylesheet" href="annotate.css" />
+</head>
+<body>
+  <div id="topbar">
+    <h1>Joist annotator</h1>
+    <label class="badge">slug <input type="text" id="slug" /></label>
+    <label class="badge">page (id or slug) <input type="text" id="pageId" placeholder="holdout-supabase-collisionfix or 442" /></label>
+    <button class="btn" id="loadCloneBtn">Load clone</button>
+    <span class="spacer"></span>
+    <span class="badge" id="baseBadge"></span>
+    <span class="badge" id="guardBadge"></span>
+    <span class="badge" id="pinCount">0 pins</span>
+    <button class="btn" id="downloadBtn">Download JSONL</button>
+    <label class="btn" for="loadInput">Load JSONL</label>
+    <input type="file" id="loadInput" accept=".jsonl,.ndjson,.json" class="hidden" />
+    <button class="btn" id="clearBtn">Clear</button>
+  </div>
+
+  <div id="panes">
+    <!-- LEFT: captured source screenshot + highlight overlay -->
+    <div class="pane" id="sourcePane">
+      <div class="pane-label">SOURCE (captured) — <span id="srcInfo">no source loaded</span></div>
+      <div id="sourceWrap">
+        <img id="sourceImg" alt="captured source" />
+        <div id="sourceHi"></div>
+      </div>
+    </div>
+
+    <!-- RIGHT: live clone iframe + transparent click overlay + pin layer -->
+    <div class="pane" id="clonePane">
+      <div class="pane-label">CLONE (live · localhost:8001) — click a defect to pin it</div>
+      <div id="cloneWrap">
+        <iframe id="cloneFrame" title="live clone"></iframe>
+        <div id="pinLayer"></div>
+        <div id="overlay"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Z-STACK PICKER + LABEL PANEL (floats near the click) -->
+  <div id="picker">
+    <h3>Pin a defect</h3>
+    <p class="hint" id="pickerHint"></p>
+    <div id="candidates"></div>
+    <div id="labelPanel">
+      <label for="defectSel">defect class</label>
+      <select id="defectSel"></select>
+      <label>severity (1 minor → 5 page-breaking)</label>
+      <div id="sevRow"></div>
+      <label for="noteInput">note</label>
+      <textarea id="noteInput" placeholder="what's wrong here…"></textarea>
+      <div class="actions">
+        <button class="btn primary" id="saveBtn">Save pin</button>
+        <button class="btn" id="cancelBtn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- existing pins list -->
+  <div id="pinList">
+    <h3>pins (this slug)</h3>
+    <div id="pinRows"></div>
+  </div>
+
+  <script type="module" src="annotate.js"></script>
+</body>
+</html>
