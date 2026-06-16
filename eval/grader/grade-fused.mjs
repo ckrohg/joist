@@ -60,6 +60,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { runEngine } from './axisdelta-engine.mjs';
 import { runSweep } from './axisdelta-sweep.mjs';
+import { computeOcclusion } from './grade-occlusion.mjs';
 // ── TAXONOMY (mirrored verbatim from region-judge.mjs, NOT imported) ──────────────────────────────────────────
 // We deliberately do NOT import region-judge.mjs: it transitively pulls pngjs + Playwright-adjacent helpers and we
 // want grade-fused to be a PURE, fast, capture-free scorer (the --no-vision default path must not load image libs).
@@ -122,13 +123,17 @@ const ENGINE_CLASS_FATAL = {
   'wrong-layout': null, 'missing-section': null, 'color-off': null, 'font-off': null,
   'restructured-not-missing': null,      // a folded-but-present element (presence over-veto fix) — NEVER a disqualifier
   'horizontal-overflow': 'overflow',     // h-overflow / h-overflow-bool — a deterministic disqualifier
+  'catastrophic-collision': 'collision', // cross-section occlusion pile (grade-occlusion OCC channel) — a deterministic disqualifier
 };
 // the disqualifying fatalClass buckets the DETERMINISTIC step-floor triggers on. SUPERSET of region-judge's
 // DISQUALIFYING_FATAL (logo/heading/hero/CTA/overlap/imagery) PLUS the two newly-deterministic broken-behavior
 // classes the engine/sweep now detect with zero vision: 'overflow' (horizontal-overflow) and 'behavior'
 // (wrongly-sticky). These are the "missing-hero / wrong-logo / invisible-heading / horizontal-overflow / broken-
 // behavior" disqualifiers from the mandate — ALL deterministic.
-export const FUSED_DISQUALIFYING = new Set([...DISQUALIFYING_FATAL, 'overflow', 'behavior']);
+// PLUS the cross-section occlusion-coverage disqualifier 'collision' (catastrophic-collision; grade-occlusion OCC
+// channel). A page-wide section pile is the single most human-salient catastrophe and the engine's relational axis
+// missed it (bounded salient LEAVES, not O(S²) SECTION pairs) while the coherence global-diff ×0.2-demoted it.
+export const FUSED_DISQUALIFYING = new Set([...DISQUALIFYING_FATAL, 'overflow', 'behavior', 'collision']);
 // 'imagery' is the ONLY class without a clean per-element deterministic axis (a substantive dropped image/panel
 // with no source-DOM counterpart). We detect it DETERMINISTICALLY via engine.unmatchedHiSal (high-salience SOURCE
 // elements with no clone correspondent) rather than leaving it vision-gated — so the floor is FULLY deterministic.
@@ -346,6 +351,14 @@ export function scoreFromLedger(ledger) {
     (r.severity === 'fatal' || r.severity === 'high'));
   const disqClasses = [...new Set(disqRows.map((r) => r.fatalClass))];
 
+  // ── OCC HARD CAP — an INDEPENDENT disqualifying FLOOR from the cross-section occlusion channel. A page-wide
+  // section pile is the single most human-salient catastrophe; it caps the score regardless of every other axis.
+  // We take the MINIMUM with any existing veto cap (it can ONLY lower a score, never raise one) — see assembly.
+  // occCeil rides on the catastrophic-collision row's evidence (grade-occlusion's cap ladder: OCC≥0.40→10,
+  // ≥0.25→30, ≥0.10→65; a catastrophic flag forces ≤10). A 'med'/non-veto OCC row still carries occCeil.
+  const occRow = ledger.find((r) => r.source === 'deterministic' && r.defect_class === 'catastrophic-collision' && r.evidence && r.evidence.occCeil != null);
+  const occCeil = occRow ? occRow.evidence.occCeil : null;
+
   // ── (b) non-disqualifying salience-weighted deduction (per-row, traceable) ──
   // remaining rows = everything not already counted as a triggering disqualifier. Each contributes
   // salienceWeight(fatalClass) * severityNumber. Aggregated through a saturating map so many tiny rows can't drive
@@ -390,14 +403,49 @@ export function scoreFromLedger(ledger) {
     // no deterministic disqualifier → grade by fidelity: 100 − non-veto deduction + bounded vision term.
     fusedScore = Math.max(0, Math.min(100, Math.round(100 - nonVetoDeduct + visionTerm)));
   }
+  // OCC HARD CAP applied as a FINAL floor in BOTH branches — Math.min so it never RAISES a score, only lowers one.
+  // ('collision' is also in FUSED_DISQUALIFYING so a catastrophic OCC row already counts toward the veto cap; this
+  // is the precise OCC→score ceiling on top, dominating regardless of other axes — the deterministic disqualifying
+  // floor the mandate requires. Off-path (no occ row / flag off) occCeil=null is a no-op.)
+  if (occCeil != null) fusedScore = Math.min(fusedScore, occCeil);
 
   return {
     fusedScore,
     deterministicVeto: veto,
+    occlusionCap: { occCeil, applied: occCeil != null, OCC: occRow ? occRow.evidence.OCC : null, catastrophic: occRow ? occRow.evidence.catastrophic : false },
     deductions: deductions.sort((a, b) => b.contribution - a.contribution),
     nonVetoDeduct,
     visionPerceptualTerm: { delta: visionTerm, clamped: Math.abs(visionRaw) > VISION_CLAMP, rawBeforeClamp: +visionRaw.toFixed(3), clampBound: VISION_CLAMP, visionOnlyRows: visionOnly.length },
   };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════════════
+// CROSS-SECTION OCCLUSION CHANNEL (default-ON; GRADER_NO_OCCLUSION=1 reverts to byte-identical-to-HEAD behavior).
+// The catastrophic-collision event lives on THIS channel — NOT the engine's coherence connected-component channel
+// — so the global-diff ×0.2 demotion (axisdelta-engine GLOBAL_DIFF_FACTOR) can never down-weight a page-wide pile.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════════════
+export const OCCLUSION_OFF = process.env.GRADER_NO_OCCLUSION === '1';
+
+// occRows — emit ONE deterministic ledger row for a catastrophic cross-section pile. defect_class 'catastrophic-
+// collision' → fatalClass 'collision' ∈ FUSED_DISQUALIFYING. severity is 'fatal' when catastrophic (a topology-
+// destroying pile), else bucketed off the OCC aggregate; a non-catastrophic sub-0.10 OCC emits NO row (no false
+// deduction on a clean page). The occCeil is carried on evidence so scoreFromLedger applies the hard cap.
+export function occRows(blob, widths) {
+  if (OCCLUSION_OFF) return [];
+  let occ;
+  try { occ = computeOcclusion(blob, { widths }); }
+  catch (e) { return []; }
+  if (!occ || (!occ.catastrophic && occ.occCeil == null)) return [];   // nothing to flag on a clean/low-OCC page
+  const severity = occ.catastrophic ? 'fatal' : (occ.OCC >= 0.25 ? 'high' : 'med');
+  const joinVw = (blob.report && blob.report.joinWidth) || (occ.widths && occ.widths[0]) || 1440;
+  return [makeRow({
+    element_ref: `occlusion:cross-section@page`, region_bbox: null, viewport: joinVw,
+    state: 'static', axis: 'collision', defect_class: 'catastrophic-collision', severity,
+    severityNum: occ.catastrophic ? 1.0 : (occ.OCC >= 0.25 ? 0.5 : 0.22), confidence: 1.0, source: 'deterministic',
+    evidence: { OCC: occ.OCC, catastrophic: occ.catastrophic, occCeil: occ.occCeil, topPairs: occ.topPairs.slice(0, 6),
+      note: 'cross-section occlusion coverage (Σ max(0,cloneIOU−srcIOU)·minArea/pageArea over top-level section pairs); bypasses coherence global-diff demotion' },
+    component_id: `occlusion:page`,
+  })];
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════════════════
@@ -413,6 +461,7 @@ export function gradeFused(blob, floorsObj, { cropResults = null, topK = 24, wid
     ...detEngineRows(engineOut, boxIdx),
     ...sweepRows(sweepOut, boxIdx),
     ...unmatchedRows(engineOut, boxIdx),
+    ...occRows(blob, widths),
     ...visionRows(cropResults, boxIdx),
   ];
   const { ledger, mergeLog } = dedupMerge(rawRows);
@@ -429,6 +478,7 @@ export function gradeFused(blob, floorsObj, { cropResults = null, topK = 24, wid
     fusedScore: scored.fusedScore,
     ledger,
     deterministicVeto: scored.deterministicVeto,
+    occlusionCap: scored.occlusionCap,
     deductions: scored.deductions,
     nonVetoDeduct: scored.nonVetoDeduct,
     visionPerceptualTerm: scored.visionPerceptualTerm,
@@ -602,6 +652,8 @@ function main() {
   console.log(`\nFUSED SCORE: ${out.fusedScore}  (100=indistinguishable, 0=worthless)`);
   const v = out.deterministicVeto;
   console.log(`deterministic veto: ${v.tripped ? `TRIPPED cap=${v.cap} disqualifiers=[${v.disqualifiers.join(', ')}]` : 'not tripped'}`);
+  const oc = out.occlusionCap;
+  if (oc) console.log(`occlusion cap: ${oc.applied ? `APPLIED ceil=${oc.occCeil} (OCC=${oc.OCC}, catastrophic=${oc.catastrophic})` : `not applied${OCCLUSION_OFF ? ' (GRADER_NO_OCCLUSION=1)' : ''}`}`);
   console.log(`ledger: ${out.aggregate.ledgerRows} rows (${out.components.deterministicRows} deterministic, ${out.components.visionRows} vision, ${out.components.mergedRows} merged) | disqualifier rows ${out.aggregate.disqualifierRows}`);
   console.log(`non-veto deduction: ${out.nonVetoDeduct} pts | vision perceptual term: ${out.visionPerceptualTerm.delta} (clamped ${out.visionPerceptualTerm.clamped}, ±${out.visionPerceptualTerm.clampBound})`);
   console.log(`by class: ${JSON.stringify(out.aggregate.byClass)}`);
