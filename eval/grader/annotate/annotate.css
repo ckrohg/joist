@@ -1,0 +1,94 @@
+/* @purpose Styling for the sticky-note annotation tool. Two panes (source left / live clone right),
+   a fixed overlay catches clicks on the clone iframe, a z-stack picker + label panel float over it,
+   and existing pins render as numbered sticky dots. Foundry palette (warm dark + chartreuse accent). */
+:root {
+  --bg: #1a1714; --panel: #221e1a; --ink: #f4efe8; --dim: #a89e90;
+  --line: #3a342d; --accent: #c6f24e; --accent-ink: #1a1714;
+  --danger: #ff6b5e; --warn: #ffb454; --ok: #6fe39a;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
+  font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; }
+
+#topbar { display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+  background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 50; }
+#topbar h1 { font-size: 14px; margin: 0; font-weight: 600; letter-spacing: .02em; }
+#topbar .spacer { flex: 1; }
+#topbar input, #topbar select, #topbar button { font: inherit; }
+#topbar input[type=text], #topbar input[type=number] {
+  background: #14110e; color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
+#topbar input#pageId { width: 90px; }
+#topbar input#slug { width: 120px; }
+.btn { background: #14110e; color: var(--ink); border: 1px solid var(--line); border-radius: 6px;
+  padding: 5px 11px; cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.badge { font-size: 12px; color: var(--dim); }
+.badge.guard-ok { color: var(--ok); } .badge.guard-bad { color: var(--danger); }
+
+#panes { display: grid; grid-template-columns: 1fr 1fr; gap: 0; height: calc(100vh - 47px); }
+.pane { position: relative; overflow: auto; border-right: 1px solid var(--line); }
+.pane-label { position: sticky; top: 0; z-index: 5; background: rgba(34,30,26,.92);
+  padding: 4px 10px; font-size: 12px; color: var(--dim); border-bottom: 1px solid var(--line); }
+
+/* LEFT: source screenshot + highlight layer */
+#sourceWrap { position: relative; width: max-content; min-width: 100%; }
+#sourceImg { display: block; max-width: 100%; height: auto; }
+#sourceHi { position: absolute; pointer-events: none; border: 2px solid var(--accent);
+  background: rgba(198,242,78,.18); border-radius: 3px; display: none; z-index: 4;
+  box-shadow: 0 0 0 9999px rgba(0,0,0,.45); transition: all .12s ease; }
+#sourceHi.show { display: block; }
+
+/* RIGHT: live clone iframe + transparent click overlay + pins */
+#cloneWrap { position: relative; width: 100%; height: 100%; }
+#cloneFrame { width: 100%; height: 100%; border: 0; background: #fff; }
+#overlay { position: absolute; inset: 0; z-index: 10; cursor: crosshair; background: transparent; }
+#overlay.armed { background: rgba(198,242,78,.04); }
+.pin { position: absolute; z-index: 11; width: 22px; height: 22px; margin: -11px 0 0 -11px;
+  border-radius: 50% 50% 50% 2px; background: var(--accent); color: var(--accent-ink);
+  font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,.5); border: 1px solid #00000040; }
+.pin.sev5 { background: var(--danger); color: #fff; } .pin.sev4 { background: var(--warn); }
+.pin.collide { border: 2px dashed #14110e; }
+.pin .pin-link { position: absolute; pointer-events: none; }
+
+/* Z-STACK PICKER + LABEL PANEL */
+#picker { position: fixed; z-index: 60; width: 340px; max-height: 80vh; overflow: auto;
+  background: var(--panel); border: 1px solid var(--accent); border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0,0,0,.6); padding: 12px; display: none; }
+#picker.show { display: block; }
+#picker h3 { margin: 0 0 6px; font-size: 13px; }
+#picker .hint { color: var(--dim); font-size: 12px; margin: 0 0 8px; }
+.cand { border: 1px solid var(--line); border-radius: 7px; padding: 7px 8px; margin-bottom: 6px;
+  cursor: pointer; display: flex; gap: 8px; align-items: flex-start; }
+.cand:hover { border-color: var(--accent); }
+.cand.primary-sel { border-color: var(--accent); background: #2a261f; }
+.cand.collide-sel { border-color: var(--warn); }
+.cand .depth { font-size: 11px; color: var(--dim); min-width: 38px; }
+.cand .stamp { font-family: ui-monospace, "JetBrains Mono", monospace; font-size: 11px; word-break: break-all; color: var(--ink); }
+.cand .meta { font-size: 11px; color: var(--dim); }
+.cand .role { display: inline-block; font-size: 10px; padding: 1px 5px; border-radius: 4px; margin-left: 4px; }
+.cand .role.p { background: var(--accent); color: var(--accent-ink); }
+.cand .role.c { background: var(--warn); color: #14110e; }
+
+#labelPanel { margin-top: 8px; border-top: 1px solid var(--line); padding-top: 8px; }
+#labelPanel label { display: block; font-size: 12px; color: var(--dim); margin: 6px 0 2px; }
+#labelPanel select, #labelPanel input, #labelPanel textarea {
+  width: 100%; background: #14110e; color: var(--ink); border: 1px solid var(--line);
+  border-radius: 6px; padding: 5px 7px; font: inherit; }
+#labelPanel textarea { resize: vertical; min-height: 44px; }
+#sevRow { display: flex; gap: 4px; }
+#sevRow button { flex: 1; padding: 5px 0; }
+#sevRow button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+#picker .actions { display: flex; gap: 8px; margin-top: 10px; }
+#picker .actions .btn { flex: 1; }
+
+#pinList { position: fixed; right: 8px; bottom: 8px; z-index: 55; width: 320px; max-height: 40vh;
+  overflow: auto; background: rgba(34,30,26,.96); border: 1px solid var(--line); border-radius: 10px; padding: 8px; }
+#pinList h3 { margin: 0 0 6px; font-size: 12px; color: var(--dim); }
+.pinrow { font-size: 11px; padding: 4px 6px; border-bottom: 1px solid var(--line); display: flex; gap: 6px; align-items: center; }
+.pinrow .n { background: var(--accent); color: var(--accent-ink); border-radius: 50%; width: 18px; height: 18px;
+  display: inline-flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; }
+.pinrow .dc { color: var(--ink); } .pinrow .st { font-family: ui-monospace, monospace; color: var(--dim); word-break: break-all; }
+.pinrow .del { margin-left: auto; color: var(--danger); cursor: pointer; }
+.hidden { display: none !important; }
