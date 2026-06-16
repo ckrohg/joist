@@ -120,6 +120,7 @@ const ENGINE_CLASS_FATAL = {
   'missing-imagery': 'imagery',          // a dropped non-logo image/panel — the ONE vision-leaning class (see below)
   // structural / non-disqualifying (explicitly null so they NEVER trip the floor)
   'wrong-layout': null, 'missing-section': null, 'color-off': null, 'font-off': null,
+  'restructured-not-missing': null,      // a folded-but-present element (presence over-veto fix) — NEVER a disqualifier
   'horizontal-overflow': 'overflow',     // h-overflow / h-overflow-bool — a deterministic disqualifier
 };
 // the disqualifying fatalClass buckets the DETERMINISTIC step-floor triggers on. SUPERSET of region-judge's

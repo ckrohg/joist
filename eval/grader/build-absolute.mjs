@@ -17,8 +17,13 @@ const arg = (n, d = null) => { const i = process.argv.indexOf('--' + n); return 
 // points anywhere but localhost:8001 / JOIST_TRAINING_BASE / JOIST_ALLOWED_HOSTS.
 const base = resolveBase(process.env.JOIST_BASE || 'http://localhost:8001');
 const b64 = process.env.JOIST_AUTH_B64; const layoutPath = arg('layout'), pageId = arg('page');
-if (!b64 || !layoutPath || !pageId) { console.error('need --layout --page + JOIST_AUTH_B64'); process.exit(2); }
-const L = JSON.parse(fs.readFileSync(layoutPath, 'utf8')); const VW = L.vw || 1440; let pageH = L.pageH || 6000;
+// OFFLINE SELFTEST mode (additive, reversible): `--selftest` exercises the pure inline-run emitters (richInnerHTML
+// link/code runs — TRACK B #2/#3) with NO network / NO WP write, then exits. The actual selftest runs at the
+// BOTTOM of the module (after all const helpers are initialized) — here we only suppress the arg-guard + the build
+// IIFE. Every other invocation path is byte-unchanged.
+const SELFTEST = process.argv.includes('--selftest');
+if (!SELFTEST && (!b64 || !layoutPath || !pageId)) { console.error('need --layout --page + JOIST_AUTH_B64'); process.exit(2); }
+const L = SELFTEST ? { vw: 1440, pageH: 6000 } : JSON.parse(fs.readFileSync(layoutPath, 'utf8')); const VW = L.vw || 1440; let pageH = L.pageH || 6000;
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const px = (s) => { const m = String(s || '').match(/(-?\d+(?:\.\d+)?)px/); return m ? +m[1] : null; };
 const stripEmoji = (s) => String(s || '').replace(/[\u{1F000}-\u{1FAFF}\u{1F300}-\u{1F9FF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}\u{20E3}\u{1F1E6}-\u{1F1FF}]/gu, '').replace(/\s+/g, ' ').trim();
@@ -919,15 +924,32 @@ const widgets = []; let z = 1; let oz = 80000;
 // `esc(text)` path is byte-identical — so this is purely additive. Reversible via ABS_NO_INLINE_CHIPS=1 (runs)
 // and ABS_NO_BLOCKQUOTE_BAR=1 (bar).
 const MONO_CHIP = "ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace";
-function richInnerHTML(n) {
-  // segments → inner HTML; each plain run esc()'d, each code run wrapped in a styled <code>. Returns null when no
-  // usable runs (caller uses the plain esc(text) path → byte-identical for non-code prose).
+function richInnerHTML(n, info) {
+  // segments → inner HTML; each plain run esc()'d, each code run wrapped in a styled <code>, each LINK run wrapped
+  // in a styled <a> (TRACK B #3). Returns null when no usable runs (caller uses the plain esc(text) path →
+  // byte-identical for non-code/non-link prose). `info` (optional out-param) reports {hasLink} so the caller can
+  // register the per-leaf de-inline anchor reset ONLY when an <a> was actually emitted.
   if (process.env.ABS_NO_INLINE_CHIPS === '1' || !Array.isArray(n.runs) || !n.runs.length) return null;
-  let any = false;
+  let any = false, hasLink = false;
   // collapse internal whitespace but PRESERVE a single boundary space (leading/trailing) so a plain run does not
   // glue onto an adjacent <code> chip (e.g. "Call <chip> inside" must keep the spaces around the chip).
   const collapseKeepEdges = (s) => { const str = String(s || ''); const lead = /^\s/.test(str) ? ' ' : ''; const trail = /\s$/.test(str) ? ' ' : ''; const mid = str.replace(/\s+/g, ' ').trim(); return mid ? (lead + (KEEP_EMOJI ? mid : stripEmoji(mid)) + trail) : (lead || trail); };
   const parts = n.runs.map((r) => {
+    // INLINE LINK run (TRACK B #3): re-emit a real styled <a>. The link's OWN captured color is stamped INLINE
+    // (highest specificity, kses-safe style attr) so the clone reproduces the SOURCE link color (e.g. overreacted
+    // pink) instead of inheriting the host theme's a{color}. The underline (text-decoration) is restored when the
+    // source link carried it. A plain run around it stays plain prose under the wrapper text_color — so ONLY the
+    // real anchor gets the link color (TRACK B #2: no magenta bleed onto plain text). ABS_NO_INLINE_LINKS=1 →
+    // treat a link run as plain text (legacy).
+    if (r.link && process.env.ABS_NO_INLINE_LINKS !== '1') {
+      const raw = String(r.text || ''); const core = raw.replace(/\s+/g, ' ').trim(); if (!core) return '';
+      any = true; hasLink = true;
+      const lead = /^\s/.test(raw) ? ' ' : '', trail = /\s$/.test(raw) ? ' ' : '';
+      const col = (r.color && /^#[0-9a-fA-F]{6}$/.test(r.color)) ? `color:${r.color};` : '';
+      const dec = r.underline ? 'text-decoration:underline;' : '';
+      const href = /^(https?:|\/|#|mailto:)/i.test(String(r.link)) ? esc(r.link) : '#';
+      return `${lead}<a href="${href}" style="${col}${dec}">${esc(core)}</a>${trail}`;
+    }
     if (!r.code) { const t = collapseKeepEdges(r.text); return t ? esc(t) : ''; }
     const t = displayText(r.text); if (!t) return '';
     any = true;
@@ -940,7 +962,8 @@ function richInnerHTML(n) {
     const fam = r.mono !== false ? `font-family:${MONO_CHIP};` : '';
     return `<code style="${bg}${col}${rad}padding:${padV}px ${padH}px;${fam}font-size:0.9em">${esc(t)}</code>`;
   });
-  if (!any) return null;            // runs existed but no code chip emitted → fall back to plain text path
+  if (info) info.hasLink = hasLink;
+  if (!any) return null;            // runs existed but no code/link emitted → fall back to plain text path
   return parts.join('');
 }
 // blockquote left-bar wrapper CSS (hex-only; border-left + padding-left + font-style ALL survive kses on hex).
@@ -1238,12 +1261,20 @@ function leafWidget(n, target, origin) {
   const baseTextCss = [inlineCc, chromeCss, barCss].filter(Boolean).join(';');
   const textCss = n._noWrap ? (baseTextCss ? baseTextCss + ';white-space:nowrap' : 'white-space:nowrap') : baseTextCss;
   const FF = fluidFontSettings(n);
-  // defect #6: when the captured prose carries inline-code SEGMENTS, rebuild the editor HTML run-by-run (plain runs
-  // esc()'d, code runs as styled <code> chips) instead of esc()'ing the whole flattened plaintext. Falls back to the
-  // plain esc(text) (byte-identical) when no code chips were captured.
-  const inner = richInnerHTML(n);
+  // defect #6 + TRACK B #3: when the captured prose carries inline-code SEGMENTS or inline LINK runs, rebuild the
+  // editor HTML run-by-run (plain runs esc()'d, code runs as styled <code> chips, link runs as styled <a>) instead
+  // of esc()'ing the whole flattened plaintext. Falls back to the plain esc(text) (byte-identical) when no runs.
+  const richInfo = {};
+  const inner = richInnerHTML(n, richInfo);
+  // TRACK B #2 (magenta de-inline bleed): when this prose leaf emits a real inline <a>, the host theme's bare
+  // `a{color:…}` rule (pink on overreacted) would otherwise repaint that anchor — and any other prose-level <a>.
+  // We register the per-leaf `#<eid> a{color:inherit}` de-inline reset so the anchor inherits the wrapper, EXCEPT
+  // the link run already stamps its OWN captured color INLINE (higher specificity than the inherit reset), so the
+  // real link keeps the source link color while plain prose around it keeps the wrapper text_color — no magenta
+  // bleed onto non-link text. Registered ONLY when a link was actually emitted (no-op for plain prose / code-only).
+  const DR = (DEINLINE && richInfo.hasLink) ? deinlineAnchorReset(FF) : {};
   const editorHtml = `<div${styleAttr(textCss)}>${inner != null ? inner : esc(text)}</div>`;
-  sink.push({ elType: 'widget', widgetType: 'text-editor', settings: { editor: editorHtml, ...nativeTypo(n), ...nrTypo(n), ...FF, ...(tc ? { text_color: tc } : {}), ...globalRefSettings(n, 'text_color'), ...P, ...joistPreserve(n), ...mobileAbsenceHide(n, FF) } });
+  sink.push({ elType: 'widget', widgetType: 'text-editor', settings: { editor: editorHtml, ...nativeTypo(n), ...nrTypo(n), ...FF, ...DR, ...(tc ? { text_color: tc } : {}), ...globalRefSettings(n, 'text_color'), ...P, ...joistPreserve(n), ...mobileAbsenceHide(n, { ...FF, ...DR }) } });
 }
 // extract a representative solid color from a CSS gradient string (the dominant/first stop) — Elementor
 // gradient bg via settings is fiddly + kses-fragile; a solid fallback captures the missing DARK panels (the
@@ -2677,6 +2708,7 @@ const DRY_RUN = process.env.ABS_DRY_RUN === '1';
 const dryDump = process.env.ABS_DUMP_TREE || `/tmp/abs-dryrun-${pageId}.json`;
 
 (async () => {
+  if (SELFTEST) return;            // --selftest path runs at the bottom; never touch the network/WP
   // upload images + rasters referenced by leaves
   // collect() gathers every uploadable asset url. For images, prefer bestImgSrc(n) (n.srcURL when n.src is a
   // data:/blob: placeholder or the image never painted, natW===0) so a lazy/never-painted hero/logo uploads its
@@ -3429,3 +3461,75 @@ const dryDump = process.env.ABS_DUMP_TREE || `/tmp/abs-dryrun-${pageId}.json`;
   } catch (e) { console.log('id-map read-back skipped:', String(e).slice(0, 100)); }
   console.log('PAGE:', `${base}/?page_id=${pageId}`);
 })();
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════════════
+// OFFLINE SELFTEST (TRACK B #2 magenta de-inline bleed + #3 lost inline-link styling) — runs at the BOTTOM so the
+// const helpers (esc/displayText/MONO_CHIP/DEINLINE/richInnerHTML) are all initialized. NO network / NO WP write.
+// Exercises the REAL richInnerHTML over synthetic capture nodes and asserts the emitted editor HTML:
+//   • an inline LINK run → a real <a href> with the captured link color stamped INLINE + underline restored (#3).
+//   • plain prose runs around it stay plain (no <a>, no link color) → no magenta bleed onto non-link text (#2).
+//   • a code run still emits a <code> chip (no regression on defect #6).
+//   • a leaf with ONLY plain text → richInnerHTML returns null (fallback to esc(text), byte-identical).
+//   • the legacy kill-switch (ABS_NO_INLINE_LINKS=1) → a link run flattens to plain text (no <a>).
+//   • hasLink out-param is TRUE only when an <a> was emitted (drives the per-leaf de-inline reset registration).
+// Builder does NOT self-bless; the orchestrator re-executes.
+if (SELFTEST) {
+  const cases = [];
+  const ok = (name, pass, detail = '') => cases.push({ name, pass: !!pass, detail });
+
+  // (1) inline link among prose → real styled <a>, plain text plain.
+  {
+    const n = { kind: 'text', text: 'You can use Hooks to manage state', runs: [
+      { text: 'You can use ' }, { text: 'Hooks', link: 'https://reactjs.org/hooks', color: '#d23669', underline: true }, { text: ' to manage state' },
+    ] };
+    const info = {}; const html = richInnerHTML(n, info);
+    ok('#3 inline link → emits a real <a href>', /<a href="https:\/\/reactjs\.org\/hooks"/.test(html), html);
+    ok('#3 link color stamped INLINE (source pink, not theme)', /color:#d23669/.test(html), html);
+    ok('#3 underline restored', /text-decoration:underline/.test(html), html);
+    ok('#3 link text inside the anchor', />Hooks<\/a>/.test(html), html);
+    ok('#2 plain prose stays plain (no stray <a> on non-link text)', (html.match(/<a /g) || []).length === 1 && /You can use /.test(html) && / to manage state/.test(html), html);
+    ok('#2 hasLink out-param TRUE (drives the de-inline reset)', info.hasLink === true, JSON.stringify(info));
+  }
+
+  // (2) code chip still works (no regression on defect #6).
+  {
+    const n = { kind: 'text', text: 'Call useEffect now', runs: [ { text: 'Call ' }, { text: 'useEffect', code: true, bg: '#f5f5f5', color: '#d23669', mono: true }, { text: ' now' } ] };
+    const info = {}; const html = richInnerHTML(n, info);
+    ok('#6 code run → <code> chip (no regression)', /<code style=/.test(html) && />useEffect<\/code>/.test(html), html);
+    ok('#6 code-only leaf → hasLink FALSE (no de-inline reset)', info.hasLink === false, JSON.stringify(info));
+  }
+
+  // (3) plain prose only → null (fallback to esc(text), byte-identical legacy).
+  {
+    const n = { kind: 'text', text: 'Just plain prose here', runs: [ { text: 'Just plain prose here' } ] };
+    const info = {}; const html = richInnerHTML(n, info);
+    ok('plain prose → richInnerHTML null (fallback path, byte-identical)', html === null, String(html));
+    ok('plain prose → hasLink FALSE', info.hasLink === false, JSON.stringify(info));
+  }
+
+  // (4) kill-switch ABS_NO_INLINE_LINKS=1 → link run flattens to plain text (no <a>).
+  {
+    const saved = process.env.ABS_NO_INLINE_LINKS; process.env.ABS_NO_INLINE_LINKS = '1';
+    const n = { kind: 'text', text: 'See Hooks here', runs: [ { text: 'See ' }, { text: 'Hooks', link: 'https://x', color: '#d23669', underline: true }, { text: ' here' } ] };
+    const info = {}; const html = richInnerHTML(n, info);
+    // with links off AND no code chip, richInnerHTML returns null (no usable runs) → caller uses plain esc(text).
+    ok('kill-switch ABS_NO_INLINE_LINKS=1 → no <a> emitted (legacy plain text)', html === null || !/<a /.test(html || ''), String(html));
+    ok('kill-switch → hasLink FALSE', info.hasLink === false, JSON.stringify(info));
+    if (saved === undefined) delete process.env.ABS_NO_INLINE_LINKS; else process.env.ABS_NO_INLINE_LINKS = saved;
+  }
+
+  // (5) link with NO captured color → no inline color stamp (safe: the per-leaf a{color:inherit} reset then routes
+  //     the wrapper text_color onto it, never the theme pink).
+  {
+    const n = { kind: 'text', text: 'Read more docs', runs: [ { text: 'Read ' }, { text: 'more', link: '/docs', color: null, underline: false }, { text: ' docs' } ] };
+    const info = {}; const html = richInnerHTML(n, info);
+    ok('#2 link w/o captured color → <a> but NO inline color (inherits wrapper via reset)', /<a href="\/docs" style="">/.test(html), html);
+    ok('#2 still hasLink TRUE (reset still registered to beat theme a{})', info.hasLink === true, JSON.stringify(info));
+  }
+
+  const failed = cases.filter((c) => !c.pass);
+  console.log('\n==== BUILD-ABSOLUTE INLINE-RUN SELFTEST (TRACK B #2 de-inline bleed + #3 inline-link styling) ====');
+  for (const c of cases) console.log(`${c.pass ? 'PASS' : 'FAIL'}  ${c.name}${c.detail ? '  (' + String(c.detail).slice(0, 120) + ')' : ''}`);
+  console.log(`\n${failed.length === 0 ? 'ALL PASS' : failed.length + ' FAILED'} (${cases.length} cases)`);
+  process.exit(failed.length === 0 ? 0 : 1);
+}

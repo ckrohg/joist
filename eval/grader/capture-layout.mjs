@@ -391,6 +391,12 @@ function cropPng(png, box, dpr) {
   // hover/transition fade-in overlays (duration>0, or pointer-events:none) are. CAPTURE_NO_HIDDEN_STATE=1
   // (→ __NO_HIDDEN_STATE) restores the old behaviour (capture overlay phantoms as visible).
   try { await page.evaluate((off) => { window.__NO_HIDDEN_STATE = off; }, process.env.CAPTURE_NO_HIDDEN_STATE === '1'); } catch {}
+  // HEADING PERMALINK-ANCHOR STRIP reversibility (TRACK B defect #1): default ON; CAPTURE_NO_HEADING_ANCHOR_STRIP=1
+  // → __NO_HEADING_ANCHOR_STRIP true → headings keep the literal "# " permalink artifact (byte-identical legacy).
+  try { await page.evaluate((off) => { window.__NO_HEADING_ANCHOR_STRIP = off; }, process.env.CAPTURE_NO_HEADING_ANCHOR_STRIP === '1'); } catch {}
+  // INLINE-LINK RUN reversibility (TRACK B defect #3): default ON; CAPTURE_NO_INLINE_LINKS=1 → __NO_INLINE_LINKS
+  // true → inline <a> links inside prose flatten to plain text as before (byte-identical legacy; lost styling).
+  try { await page.evaluate((off) => { window.__NO_INLINE_LINKS = off; }, process.env.CAPTURE_NO_INLINE_LINKS === '1'); } catch {}
   // FORM-RECOVERY reversibility (form-recovery fix): the walk has NO branch for <input>/<textarea>/<select> — they
   // fall through to leaf(), which reads innerText/textContent and returns null because a control's value/placeholder
   // live in ATTRIBUTES (not text nodes) → every visible form control is silently dropped (a <form> then collapses to
@@ -907,19 +913,27 @@ function cropPng(png, box, dpr) {
       if (!readBar(cs, null)) {
         try { let a = el.parentElement, hops = 0; while (a && hops < 2) { if (a.tagName === 'BLOCKQUOTE') { if (readBar(getComputedStyle(a), el)) break; } a = a.parentElement; hops++; } } catch {}
       }
-      // (defect #6) inline-code chips: ordered child-node walk → segments. Only if a code-ish inline child exists.
+      // (defect #6 + TRACK B #3) inline-code chips AND inline LINKS: ordered child-node walk → segments. Fires when
+      // a code-ish inline child OR an inline <a href> link exists. Inline links (overreacted's pink-underlined
+      // "Hooks" / "custom Hooks" inside prose) were previously flattened to PLAIN TEXT (pushPlain) → the build
+      // rebuilt them as un-styled prose (lost-inline-link defect). We now record each inline <a> as a `link` run so
+      // build-absolute re-emits a real styled <a>. Reversible: CAPTURE_NO_INLINE_LINKS=1 (link runs only; code-chip
+      // path is byte-unchanged). The link-run path NEVER affects a button/whole-link leaf (those route through the
+      // `kind:'button'` branch on a separate path) — it only enriches a PROSE leaf with inline links among text.
       try {
         const codeKids = [...el.children].filter((c) => /^(code|kbd|samp)$/i.test(c.tagName));
-        if (codeKids.length) {
+        const linkKids = (window.__NO_INLINE_LINKS === true) ? [] : [...el.children].filter((c) => c.tagName === 'A' && c.getAttribute('href') && clean(c.innerText || c.textContent));
+        if (codeKids.length || linkKids.length) {
           // backdrop for the alpha-flatten = the leaf's own painted bg if opaque, else white.
           let backdrop = [255, 255, 255];
           const obg = cs.backgroundColor && cs.backgroundColor !== 'rgba(0, 0, 0, 0)' ? cs.backgroundColor.match(/rgba?\(([^)]+)\)/) : null;
           if (obg) { const q = obg[1].split(',').map((x) => parseFloat(x)); if (q.length >= 3 && (q.length < 4 || q[3] >= 0.99)) backdrop = [q[0], q[1], q[2]]; }
-          const runs = []; let codeCount = 0;
+          const runs = []; let codeCount = 0, linkCount = 0;
           // preserve a single boundary space on EACH side so a plain run never glues onto an adjacent <code> chip.
           const pushPlain = (t) => { const c2 = clean(t); const lead = /^\s/.test(t) ? ' ' : ''; const trail = /\s$/.test(t) ? ' ' : ''; if (c2) runs.push({ text: lead + c2 + trail }); else if (lead || trail) runs.push({ text: ' ' }); };
-          // walk DIRECT child nodes in document order; nested non-code inline tags (<a>,<strong>,<em>) contribute
-          // their innerText as plain text (their chips, if any, are a rare 2nd-order case we accept as plain prose).
+          // walk DIRECT child nodes in document order; an inline <code> → code chip run; an inline <a href> → LINK
+          // run (carries href + the link's own rendered color + text-decoration so build-absolute re-emits a real
+          // styled <a>); any other inline tag (<strong>,<em>) contributes its innerText as plain prose.
           for (const node of el.childNodes) {
             if (node.nodeType === 3) { pushPlain(node.textContent); continue; }
             if (node.nodeType !== 1) continue;
@@ -933,9 +947,21 @@ function cropPng(png, box, dpr) {
               const ccol = (ccs.color && ccs.color !== 'rgba(0, 0, 0, 0)') ? toHexOpaque(ccs.color, backdrop) : null;
               runs.push({ text: t2, code: true, bg: bg || null, radius: rad ? Math.round(rad) : 0, padV: padT ? +(padT).toFixed(1) : 0, padH: padR ? +(padR).toFixed(1) : 0, mono, color: ccol });
               codeCount++;
+            } else if (ct === 'a' && window.__NO_INLINE_LINKS !== true && node.getAttribute('href') && clean(node.innerText || node.textContent)) {
+              // INLINE LINK run: keep a single boundary space on each side (a link sits mid-sentence). Record the
+              // link's OWN rendered color (so the clone reproduces the source's pink link color, not the theme's)
+              // and whether it is underlined (text-decoration-line includes 'underline').
+              const acs = getComputedStyle(node); const at = clean(node.innerText || node.textContent);
+              const lead = /^\s/.test(node.textContent || '') ? ' ' : '', trail = /\s$/.test(node.textContent || '') ? ' ' : '';
+              const acol = (acs.color && acs.color !== 'rgba(0, 0, 0, 0)') ? toHexOpaque(acs.color, backdrop) : null;
+              const underline = /underline/.test(acs.textDecorationLine || acs.textDecoration || '');
+              if (lead) runs.push({ text: ' ' });
+              runs.push({ text: at, link: node.getAttribute('href'), color: acol, underline });
+              if (trail) runs.push({ text: ' ' });
+              linkCount++;
             } else { pushPlain(node.innerText || node.textContent); }
           }
-          if (codeCount > 0 && runs.length) out.runs = runs;
+          if ((codeCount > 0 || linkCount > 0) && runs.length) out.runs = runs;
         }
       } catch {}
       return out;
@@ -972,8 +998,45 @@ function cropPng(png, box, dpr) {
       // becomes clean rendered prose instead of <div class=> garbage when FLOW rebuilds it natively. A code panel
       // (mf>=0.6) keeps verbatim; normal prose with a stray "<" (mf<0.3) is untouched.
       if (!isStructuralCode(el)) { const mf = markupFrac(t); if (mf > 0.3 && mf < 0.6) { const st = stripMarkupTokens(t); if (st) t = st; } }
-      const dk = t + '@' + Math.round(box.y / 8); if (seenText.has(dk)) return null; seenText.add(dk); // S7: dedup identical text at same y (Stripe renders h1 twice)
       const isH = /^h[1-6]$/.test(tag), isBtn = tag === 'a' || tag === 'button';
+      // a heading-permalink anchor is often LEAFED as a button (tag:'a' whose PARENT is <h1>-<h6>) — overreacted
+      // wraps the WHOLE heading in `<h2><a href="#slug"><span>#</span>Title</a></h2>`, so the leaf is the <a>, NOT
+      // the <h2>. Treat such a heading-wrapped link as a heading for the permalink strip so its "# Title" is cleaned.
+      let headingWrappedLink = false;
+      try { headingWrappedLink = tag === 'a' && el.parentElement && /^H[1-6]$/.test(el.parentElement.tagName); } catch {}
+      // HEADING PERMALINK-ANCHOR STRIP (TRACK B defect #1 — default ON, CAPTURE_NO_HEADING_ANCHOR_STRIP=1 → legacy).
+      // Docs/blog themes prepend a heading PERMALINK anchor whose marker text is a lone "#" / "¶". innerText
+      // CONCATENATES it INTO the heading → "# TLDR", "# Each Render Has Its Own Effects" — a markdown/permalink
+      // artifact, NOT heading content, that renders verbatim in the clone. Two real DOM shapes seen:
+      //   (a) overreacted: `<h2><a href="#slug"><span aria-hidden="true" class="…opacity-0 group-hover:…">#</span>TLDR</a></h2>`
+      //       — the "#" lives in an aria-hidden / opacity:0 permalink SPAN that is visually hidden until hover, so
+      //       it must NEVER be in the heading text. The anchor's OWN text is "#TLDR" (the lone-"#" test fails here).
+      //   (b) GitHub/Docusaurus: `<h2><a class="anchor|permalink|hash-link" href="#slug">#</a> Heading</h2>` — a
+      //       lone-"#" permalink anchor.
+      // We strip a SINGLE leading "#" ONLY when the heading's DOM carries the tell-tale permalink MARKER:
+      //   • a leading element (anchor OR span) whose own text is exactly "#"/"¶" AND is aria-hidden OR opacity:0 OR
+      //     a permalink-class OR inside an in-page href="#…" anchor.
+      // A genuine title ("#1 Product", "C# in 2026") has no such marker → UNTOUCHED. Conservative + reversible.
+      if ((isH || headingWrappedLink) && window.__NO_HEADING_ANCHOR_STRIP !== true && /^#\s*\S/.test(t)) {
+        let permalink = false;
+        try {
+          const isHashMark = (node) => {
+            const own = (node.textContent || '').replace(/\s+/g, '').trim();
+            if (own !== '#' && own !== '¶') return false;
+            let cs2 = null; try { cs2 = getComputedStyle(node); } catch {}
+            const ariaHidden = node.getAttribute && node.getAttribute('aria-hidden') === 'true';
+            const opacity0 = cs2 && parseFloat(cs2.opacity) === 0;
+            const cls = node.className && typeof node.className === 'string' ? node.className : '';
+            const permClass = /anchor|permalink|hash|header-link|heading-link/i.test(cls);
+            const inHashAnchor = node.tagName === 'A' ? (node.getAttribute('href') || '').startsWith('#') : false;
+            return ariaHidden || opacity0 || permClass || inHashAnchor;
+          };
+          // shape (b): a direct lone-"#" anchor/span child that is a permalink marker.
+          for (const node of el.querySelectorAll('a,span')) { if (isHashMark(node)) { permalink = true; break; } }
+        } catch {}
+        if (permalink) { const stripped = t.replace(/^#\s*/, '').trim(); if (stripped) t = stripped; }
+      }
+      const dk = t + '@' + Math.round(box.y / 8); if (seenText.has(dk)) return null; seenText.add(dk); // S7: dedup identical text at same y (Stripe renders h1 twice)
       const ia = {}; const exp = el.getAttribute('aria-expanded'); if (exp != null) ia.expanded = exp; const hp = el.getAttribute('aria-haspopup'); if (hp) ia.haspopup = hp; const role = el.getAttribute('role'); if (role && /tab|menu|button|switch|disclosure/.test(role)) ia.role = role;
       const cfx = isBtn ? id0() : null; if (cfx != null) el.setAttribute('data-cfx', String(cfx));
       // CTA-PAINT CAPTURE (body-CTA fix): a button-kind leaf paints its fill in THREE ways the old capture missed
