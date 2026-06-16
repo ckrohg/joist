@@ -1862,6 +1862,21 @@ function flatten(n) { if (!n) return; if (n._navConsumed) return; if (n.kind ===
 //
 // REVERSIBILITY: ABS_NO_CARDREFLOW=1 → detector returns [] → every node stays abs-pinned + blanket recipe #20.
 const NO_CARDREFLOW = process.env.ABS_NO_CARDREFLOW === '1';
+// ── CARD-ROW PRESERVE-PIN (multi-section collision fix; default ON, ABS_CARDROW_PRESERVE_PIN=0 → legacy) ──────────
+// THE collision-wall fix. emitCardRow() re-emits each multi-column section as a native container_type:'grid'; an
+// Elementor CONTAINER IGNORES the native _position:'absolute'/_offset_* control (it falls into document flow — see
+// :2028-2033), so the ONLY thing pinning the grid at its captured band is a scoped `#cr-N{position:absolute;top:Y}`
+// CSS rule. That rule was pushed ONLY to cardRowCss → joined into pageSettings.custom_css, which is the
+// ELEMENTOR-PRO-ONLY channel (:499-507): on the free render host it is SAVED but NEVER rendered, so every grid
+// container FLOWED to the top of the document → its cell-relative leaves landed at y≈0 → grids piled onto the hero/
+// each other (the catastrophic multi-section OCC collision on supabase 343 + linear 392). FIX: route the SAME pin
+// through the grid container's OWN joist_preserve_css payload — the plugin's `elementor/element/parse_css` hook
+// injects it into CORE Elementor's Post_CSS, which DOES render on FREE (exactly the channel the static nav already
+// uses at :2294 to solve the identical Pro-only problem). The desktop pin → `d` (always-on decl); the <=1024 un-pin
+// → `m` keys at 1024/767 so the responsive release also survives free-render. The legacy cardRowCss/mpbCardRowCss
+// pushes stay (harmless on free where they're inert; an active Pro fallback). Single-column sections never enter
+// emitCardRow → 341/439 are untouched by construction. Reversible: ABS_CARDROW_PRESERVE_PIN=0 → byte-identical to HEAD.
+const CARDROW_PRESERVE_PIN = process.env.ABS_CARDROW_PRESERVE_PIN !== '0';
 const cardRows = []; // [{ container, cols, box, colGap, rowGap, eid }] — detected & consumed (subtrees skip flatten/collectBg)
 const cardRowCss = []; // per-container scoped <=1024 un-pin rules keyed to each grid's _element_id (joined into custom_css)
 let CARDROW_SEQ = 0; // monotonic id seed for the grid containers' _element_id (cr-0, cr-1, …)
@@ -2031,6 +2046,20 @@ function emitCardRow(row) {
   // band's EXACT geometry via a CSS rule keyed to #eid (the root .e-con is position:relative → the grid's CSS
   // position:absolute lands page-relative exactly like the leaf widgets). absPos() is still spread ONLY to carry
   // the _offset_y SORT KEY the global widget reorder uses for DOM order (those abs keys are inert on a container).
+  // band geometry — computed HERE (before gridSettings) so the FREE-render preserve-pin `d` payload can carry the
+  // same desktop pin the Pro-only cardRowCss rule below carries. (formerly computed at the cardRowCss push.)
+  const X = Math.round(rowBox.x), Y = Math.round(rowBox.y), W = Math.round(rowBox.w), H = Math.max(20, Math.round(rowBox.h));
+  // FREE-RENDER PRESERVE-PIN (the collision-wall fix): the grid container ignores native _position:'absolute', and
+  // the page-level cardRowCss `#cr-N{top:Y}` rule is Pro-only (dropped on free → the grid flows to y≈0 and piles).
+  // Route the EXACT SAME desktop pin through joist_preserve_css `d` (rendered on FREE via the plugin's parse_css →
+  // core Post_CSS, like the static nav). `m` carries the <=1024 release (un-pin → relative;width:100% so the grid
+  // reflows to a single stacked column at narrow widths) so the responsive escape also survives free-render. The
+  // plugin scopes both to `.elementor-element-<id>` keyed off THIS container's engine id — no #cr-N selector needed.
+  const CR_PIN_D = `position:absolute !important;left:${X}px !important;top:${Y}px !important;width:${W}px !important;min-height:${H}px !important`;
+  const CR_UNPIN_M = 'position:relative !important;left:auto !important;top:auto !important;right:auto !important;bottom:auto !important;width:100% !important;max-width:100% !important;height:auto !important;min-height:0 !important';
+  const crPreserve = CARDROW_PRESERVE_PIN
+    ? { joist_preserve_css: JSON.stringify({ d: CR_PIN_D, m: { '1024': CR_UNPIN_M, '767': CR_UNPIN_M } }) }
+    : {};
   const gridSettings = {
     _element_id: eid,
     // content_width:'full' → e-con-FULL (no .e-con-inner wrapper). A BOXED grid wraps its children in a single
@@ -2047,15 +2076,15 @@ function emitCardRow(row) {
     grid_gaps: { unit: 'px', column: String(row.colGap || 0), row: String(row.rowGap || 0), isLinked: false },
     ...absPos(rowBox, z++),
     min_height: { unit: 'px', size: Math.max(20, Math.round(rowBox.h)) },
+    ...crPreserve,
   };
   widgets.push(container(gridSettings, cells));
-  // (1) DESKTOP ABS-PIN via CSS (since the container ignores _position) — pin #eid at the band's EXACT (x,y,w,h)
-  // so at desktop it occupies precisely the source band → zero document-flow change (the prior shift was the grid
-  // FLOWING at the top of the page because the container's _position:absolute was ignored). min-height = band
-  // height so the grid is exactly band-tall (its abs leaves don't add to flow inside it). The base pin is
-  // !important so it beats any container default; the <=1024 un-pin below comes LATER in source order and is also
-  // !important → it wins at narrow widths (equal specificity, later !important wins).
-  const X = Math.round(rowBox.x), Y = Math.round(rowBox.y), W = Math.round(rowBox.w), H = Math.max(20, Math.round(rowBox.h));
+  // (1) DESKTOP ABS-PIN via page custom_css (Pro-only; INERT on free — superseded by the crPreserve `d` above which
+  // renders on free). Retained as a harmless Pro fallback. pin #eid at the band's EXACT (x,y,w,h) so at desktop it
+  // occupies precisely the source band → zero document-flow change (the prior shift was the grid FLOWING at the top
+  // of the page because the container's _position:absolute was ignored). min-height = band height so the grid is
+  // exactly band-tall. !important so it beats any container default; the <=1024 un-pin below comes LATER in source
+  // order and is also !important → it wins at narrow widths (equal specificity, later !important wins).
   cardRowCss.push(`#${eid}{position:absolute!important;left:${X}px!important;top:${Y}px!important;width:${W}px!important;min-height:${H}px!important}`);
   // (2)+(3) per-container <=1024 UN-PIN (scoped to #eid, same custom_css channel as recipe #20/#21). Un-pin the
   // container → position:relative; height:auto; min-height:0; width:100%; left/top:auto (so it grows to its
