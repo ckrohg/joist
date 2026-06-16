@@ -1880,6 +1880,59 @@ const CARDROW_PRESERVE_PIN = process.env.ABS_CARDROW_PRESERVE_PIN !== '0';
 const cardRows = []; // [{ container, cols, box, colGap, rowGap, eid }] — detected & consumed (subtrees skip flatten/collectBg)
 const cardRowCss = []; // per-container scoped <=1024 un-pin rules keyed to each grid's _element_id (joined into custom_css)
 let CARDROW_SEQ = 0; // monotonic id seed for the grid containers' _element_id (cr-0, cr-1, …)
+
+// ── GENERALIZED CONTAINER POSITION-PIN (default ON, ABS_NO_CONTAINER_PIN=1 → legacy per-site pins) ──────────────────
+// THE DEEPER LESSON of the card-row collision-wall fix, lifted to a SINGLE choke point. Elementor CONTAINERS ignore
+// the native _position:'absolute'/_offset_* control (they fall into document flow), so the ONLY way to pin a container
+// at a captured band is a `#eid{position:absolute;top;left;width;min-height}` CSS rule. The PAGE custom_css channel
+// (_elementor_page_settings.custom_css) that carries such a rule is ELEMENTOR-PRO-ONLY: on the Pro-free render host it
+// is SAVED but NEVER rendered → the container flows to y≈0 and PILES (the catastrophic multi-section OCC collision).
+// The PROVEN free-render channel is the container's OWN joist_preserve_css `d` payload (the plugin's
+// `elementor/element/parse_css` → core Post_CSS hook). Previously each container-pin class (card-rows, static-nav)
+// hand-rolled its own free-twin + Pro-fallback. This helper makes that pattern UNIVERSAL: ANY container — a uniform
+// N-up card-row grid, a static nav, an IRREGULAR side-by-side panel pair (linear's Backlog/ENG ↔ FEB-MAR-APR mockup
+// panels), or any future non-grid container wrapper — gets its desktop position pin on the FREE channel by routing
+// through one function, with the Pro page-custom_css push kept as an INERT fallback (active only when Pro is present).
+//   containerPin(eid, box, { unpinM, extraD, pushCss }) →
+//     • returns the settings fragment to SPREAD into the container's settings (carries joist_preserve_css `d`+`m`).
+//     • box {x,y,w,h} → `d` = position:absolute;left:Xpx;top:Ypx;width:Wpx;min-height:Hpx  (the captured band).
+//     • unpinM (optional CSS decl) → `m` keys at 1024/767 so the responsive release also survives free-render.
+//     • extraD (optional) → appended to the `d` decl (e.g. z-index for a header).
+//     • pushCss(rule) (optional) → the Pro page-custom_css fallback push (caller-supplied sink: cardRowCss / fallbackCss).
+// Returns {} (no preserve, no Pro push) when ABS_NO_CONTAINER_PIN=1 → callers fall back to their legacy per-site pins,
+// which is byte-identical to HEAD's already-shipped behavior for the two existing pinned-container classes. PURE
+// position metadata; never changes the desktop render geometry beyond placing the container at its captured band.
+const CONTAINER_PIN = process.env.ABS_NO_CONTAINER_PIN !== '1';
+let CONTAINER_PIN_HITS = 0;            // census counter (how many containers got a free-render pin this build)
+const CONTAINER_PIN_LOG = [];          // [{eid,x,y,w,h}] — what the DRY_RUN census resolves the free pin to
+function containerPin(eid, box, opts = {}) {
+  if (!CONTAINER_PIN) return {};
+  let d, proRule, logBox;
+  if (opts.rawD) {
+    // Non-band pin (e.g. a top-anchored full-bleed header: top:0;left:0;width:100%;z-index) — caller supplies the
+    // exact desktop decl + the matching Pro fallback selector body. No box geometry; census logs box if given.
+    d = opts.rawD;
+    proRule = `#${eid}{${opts.rawDProBody || opts.rawD.replace(/\s*!important/g, '!important')}}`;
+    const b = box || {};
+    logBox = { eid, x: Math.round(b.x || 0), y: Math.round(b.y || 0), w: Math.round(b.w || 0), h: Math.round(b.h || 0), raw: true };
+  } else {
+    // FREE-RENDER desktop band pin (the plugin scopes `d` to `.elementor-element-<engineId>` keyed off this
+    // container's id — no #eid selector needed). extraD lets a caller append style extras to the band decl.
+    const X = Math.round(box.x), Y = Math.round(box.y), W = Math.round(box.w), H = Math.max(20, Math.round(box.h));
+    d = `position:absolute !important;left:${X}px !important;top:${Y}px !important;width:${W}px !important;min-height:${H}px !important`;
+    if (opts.extraD) d += `;${opts.extraD}`;
+    proRule = `#${eid}{position:absolute!important;left:${X}px!important;top:${Y}px!important;width:${W}px!important;min-height:${H}px!important${opts.extraDProRule ? ';' + opts.extraDProRule : ''}}`;
+    logBox = { eid, x: X, y: Y, w: W, h: H };
+  }
+  const payload = { d };
+  if (opts.unpinM) payload.m = { '1024': opts.unpinM, '767': opts.unpinM };
+  // INERT Pro page-custom_css fallback (harmless on free where it's silently dropped; active only under Pro). Caller
+  // supplies the sink so the rule lands in the right assembly (cardRowCss for grids, fallbackCss for the header).
+  if (typeof opts.pushCss === 'function') opts.pushCss(proRule);
+  CONTAINER_PIN_HITS++;
+  CONTAINER_PIN_LOG.push(logBox);
+  return { joist_preserve_css: JSON.stringify(payload) };
+}
 let HEADER_Y = 0;    // bottom of the header/nav band — card-rows fully inside it are the nav strip; skip them
 
 // non-trivial cell: a container with children, OR a leaf with real content (text/image/etc.) and a real box.
@@ -2055,10 +2108,14 @@ function emitCardRow(row) {
   // core Post_CSS, like the static nav). `m` carries the <=1024 release (un-pin → relative;width:100% so the grid
   // reflows to a single stacked column at narrow widths) so the responsive escape also survives free-render. The
   // plugin scopes both to `.elementor-element-<id>` keyed off THIS container's engine id — no #cr-N selector needed.
-  const CR_PIN_D = `position:absolute !important;left:${X}px !important;top:${Y}px !important;width:${W}px !important;min-height:${H}px !important`;
   const CR_UNPIN_M = 'position:relative !important;left:auto !important;top:auto !important;right:auto !important;bottom:auto !important;width:100% !important;max-width:100% !important;height:auto !important;min-height:0 !important';
+  // Route the desktop pin + <=1024 card-row reflow release through the GENERALIZED containerPin() choke point (free
+  // joist_preserve_css `d`+`m` channel + INERT Pro page-custom_css fallback push #1 below). The card-row gate
+  // (ABS_CARDROW_PRESERVE_PIN=0) still selects legacy-no-free-pin for grids specifically; containerPin's own gate
+  // (ABS_NO_CONTAINER_PIN=1) disables the generalized free pin for ALL container classes. When card-rows opt out we
+  // still keep the legacy Pro push (#1) so a Pro host renders identically to HEAD's pre-fix behavior.
   const crPreserve = CARDROW_PRESERVE_PIN
-    ? { joist_preserve_css: JSON.stringify({ d: CR_PIN_D, m: { '1024': CR_UNPIN_M, '767': CR_UNPIN_M } }) }
+    ? containerPin(eid, rowBox, { unpinM: CR_UNPIN_M, pushCss: (r) => cardRowCss.push(r) })
     : {};
   const gridSettings = {
     _element_id: eid,
@@ -2085,7 +2142,10 @@ function emitCardRow(row) {
   // of the page because the container's _position:absolute was ignored). min-height = band height so the grid is
   // exactly band-tall. !important so it beats any container default; the <=1024 un-pin below comes LATER in source
   // order and is also !important → it wins at narrow widths (equal specificity, later !important wins).
-  cardRowCss.push(`#${eid}{position:absolute!important;left:${X}px!important;top:${Y}px!important;width:${W}px!important;min-height:${H}px!important}`);
+  // NOTE: when crPreserve fired (the generalized containerPin), it ALREADY pushed this exact rule via pushCss → don't
+  // double-push. Only push here on the legacy path (containerPin disabled OR card-row free-pin opted out) so a Pro
+  // host still gets the desktop pin and the build stays byte-identical to HEAD when both free pins are off.
+  if (!(crPreserve && crPreserve.joist_preserve_css)) cardRowCss.push(`#${eid}{position:absolute!important;left:${X}px!important;top:${Y}px!important;width:${W}px!important;min-height:${H}px!important}`);
   // (2)+(3) per-container <=1024 UN-PIN (scoped to #eid, same custom_css channel as recipe #20/#21). Un-pin the
   // container → position:relative; height:auto; min-height:0; width:100%; left/top:auto (so it grows to its
   // reflowed content) AND release the cells + cell-leaves → height:auto; min-height:0; position:relative;
@@ -2320,7 +2380,23 @@ function buildRealHeader(nav, proMode, slug) {
   // payload — the SAME PreserveCSS parse_css→core-Post_CSS channel the stamp + responsive release already use,
   // which DOES render on free. The plugin wraps `d` as `.elementor-element-<engineId>{<d>}` so we DON'T need the
   // page-custom-css #joist-hdr selector. Reversible via ABS_NO_STATIC_NAV (wantSticky path emits no preserve `d`).
-  const staticNavPreserve = wantSticky ? {} : { joist_preserve_css: JSON.stringify({ d: 'position:absolute !important;top:0 !important;left:0 !important;width:100% !important;z-index:50 !important' }) };
+  // Route the static-nav un-stick pin through the GENERALIZED containerPin() choke point (rawD mode: top-anchored
+  // full-bleed, not a captured band) so the header shares the SAME free-render joist_preserve_css channel + INERT Pro
+  // page-custom_css fallback as every other pinned container. ABS_NO_CONTAINER_PIN=1 falls back to the inline legacy
+  // payload below (byte-identical to HEAD). The Pro fallback rule is collected into _staticNavProCss → staticNavCss.
+  const _staticNavProCss = [];
+  const HDR_RAW_D = 'position:absolute !important;top:0 !important;left:0 !important;width:100% !important;z-index:50 !important';
+  let staticNavPreserve = {};
+  if (!wantSticky) {
+    staticNavPreserve = containerPin(headerEid, null, {
+      rawD: HDR_RAW_D,
+      rawDProBody: 'position:absolute!important;top:0!important;left:0!important;width:100%!important;z-index:50',
+      pushCss: (r) => _staticNavProCss.push(r),
+    });
+    // ABS_NO_CONTAINER_PIN=1 → containerPin returned {} → restore the legacy inline free payload so static-nav still
+    // works on free (this generalization must never regress the already-shipped static-nav fix).
+    if (!staticNavPreserve.joist_preserve_css) staticNavPreserve = { joist_preserve_css: JSON.stringify({ d: HDR_RAW_D }) };
+  }
   const headerSettings = {
     content_width: 'full', flex_direction: 'row', flex_justify_content: 'space-between', flex_align_items: 'center',
     padding: { unit: 'px', top: '14', right: '40', bottom: '14', left: '40', isLinked: false },
@@ -2330,7 +2406,9 @@ function buildRealHeader(nav, proMode, slug) {
     ...(headerBg ? { background_background: 'classic', background_color: headerBg } : {}),
   };
   // Retained as a belt-and-suspenders page-custom_css fallback (harmless on free where it's inert; active if Pro).
-  const staticNavCss = wantSticky ? '' : `#${headerEid}{position:absolute!important;top:0!important;left:0!important;width:100%!important;z-index:50}`;
+  // Pro page-custom_css fallback for the static-nav un-stick (inert on free, active under Pro). Prefer the rule the
+  // generalized containerPin() pushed; fall back to the literal when the helper was disabled (ABS_NO_CONTAINER_PIN=1).
+  const staticNavCss = wantSticky ? '' : (_staticNavProCss[0] || `#${headerEid}{position:absolute!important;top:0!important;left:0!important;width:100%!important;z-index:50}`);
   console.log(`header position: ${wantSticky ? 'STICKY/fixed' : 'STATIC (absolute@top:0 via scoped css, scrolls away)'} (source nav position: ${nav.srcPosition || 'unknown'})`);
   const logoWidget = (() => {
     if (nav.logo) { const raw = (nav.logo.kind === 'image' ? bestImgSrc(nav.logo) : null) || nav.logo.src || nav.logo.raster; const src = localSrc(raw); if (src && src !== 'SKIP') { const h = round(Math.min(48, (nav.logo.box && nav.logo.box.h) || 32)); return { elType: 'widget', widgetType: 'html', settings: { html: `<img src="${esc(src)}" alt="${esc(nav.logo.alt || 'logo')}" style="display:block;height:${h}px;width:auto;max-width:200px">` } }; } }
@@ -3251,6 +3329,7 @@ const dryDump = process.env.ABS_DUMP_TREE || `/tmp/abs-dryrun-${pageId}.json`;
   console.log(`mobile per-breakpoint compaction: ${NO_MOBILE_PERBP ? 'OFF (BUILD_NO_MOBILE_PERBP=1)' : `ON — @<=767 only | imgCaps ${MPB_imgCap} (390-refined ${MPB_imgRefine}) fontBandCaps ${MPB_font} cardRowCaps ${MPB_cardRow} hidden ${MPB_hide} gap→${MPB_GAP}px${mpb390 ? ` | 390-model: ${mpb390.leafCount} leaves, srcMobile pageH ${mpb390.pageH}` : ' | PART A only (no 390 model)'}`}`);
   console.log(`global h-overflow clamp: ${NO_HCLAMP ? 'OFF (BUILD_NO_HCLAMP=1 → may h-scroll if a leaf under-measured its box)' : 'ON (root .e-con + html/body overflow-x:clip + max-width:100% at ALL widths → docScrollW<=clientW, void fix preserved)'}`);
   if (cardRowScopedCss) console.log(`injecting ${cardRowCss.length} card-row scoped <=1024 un-pin rule(s) via custom_css`);
+  console.log(`container position-pin (generalized free-render): ${CONTAINER_PIN ? `ON — ${CONTAINER_PIN_HITS} container(s) pinned via joist_preserve_css (free) + inert Pro custom_css fallback${CONTAINER_PIN_LOG.length ? ` [${CONTAINER_PIN_LOG.map((p) => `${p.eid}@${p.raw ? 'top:0' : `(${p.x},${p.y},${p.w}x${p.h})`}`).join(', ')}]` : ''}` : 'OFF (ABS_NO_CONTAINER_PIN=1 → legacy per-site pins)'}`);
   console.log(`vreflow2 residual-compaction: ${NO_VREFLOW2 ? 'OFF (ABS_NO_VREFLOW2=1 → recipe #23 only, no image-cap/bg-rect-out-of-flow)' : `ON — ${imgCapCss.length} content-image #img-N max-height cap(s) + ${bgrCss.length} bg-rect #bgr-N out-of-flow rule(s) @<=1024`}`);
   console.log(`media leaf height-lock: ${NO_IMGHLOCK ? 'OFF (ABS_NO_IMGHLOCK=1 → native <img> intrinsic-aspect height, may inflate section)' : `ON — ${imgHlockCss.length} media leaf #img-N desktop height-pin(s) (captured band height, no aspect-stretch)`}`);
   console.log(`fluid fonts: ${NO_FLUIDFONT ? 'OFF (ABS_NO_FLUIDFONT=1 → fixed px)' : `ON — ${fluidFontCss.length} text widget(s) got clamp() fluid font-size (>=${FLUID_MIN_SIZE}px captured)`}`);
