@@ -511,7 +511,7 @@ function fluidFontSettings(n) {
 // default so build-absolute is UNBROKEN for every other corpus site (they keep the desktop-pixel abs build).
 const NATIVE_RESPONSIVE = process.env.ABS_NATIVE_RESPONSIVE === '1';
 // the per-bp release decl block (same for every leaf — the plugin scopes it to .elementor-element-<id>).
-const NR_RELEASE = 'position:relative !important;left:auto !important;top:auto !important;right:auto !important;bottom:auto !important;width:100% !important;max-width:100% !important;height:auto !important;min-height:0 !important;margin:0 0 10px 0 !important';
+const NR_RELEASE = 'position:relative !important;left:auto !important;top:auto !important;right:auto !important;bottom:auto !important;width:100% !important;max-width:100% !important;height:auto !important;min-height:0 !important;margin:0 0 10px 0 !important;white-space:normal !important';
 // ── PER-LEAF FREE-RENDER REFLOW (THE supabase-442 defect fix; default ON, ABS_NO_LEAF_REFLOW_M=1 → legacy) ─────
 // THE user-visible defect: the blanket <=1024 abs-leaf un-pin (responsiveCss, ~:3168) that lets the desktop-pixel
 // abs-pinned tree reflow to a single column below 1024 rides ONLY the PAGE custom_css channel — ELEMENTOR-PRO-ONLY,
@@ -542,15 +542,75 @@ const JOIST_SRC = process.env.ABS_NO_JOIST_SRC !== '1';
 // custom property only (no layout effect) so it NEVER changes the desktop render; `m` keys apply <=1024 only.
 function joistPreserve(n) {
   const payload = {};
+  const dParts = [];
   if (JOIST_SRC && n && typeof n.srcPath === 'string' && n.srcPath) {
     // escape the path for a CSS string value (it is a safe charset already, but guard quotes/backslashes).
     const safe = n.srcPath.replace(/["\\]/g, '');
-    payload.d = `--joist-src:"${safe}"`;
+    dParts.push(`--joist-src:"${safe}"`);
   }
   // `m` un-pin: NATIVE_RESPONSIVE (full responsive arch, also flips nrTypo) OR LEAF_REFLOW_M (geometry-only,
   // default ON — THE supabase-442 free-render reflow fix). Either route emits the SAME per-leaf release decl.
   if (NATIVE_RESPONSIVE || LEAF_REFLOW_M) { payload.m = { '1024': NR_RELEASE, '767': NR_RELEASE }; LEAF_REFLOW_M_HITS++; }
+  // _noWrap WRAP-AXIS RELEASE (Phase 2 residual fix): the headline/link wrap-guard (_noWrap) keeps a single-line
+  // source headline on ONE line. When emitted as INLINE white-space:nowrap on the inner editor child, that nowrap
+  // can NOT be overridden by the m-channel (which scopes to the OUTER .elementor-element-<id>), so a headline whose
+  // fallback font is wider than its released box (e.g. supabase "Build in a weekend" at 604px in a 390 box) keeps
+  // nowrap below 1024 and pushes the page scrollWidth past the viewport (the 604/214 residual). FIX: when the leaf
+  // is _noWrap AND the reflow channel is active, route the nowrap through the OUTER element's DESKTOP `d` decl
+  // (white-space:nowrap on .elementor-element-<id> — the leaf-widget callers drop the inner inline nowrap, see
+  // leafWidget) so NR_RELEASE's `m` white-space:normal !important overrides it on the SAME element at <=1024 →
+  // desktop stays one-line, narrow wraps. Desktop (>1024) is byte-equivalent: the `d` nowrap reproduces the prior
+  // inline nowrap's effect. No-op when reflow is off (then leafWidget keeps the legacy inline nowrap).
+  if ((NATIVE_RESPONSIVE || LEAF_REFLOW_M) && n && n._noWrap) dParts.push('white-space:nowrap');
+  if (dParts.length) payload.d = dParts.join(';');
   return (payload.d || payload.m) ? { joist_preserve_css: JSON.stringify(payload) } : {};
+}
+// True when the OUTER-element `d` nowrap (above) is carrying the wrap-guard, so leafWidget must NOT also emit the
+// inner inline white-space:nowrap (which the m-channel can't reach). Mirrors joistPreserve's gate exactly.
+const NOWRAP_VIA_PRESERVE = (n) => (NATIVE_RESPONSIVE || LEAF_REFLOW_M) && n && n._noWrap;
+// ── BG-RECT / NO-ID WIDTH RELEASE at <=1024 (Phase 2 — THE horizontal-overflow fix; default ON, ABS_NO_BGR_RELEASE_M=1 → legacy) ──
+// PHASE-1 (LEAF_REFLOW_M) released the 163 real content LEAVES via joistPreserve's `m` payload, so they STACK on free
+// below 1024 — but the page STILL OVERFLOWS HORIZONTALLY because ~41 absolutes never got that release: the page-
+// absolute bg-rect LAYERS (#bgr-N — bgRect/bgRectSolid/bgRectChrome) and the no-id page-absolute HTML chrome widgets
+// (hChrome, divider, html-leaf chrome) spread `...absPos(box,0)` (baking the DESKTOP _element_custom_width px + a
+// DESKTOP _offset_x) but NEVER `joistPreserve(n)`. Their only <=1024 handling was bgrIdSettings' keep-absolute rule
+// `@media{#bgr-N{position:absolute!important}}` pushed into bgrCss → joined into the PAGE custom_css channel, which is
+// ELEMENTOR-PRO-ONLY → SILENTLY DROPPED on the free render host (verified: ZERO `#bgr-` @media matches in the rendered
+// HTML). So on free those ~41 widgets KEEP their desktop left-offset (e.g. bgr-5 left:1009) + desktop width (e.g.
+// 1120px), painting RIGHT-edge past the viewport (bgr-5 right=1280 at a 960 viewport = 320 of the 480 overflow).
+// FIX: route the SAME free-render `m` release these widgets need through their OWN joist_preserve_css `m` payload (the
+// plugin's elementor/element/parse_css → CORE Post_CSS hook — RENDERS ON FREE, the proven channel) PLUS the native
+// per-breakpoint width controls (_element_custom_width_tablet/_mobile:{%,100} + _element_width_*:initial — core free,
+// render the width axis). Two release shapes:
+//   • BG-RECTS (backdrops, z0): KEEP position:absolute but pin left:0/right:auto + width:100%/max-width:100% → they
+//     no longer overflow horizontally AND stay OUT of flow (add 0 height — they remain the section backdrop behind
+//     content). top/height untouched (the section bg keeps painting at its band).
+//   • NO-ID CHROME html widgets (content chrome — divider/hChrome/html-leaf): the FULL leaf release (NR_RELEASE →
+//     position:relative;left:auto;width:100%;height:auto) so they stack with the content like every other leaf.
+// DESKTOP (>1024) BYTE-IDENTICAL: the payload carries NO `d` decl (only `m` keys at 1024/767 → the desktop render
+// never sees them); the baked desktop _element_custom_width + _offset_x are UNCHANGED for >1024. Reversible:
+// ABS_NO_BGR_RELEASE_M=1 → these paths emit NO joist_preserve_css `m`/native-width release (exact legacy desktop-pin).
+const BGR_RELEASE_M = process.env.ABS_NO_BGR_RELEASE_M !== '1';
+// bg-rect release: STAY absolute (z0 backdrop, no flow-height) but kill the horizontal overflow (left:0 + width:100%).
+const NR_RELEASE_BG = 'position:absolute !important;left:0 !important;right:auto !important;width:100% !important;max-width:100% !important';
+let BGR_RELEASE_M_HITS = 0;   // census: bg-rect layers that got the free-render `m` width release this build
+let NOID_RELEASE_M_HITS = 0;  // census: no-id page-absolute chrome widgets that got the full `m` reflow release
+// Native per-breakpoint WIDTH-axis release (core-free controls, render on free): width → 100% at tablet (<=1024) and
+// mobile (<=767). _element_width_*:initial clears the desktop `_element_width:'initial'`-paired custom-width baked by
+// absPos so the % width takes effect. Desktop control (_element_custom_width px) is UNTOUCHED → >1024 byte-identical.
+const NATIVE_W_RELEASE = {
+  _element_width_tablet: 'initial', _element_custom_width_tablet: { unit: '%', size: 100 },
+  _element_width_mobile: 'initial', _element_custom_width_mobile: { unit: '%', size: 100 },
+};
+// absReleaseM(kind): the free-render <=1024 width release for a page-absolute geometry widget that carries NO source
+// node (bg-rects, chrome). kind:'bg' → keep-absolute left:0/width:100% (backdrop); kind:'noid' → full NR_RELEASE
+// reflow (content chrome stacks). Returns {} when the gate is off → exact legacy desktop-pin (byte-identical).
+function absReleaseM(kind) {
+  if (!BGR_RELEASE_M) return {};
+  const decl = kind === 'bg' ? NR_RELEASE_BG : NR_RELEASE;
+  if (kind === 'bg') BGR_RELEASE_M_HITS++; else NOID_RELEASE_M_HITS++;
+  // `m` keys apply <=1024 ONLY; no `d` decl → desktop render never sees this. Native width controls also <=1024 only.
+  return { joist_preserve_css: JSON.stringify({ m: { '1024': decl, '767': decl } }), ...NATIVE_W_RELEASE };
 }
 // native per-breakpoint font-size (shrink large captured text toward a readable mobile/tablet ceiling; never above
 // the captured desktop size). Mirrors fluidFontSettings' band ceilings. Returns {} when disabled or text too small.
@@ -832,7 +892,7 @@ const MONO_STACK = "ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,'Libera
 const lumaCss = (s) => { const m = String(s || '').match(/rgba?\(([^)]+)\)/); if (!m) return null; const p = m[1].split(',').map((x) => parseFloat(x)); if (p.length < 3) return null; const a = p.length >= 4 ? p[3] : 1; if (a < 0.5) return null; return 0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2]; };
 function codePanelWidget(n, P, PB) {
   const fs2 = (n.typo && n.typo.size) || 14;
-  if (process.env.BUILD_NO_CODE_PANEL) { const cc = colorCss(n); return { elType: 'widget', widgetType: 'html', settings: { html: `<pre style="white-space:pre-wrap;font-family:${MONO_STACK};font-size:${fs2}px;margin:0${cc ? ';' + cc : ''}">${esc(n.text || '')}</pre>`, ...PB, ...P, ...mobileAbsenceHide(n, PB) } }; }
+  if (process.env.BUILD_NO_CODE_PANEL) { const cc = colorCss(n); return { elType: 'widget', widgetType: 'html', settings: { html: `<pre style="white-space:pre-wrap;font-family:${MONO_STACK};font-size:${fs2}px;margin:0${cc ? ';' + cc : ''}">${esc(n.text || '')}</pre>`, ...PB, ...P, ...joistPreserve(n), ...mobileAbsenceHide(n, PB) } }; }
   // ANNOTATION-LABEL GUARD (tailwind black-box fix): the capture's mono-dominance branch over-classifies a tiny
   // inline monospace utility-class LABEL (tailwindcss.com's faint `text-8xl / text-gray-950 / …` callouts beside
   // the demo cards) as kind:'code'. Those carry NO captured panel bg (n.bg==null), 0px radius, sit in a tiny box
@@ -855,7 +915,7 @@ function codePanelWidget(n, P, PB) {
       const lh = (n.typo && n.typo.lineHeight) || `${Math.round(fs2 * 1.4)}px`;
       const pre = `margin:0;white-space:pre-wrap;word-break:break-word;font-family:${MONO_STACK};font-size:${fs2}px;line-height:${lh};color:${tc};background:transparent;`;
       const html = `<pre style="${pre}">${esc(n.text || '')}</pre>`;
-      return { elType: 'widget', widgetType: 'html', settings: { html, ...PB, ...P, ...mobileAbsenceHide(n, PB) } };
+      return { elType: 'widget', widgetType: 'html', settings: { html, ...PB, ...P, ...joistPreserve(n), ...mobileAbsenceHide(n, PB) } };
     }
   }
   const radius = px(n.radius) || 0;
@@ -1071,7 +1131,13 @@ function leafWidget(n, target, origin) {
     // no URL (blob/unresolved): bare <video> still satisfies the gate; with iconfix, the poster (if any) renders the icon
     else inner = `<video width="${w}" height="${h}" ${wantIconFix ? `muted playsinline${n.poster ? ` poster="${esc(localSrc(n.poster))}"` : ''}` : 'controls playsinline'} style="width:100%;height:100%;object-fit:cover"></video>`;
     const VC = videoCapSettings(box, n);
-    sink.push({ elType: 'widget', widgetType: 'html', settings: { html: `<div style="width:${w}px;height:${h}px;max-width:100%">${inner}</div>`, ...PB, ...VC, ...P, ...mobileAbsenceHide(n, VC) } });
+    // WIDTH-RELEASE (Phase 2 horizontal-overflow fix): a page-absolute VIDEO widget kept its baked desktop
+    // _element_custom_width px + _offset_x and never got the LEAF_REFLOW_M release → it stayed pinned off-screen
+    // below 1024 (supabase 525128a/ba5a1de hero videos at left:160/170, w:390 → ~1306px right-edge floor). Add the
+    // same per-leaf joistPreserve(n) `m` release every other leaf gets so it un-pins (position:relative;width:100%)
+    // and stacks at <=1024. Desktop (>1024) byte-identical: the `m` keys apply <=1024 only. Rides the LEAF_REFLOW_M
+    // gate (ABS_NO_LEAF_REFLOW_M=1 → no `m` payload → exact legacy desktop-pin).
+    sink.push({ elType: 'widget', widgetType: 'html', settings: { html: `<div style="width:${w}px;height:${h}px;max-width:100%">${inner}</div>`, ...PB, ...VC, ...P, ...joistPreserve(n), ...mobileAbsenceHide(n, VC) } });
     return;
   }
   // LIST (ul/ol): emit a NATIVE list via a text-editor widget whose HTML is a real <ul>/<ol><li>…. Matrix
@@ -1180,7 +1246,12 @@ function leafWidget(n, target, origin) {
         const panels = its.map((it) => it.content ? `<div role="tabpanel" style="padding:8px 0${cc ? ';' + cc : ''}">${esc(it.content)}</div>` : '').filter(Boolean).join('');
         tabsHtml = `${tablistHtml}${panels}`;
       }
-      sink.push({ elType: 'widget', widgetType: 'html', settings: { html: tabsHtml, ...PB, ...Pcode, ...mobileAbsenceHide(n, PB) } });
+      // WIDTH-RELEASE (Phase 2 horizontal-overflow fix): the page-absolute TABS widget kept its baked desktop
+      // _element_custom_width px (e.g. supabase tablist 1120px @ left:160 → right:1280, a tail of the ~1306 floor)
+      // and never got the LEAF_REFLOW_M release. Add the same per-leaf joistPreserve(n) `m` release so the tablist
+      // un-pins (position:relative;width:100%) and stacks at <=1024. Desktop (>1024) byte-identical (`m` <=1024 only).
+      // Rides the LEAF_REFLOW_M gate (ABS_NO_LEAF_REFLOW_M=1 → no `m` payload → exact legacy desktop-pin).
+      sink.push({ elType: 'widget', widgetType: 'html', settings: { html: tabsHtml, ...PB, ...Pcode, ...joistPreserve(n), ...mobileAbsenceHide(n, PB) } });
     }
     return;
   }
@@ -1224,7 +1295,13 @@ function leafWidget(n, target, origin) {
       const itype = (n.inputType && /^(text|email|search|tel|url|password|number|date)$/.test(n.inputType)) ? n.inputType : 'text';
       inner = `<input type="${itype}"${n.value ? ` value="${esc(n.value)}"` : ''} placeholder="${esc(n.placeholder || '')}" style="${baseStyle}">`;
     }
-    sink.push({ elType: 'widget', widgetType: 'html', settings: { html: `<div style="width:${w}px;height:${h}px;max-width:100%">${inner}</div>`, ...PB, ...P, ...mobileAbsenceHide(n, PB) } });
+    // WIDTH-RELEASE (Phase 2 horizontal-overflow fix): a page-absolute form-control (input/textarea/select/submit
+    // button) kept its baked desktop _element_custom_width px + _offset_x and never got the LEAF_REFLOW_M release →
+    // it stayed pinned off-screen below 1024 (supabase d2b2dbe newsletter button at left:1163 → right:1280, the
+    // dominant tail of the ~1306px floor). Add the same per-leaf joistPreserve(n) `m` release so it un-pins
+    // (position:relative;width:100%) and stacks at <=1024. Desktop (>1024) byte-identical: `m` keys apply <=1024
+    // only. Rides the LEAF_REFLOW_M gate (ABS_NO_LEAF_REFLOW_M=1 → no `m` payload → exact legacy desktop-pin).
+    sink.push({ elType: 'widget', widgetType: 'html', settings: { html: `<div style="width:${w}px;height:${h}px;max-width:100%">${inner}</div>`, ...PB, ...P, ...joistPreserve(n), ...mobileAbsenceHide(n, PB) } });
     return;
   }
   const text = displayText(n.text); if (!text) return; const tc = textColor(n); const cc = colorCss(n);
@@ -1237,7 +1314,7 @@ function leafWidget(n, target, origin) {
     // typography) and paints the chrome on a companion z0 rect pinned to the SAME box behind it. kses-safe (style
     // attr only). '' / no rect for a plain heading → byte-identical to the old path. BUILD_NO_LEAF_CHROME=1 → off.
     const hChrome = leafChromeParts(n);
-    if (hChrome) sink.push({ elType: 'widget', widgetType: 'html', settings: { html: `<div style="width:100%;height:100%;${hChrome}"></div>`, ...absPos(box, 0, origin) } });
+    if (hChrome) sink.push({ elType: 'widget', widgetType: 'html', settings: { html: `<div style="width:100%;height:100%;${hChrome}"></div>`, ...absPos(box, 0, origin), ...(origin ? {} : absReleaseM('bg')) } });
     const FF = fluidFontSettings(n); sink.push({ elType: 'widget', widgetType: 'heading', settings: { title: text, header_size: 'h' + Math.min(6, Math.max(1, n.level || 2)), ...nativeTypo(n), ...nrTypo(n), ...FF, ...(tc ? { title_color: tc } : {}), ...globalRefSettings(n, 'title_color'), ...P, ...joistPreserve(n), ...mobileAbsenceHide(n, FF) } }); return;
   }
   // button/link: the <a> inherits the THEME link color (a{color:…}) which beats text_color → INLINE-stamp the
@@ -1260,7 +1337,9 @@ function leafWidget(n, target, origin) {
     // per-leaf a{color:inherit} reset routes it onto the <a> glyphs past the theme `a{color}`. Chrome (btnCss,
     // already color-free under DEINLINE) + white-space:nowrap are structure and stay inline.
     const baseAnchorStyle = btnCss || (DEINLINE ? '' : cc);
-    const anchorStyle = n._noWrap ? (baseAnchorStyle ? baseAnchorStyle + ';white-space:nowrap' : 'white-space:nowrap') : baseAnchorStyle;
+    // _noWrap: inline nowrap only in the legacy (reflow-off) path; when reflow is active it rides the OUTER element's
+    // preserve `d` decl so the m-channel can wrap it at <=1024 (a too-wide link wraps narrow instead of overflowing).
+    const anchorStyle = (n._noWrap && !NOWRAP_VIA_PRESERVE(n)) ? (baseAnchorStyle ? baseAnchorStyle + ';white-space:nowrap' : 'white-space:nowrap') : baseAnchorStyle;
     const DR = (DEINLINE && tc) ? deinlineAnchorReset(FF) : {};   // reset iff legacy would have stamped a color
     sink.push({ elType: 'widget', widgetType: 'text-editor', settings: { editor: `<a${n.href ? ` href="${esc(n.href)}"` : ''}${styleAttr(anchorStyle)}>${esc(text)}</a>`, ...nativeTypo(n), ...nrTypo(n), ...FF, ...DR, ...(tc ? { text_color: tc } : {}), ...globalRefSettings(n, 'text_color'), ...P, ...joistPreserve(n), ...mobileAbsenceHide(n, { ...FF, ...DR }) } }); return;
   }
@@ -1278,7 +1357,9 @@ function leafWidget(n, target, origin) {
   // defect #5: blockquote left border-bar (hex-only, kses-safe in a text-editor div).
   const barCss = blockquoteBarCss(n);
   const baseTextCss = [inlineCc, chromeCss, barCss].filter(Boolean).join(';');
-  const textCss = n._noWrap ? (baseTextCss ? baseTextCss + ';white-space:nowrap' : 'white-space:nowrap') : baseTextCss;
+  // _noWrap: keep the inline nowrap on the inner div ONLY in the legacy (reflow-off) path; when reflow is active the
+  // nowrap rides the OUTER element's preserve `d` decl (so the m-channel can wrap it at <=1024 — see joistPreserve).
+  const textCss = (n._noWrap && !NOWRAP_VIA_PRESERVE(n)) ? (baseTextCss ? baseTextCss + ';white-space:nowrap' : 'white-space:nowrap') : baseTextCss;
   const FF = fluidFontSettings(n);
   // defect #6 + TRACK B #3: when the captured prose carries inline-code SEGMENTS or inline LINK runs, rebuild the
   // editor HTML run-by-run (plain runs esc()'d, code runs as styled <code> chips, link runs as styled <a>) instead
@@ -1356,7 +1437,7 @@ function bgrIdSettings(box) {
   if (!NO_VREFLOW2) bgrCss.push(`@media(max-width:1024px){#${eid}{position:absolute!important}}`);
   return { _element_id: eid };
 }
-function bgRect(box, css) { bgRects.push({ elType: 'widget', widgetType: 'html', settings: { html: `<div style="${wmax(box.w)};height:${Math.round(box.h)}px;${css}"></div>`, ...bgrIdSettings(box), ...absPos(box, 0) } }); }
+function bgRect(box, css) { bgRects.push({ elType: 'widget', widgetType: 'html', settings: { html: `<div style="${wmax(box.w)};height:${Math.round(box.h)}px;${css}"></div>`, ...bgrIdSettings(box), ...absPos(box, 0), ...absReleaseM('bg') } }); }
 // SOLID-bg variant: the inner div carries the captured background-color AND a tiny textless <img> probe child
 // so the grader's re-capture emits this as a COLOR-bearing container with background.color (see note above).
 // If no probe image is available yet, fall back to the plain (childless) bgRect — still renders the bg pixels,
@@ -1374,7 +1455,7 @@ function bgRectSolid(box, color, meta) {
   // section's area, so it does not move SSIM or per-element area-coverage meaningfully — it exists ONLY so the
   // div is re-emitted as a container carrying background.color (exact captured source color → CIEDE2000 ~0).
   const probe = `<img src="${esc(PROBE_IMG)}" width="8" height="8" alt="" style="position:absolute;left:0;top:0;width:8px;height:8px;opacity:0.06;pointer-events:none">`;
-  bgRects.push({ elType: 'widget', widgetType: 'html', settings: { html: `<div style="${wmax(box.w)};height:${Math.round(box.h)}px;background-color:${color}${sig}">${probe}</div>`, ...bgrIdSettings(box), ...absPos(box, 0) } });
+  bgRects.push({ elType: 'widget', widgetType: 'html', settings: { html: `<div style="${wmax(box.w)};height:${Math.round(box.h)}px;background-color:${color}${sig}">${probe}</div>`, ...bgrIdSettings(box), ...absPos(box, 0), ...absReleaseM('bg') } });
 }
 // CARD-CHROME (Mechanism A): emit a CHROME-ONLY rect for a card whose fill ≈ the page floor (so it was dropped by
 // every bg gate) but which carries a real border/radius/shadow signal. The captured fill (bgSampled if present)
@@ -1385,7 +1466,7 @@ function bgRectChrome(box, fill, sig) {
   const fillCss = fill ? `background-color:${fill}` : '';
   if (!PROBE_IMG) { bgRect(box, `${fillCss}${sig}`); return; }
   const probe = `<img src="${esc(PROBE_IMG)}" width="8" height="8" alt="" style="position:absolute;left:0;top:0;width:8px;height:8px;opacity:0.06;pointer-events:none">`;
-  bgRects.push({ elType: 'widget', widgetType: 'html', settings: { html: `<div style="${wmax(box.w)};height:${Math.round(box.h)}px;${fillCss}${sig}">${probe}</div>`, ...bgrIdSettings(box), ...absPos(box, 0) } });
+  bgRects.push({ elType: 'widget', widgetType: 'html', settings: { html: `<div style="${wmax(box.w)};height:${Math.round(box.h)}px;${fillCss}${sig}">${probe}</div>`, ...bgrIdSettings(box), ...absPos(box, 0), ...absReleaseM('bg') } });
 }
 // GRADIENT-bg variant (round-45 — extends the PROVEN round-44 color-node vein to GRADIENT backgrounds, which
 // round 44 explicitly left as a hue-blind solid fallback). The lowest per-element COLOR sites are the dark
@@ -1558,7 +1639,7 @@ function bgRectGradient(box, grad, meta) {
   // BGPROBE: full-bleed gradient section band → 24px probe so the clone re-captures it as a CONTAINER, not a mockup.
   const px = bgBandProbePx(isFullBleedBand(box));
   const probe = `<img src="${esc(PROBE_IMG)}" width="${px}" height="${px}" alt="" style="position:absolute;left:0;top:0;width:${px}px;height:${px}px;opacity:0.06;pointer-events:none">`;
-  bgRects.push({ elType: 'widget', widgetType: 'html', settings: { html: `<div style="${wmax(box.w)};height:${Math.round(box.h)}px;${css}">${probe}</div>`, ...bgrIdSettings(box), ...absPos(box, 0) } });
+  bgRects.push({ elType: 'widget', widgetType: 'html', settings: { html: `<div style="${wmax(box.w)};height:${Math.round(box.h)}px;${css}">${probe}</div>`, ...bgrIdSettings(box), ...absPos(box, 0), ...absReleaseM('bg') } });
 }
 // IMAGE-bg variant — full-bleed section background-image band. Mirrors bgRectGradient's BGPROBE logic: a full-bleed
 // painted band needs a >=24px probe child so the grader's re-capture sees realMedia.length>=1 → isCssBgSurface=FALSE →
@@ -1572,7 +1653,7 @@ function bgRectImage(box, css, meta) {
   if (!PROBE_IMG || !(BGPROBE_ON && isFullBleedBand(box))) { bgRect(box, cssX); return; }
   const px = BGPROBE_PX;
   const probe = `<img src="${esc(PROBE_IMG)}" width="${px}" height="${px}" alt="" style="position:absolute;left:0;top:0;width:${px}px;height:${px}px;opacity:0.06;pointer-events:none">`;
-  bgRects.push({ elType: 'widget', widgetType: 'html', settings: { html: `<div style="${wmax(box.w)};height:${Math.round(box.h)}px;${cssX}">${probe}</div>`, ...bgrIdSettings(box), ...absPos(box, 0) } });
+  bgRects.push({ elType: 'widget', widgetType: 'html', settings: { html: `<div style="${wmax(box.w)};height:${Math.round(box.h)}px;${cssX}">${probe}</div>`, ...bgrIdSettings(box), ...absPos(box, 0), ...absReleaseM('bg') } });
 }
 // SAMPLED-PAINT bg fallback (discovery-wave-4 rank-1 — extends the PROVEN r44/r45 color-container vein to
 // containers carrying NO explicit background.color/gradient but a captured n.bgSampled, the dominant rendered
@@ -2604,7 +2685,14 @@ function emitLandmarks(root, headerThreshold) {
     // color:transparent so the twin <button> NEVER double-paints glyphs over the real CTA leaf at the same box
     // (the captured <a> leaf already renders the visible CTA text/color); the twin exists ONLY to satisfy the
     // tag-based CTA detector (textContent stays non-empty for the gate; transparent color → zero pixel change).
-    widgets.push({ elType: 'widget', widgetType: 'html', settings: { html: `<button type="button" style="display:inline-block;padding:8px 16px;${wmax(ctaBox.w)};min-height:${Math.round(ctaBox.h)}px;border:0;background:transparent;color:transparent;cursor:pointer;pointer-events:none">${esc(t)}</button>`, ...absPos(ctaBox, z++) } });
+    // WIDTH-RELEASE (Phase 2 horizontal-overflow fix): this synthetic page-absolute CTA <button> landmark twin
+    // carries the captured CTA's baked desktop _element_custom_width px + _offset_x (e.g. supabase newsletter CTA
+    // @ left:1163 w:117 → right:1280, the dominant tail of the ~1306 floor) and — having no source node — never
+    // got the LEAF_REFLOW_M release. absReleaseM('noid') emits the SAME free-render `m` full-reflow release the
+    // no-id chrome widgets use (position:relative;left:auto;width:100% at <=1024) so the twin un-pins and stacks
+    // below 1024 instead of overflowing. Desktop (>1024) byte-identical (`m` keys <=1024 only). Rides the
+    // BGR_RELEASE_M gate (ABS_NO_BGR_RELEASE_M=1 → {} → exact legacy desktop-pin).
+    widgets.push({ elType: 'widget', widgetType: 'html', settings: { html: `<button type="button" style="display:inline-block;padding:8px 16px;${wmax(ctaBox.w)};min-height:${Math.round(ctaBox.h)}px;border:0;background:transparent;color:transparent;cursor:pointer;pointer-events:none">${esc(t)}</button>`, ...absPos(ctaBox, z++), ...absReleaseM('noid') } });
     console.log(`primary CTA <button>: "${t}" at (${Math.round(ctaBox.x)},${Math.round(ctaBox.y)})`);
   }
 
@@ -3356,6 +3444,7 @@ const dryDump = process.env.ABS_DUMP_TREE || `/tmp/abs-dryrun-${pageId}.json`;
   if (fontCss) console.log(`injecting ${usedFonts.size} real font(s) via custom_css: ${[...usedFonts].join(', ')}`);
   console.log(`injecting responsive reflow media query (<=1024 un-pin) via custom_css — vertical-compact ${NO_VREFLOW ? 'OFF (ABS_NO_VREFLOW=1 → relative+w:100% only, retains fixed height)' : 'ON (wrapper+inner+root height:auto/min-height:0 → natural mobile stack)'}`);
   console.log(`per-leaf free-render reflow (<=1024 un-pin via joist_preserve_css m): ${LEAF_REFLOW_M ? `ON — ${LEAF_REFLOW_M_HITS} abs leaf widget(s) un-pin on FREE (Post_CSS @media), so the page reflows below 1024 even on the Pro-free host (blanket Pro responsiveCss kept as inert fallback)` : 'OFF (ABS_NO_LEAF_REFLOW_M=1 → leaf un-pin rides Pro-only page custom_css, DROPPED on free → no reflow below 1024)'}`);
+  console.log(`bg-rect/no-id WIDTH release (<=1024 horizontal-overflow fix via joist_preserve_css m + native _element_custom_width_tablet/_mobile): ${BGR_RELEASE_M ? `ON — ${BGR_RELEASE_M_HITS} bg-rect layer(s) pinned left:0/width:100% (z0 backdrop, no flow-height) + ${NOID_RELEASE_M_HITS} no-id chrome widget(s) full-reflowed on FREE, so the page FITS the viewport below 1024 (no desktop-px right-edge overflow)` : 'OFF (ABS_NO_BGR_RELEASE_M=1 → bg-rects/no-id chrome keep desktop _element_custom_width+left-offset → horizontal overflow below 1024 on free)'}`);
   console.log(`chrome mobile-overflow fix: ${NO_CHROMEFIX ? 'OFF (ABS_NO_CHROMEFIX=1 → inner-div width:<px>, no max-width)' : 'ON (inner-div max-width:100% + <=1024 defensive 100vw/overflow-x guard)'}`);
   if (navFallbackCss) console.log('injecting Path C hamburger/responsive nav CSS via custom_css');
   // GLOBALS-TOKEN VERIFY HOOK (additive, env-gated; default OFF → zero effect on normal builds). When ABS_DUMP_TREE
