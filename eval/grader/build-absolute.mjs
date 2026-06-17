@@ -2028,6 +2028,21 @@ const CARDROW_PRESERVE_PIN = process.env.ABS_CARDROW_PRESERVE_PIN !== '0';
 const cardRows = []; // [{ container, cols, box, colGap, rowGap, eid }] — detected & consumed (subtrees skip flatten/collectBg)
 const cardRowCss = []; // per-container scoped <=1024 un-pin rules keyed to each grid's _element_id (joined into custom_css)
 let CARDROW_SEQ = 0; // monotonic id seed for the grid containers' _element_id (cr-0, cr-1, …)
+// ── LOOSE-IMAGE GRID (Phase-4 mobile-height; default ON, ABS_NO_LOOSE_IMG_GRID=1 → legacy per-leaf abs-pin) ──
+// The captured tree is FLATTENED: of 64 image-kind leaves on supabase, only 18 sit in a >=3-img container (owned by
+// isCardRow); 46 are LOOSE absolute leaves. A logo/icon WALL (e.g. the supabase 10x 45px svg row) is therefore NOT a
+// clean container → isCardRow misses it → each icon stays a page-absolute leaf → at mobile they STACK 1-per-row
+// (the dominant ~80% of the 3-4x mobile over-height). FIX: spatially re-cluster the loose image leaves into a single
+// reflowing native GRID (reusing emitCardRow's machinery), but reflow to a MULTI-column count at mobile (small icons
+// pack several across — the height-saver) instead of repeat(1). DESKTOP-SAFE by a per-cluster DRIFT GATE: a cluster
+// is accepted ONLY if projecting its cells under repeat(N,1fr)+captured-gap at the band reproduces every captured x
+// within 4px — so >1024 renders the exact captured columns (the reflow tracks are @media-scoped, never seen >1024).
+// CONSERVATIVE: same-kind + exact-size bucket, >=4 cells, single perfect row, small (<=200x120), equal gaps. The
+// multi-ROW case (auto-flow drifts desktop) is deliberately NOT handled here. Reversible: ABS_NO_LOOSE_IMG_GRID=1.
+const LOOSE_IMG_GRID = process.env.ABS_NO_LOOSE_IMG_GRID !== '1';
+const LOOSE_IMG_KINDS = new Set(['image', 'svg', 'mockup']);
+const looseGrids = [];   // synthetic rows {container, cols, box, cellCount, colGap, rowGap, reflowTablet, reflowMobile}
+let LOOSE_IMG_GRID_HITS = 0;
 
 // ── GENERALIZED CONTAINER POSITION-PIN (default ON, ABS_NO_CONTAINER_PIN=1 → legacy per-site pins) ──────────────────
 // THE DEEPER LESSON of the card-row collision-wall fix, lifted to a SINGLE choke point. Elementor CONTAINERS ignore
@@ -2176,6 +2191,70 @@ function detectCardRows(n) {
   }
   (n.children || []).forEach(detectCardRows);
 }
+// DETECT loose-image grids (logo/icon walls flattened to loose absolute leaves). Mirrors detectCardRows' consume
+// contract: accepted-cluster leaves are stamped _navConsumed (flatten/collectBg skip them) and re-emitted as grid
+// cells. Runs AFTER detectCardRows (so >=3-img containers are already claimed) + AFTER nav detection (HEADER_Y set).
+function detectLooseImgGrids(root) {
+  if (!LOOSE_IMG_GRID || NO_CARDREFLOW || !root) return;
+  const parent = new Map();
+  (function walk(n) { for (const c of (n.children || [])) { parent.set(c, n); walk(c); } })(root);
+  const imgSibs = (leaf) => { const p = parent.get(leaf); return p ? (p.children || []).filter((c) => LOOSE_IMG_KINDS.has(c.kind)).length : 1; };
+  // candidate LOOSE image leaves: image-kind, not consumed, real box, not in a raster band, not in the header, and
+  // whose parent has <3 image siblings (>=3 are isCardRow's strict-container domain — the measured 18/64 split).
+  const leaves = gatherLeaves(root).filter((n) =>
+    n.box && LOOSE_IMG_KINDS.has(n.kind) && !n._navConsumed && n.box.w >= 3 && n.box.h >= 3 &&
+    !inRaster(n.box.y + n.box.h / 2) && !(n.box.y + n.box.h <= HEADER_Y) && imgSibs(n) < 3);
+  const med = (arr) => { const s = arr.slice().sort((a, b) => a - b); return s[Math.floor(s.length / 2)] || 0; };
+  // bucket by (kind, 8px-quantized size) — a uniform wall is same-kind same-size by construction (the precision anchor)
+  const buckets = new Map();
+  for (const n of leaves) { const k = `${n.kind}|${Math.round(n.box.w / 8) * 8}x${Math.round(n.box.h / 8) * 8}`; if (!buckets.has(k)) buckets.set(k, []); buckets.get(k).push(n); }
+  for (const group of buckets.values()) {
+    if (group.length < 4) continue;
+    const medW = med(group.map((g) => g.box.w)), medH = med(group.map((g) => g.box.h));
+    if (medW > 200 || medH > 120) continue;                 // SMALL gate: logo/icon scale only (no content cards/hero)
+    // Y-band cluster within the bucket
+    const sorted = group.slice().sort((a, b) => a.box.y - b.box.y);
+    const yTol = Math.max(8, medH * 0.4);
+    const bands = [];
+    for (const n of sorted) { const last = bands[bands.length - 1]; if (last && n.box.y - last.top <= yTol) { last.cells.push(n); last.top = n.box.y; } else bands.push({ top: n.box.y, cells: [n] }); }
+    for (const band of bands) {
+      const cells = band.cells.slice().sort((a, b) => a.box.x - b.box.x);
+      if (cells.length < 4) continue;                       // >=4 same-size icons in a row = unambiguous (stricter than isCardRow's 3)
+      if (!cells.every((c) => Math.abs(c.box.w - medW) <= 0.08 * medW && Math.abs(c.box.h - medH) <= 0.08 * medH)) continue; // ±8% uniform
+      const ys = cells.map((c) => c.box.y);
+      if (Math.max(...ys) - Math.min(...ys) > 0.4 * medH) continue;   // SINGLE perfect row (rejects floating-icon scatters)
+      // distinct columns + equal gaps
+      const xs = cells.map((c) => c.box.x).sort((a, b) => a - b);
+      const xtol = Math.max(8, 0.25 * medW);
+      const colXs = []; for (const x of xs) if (!colXs.length || x - colXs[colXs.length - 1] > xtol) colXs.push(x);
+      if (colXs.length < 2) continue;
+      const gaps = []; for (let i = 1; i < colXs.length; i++) gaps.push((colXs[i] - colXs[i - 1]) - medW);
+      const gm = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+      const gs = Math.sqrt(gaps.reduce((a, b) => a + (b - gm) ** 2, 0) / gaps.length);
+      const pitch = (colXs[colXs.length - 1] - colXs[0]) / (colXs.length - 1);
+      if (gs > Math.max(8, 0.25 * pitch)) continue;          // equal X-gaps (tighter than isCardRow)
+      const colGap = Math.max(0, Math.round(gm));
+      const N = Math.max(2, Math.min(cells.length, 12));     // single row → one cell per column (N up to 12 for icon walls)
+      const bx = Math.min(...cells.map((c) => c.box.x)), by = Math.min(...cells.map((c) => c.box.y));
+      const bw = Math.max(...cells.map((c) => c.box.x + c.box.w)) - bx;
+      const bh = Math.max(...cells.map((c) => c.box.y + c.box.h)) - by;
+      // ── DRIFT GATE (the load-bearing desktop guard): project each cell under repeat(N,1fr)+colGap at the band
+      // width; the grid is desktop-EXACT only if every cell's projected left edge matches its captured x within 4px.
+      // A non-uniform row (where equal 1fr tracks would shift cells) is REJECTED → those leaves keep their abs pin.
+      const trackW = (bw - (N - 1) * colGap) / N;
+      let maxDrift = 0;
+      for (let i = 0; i < cells.length; i++) maxDrift = Math.max(maxDrift, Math.abs((bx + i * (trackW + colGap)) - cells[i].box.x));
+      if (maxDrift > 4) continue;
+      // size-scaled reflow: KEEP small icons multi-column at narrow widths (the whole point — not repeat(1)).
+      const reflowTablet = Math.max(2, Math.min(N, Math.round(N / 2)));
+      const reflowMobile = Math.max(2, Math.min(N, Math.floor(360 / Math.max(1, medW + colGap))));
+      for (const c of cells) c._navConsumed = true;          // drop from page-abs flow (flatten/collectBg skip; emitCardRow re-emits)
+      const synthetic = { kind: 'container', box: { x: bx, y: by, w: bw, h: bh }, children: cells };
+      looseGrids.push({ container: synthetic, cols: N, box: synthetic.box, cellCount: cells.length, colGap, rowGap: 0, reflowTablet, reflowMobile });
+      LOOSE_IMG_GRID_HITS++;
+    }
+  }
+}
 // CELL-RELATIVE BACKGROUND collector — the card-row subtree is _navConsumed, so the GLOBAL collectBg() (which
 // paints every container's captured bg as a page-abs bgRect) SKIPS it. Without this the cards' captured backgrounds
 // (e.g. supabase template cards: a WHITE 255 card bg nested one level under each cell, captured on the cell's CHILD
@@ -2275,8 +2354,11 @@ function emitCardRow(row) {
     padding: { unit: 'px', top: '0', right: '0', bottom: '0', left: '0', isLinked: true },
     container_type: 'grid',
     grid_columns_grid: { unit: 'custom', size: `repeat(${N}, minmax(0, 1fr))` },
-    grid_columns_grid_tablet: { unit: 'custom', size: 'repeat(2, 1fr)' },
-    grid_columns_grid_mobile: { unit: 'custom', size: 'repeat(1, 1fr)' },
+    // reflow tracks: DEFAULT 2 (tablet) / 1 (mobile) for content card-rows. A loose-IMAGE grid (logo/icon wall)
+    // passes row.reflowTablet/reflowMobile to STAY multi-column at narrow widths (small icons pack several across)
+    // — the height-saver. Card-rows pass nothing → byte-identical 2/1. minmax(0,1fr) tracks shrink to fit.
+    grid_columns_grid_tablet: { unit: 'custom', size: `repeat(${row.reflowTablet || 2}, minmax(0, 1fr))` },
+    grid_columns_grid_mobile: { unit: 'custom', size: `repeat(${row.reflowMobile || 1}, minmax(0, 1fr))` },
     grid_rows_grid: { unit: 'custom', size: 'auto' },
     grid_gaps: { unit: 'px', column: String(row.colGap || 0), row: String(row.rowGap || 0), isLinked: false },
     ...absPos(rowBox, z++),
@@ -3005,6 +3087,14 @@ const dryDump = process.env.ABS_DUMP_TREE || `/tmp/abs-dryrun-${pageId}.json`;
   let cardRowEmitted = 0;
   for (const row of cardRows) { const r = emitCardRow(row); cardRowEmitted++; console.log(`card-row reflow: ${row.cellCount} cell(s) → #${r.eid} grid repeat(${r.cols},1fr) desktop / repeat(2,1fr) tablet / repeat(1,1fr) mobile, gap ${r.colGap}/${r.rowGap}px, at (${Math.round(row.box.x)},${Math.round(row.box.y)},${Math.round(row.box.w)}x${Math.round(row.box.h)})`); }
   console.log(`card-rows: ${cardRowEmitted} reflowing grid(s)${NO_CARDREFLOW ? ' [DISABLED via ABS_NO_CARDREFLOW]' : ''}`);
+  // LOOSE-IMAGE GRID REFLOW — re-cluster the loose logo/icon walls (flattened, isCardRow-invisible) into reflowing
+  // grids that STAY multi-column at mobile. Runs AFTER detectCardRows (container grids already claimed) so it only
+  // sees genuinely-loose leaves. Emitted via the SAME emitCardRow machinery (size-scaled reflow tracks). Each cluster
+  // passed the drift gate → desktop byte/pixel-exact (>1024 never sees the @media reflow tracks).
+  detectLooseImgGrids(L.root);
+  let looseEmitted = 0;
+  for (const row of looseGrids) { const r = emitCardRow(row); looseEmitted++; console.log(`loose-img grid: ${row.cellCount} icon(s) → #${r.eid} grid repeat(${r.cols},1fr) desktop / repeat(${row.reflowTablet},1fr) tablet / repeat(${row.reflowMobile},1fr) mobile, gap ${r.colGap}px, at (${Math.round(row.box.x)},${Math.round(row.box.y)},${Math.round(row.box.w)}x${Math.round(row.box.h)})`); }
+  console.log(`loose-img grids: ${looseEmitted} reflowing grid(s) [${LOOSE_IMG_GRID_HITS} cluster(s)]${LOOSE_IMG_GRID ? '' : ' [DISABLED via ABS_NO_LOOSE_IMG_GRID]'}`);
   // ── TEXT-COLLISION DE-DUPE (USER #4 collision fix; default ON; ABS_NO_DEDUPE=1 → old behavior) ──────────────
   // ROOT: the captured tree is FAITHFUL — the SOURCE genuinely layers a button leaf OVER its own inner text-leaf
   // at a near-identical box (e.g. supabase hero "Start your project": button @576,474 + inner text-leaf @593,483;
