@@ -822,7 +822,12 @@ function buttonPaint(n) {
   const rad = px(n.radius); if (rad) parts.push(`border-radius:${rad}px`);
   const pad = _padCss(n.btnPad) || '8px 18px'; parts.push(`padding:${pad}`);
   if (n.boxShadow) parts.push(`box-shadow:${n.boxShadow}`);
-  parts.push('text-align:center', 'white-space:nowrap');
+  // white-space:nowrap keeps a SHORT pill/badge/CTA label on one line. For LONG text (a testimonial card / prose
+  // rendered in a rounded surface — notion's “Agents get created…” quote @873px), nowrap bursts the viewport at
+  // EVERY width (it overflowed even desktop @1440 by 107px). Gate nowrap on shortText so long cards WRAP and fit.
+  // Reversible: ABS_NO_CHROME_WRAP=1 → legacy unconditional nowrap.
+  parts.push('text-align:center');
+  if (shortText || process.env.ABS_NO_CHROME_WRAP === '1') parts.push('white-space:nowrap');
   // DE-INLINE: the anchor's COLOR comes from the native text_color (inherited via the per-leaf a{color:inherit}
   // reset) so the panel color control actually renders; the chrome (bg/border/radius/padding/shadow) is NOT
   // typography/color-control territory and stays inline. ABS_NO_DEINLINE=1 → legacy inline color kept.
@@ -1245,7 +1250,7 @@ function leafWidget(n, target, origin) {
     if (its.length >= 2) {
       const w = Math.round(box.w);
       const cc = colorCss(n);
-      const tabBtns = its.map((it, i) => `<div role="tab" aria-selected="${i === 0 ? 'true' : 'false'}" style="display:inline-block;padding:6px 14px;margin:0 4px 0 0;cursor:pointer;white-space:nowrap${cc ? ';' + cc : ''}">${esc(it.title)}</div>`).join('');
+      const tabBtns = its.map((it, i) => `<div role="tab" class="joist-tab" aria-selected="${i === 0 ? 'true' : 'false'}" style="display:inline-block;padding:6px 14px;margin:0 4px 0 0;cursor:pointer;white-space:nowrap${cc ? ';' + cc : ''}">${esc(it.title)}</div>`).join('');
       const tablistHtml = `<div role="tablist" style="display:flex;flex-wrap:wrap;align-items:center;min-height:32px;${wmax(w)}">${tabBtns}</div>`;
       // TAB-CODE-PANEL recovery (resend SDK void fix): when capture flagged the active tab as a DARK MONOSPACE code
       // panel (n.codePanel — the resend "Integrate this morning" SDK section: Node.js/Ruby/Python… tabs over a <pre>
@@ -1299,7 +1304,14 @@ function leafWidget(n, target, origin) {
       // and never got the LEAF_REFLOW_M release. Add the same per-leaf joistPreserve(n) `m` release so the tablist
       // un-pins (position:relative;width:100%) and stacks at <=1024. Desktop (>1024) byte-identical (`m` <=1024 only).
       // Rides the LEAF_REFLOW_M gate (ABS_NO_LEAF_REFLOW_M=1 → no `m` payload → exact legacy desktop-pin).
-      sink.push({ elType: 'widget', widgetType: 'html', settings: { html: tabsHtml, ...PB, ...Pcode, ...joistPreserve(n), ...mobileAbsenceHide(n, PB) } });
+      // TAB-LABEL WRAP RELEASE (residual horizontal-overflow fix; default ON, ABS_NO_TAB_WRAP_M=1 → legacy): a tab
+      // button keeps its inline `white-space:nowrap` (correct on desktop — tabs sit on one line), but a LONG label
+      // (tailwind "UI BLOCKS…" 706px, notion 578px) then can't shrink below its nowrap content width even inside the
+      // flex-wrap tablist → it bursts the viewport at mobile (the corpus-sweep residual: tailwind 316 / notion 483).
+      // FIX: release `.joist-tab` to white-space:normal at <=767 via the free `x` channel (renders on Pro-free), so a
+      // long-label tab WRAPS and fits. Desktop (>1024/>767) BYTE-IDENTICAL (@<=767 only). Merged with the reflow `m`.
+      const tabWrapX = (process.env.ABS_NO_TAB_WRAP_M !== '1') ? { joist_preserve_css: JSON.stringify({ x: '@media(max-width:767px){.joist-tab{white-space:normal!important}}' }) } : {};
+      sink.push({ elType: 'widget', widgetType: 'html', settings: { html: tabsHtml, ...PB, ...Pcode, ...mergePreserve(joistPreserve(n), tabWrapX), ...mobileAbsenceHide(n, PB) } });
     }
     return;
   }
