@@ -124,6 +124,8 @@ const ENGINE_CLASS_FATAL = {
   'restructured-not-missing': null,      // a folded-but-present element (presence over-veto fix) — NEVER a disqualifier
   'horizontal-overflow': 'overflow',     // h-overflow / h-overflow-bool — a deterministic disqualifier
   'catastrophic-collision': 'collision', // cross-section occlusion pile (grade-occlusion OCC channel) — a deterministic disqualifier
+  'responsive-breakage': 'responsive',   // page does NOT reflow below desktop (frozen pageH where source reflows /
+                                         //   large narrow-width h-overflow where source has none) — deterministic disqualifier
 };
 // the disqualifying fatalClass buckets the DETERMINISTIC step-floor triggers on. SUPERSET of region-judge's
 // DISQUALIFYING_FATAL (logo/heading/hero/CTA/overlap/imagery) PLUS the two newly-deterministic broken-behavior
@@ -133,7 +135,7 @@ const ENGINE_CLASS_FATAL = {
 // PLUS the cross-section occlusion-coverage disqualifier 'collision' (catastrophic-collision; grade-occlusion OCC
 // channel). A page-wide section pile is the single most human-salient catastrophe and the engine's relational axis
 // missed it (bounded salient LEAVES, not O(S²) SECTION pairs) while the coherence global-diff ×0.2-demoted it.
-export const FUSED_DISQUALIFYING = new Set([...DISQUALIFYING_FATAL, 'overflow', 'behavior', 'collision']);
+export const FUSED_DISQUALIFYING = new Set([...DISQUALIFYING_FATAL, 'overflow', 'behavior', 'collision', 'responsive']);
 // 'imagery' is the ONLY class without a clean per-element deterministic axis (a substantive dropped image/panel
 // with no source-DOM counterpart). We detect it DETERMINISTICALLY via engine.unmatchedHiSal (high-salience SOURCE
 // elements with no clone correspondent) rather than leaving it vision-gated — so the floor is FULLY deterministic.
@@ -152,7 +154,7 @@ export function fatalClassOf(defectClass) {
 // NOT fit to labels (consistent with the engine's W ranking).
 const CLASS_SALIENCE = {
   hero: 1.0, heading: 1.0, logo: 0.9, CTA: 0.85, overlap: 0.9, imagery: 0.8,
-  overflow: 0.85, behavior: 0.7, null: 0.4,
+  overflow: 0.85, behavior: 0.7, responsive: 0.9, null: 0.4,
 };
 export function salienceWeight(fatalClass) {
   const k = fatalClass == null ? 'null' : fatalClass;
@@ -359,6 +361,15 @@ export function scoreFromLedger(ledger) {
   const occRow = ledger.find((r) => r.source === 'deterministic' && r.defect_class === 'catastrophic-collision' && r.evidence && r.evidence.occCeil != null);
   const occCeil = occRow ? occRow.evidence.occCeil : null;
 
+  // ── RESPONSIVE-BREAKAGE HARD CAP — an INDEPENDENT disqualifying FLOOR from the responsive-reflow channel. A page
+  // that does NOT reflow below the desktop width (frozen pageHeight where the source reflows, and/or large narrow-
+  // width h-overflow the source lacks) renders catastrophically at any width below desktop (the human-found supabase
+  // 442 defect). respCeil rides on the responsive-breakage row's evidence (respCeilingFor ladder). Like occCeil it
+  // can ONLY lower a score, never raise one. 'responsive' is also in FUSED_DISQUALIFYING so a fatal responsive row
+  // already counts toward the veto cap; this is the precise responsive→score ceiling on top.
+  const respRow = ledger.find((r) => r.source === 'deterministic' && r.defect_class === 'responsive-breakage' && r.evidence && r.evidence.respCeil != null);
+  const respCeil = respRow ? respRow.evidence.respCeil : null;
+
   // ── (b) non-disqualifying salience-weighted deduction (per-row, traceable) ──
   // remaining rows = everything not already counted as a triggering disqualifier. Each contributes
   // salienceWeight(fatalClass) * severityNumber. Aggregated through a saturating map so many tiny rows can't drive
@@ -408,11 +419,16 @@ export function scoreFromLedger(ledger) {
   // is the precise OCC→score ceiling on top, dominating regardless of other axes — the deterministic disqualifying
   // floor the mandate requires. Off-path (no occ row / flag off) occCeil=null is a no-op.)
   if (occCeil != null) fusedScore = Math.min(fusedScore, occCeil);
+  // RESPONSIVE-BREAKAGE HARD CAP — applied as a FINAL floor in BOTH branches (Math.min → only lowers, never raises).
+  // Off-path (no responsive row / flag off) respCeil=null is a no-op. A non-reflowing 442-style clone (frozen pageH,
+  // ~485px overflow at a narrow width) thus scores ≤ respCeil regardless of how well its desktop render grades.
+  if (respCeil != null) fusedScore = Math.min(fusedScore, respCeil);
 
   return {
     fusedScore,
     deterministicVeto: veto,
     occlusionCap: { occCeil, applied: occCeil != null, OCC: occRow ? occRow.evidence.OCC : null, catastrophic: occRow ? occRow.evidence.catastrophic : false },
+    responsiveCap: { respCeil, applied: respCeil != null, frozen: respRow ? respRow.evidence.frozen : null, srcReflows: respRow ? respRow.evidence.srcReflows : null, worstClonePx: respRow ? respRow.evidence.worstClonePx : null },
     deductions: deductions.sort((a, b) => b.contribution - a.contribution),
     nonVetoDeduct,
     visionPerceptualTerm: { delta: visionTerm, clamped: Math.abs(visionRaw) > VISION_CLAMP, rawBeforeClamp: +visionRaw.toFixed(3), clampBound: VISION_CLAMP, visionOnlyRows: visionOnly.length },
@@ -449,6 +465,138 @@ export function occRows(blob, widths) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════════════════
+// RESPONSIVE-BREAKAGE CHANNEL (default-ON; GRADER_NO_RESPBREAK=1 reverts to byte-identical-to-HEAD behavior).
+// THE defect a human found on supabase 442: the clone NEVER REFLOWS below the desktop width. It was BUILT at
+// desktop-pixel absolute coordinates and the <=1024 un-pin rode the ELEMENTOR-PRO-ONLY page custom_css channel,
+// silently DROPPED on the Pro-free render host → scrollW stayed ~constant at every width (1440/1024/960/768) with
+// 421/485/677px h-overflow at 1024/960/768. The annotation tool's ~960px iframe therefore showed a catastrophically
+// collided render even though the 1440 desktop render is correct. The responsive SWEEP already FIRES (overflow
+// events), but a NON-REFLOWING page was NOT surfaced as a PROMINENT disqualifier → it could score better than it
+// renders. This channel makes responsive-breakage a DETERMINISTIC fused CAP, exactly like the occlusion cap.
+//
+// TWO conjunctive perceptual-prior signals (anti-overfit — reflow + overflow-fraction, NOT fit to any label):
+//   (1) FROZEN pageHeight — the clone's narrow-width pageHeight ≈ its OWN desktop pageHeight (it did not reflow at
+//       all) WHILE the SOURCE pageHeight meaningfully CHANGES desktop→narrow (the source DOES reflow). A page that
+//       reflows like its source gets a DIFFERENT (taller, single-column) narrow pageHeight; a frozen clone keeps
+//       the desktop height. Requiring the source to reflow is the false-cap guard: a source that is ALSO frozen
+//       (genuinely non-responsive, e.g. a fixed-width app) does NOT trip this — the clone faithfully matches it.
+//   (2) NARROW-WIDTH OVERFLOW EXCESS — the clone overflows horizontally at a narrow width by a large margin
+//       (worstClonePx beyond a perceptual threshold) WHERE THE SOURCE DOES NOT (or overflows far less). A page
+//       whose source also overflows at that width is NOT penalized for matching it.
+// EITHER signal → responsive-breakage. The cap ladder mirrors OCC: the worse the freeze/overflow, the lower the cap.
+// MUST NOT false-cap a genuinely-reflowing clone: signal (1) requires the source to reflow AND the clone not to;
+// signal (2) requires the clone to overflow where the source does not. A clone that reflows (different narrow pageH)
+// and does not over-overflow trips NEITHER → respCeil=null → no cap (off-path no-op).
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════════════
+export const RESPBREAK_OFF = process.env.GRADER_NO_RESPBREAK === '1';
+// thresholds — perceptual priors (reflow ratio + overflow px), NOT label-fit:
+//   FROZEN: clone narrow/desktop pageH ratio within ±RB_FROZEN_TOL of 1.0 (it did not reflow).
+//   SRC_REFLOWS: source narrow/desktop pageH differs by > RB_SRC_REFLOW_MIN (the source DID reflow).
+//   OVERFLOW: clone narrow-width worst overflow px > RB_OVERFLOW_PX while source does NOT overflow at that width
+//             (OR clone overflows by > RB_OVERFLOW_EXCESS_PX MORE than the source's worst).
+export const RB_FROZEN_TOL = 0.04;          // |cloneNarrow/cloneDesktop − 1| <= 4% → frozen (no reflow)
+// the source "reflows" iff its narrow pageHeight moved beyond the SAME frozen tolerance the clone is judged by —
+// i.e. the source is NOT itself frozen. A source that genuinely shrinks/grows on reflow (in EITHER direction,
+// including a more-compact mobile layout that gets SHORTER) clears this; a fixed-width app whose page never reflows
+// stays inside the tolerance and does NOT mark the clone as broken (the false-cap guard). Symmetric with RB_FROZEN_TOL.
+export const RB_SRC_REFLOW_MIN = 0.04;      // |srcNarrow/srcDesktop − 1| > 4% → the source genuinely reflows (not frozen)
+export const RB_OVERFLOW_PX = 150;          // clone narrow h-overflow > ~150px where source has none → breakage
+export const RB_OVERFLOW_EXCESS_PX = 250;   // OR clone overflows this many px MORE than the source's worst
+// the cap ladder: the more frozen / the larger the unmatched overflow, the lower the ceiling. Mirrors OCC's ladder
+// shape (severe→10, bad→30, moderate→65). A FROZEN page (no reflow at all where source reflows) is the worst case.
+export function respCeilingFor({ frozen, srcReflows, overflowExcessPx }) {
+  // FROZEN + source-reflows = the supabase-442 catastrophe (no reflow at all). Hardest cap.
+  if (frozen && srcReflows) {
+    // scale by how badly it over-overflows on top of being frozen.
+    if (overflowExcessPx >= 400) return 12;
+    if (overflowExcessPx >= 150) return 22;
+    return 30;                               // frozen-but-no-extra-overflow: still a real non-reflow defect.
+  }
+  // not frozen but large unmatched narrow overflow (partial reflow that still bursts the viewport).
+  if (overflowExcessPx >= 500) return 35;
+  if (overflowExcessPx >= 250) return 55;
+  return null;                               // no responsive breakage → no cap.
+}
+// computeResponsiveBreak(blob) → { breakage, frozen, srcReflows, respCeil, narrowVw, evidence } | null when no data.
+export function computeResponsiveBreak(blob) {
+  // read the env LIVE (not the cached RESPBREAK_OFF const) so the reversibility selftest can toggle it; the const
+  // mirrors the same env for the CLI print + documentation. Default-ON; GRADER_NO_RESPBREAK=1 → byte-identical-to-HEAD.
+  if (process.env.GRADER_NO_RESPBREAK === '1') return null;
+  const rep = (blob && blob.report) || {};
+  const ph = rep.pageHeightByVw || null;
+  // candidate widths = the UNION of report.widths, the pageHeightByVw keys, and the responsiveSweep overflow keys
+  // (a capture may carry the narrow viewport in pageHeightByVw / the sweep even when report.widths lists only one).
+  const widthSet = new Set();
+  for (const w of (rep.widths || [])) { const n = +w; if (n > 0) widthSet.add(n); }
+  if (ph) for (const side of ['source', 'clone']) for (const k of Object.keys(ph[side] || {})) { const n = +k; if (n > 0) widthSet.add(n); }
+  const ob0 = rep.responsiveSweep && rep.responsiveSweep.overflowByWidth;
+  if (ob0) for (const k of Object.keys(ob0)) { const n = +k; if (n > 0) widthSet.add(n); }
+  const widths = [...widthSet].sort((a, b) => b - a);                 // desktop first
+  const desktopVw = widths[0] || rep.joinWidth || 1440;
+  // narrow viewport = the smallest captured width strictly below the desktop join width.
+  const narrowVw = widths.filter((w) => w < desktopVw).sort((a, b) => a - b)[0] || null;
+  if (!narrowVw) return null;                                         // single-width capture → cannot judge reflow.
+
+  // ── signal (1): frozen pageHeight (clone did not reflow) while the source DID ──
+  let frozen = false, srcReflows = false, cloneRatio = null, srcRatio = null;
+  if (ph && ph.clone && ph.source) {
+    const cD = +ph.clone[desktopVw] || +ph.clone[String(desktopVw)] || 0;
+    const cN = +ph.clone[narrowVw] || +ph.clone[String(narrowVw)] || 0;
+    const sD = +ph.source[desktopVw] || +ph.source[String(desktopVw)] || 0;
+    const sN = +ph.source[narrowVw] || +ph.source[String(narrowVw)] || 0;
+    if (cD > 0 && cN > 0) { cloneRatio = cN / cD; frozen = Math.abs(cloneRatio - 1) <= RB_FROZEN_TOL; }
+    if (sD > 0 && sN > 0) { srcRatio = sN / sD; srcReflows = Math.abs(srcRatio - 1) > RB_SRC_REFLOW_MIN; }
+  }
+
+  // ── signal (2): narrow-width h-overflow excess (clone bursts the viewport where the source does not) ──
+  let overflowExcessPx = 0, cloneOverflows = false, sourceOverflows = false, worstClonePx = 0;
+  const ob = rep.responsiveSweep && rep.responsiveSweep.overflowByWidth;
+  if (ob) {
+    // pick the overflow record for the narrow viewport (fall back to any swept narrow width).
+    const rec = ob[narrowVw] || ob[String(narrowVw)] || ob[Object.keys(ob)[0]];
+    if (rec) {
+      cloneOverflows = !!rec.cloneOverflows;
+      sourceOverflows = !!rec.sourceOverflows;
+      worstClonePx = +rec.worstClonePx || 0;
+      const worstSrcPx = +rec.worstSourcePx || 0;   // present on newer sweeps; absent → treat as 0
+      // excess = how much MORE the clone overflows than the source. When the source does NOT overflow at all,
+      // the full clone overflow counts; when both overflow, only the surplus over the source counts.
+      if (cloneOverflows && !sourceOverflows && worstClonePx >= RB_OVERFLOW_PX) overflowExcessPx = worstClonePx;
+      else if (cloneOverflows && (worstClonePx - worstSrcPx) >= RB_OVERFLOW_EXCESS_PX) overflowExcessPx = worstClonePx - worstSrcPx;
+    }
+  }
+
+  // breakage iff (frozen AND source reflows) OR (large unmatched narrow overflow). The frozen branch is the
+  // dominant supabase-442 signal; the overflow branch catches a partial-reflow that still bursts the viewport.
+  const breakage = (frozen && srcReflows) || overflowExcessPx >= RB_OVERFLOW_EXCESS_PX || (overflowExcessPx >= RB_OVERFLOW_PX && cloneOverflows && !sourceOverflows);
+  if (!breakage) return null;
+  const respCeil = respCeilingFor({ frozen, srcReflows, overflowExcessPx });
+  if (respCeil == null) return null;
+  return {
+    breakage: true, frozen, srcReflows, respCeil, narrowVw, desktopVw,
+    evidence: { cloneRatio: cloneRatio != null ? +cloneRatio.toFixed(4) : null, srcRatio: srcRatio != null ? +srcRatio.toFixed(4) : null,
+      cloneOverflows, sourceOverflows, worstClonePx, overflowExcessPx, frozenTol: RB_FROZEN_TOL, srcReflowMin: RB_SRC_REFLOW_MIN },
+  };
+}
+// respBreakRows — emit ONE deterministic ledger row for a non-reflowing / narrow-overflowing page. defect_class
+// 'responsive-breakage' → fatalClass 'responsive' ∈ FUSED_DISQUALIFYING. severity 'fatal' when frozen (no reflow at
+// all), else 'high'. respCeil carried on evidence so scoreFromLedger applies the hard cap (mirrors occCeil). Emits
+// NO row on a clone that reflows like its source → no false deduction.
+export function respBreakRows(blob) {
+  const rb = computeResponsiveBreak(blob);
+  if (!rb) return [];
+  const severity = rb.frozen && rb.srcReflows ? 'fatal' : 'high';
+  return [makeRow({
+    element_ref: `responsive:non-reflow@page`, region_bbox: null, viewport: rb.narrowVw,
+    state: 'responsive', axis: 'reflow', defect_class: 'responsive-breakage', severity,
+    severityNum: rb.frozen && rb.srcReflows ? 1.0 : 0.6, confidence: 1.0, source: 'deterministic',
+    evidence: { respCeil: rb.respCeil, frozen: rb.frozen, srcReflows: rb.srcReflows, narrowVw: rb.narrowVw, ...rb.evidence,
+      note: 'page does not reflow below desktop (frozen pageHeight where source reflows, and/or large narrow-width h-overflow the source lacks); deterministic responsive cap mirroring the occlusion cap' },
+    component_id: `responsive:page`,
+  })];
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════════════════
 // (STEP 6) THE FUSED SCORER — pure over a compare blob (+ optional crop results.json). --no-vision default path.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════════════════
 export function gradeFused(blob, floorsObj, { cropResults = null, topK = 24, widths = null } = {}) {
@@ -462,6 +610,7 @@ export function gradeFused(blob, floorsObj, { cropResults = null, topK = 24, wid
     ...sweepRows(sweepOut, boxIdx),
     ...unmatchedRows(engineOut, boxIdx),
     ...occRows(blob, widths),
+    ...respBreakRows(blob),
     ...visionRows(cropResults, boxIdx),
   ];
   const { ledger, mergeLog } = dedupMerge(rawRows);
@@ -479,6 +628,7 @@ export function gradeFused(blob, floorsObj, { cropResults = null, topK = 24, wid
     ledger,
     deterministicVeto: scored.deterministicVeto,
     occlusionCap: scored.occlusionCap,
+    responsiveCap: scored.responsiveCap,
     deductions: scored.deductions,
     nonVetoDeduct: scored.nonVetoDeduct,
     visionPerceptualTerm: scored.visionPerceptualTerm,
@@ -598,6 +748,55 @@ export function runSelftest() {
     ok('(v) ledger rows all carry element_ref + axis||defect_class + evidence', r.ledger.every((row) => row.element_ref && (row.axis != null || row.defect_class) && 'evidence' in row), `n=${r.ledger.length}`);
   }
 
+  // (vi) RESPONSIVE-BREAKAGE: a synthetic NON-REFLOWING page (frozen clone pageHeight at the narrow width where the
+  //      source reflows, + large narrow overflow the source lacks) CAPS the score; a REFLOWING page (clone narrow
+  //      pageHeight differs like the source, no unmatched overflow) does NOT cap. PROVES the disqualifier is
+  //      deterministic + does not false-cap a genuinely-responsive clone.
+  {
+    // two identical desktop records (so the static engine finds NO desktop defect → an un-capped score would be high).
+    const mk = (refp) => rec({ ref: refp, srcPath: refp, tag: 'section', role: 'banner', text: 'Band',
+      box: { 1440: { x: 0, y: 0, w: 1440, h: 600, right: 1440, xFrac: 0, wFrac: 1 }, 390: { x: 0, y: 0, w: 390, h: 600, right: 390, xFrac: 0, wFrac: 1 } } });
+    const src = [mk('body>main>section|1|hZ')];
+    const clone = JSON.parse(JSON.stringify(src));
+    // FROZEN clone: clone pageH IDENTICAL at 390 & 1440 (it did not reflow); SOURCE pageH CHANGES (it reflows).
+    // + clone overflows 485px at 390 where the source does NOT overflow. == the measured supabase-442 signature.
+    const frozenReport = {
+      pageHeightByVw: { source: { 1440: 7694, 390: 7288 }, clone: { 1440: 7694, 390: 7694 } },
+      responsiveSweep: { widths: [390], overflowByWidth: { 390: { cloneOverflows: true, cloneOverflowCount: 30, sourceOverflows: false, worstClonePx: 485 } } },
+    };
+    const rFrozen = gradeFused(mkBlob(src, clone, { report: frozenReport }), floors, {});
+    const rbRow = rFrozen.ledger.find((x) => x.defect_class === 'responsive-breakage' && x.source === 'deterministic');
+    ok('(vi) non-reflowing page emits a DETERMINISTIC responsive-breakage row', !!rbRow, rbRow ? `sev=${rbRow.severity} frozen=${rbRow.evidence.frozen}` : 'no row');
+    ok('(vi) non-reflowing page is CAPPED (responsiveCap applied, score low)', rFrozen.responsiveCap.applied === true && rFrozen.fusedScore <= rFrozen.responsiveCap.respCeil, `score=${rFrozen.fusedScore} ceil=${rFrozen.responsiveCap.respCeil}`);
+    ok('(vi) the cap ceiling reflects the freeze (<=30)', rFrozen.responsiveCap.respCeil != null && rFrozen.responsiveCap.respCeil <= 30, `ceil=${rFrozen.responsiveCap.respCeil}`);
+
+    // REFLOWING clone: clone narrow pageH differs like the source (it DID reflow), no unmatched overflow → NO cap.
+    const clone2 = JSON.parse(JSON.stringify(src));
+    const reflowReport = {
+      pageHeightByVw: { source: { 1440: 7694, 390: 11200 }, clone: { 1440: 7694, 390: 11050 } },
+      responsiveSweep: { widths: [390], overflowByWidth: { 390: { cloneOverflows: false, cloneOverflowCount: 0, sourceOverflows: false, worstClonePx: 0 } } },
+    };
+    const rReflow = gradeFused(mkBlob(src, clone2, { report: reflowReport }), floors, {});
+    ok('(vi) genuinely-reflowing page is NOT false-capped (responsiveCap not applied)', rReflow.responsiveCap.applied === false, `applied=${rReflow.responsiveCap.applied} score=${rReflow.fusedScore}`);
+    ok('(vi) reflowing page emits NO responsive-breakage row', !rReflow.ledger.some((x) => x.defect_class === 'responsive-breakage'), `rows=${rReflow.ledger.filter((x) => x.defect_class === 'responsive-breakage').length}`);
+
+    // GUARD: a clone that is frozen BUT the SOURCE is ALSO frozen (genuinely non-responsive site) → NOT capped (the
+    // clone faithfully matches a fixed-width source). Proves the source-reflows precondition is the false-cap guard.
+    const clone3 = JSON.parse(JSON.stringify(src));
+    const bothFrozenReport = {
+      pageHeightByVw: { source: { 1440: 7694, 390: 7694 }, clone: { 1440: 7694, 390: 7694 } },
+      responsiveSweep: { widths: [390], overflowByWidth: { 390: { cloneOverflows: false, sourceOverflows: false, worstClonePx: 0 } } },
+    };
+    const rBoth = gradeFused(mkBlob(src, clone3, { report: bothFrozenReport }), floors, {});
+    ok('(vi) frozen clone matching a FROZEN source is NOT capped (faithful to non-responsive source)', rBoth.responsiveCap.applied === false, `applied=${rBoth.responsiveCap.applied}`);
+
+    // REVERSIBILITY: GRADER_NO_RESPBREAK=1 → off-path no-op (no row, no cap) even on the frozen page.
+    const prev = process.env.GRADER_NO_RESPBREAK; process.env.GRADER_NO_RESPBREAK = '1';
+    const rOff = gradeFused(mkBlob(src, JSON.parse(JSON.stringify(src)), { report: frozenReport }), floors, {});
+    if (prev === undefined) delete process.env.GRADER_NO_RESPBREAK; else process.env.GRADER_NO_RESPBREAK = prev;
+    ok('(vi) GRADER_NO_RESPBREAK=1 → reversible no-op (no responsive cap on the frozen page)', rOff.responsiveCap.applied === false && !rOff.ledger.some((x) => x.defect_class === 'responsive-breakage'), `applied=${rOff.responsiveCap.applied}`);
+  }
+
   const failed = cases.filter((c) => !c.pass);
   console.log('\n==== GRADE-FUSED — OFFLINE SELFTEST (no capture, no vision) ====');
   for (const c of cases) console.log(`${c.pass ? 'PASS' : 'FAIL'}  ${c.name}${c.detail ? '  (' + c.detail + ')' : ''}`);
@@ -615,6 +814,7 @@ export const FUSED_SCHEMA = {
   scoreFormula: 'score=f(ledger): start 100 → DETERMINISTIC step-floor veto cap=max(0,8-2*(n-1)) for n distinct disqualifying fatalClasses at high|fatal (ported region-judge line 653) → minus saturating salience-weighted severity on the rest → plus a HARD-CLAMPED (±5) vision perceptual term (deterministic dominates)',
   deterministicFloorTrigger: 'the step-function floor TRIGGERS off the DETERMINISTIC ledger rows ONLY (engine+sweep+unmatched: missing-hero via presence/bbox, invisible-heading via text-contrast collapse, wrong/missing-logo via img axes, overlapping-sections via collision/z-pile, horizontal-overflow via h-overflow(-bool), wrongly-sticky via state-pin/sticky-delta, dropped-imagery via unmatchedHiSal). VISION NEVER triggers the disqualifying floor.',
   boundedVisionTerm: 'vision-ONLY rows (gestalt residual + medium-confidence tail) sum into a perceptual term hard-clamped to ±VISION_CLAMP(5) pts; on a vetoed page it can only nudge DOWN, never above the cap → vision cannot swing the number.',
+  responsiveBreakageCap: 'DETERMINISTIC responsive cap (mirrors the occlusion cap; default-ON, GRADER_NO_RESPBREAK=1 reverts). A page that does NOT reflow below desktop — FROZEN pageHeight (clone narrow/desktop pageH within ±4% while the SOURCE pageH moved >4% — i.e. the source is not itself frozen) AND/OR large narrow-width h-overflow (>~150px where the source has none, or >250px more than the source) — emits a deterministic responsive-breakage row (fatalClass responsive ∈ FUSED_DISQUALIFYING) carrying respCeil (ladder: frozen→12/22/30, partial-burst→35/55). scoreFromLedger applies Math.min(score, respCeil) so a 442-style non-reflowing clone scores low regardless of its desktop render. NEVER false-caps a genuinely-reflowing clone: the frozen branch REQUIRES the source to reflow AND the clone not to; the overflow branch REQUIRES the clone to overflow where the source does not. Anti-overfit: reflow-ratio + overflow-px perceptual priors, NOT label-fit.',
   traceability: 'every lost point traces to a ledger row (element_ref+axis+evidence): deductions[] each carry element_ref/axis/evidence; veto disqualifiers each trace to a deterministic high|fatal row. Open the ledger, see why each point was lost.',
   selftest: 'eval/grader/_grade-fused-selftest.mjs — (i) self-clone→100/empty ledger/no veto; (ii) injected blank-hero with cropResults=null → veto trips + fusedScore≤8 WITHOUT any vision call (proves the floor moved off vision); (iii) det+vision same element+axis → ONE row, det kept, corroborated; (iv) 40 vision-only med rows can\'t pass the clamp nor trip the floor + a vision-only fatal hero does NOT trip the floor; (v) every deduction+disqualifier traces to a ledger row. Builder does NOT self-bless; orchestrator re-executes.',
   reversibility: 'NEW orchestrator. Imports runEngine/runSweep/FATAL_OF UNCHANGED. Deleting grade-fused.mjs changes nothing else; region-judge RJ_STEP_FLOOR still works off vision under its own flag (this is the SEPARATE deterministic-floor scorer).',
@@ -654,6 +854,8 @@ function main() {
   console.log(`deterministic veto: ${v.tripped ? `TRIPPED cap=${v.cap} disqualifiers=[${v.disqualifiers.join(', ')}]` : 'not tripped'}`);
   const oc = out.occlusionCap;
   if (oc) console.log(`occlusion cap: ${oc.applied ? `APPLIED ceil=${oc.occCeil} (OCC=${oc.OCC}, catastrophic=${oc.catastrophic})` : `not applied${OCCLUSION_OFF ? ' (GRADER_NO_OCCLUSION=1)' : ''}`}`);
+  const rc = out.responsiveCap;
+  if (rc) console.log(`responsive-breakage cap: ${rc.applied ? `APPLIED ceil=${rc.respCeil} (frozen=${rc.frozen}, srcReflows=${rc.srcReflows}, worstClonePx=${rc.worstClonePx})` : `not applied${RESPBREAK_OFF ? ' (GRADER_NO_RESPBREAK=1)' : ' (page reflows like its source)'}`}`);
   console.log(`ledger: ${out.aggregate.ledgerRows} rows (${out.components.deterministicRows} deterministic, ${out.components.visionRows} vision, ${out.components.mergedRows} merged) | disqualifier rows ${out.aggregate.disqualifierRows}`);
   console.log(`non-veto deduction: ${out.nonVetoDeduct} pts | vision perceptual term: ${out.visionPerceptualTerm.delta} (clamped ${out.visionPerceptualTerm.clamped}, ±${out.visionPerceptualTerm.clampBound})`);
   console.log(`by class: ${JSON.stringify(out.aggregate.byClass)}`);
