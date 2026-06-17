@@ -77,7 +77,7 @@
 <header>
   <strong style="color:var(--chartreuse)">● sticky-note</strong>
   <label class="badge">clone base</label>
-  <input id="base" type="text" value="http://localhost:8001" title="localhost ONLY — host-guarded">
+  <input id="base" type="text" value="" placeholder="(blank = same-origin proxy)" title="LEAVE BLANK when served via serve.mjs — the iframe then loads /?page_id=… through the same-origin proxy (required for the live-DOM overlay). A full http://localhost:8001 base would be CROSS-ORIGIN and break elementsFromPoint.">
   <label class="badge">page_id</label>
   <input id="pageId" type="text" value="" style="width:90px" placeholder="2551">
   <button id="load">Load clone</button>
@@ -164,11 +164,19 @@ const LS_KEY = ()=> 'joist-annotations:'+PAGE_ID();
 
 //─── load the clone iframe (guarded) ───
 $('#load').onclick = ()=>{
-  const r = resolveBase($('#base').value.trim());
   const gm = $('#guardMsg');
-  if(!r.ok){ gm.className='err'; gm.textContent = '✕ '+r.msg; return; }
   const id = PAGE_ID();
-  const url = r.base + '/?page_id=' + encodeURIComponent(id);
+  const baseVal = $('#base').value.trim();
+  let url;
+  if(!baseVal){
+    // BLANK base = same-origin proxy (serve.mjs): a RELATIVE url keeps the iframe on the tool's
+    // origin so elementsFromPoint/getComputedStyle can read the clone DOM. This is the normal path.
+    url = '/?page_id=' + encodeURIComponent(id);
+  } else {
+    const r = resolveBase(baseVal);
+    if(!r.ok){ gm.className='err'; gm.textContent = '✕ '+r.msg; return; }
+    url = r.base + '/?page_id=' + encodeURIComponent(id);
+  }
   gm.className='ok'; gm.textContent = '✓ '+url;
   $('#clone').src = url;
   pins = loadLS(); render();
@@ -184,6 +192,15 @@ $('#loadSrc').onclick = async ()=>{
     const res = await fetch('source-bbox-'+id+'.json'); srcBbox = await res.json();
   }catch(e){ srcBbox=null; }
 };
+
+//─── auto-load from URL params: ?page_id=442&srcId=442 (or just ?page_id=442) loads both panes ───
+(()=>{
+  const q = new URLSearchParams(location.search);
+  const pid = q.get('page_id') || q.get('pageId');
+  const sid = q.get('srcId') || q.get('src') || pid;   // default source id to the page id
+  if(pid){ $('#pageId').value = pid; $('#load').click(); }
+  if(sid){ $('#srcId').value = sid; $('#loadSrc').click(); }
+})();
 
 //─── the click → z-stack pick (LIVE DOM, elementsFromPoint PLURAL) ───
 const overlay = $('#overlay');
