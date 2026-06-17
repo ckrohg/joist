@@ -304,11 +304,14 @@ function imgCapSettings(box, n) {
   const w = Math.round(box.w);
   if (cap < 2) return pb ? { _element_id: pb } : {};
   const eid = pb || `img-${IMGCAP_SEQ++}`;   // PERBP → re-key the scoped cap/hlock css to the deterministic pb-id
+  const freeXParts = [];   // free-render (joist_preserve_css `x`) twins of the @<=1024/@<=767 caps — render on Pro-free
   if (!NO_VREFLOW2) {
     // cap the rendered <img>/<svg> glyph height; !important beats recipe #23's height:auto on the same element.
     // object-fit:contain keeps the aspect ratio (no crop/stretch); the max-height clamp bites ONLY when the
     // width:100% mobile reflow would render the image TALLER than its desktop band (the balloon case).
-    imgCapCss.push(`@media(max-width:1024px){#${eid} img,#${eid} svg{max-height:${cap}px!important;object-fit:contain!important;height:auto!important}}`);
+    const cap1024 = `@media(max-width:1024px){#${eid} img,#${eid} svg{max-height:${cap}px!important;object-fit:contain!important;height:auto!important}}`;
+    imgCapCss.push(cap1024);          // INERT Pro page-custom_css fallback (dropped on free)
+    freeXParts.push(cap1024);         // FREE-render twin → element's own joist_preserve_css `x`
   }
   if (!NO_IMGHLOCK && w >= 3) {
     // DESKTOP height-lock: pin the leaf <img>/<svg> to its EXACT captured box → no intrinsic-aspect stretch.
@@ -325,9 +328,14 @@ function imgCapSettings(box, n) {
     const real = mpbMobileH(n);                          // PART B: real captured source-mobile height (overrides)
     if (real && real >= 24) { mcap = real; MPB_imgRefine++; }
     mpbImgCss.push(`#${eid} img,#${eid} svg{max-height:${mcap}px!important;height:auto!important;object-fit:contain!important}`);
+    // FREE-render twin (@<=767, mpbImgCss is wrapped in @<=767 at its inner sink — wrap explicitly here for the `x` channel).
+    freeXParts.push(`@media(max-width:767px){#${eid} img,#${eid} svg{max-height:${mcap}px!important;height:auto!important;object-fit:contain!important}}`);
     MPB_imgCap++;
     // PART B absence-hide is centralized in mobileAbsenceHide() (spread LAST in leafWidget) → single id source.
   }
+  // route the mobile-only caps through the element's OWN joist_preserve_css `x` (renders on Pro-free; desktop >1024
+  // byte-identical — all rules are @<=1024/@<=767). The caller merges this with joistPreserve(n) via mergePreserve.
+  if (IMGCAP_FREE && freeXParts.length) { IMGCAP_FREE_HITS++; return { _element_id: eid, joist_preserve_css: JSON.stringify({ x: freeXParts.join('\n') }) }; }
   return { _element_id: eid };
 }
 // MOBILE VIDEO/EMBED CAP (@<=767): a VIDEO leaf is emitted as an html widget wrapping a fixed-size <div> + iframe/
@@ -565,6 +573,46 @@ function joistPreserve(n) {
   if (dParts.length) payload.d = dParts.join(';');
   return (payload.d || payload.m) ? { joist_preserve_css: JSON.stringify(payload) } : {};
 }
+// ── mergePreserve(...frags) — combine multiple {joist_preserve_css?, ...otherKeys} fragments into ONE settings
+// fragment. NON-preserve keys: last-wins (plain spread semantics). The joist_preserve_css payloads are DEEP-merged:
+//   • d → concatenated with ';'  (later frag's desktop decls ride alongside earlier ones)
+//   • m → merged per width-key; same-key decls concatenated with ';' (a later narrow release rides alongside a cap)
+//   • x → concatenated with '\n' (each x is already a full raw rule)
+// WHY: an element can carry BOTH a reflow payload (joistPreserve's d/m) AND a scoped descendant-cap payload
+// (imgCapSettings' x). Spreading both `...IC, ...joistPreserve(n)` would CLOBBER one (object spread overwrites the
+// duplicate joist_preserve_css key). This merges them losslessly. Pure → exercised in --selftest (mergePreserve cases).
+function mergePreserve(...frags) {
+  const out = {};
+  const dParts = [], xParts = [], m = {};
+  for (const f of frags) {
+    if (!f || typeof f !== 'object') continue;
+    for (const k of Object.keys(f)) { if (k !== 'joist_preserve_css') out[k] = f[k]; }
+    if (typeof f.joist_preserve_css !== 'string' || !f.joist_preserve_css) continue;
+    let p; try { p = JSON.parse(f.joist_preserve_css); } catch { continue; }
+    if (!p || typeof p !== 'object') continue;
+    if (typeof p.d === 'string' && p.d) dParts.push(p.d);
+    if (typeof p.x === 'string' && p.x) xParts.push(p.x);
+    if (p.m && typeof p.m === 'object') for (const w of Object.keys(p.m)) {
+      if (typeof p.m[w] === 'string' && p.m[w]) m[w] = m[w] ? m[w] + ';' + p.m[w] : p.m[w];
+    }
+  }
+  const payload = {};
+  if (dParts.length) payload.d = dParts.join(';');
+  if (xParts.length) payload.x = xParts.join('\n');
+  if (Object.keys(m).length) payload.m = m;
+  if (payload.d || payload.x || payload.m) out.joist_preserve_css = JSON.stringify(payload);
+  return out;
+}
+// IMGCAP-FREE (Phase-3 mobile-height fix; default ON, ABS_NO_IMGCAP_FREE=1 → legacy Pro-only-channel behavior):
+// the per-image @<=1024 / @<=767 max-height caps (imgCapSettings) are pushed into imgCapCss/mpbImgCss → joined into
+// the PAGE custom_css channel, which is ELEMENTOR-PRO-ONLY → SILENTLY DROPPED on the free render host (the SAME
+// landmine the width-release fixed). So on free a small desktop icon (e.g. a 45px logo) un-pins to width:100% and
+// reflows to its INTRINSIC aspect (~90px) — the measured ~3000px mobile balloon across 45/57 images on supabase.
+// FIX: route the SAME #img-N-scoped cap rules through the element's OWN joist_preserve_css `x` payload (raw verbatim
+// rules → core Post_CSS, RENDERS ON FREE). MOBILE-ONLY (@<=1024 + @<=767) → desktop (>1024) BYTE-IDENTICAL. The
+// Pro custom_css push is KEPT as an inert fallback (harmless on free). Reversible: ABS_NO_IMGCAP_FREE=1.
+const IMGCAP_FREE = process.env.ABS_NO_IMGCAP_FREE !== '1';
+let IMGCAP_FREE_HITS = 0;   // census: image leaves that got the free-render `x` cap this build
 // True when the OUTER-element `d` nowrap (above) is carrying the wrap-guard, so leafWidget must NOT also emit the
 // inner inline white-space:nowrap (which the m-channel can't reach). Mirrors joistPreserve's gate exactly.
 const NOWRAP_VIA_PRESERVE = (n) => (NATIVE_RESPONSIVE || LEAF_REFLOW_M) && n && n._noWrap;
@@ -1072,8 +1120,8 @@ function leafWidget(n, target, origin) {
   // normal widgets incl. the mockup raster; below the 90000+ raster-band fallback) so they always paint over
   // the image regardless of flatten order.
   const P = absPos(box, n.overlay ? oz++ : z++, origin);
-  if (n.kind === 'image') { const isrc = bestImgSrc(n); const id = localId(isrc); const img = id ? { url: localSrc(isrc), id } : { url: localSrc(isrc) }; const IC = imgCapSettings(box, n); sink.push({ elType: 'widget', widgetType: 'image', settings: { image: img, image_size: 'full', width: { unit: 'px', size: Math.round(box.w) }, ...IC, ...P, ...joistPreserve(n), ...mobileAbsenceHide(n, IC) } }); return; }
-  if ((n.kind === 'svg' || n.kind === 'mockup') && n.raster && n.raster !== 'SKIP') { const IC = imgCapSettings(box, n); sink.push({ elType: 'widget', widgetType: 'image', settings: { image: { url: localSrc(n.raster) }, image_size: 'full', width: { unit: 'px', size: Math.round(box.w) }, ...IC, ...P, ...joistPreserve(n), ...mobileAbsenceHide(n, IC) } }); return; }
+  if (n.kind === 'image') { const isrc = bestImgSrc(n); const id = localId(isrc); const img = id ? { url: localSrc(isrc), id } : { url: localSrc(isrc) }; const IC = imgCapSettings(box, n); sink.push({ elType: 'widget', widgetType: 'image', settings: { image: img, image_size: 'full', width: { unit: 'px', size: Math.round(box.w) }, ...P, ...mergePreserve(IC, joistPreserve(n)), ...mobileAbsenceHide(n, IC) } }); return; }
+  if ((n.kind === 'svg' || n.kind === 'mockup') && n.raster && n.raster !== 'SKIP') { const IC = imgCapSettings(box, n); sink.push({ elType: 'widget', widgetType: 'image', settings: { image: { url: localSrc(n.raster) }, image_size: 'full', width: { unit: 'px', size: Math.round(box.w) }, ...P, ...mergePreserve(IC, joistPreserve(n)), ...mobileAbsenceHide(n, IC) } }); return; }
   if (n.kind === 'code') { sink.push(codePanelWidget(n, P, PB)); return; }
   // DIVIDER (<hr>, defect #4): emit a kses-safe html-widget <hr> carrying the captured stroke as an inline style.
   // HEX REQUIRED in a text-editor channel, but an HTML widget is stored RAW (kses-untouched), so even an rgb()
