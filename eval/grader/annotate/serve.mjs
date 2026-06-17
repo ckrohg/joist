@@ -47,16 +47,21 @@ const MIME = {
 const OWNED = new Set(['/', '/annotate.html', '/annotate.js', '/annotate.css', '/guard.js', '/annotate-core.js']);
 function isOwned(pathname) {
   if (OWNED.has(pathname)) return true;
+  if (pathname === '/index.html') return true; // the self-contained canonical tool
   if (pathname.startsWith('/assets/')) return true; // source screenshots + source-bbox.json
+  // the canonical tool's per-page source assets at the served root (source-<id>.png / source-bbox-<id>.json).
+  // Specific tool filenames that never collide with a WP path (wp-content/wp-json/?page_id=… still proxy).
+  if (/^\/source-[\w-]+\.png$/.test(pathname) || /^\/source-bbox-[\w-]+\.json$/.test(pathname)) return true;
   return false;
 }
 
 /** Route a request to either a local static file path, or 'proxy'. Pure → unit-testable. */
-export function routeRequest(rawPathname) {
+export function routeRequest(rawPathname, rawQuery = '') {
   // decode percent-encoding first so an encoded traversal (%2e%2e%2f) can't slip past the checks.
   let pathname;
   try { pathname = decodeURIComponent(rawPathname); } catch { return { kind: 'forbidden' }; }
-  if (pathname === '/') return { kind: 'static', file: 'annotate.html' };
+  // bare '/' = the tool landing; '/?page_id=…' (any query) = the clone page the iframe loads → PROXY to the clone.
+  if (pathname === '/') return rawQuery ? { kind: 'proxy' } : { kind: 'static', file: 'annotate.html' };
   if (isOwned(pathname)) {
     // map to a file under HERE; reject ANY path that normalizes outside HERE (traversal).
     const rel = pathname.replace(/^\/+/, '');
@@ -90,12 +95,17 @@ async function proxyToClone(req, res, cloneBase) {
       headers: { ...req.headers, host: new URL(base).host },
       redirect: 'manual',
     });
+    const baseOrigin = new URL(base).origin; // e.g. http://localhost:8001
     const headers = {};
     upstream.headers.forEach((v, k) => {
       const lk = k.toLowerCase();
       // strip framing/CSP guards so the same-origin iframe can embed the LOCAL clone (ours, not cross-site).
       if (lk === 'x-frame-options' || lk === 'content-security-policy' || lk === 'content-security-policy-report-only') return;
       if (lk === 'content-encoding' || lk === 'content-length' || lk === 'transfer-encoding') return; // let node re-frame the body
+      // REWRITE redirect Location off the clone origin → relative, so a WP pretty-permalink 301
+      // (e.g. /?page_id=N → http://localhost:8001/slug/) keeps the iframe on THIS same-origin proxy
+      // instead of bouncing cross-origin to the clone host (which would break elementsFromPoint).
+      if (lk === 'location' && typeof v === 'string' && v.startsWith(baseOrigin)) { headers[k] = v.slice(baseOrigin.length) || '/'; return; }
       headers[k] = v;
     });
     const buf = Buffer.from(await upstream.arrayBuffer());
@@ -111,8 +121,8 @@ function start(port, cloneBase) {
   // fail fast + loud if the clone base is forbidden, BEFORE binding.
   assertAllowedBase(cloneBase);
   const server = http.createServer((req, res) => {
-    const pathname = url.parse(req.url).pathname;
-    const route = routeRequest(pathname);
+    const _u = url.parse(req.url); const pathname = _u.pathname;
+    const route = routeRequest(pathname, _u.query || '');
     if (route.kind === 'forbidden') { res.writeHead(403); res.end('forbidden'); return; }
     if (route.kind === 'static') return serveStatic(res, route.file);
     return proxyToClone(req, res, cloneBase);
@@ -133,7 +143,7 @@ function selftest() {
   ok('/guard.js → static', routeRequest('/guard.js').kind === 'static');
   ok('/annotate-core.js → static', routeRequest('/annotate-core.js').kind === 'static');
   ok('/assets/synthetic/source-bbox.json → static', routeRequest('/assets/synthetic/source-bbox.json').kind === 'static');
-  ok('/?page_id=2551 (clone path) → proxy', routeRequest('/').kind === 'static' && routeRequest('/wp-content/x.css').kind === 'proxy');
+  ok('/?page_id=2551 (clone path) → proxy', routeRequest('/', 'page_id=2551').kind === 'proxy'); ok('bare / → tool static', routeRequest('/').kind === 'static'); ok('/index.html → static', routeRequest('/index.html').kind === 'static'); ok('/source-bbox-442.json → static', routeRequest('/source-bbox-442.json').kind === 'static');
   ok('/wp-json/... → proxy', routeRequest('/wp-json/joist/v1/pages').kind === 'proxy');
   ok('path traversal /assets/../../secret → forbidden', routeRequest('/assets/../../secret').kind === 'forbidden');
   ok('encoded traversal /assets/%2e%2e/%2e%2e/secret → forbidden', routeRequest('/assets/%2e%2e/%2e%2e/secret').kind === 'forbidden');
