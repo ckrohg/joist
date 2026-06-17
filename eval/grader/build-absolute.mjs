@@ -512,6 +512,23 @@ function fluidFontSettings(n) {
 const NATIVE_RESPONSIVE = process.env.ABS_NATIVE_RESPONSIVE === '1';
 // the per-bp release decl block (same for every leaf — the plugin scopes it to .elementor-element-<id>).
 const NR_RELEASE = 'position:relative !important;left:auto !important;top:auto !important;right:auto !important;bottom:auto !important;width:100% !important;max-width:100% !important;height:auto !important;min-height:0 !important;margin:0 0 10px 0 !important';
+// ── PER-LEAF FREE-RENDER REFLOW (THE supabase-442 defect fix; default ON, ABS_NO_LEAF_REFLOW_M=1 → legacy) ─────
+// THE user-visible defect: the blanket <=1024 abs-leaf un-pin (responsiveCss, ~:3168) that lets the desktop-pixel
+// abs-pinned tree reflow to a single column below 1024 rides ONLY the PAGE custom_css channel — ELEMENTOR-PRO-ONLY,
+// SILENTLY DROPPED on the free render host (the SAME landmine the card-row collision-pin 6727073 and the container
+// pin 16b4032 already fixed for the DESKTOP pin). Card-row CONTAINERS already un-pin on free via containerPin's `m`
+// payload (:2118/:1928), but the plain abs-pinned leaf WIDGETS (supabase 442's whole structure) un-pin ONLY via the
+// dropped page custom_css → frozen: scrollW≈1445 at EVERY width (1440/1024/960/768), 421/485/677px h-overflow at
+// 1024/960/768, so the ~960px annotation-tool iframe shows a catastrophically collided render even though the 1440
+// desktop render is correct. FIX: route the SAME per-leaf <=1024 un-pin through the leaf's OWN joist_preserve_css
+// `m` payload (the plugin's elementor/element/parse_css → CORE Post_CSS hook — RENDERS ON FREE), so every abs leaf
+// becomes position:relative;width:100%;height:auto at <=1024 and the page reflows to one column. DECOUPLED from
+// NATIVE_RESPONSIVE so we do NOT also flip the per-breakpoint TYPOGRAPHY channel (nrTypo) — this carries ONLY the
+// geometric reflow release, which is the user-visible breakage. The blanket Pro responsiveCss push STAYS as an inert
+// fallback (harmless on free; active under Pro). Desktop (>1024) is byte-identical: the `m` keys apply <=1024 only,
+// the leaf carries no NEW `d` decl (the --joist-src `d`, if any, is a layout-inert custom property). Reversible.
+const LEAF_REFLOW_M = process.env.ABS_NO_LEAF_REFLOW_M !== '1';
+let LEAF_REFLOW_M_HITS = 0; // census: how many leaves got the free-render `m` reflow release this build
 // ── --joist-src CONTENT-ADDRESSED STAMP (O(1) correspondence; default ON, ABS_NO_JOIST_SRC=1 → off) ──────────
 // compare-capture.mjs joins source⇄clone records by a stable content-addressed path; when the clone carries that
 // path in a `--joist-src` CSS var (queryable via getComputedStyle), the join is an exact O(1) backref instead of a
@@ -530,7 +547,9 @@ function joistPreserve(n) {
     const safe = n.srcPath.replace(/["\\]/g, '');
     payload.d = `--joist-src:"${safe}"`;
   }
-  if (NATIVE_RESPONSIVE) { payload.m = { '1024': NR_RELEASE, '767': NR_RELEASE }; }
+  // `m` un-pin: NATIVE_RESPONSIVE (full responsive arch, also flips nrTypo) OR LEAF_REFLOW_M (geometry-only,
+  // default ON — THE supabase-442 free-render reflow fix). Either route emits the SAME per-leaf release decl.
+  if (NATIVE_RESPONSIVE || LEAF_REFLOW_M) { payload.m = { '1024': NR_RELEASE, '767': NR_RELEASE }; LEAF_REFLOW_M_HITS++; }
   return (payload.d || payload.m) ? { joist_preserve_css: JSON.stringify(payload) } : {};
 }
 // native per-breakpoint font-size (shrink large captured text toward a readable mobile/tablet ceiling; never above
@@ -3336,6 +3355,7 @@ const dryDump = process.env.ABS_DUMP_TREE || `/tmp/abs-dryrun-${pageId}.json`;
   const pageSettings = customCss ? { custom_css: customCss } : {};
   if (fontCss) console.log(`injecting ${usedFonts.size} real font(s) via custom_css: ${[...usedFonts].join(', ')}`);
   console.log(`injecting responsive reflow media query (<=1024 un-pin) via custom_css — vertical-compact ${NO_VREFLOW ? 'OFF (ABS_NO_VREFLOW=1 → relative+w:100% only, retains fixed height)' : 'ON (wrapper+inner+root height:auto/min-height:0 → natural mobile stack)'}`);
+  console.log(`per-leaf free-render reflow (<=1024 un-pin via joist_preserve_css m): ${LEAF_REFLOW_M ? `ON — ${LEAF_REFLOW_M_HITS} abs leaf widget(s) un-pin on FREE (Post_CSS @media), so the page reflows below 1024 even on the Pro-free host (blanket Pro responsiveCss kept as inert fallback)` : 'OFF (ABS_NO_LEAF_REFLOW_M=1 → leaf un-pin rides Pro-only page custom_css, DROPPED on free → no reflow below 1024)'}`);
   console.log(`chrome mobile-overflow fix: ${NO_CHROMEFIX ? 'OFF (ABS_NO_CHROMEFIX=1 → inner-div width:<px>, no max-width)' : 'ON (inner-div max-width:100% + <=1024 defensive 100vw/overflow-x guard)'}`);
   if (navFallbackCss) console.log('injecting Path C hamburger/responsive nav CSS via custom_css');
   // GLOBALS-TOKEN VERIFY HOOK (additive, env-gated; default OFF → zero effect on normal builds). When ABS_DUMP_TREE
