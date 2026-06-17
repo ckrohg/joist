@@ -2205,52 +2205,53 @@ function detectLooseImgGrids(root) {
     n.box && LOOSE_IMG_KINDS.has(n.kind) && !n._navConsumed && n.box.w >= 3 && n.box.h >= 3 &&
     !inRaster(n.box.y + n.box.h / 2) && !(n.box.y + n.box.h <= HEADER_Y) && imgSibs(n) < 3);
   const med = (arr) => { const s = arr.slice().sort((a, b) => a - b); return s[Math.floor(s.length / 2)] || 0; };
-  // bucket by (kind, 8px-quantized size) — a uniform wall is same-kind same-size by construction (the precision anchor)
-  const buckets = new Map();
-  for (const n of leaves) { const k = `${n.kind}|${Math.round(n.box.w / 8) * 8}x${Math.round(n.box.h / 8) * 8}`; if (!buckets.has(k)) buckets.set(k, []); buckets.get(k).push(n); }
-  for (const group of buckets.values()) {
+  // bucket by KIND only (not size): a logo/icon wall is one kind but widths VARY (linear's 8 logos span 70–114px).
+  // EXPLICIT per-column tracks (below) reproduce any per-cell width at its captured x, so desktop is INVARIANT
+  // regardless of width uniformity — the precision anchor moves from "uniform size" to "exact-by-construction tracks".
+  const byKind = new Map();
+  for (const n of leaves) { if (!byKind.has(n.kind)) byKind.set(n.kind, []); byKind.get(n.kind).push(n); }
+  for (const group of byKind.values()) {
     if (group.length < 4) continue;
-    const medW = med(group.map((g) => g.box.w)), medH = med(group.map((g) => g.box.h));
-    if (medW > 200 || medH > 120) continue;                 // SMALL gate: logo/icon scale only (no content cards/hero)
-    // Y-band cluster within the bucket
+    // Y-band cluster within the kind bucket
     const sorted = group.slice().sort((a, b) => a.box.y - b.box.y);
-    const yTol = Math.max(8, medH * 0.4);
+    const gMedH = med(group.map((g) => g.box.h));
+    const yTol = Math.max(8, gMedH * 0.5);
     const bands = [];
     for (const n of sorted) { const last = bands[bands.length - 1]; if (last && n.box.y - last.top <= yTol) { last.cells.push(n); last.top = n.box.y; } else bands.push({ top: n.box.y, cells: [n] }); }
     for (const band of bands) {
       const cells = band.cells.slice().sort((a, b) => a.box.x - b.box.x);
-      if (cells.length < 4) continue;                       // >=4 same-size icons in a row = unambiguous (stricter than isCardRow's 3)
-      if (!cells.every((c) => Math.abs(c.box.w - medW) <= 0.08 * medW && Math.abs(c.box.h - medH) <= 0.08 * medH)) continue; // ±8% uniform
+      if (cells.length < 4) continue;                                  // >=4 same-kind icons in a row
+      const medW = med(cells.map((c) => c.box.w)), medH = med(cells.map((c) => c.box.h));
+      if (medW > 200 || medH > 120) continue;                          // SMALL gate (logo/icon scale, no content cards/hero)
+      if (!cells.every((c) => c.box.w <= 200 && c.box.h <= 120)) continue;
+      if (!cells.every((c) => Math.abs(c.box.h - medH) <= 0.45 * medH + 4)) continue;  // HEIGHT-class (a logo strip is one row of similar-height marks)
       const ys = cells.map((c) => c.box.y);
-      if (Math.max(...ys) - Math.min(...ys) > 0.4 * medH) continue;   // SINGLE perfect row (rejects floating-icon scatters)
-      // distinct columns + equal gaps
-      const xs = cells.map((c) => c.box.x).sort((a, b) => a - b);
-      const xtol = Math.max(8, 0.25 * medW);
-      const colXs = []; for (const x of xs) if (!colXs.length || x - colXs[colXs.length - 1] > xtol) colXs.push(x);
-      if (colXs.length < 2) continue;
-      const gaps = []; for (let i = 1; i < colXs.length; i++) gaps.push((colXs[i] - colXs[i - 1]) - medW);
-      const gm = gaps.reduce((a, b) => a + b, 0) / gaps.length;
-      const gs = Math.sqrt(gaps.reduce((a, b) => a + (b - gm) ** 2, 0) / gaps.length);
-      const pitch = (colXs[colXs.length - 1] - colXs[0]) / (colXs.length - 1);
-      if (gs > Math.max(8, 0.25 * pitch)) continue;          // equal X-gaps (tighter than isCardRow)
-      const colGap = Math.max(0, Math.round(gm));
-      const N = Math.max(2, Math.min(cells.length, 12));     // single row → one cell per column (N up to 12 for icon walls)
-      const bx = Math.min(...cells.map((c) => c.box.x)), by = Math.min(...cells.map((c) => c.box.y));
-      const bw = Math.max(...cells.map((c) => c.box.x + c.box.w)) - bx;
+      if (Math.max(...ys) - Math.min(...ys) > 0.5 * medH + 4) continue;  // SINGLE row (rejects multi-row scatters → ARM-2's domain)
+      // single row ⇒ one cell per column; reject horizontal OVERLAP (cells must be side-by-side, monotone x)
+      let ok = true;
+      for (let i = 1; i < cells.length; i++) if (cells[i].box.x <= cells[i - 1].box.x + cells[i - 1].box.w * 0.5) { ok = false; break; }
+      if (!ok) continue;
+      const N = cells.length;
+      if (N < 4 || N > 16) continue;
+      const x0 = cells[0].box.x, by = Math.min(...ys);
       const bh = Math.max(...cells.map((c) => c.box.y + c.box.h)) - by;
-      // ── DRIFT GATE (the load-bearing desktop guard): project each cell under repeat(N,1fr)+colGap at the band
-      // width; the grid is desktop-EXACT only if every cell's projected left edge matches its captured x within 4px.
-      // A non-uniform row (where equal 1fr tracks would shift cells) is REJECTED → those leaves keep their abs pin.
-      const trackW = (bw - (N - 1) * colGap) / N;
-      let maxDrift = 0;
-      for (let i = 0; i < cells.length; i++) maxDrift = Math.max(maxDrift, Math.abs((bx + i * (trackW + colGap)) - cells[i].box.x));
-      if (maxDrift > 4) continue;
-      // size-scaled reflow: KEEP small icons multi-column at narrow widths (the whole point — not repeat(1)).
+      // ── EXPLICIT desktop track template = consecutive captured pitches (last track = last cell width). Cell i lands
+      // at Σ(tracks 0..i−1) = x_i − x_0 from the container's left edge (pinned at x_0) → its captured x_i. EXACT BY
+      // CONSTRUCTION for any width/pitch (no drift gate needed — desktop is pixel-invariant). Reflow tracks (tablet/
+      // mobile, @media-scoped) never apply >1024, so desktop is untouched.
+      const tracks = [];
+      for (let i = 0; i < N - 1; i++) tracks.push(Math.round(cells[i + 1].box.x - cells[i].box.x));
+      tracks.push(Math.round(cells[N - 1].box.w));
+      if (tracks.some((t) => t < 4)) continue;                          // degenerate/overlap guard
+      if (cells.some((c, i) => c.box.w > tracks[i] * 1.12 + 2)) continue; // each logo must FIT its track (no spill into next column)
+      const bw = tracks.reduce((a, b) => a + b, 0);                     // = captured span (x_{N-1}+w_{N-1} − x_0)
+      const desktopTemplate = tracks.map((t) => `${t}px`).join(' ');
+      // size-scaled reflow: KEEP small icons multi-column at narrow widths (the height-saver — not repeat(1)).
       const reflowTablet = Math.max(2, Math.min(N, Math.round(N / 2)));
-      const reflowMobile = Math.max(2, Math.min(N, Math.floor(360 / Math.max(1, medW + colGap))));
-      for (const c of cells) c._navConsumed = true;          // drop from page-abs flow (flatten/collectBg skip; emitCardRow re-emits)
-      const synthetic = { kind: 'container', box: { x: bx, y: by, w: bw, h: bh }, children: cells };
-      looseGrids.push({ container: synthetic, cols: N, box: synthetic.box, cellCount: cells.length, colGap, rowGap: 0, reflowTablet, reflowMobile });
+      const reflowMobile = Math.max(2, Math.min(N, Math.floor(360 / Math.max(1, medW + 8))));
+      for (const c of cells) c._navConsumed = true;                    // drop from page-abs flow (flatten/collectBg skip; emitCardRow re-emits)
+      const synthetic = { kind: 'container', box: { x: x0, y: by, w: bw, h: bh }, children: cells };
+      looseGrids.push({ container: synthetic, cols: N, box: synthetic.box, cellCount: N, colGap: 0, rowGap: 0, reflowTablet, reflowMobile, desktopTemplate });
       LOOSE_IMG_GRID_HITS++;
     }
   }
@@ -2353,7 +2354,11 @@ function emitCardRow(row) {
     content_width: 'full',
     padding: { unit: 'px', top: '0', right: '0', bottom: '0', left: '0', isLinked: true },
     container_type: 'grid',
-    grid_columns_grid: { unit: 'custom', size: `repeat(${N}, minmax(0, 1fr))` },
+    // DESKTOP track: card-rows use repeat(N,1fr) (uniform cells). A loose-image grid passes row.desktopTemplate = an
+    // EXPLICIT per-column px track list (the captured pitches) so each cell lands at its EXACT captured x — desktop
+    // pixel-exact for ANY width/pitch arrangement (varied-width logo strips that 1fr can't place). Card-rows pass
+    // nothing → byte-identical repeat(N,1fr).
+    grid_columns_grid: { unit: 'custom', size: row.desktopTemplate || `repeat(${N}, minmax(0, 1fr))` },
     // reflow tracks: DEFAULT 2 (tablet) / 1 (mobile) for content card-rows. A loose-IMAGE grid (logo/icon wall)
     // passes row.reflowTablet/reflowMobile to STAY multi-column at narrow widths (small icons pack several across)
     // — the height-saver. Card-rows pass nothing → byte-identical 2/1. minmax(0,1fr) tracks shrink to fit.
