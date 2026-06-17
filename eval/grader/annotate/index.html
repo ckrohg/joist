@@ -102,9 +102,17 @@
   </div>
 
   <div class="pane">
-    <h2>Clone (live localhost DOM) — click to drop a pin &nbsp;·&nbsp; <span id="pinList-summary" class="badge">pins below</span></h2>
-    <div class="clone-host">
-      <iframe id="clone" sandbox="allow-same-origin allow-scripts"></iframe>
+    <h2>Clone (live localhost DOM) — click to drop a pin &nbsp;·&nbsp;
+      <label class="badge">render width</label>
+      <select id="vw" title="render the clone at a real viewport width (the pane scrolls if narrower). DESKTOP 1440 by default — a narrow pane was showing the &lt;1024 responsive view.">
+        <option value="1440">1440 desktop</option>
+        <option value="1024">1024</option>
+        <option value="768">768 tablet</option>
+        <option value="390">390 mobile</option>
+      </select>
+      &nbsp;·&nbsp; <span id="pinList-summary" class="badge">pins below</span></h2>
+    <div class="clone-host" style="overflow:auto">
+      <iframe id="clone" sandbox="allow-same-origin allow-scripts" style="width:1440px;max-width:none"></iframe>
       <div id="overlay"></div>
     </div>
   </div>
@@ -192,6 +200,11 @@ $('#loadSrc').onclick = async ()=>{
     const res = await fetch('source-bbox-'+id+'.json'); srcBbox = await res.json();
   }catch(e){ srcBbox=null; }
 };
+
+//─── render-width toggle: set the iframe to a real viewport width (pane scrolls). Default 1440 desktop so a
+//    narrow pane no longer shows the <1024 responsive view as if it were the main render. Click coords stay
+//    correct because the overlay handler maps via iframe.getBoundingClientRect() (accounts for scroll). ───
+$('#vw').addEventListener('change', (e)=>{ $('#clone').style.width = e.target.value + 'px'; });
 
 //─── auto-load from URL params: ?page_id=442&srcId=442 (or just ?page_id=442) loads both panes ───
 (()=>{
