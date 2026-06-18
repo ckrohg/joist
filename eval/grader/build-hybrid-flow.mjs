@@ -430,15 +430,21 @@ if (!has('no-render')) {
     // construction → never trips the responsive veto-caps that sink desktop-pinned builds; baseline: absolute is
     // veto-capped 7/7 on responsive). So we NEVER ship worse than the floor. Reversible: JOIST_NO_FLOORGUARD=1
     // → grade hybrid only and ship it (legacy behavior). Both pages are already rendered; we only pick the URL.
-    const gradeOf = (url, out) => {
-      const g = spawnSync('node', ['grade-structure.mjs', '--source', source, '--clone', url, '--out', out], { encoding: 'utf8', cwd: process.cwd(), env: process.env, maxBuffer: 64 * 1024 * 1024, timeout: 110000 });
+    const gradeOf = (url, out, ledger) => {
+      const a = ['grade-structure.mjs', '--source', source, '--clone', url, '--out', out];
+      // LEDGER DISCIPLINE: the frozen-coverage cap + editability ladder read /tmp/hybrid-residual-ledger.json,
+      // which describes the HYBRID's preserve. The FLOW arm has NO preserve, so it MUST grade with --ledger none —
+      // else it inherits the hybrid's preserveHeightFrac and gets frozen-coverage-capped (deflation; e.g. linear:
+      // flow ship wrongly capped 0.615→0.45). Hybrid arm uses the default (its own) ledger.
+      if (ledger) a.push('--ledger', ledger);
+      const g = spawnSync('node', a, { encoding: 'utf8', cwd: process.cwd(), env: process.env, maxBuffer: 64 * 1024 * 1024, timeout: 110000 });
       let r = null; try { r = JSON.parse(fs.readFileSync(`${out}/report.json`, 'utf8')); } catch {}
       return { r, raw: (g.stdout || '') + (g.stderr || '') };
     };
     const slim = (g) => g ? { composite: g.composite, visual: g.visual, editability: g.editability, responsive: g.responsive } : null;
     console.log('\n• grade HYBRID + FLOW-floor vs source (floor guarantee)…');
     const Hg = gradeOf(hybRes.url, '/tmp/hybrid-grade');
-    const Fg = process.env.JOIST_NO_FLOORGUARD === '1' ? { r: null, raw: '' } : gradeOf(flowRes.url, '/tmp/flow-grade');
+    const Fg = process.env.JOIST_NO_FLOORGUARD === '1' ? { r: null, raw: '' } : gradeOf(flowRes.url, '/tmp/flow-grade', 'none');
     const hc = Hg.r?.composite ?? -1, fc = Fg.r?.composite ?? -1;
     const floorWins = Fg.r != null && fc >= hc; // tie → ship the floor (more editable / responsive / robust)
     const shipped = floorWins ? 'flow' : 'hybrid';
