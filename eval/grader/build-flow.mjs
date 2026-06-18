@@ -209,6 +209,24 @@ function typoCss(n) {
 }
 // merge typoCss + WRAP (and any extra css) into one inline-style string for a text-editor inner element
 const textCss = (n, extra) => [typoCss(n), extra].filter(Boolean).join(';') + ';' + WRAP;
+// CTA PILL (default ON; BUILD_NO_BTN_PILL=1 → legacy bare-text button). A button leaf CAPTURED its background +
+// radius (e.g. "Get started": bg rgb(0,0,0) r32px), but the legacy emit used only textCss (text COLOR), dropping
+// the pill → a white CTA label on a light section rendered as white-on-white = INVISIBLE (tailwind: 4 CTAs →
+// invisDefect 0.2, confirmed by LOOK). Restore the captured pill so the label sits on its background. Skips a
+// null / near-transparent fill (nav links + subtle badges stay bare text). Em-based padding = responsive-safe
+// (no fixed-px height floor that would inflate at 390). Alpha parsed correctly (rgb(0,0,0)'s blue ≠ alpha).
+function bgAlpha(bg) {
+  const slash = bg.match(/\/\s*([\d.]+)\s*(%?)\s*\)/); if (slash) { const a = parseFloat(slash[1]); return slash[2] === '%' ? a / 100 : a; }
+  const m = bg.match(/rgba?\(([^)]+)\)|hsla?\(([^)]+)\)/i); if (m) { const parts = (m[1] || m[2]).split(',').map((s) => s.trim()); if (parts.length === 4) return parseFloat(parts[3]); }
+  return 1; // no alpha channel present → opaque
+}
+function btnPillCss(n) {
+  if (process.env.BUILD_NO_BTN_PILL === '1') return '';
+  const bg = n.bg || n.background || null;
+  if (!bg || /^(transparent|none)$/i.test(bg) || bgAlpha(bg) < 0.4) return '';
+  const r = n.radius || n.borderRadius || '8px';
+  return `display:inline-block;background:${bg};border-radius:${r};padding:0.6em 1.35em;box-sizing:border-box;text-decoration:none`;
+}
 const styleAttr = (css) => css ? ` style="${css}"` : '';
 // FIX v3#2 — LONG-TOKEN WRAP. Unbreakable strings (code snippets, long URLs, hashes) force a text/code widget
 // wider than the 390 mobile viewport (the tailwind hero literal source pushed docW 726>390). overflow-wrap +
@@ -380,7 +398,7 @@ function leafWidget(n, posBox = null) {
   // native Heading widget at all. Route headings through a text-editor with an inline-styled <hN> tag (same path
   // text/button already use) — the validator accepts arbitrary inner HTML in `editor`, preserving visual fidelity.
   if (n.kind === 'heading') { const hn = 'h' + Math.min(6, Math.max(1, n.level || 2)); return { elType: 'widget', widgetType: 'text-editor', settings: { editor: `<${hn} style="${textCss(n)}">${esc(text)}</${hn}>`, ...P } }; }
-  if (n.kind === 'button') return { elType: 'widget', widgetType: 'text-editor', settings: { editor: `<a${n.href ? ` href="${esc(n.href)}"` : ''} style="${textCss(n)}">${esc(text)}</a>`, ...P } };
+  if (n.kind === 'button') return { elType: 'widget', widgetType: 'text-editor', settings: { editor: `<a${n.href ? ` href="${esc(n.href)}"` : ''} style="${textCss(n, btnPillCss(n))}">${esc(text)}</a>`, ...P } };
   return { elType: 'widget', widgetType: 'text-editor', settings: { editor: `<div style="${textCss(n)}">${esc(text)}</div>`, ...P } };
 }
 
