@@ -2055,6 +2055,25 @@ const LOOSE_IMG_GRID = process.env.ABS_NO_LOOSE_IMG_GRID !== '1';
 const LOOSE_IMG_KINDS = new Set(['image', 'svg', 'mockup']);
 const looseGrids = [];   // synthetic rows {container, cols, box, cellCount, colGap, rowGap, reflowTablet, reflowMobile}
 let LOOSE_IMG_GRID_HITS = 0;
+// ── FOOTER-COLUMN GRID (ARM-2; default ON, ABS_NO_FOOTER_GRID=1 → legacy per-leaf abs-pin) ──
+// A footer link block is N vertical COLUMNS of short text links (reactdev: Learn/API/Community/Blog, 4 columns of
+// ~5 uniform-pitch links). Captured as loose absolute TEXT leaves → at mobile they all stack 1-per-row (tall). FIX:
+// detect clean footer-column blocks (>=2 columns, each >=3 short links at UNIFORM y-pitch) and emit ONE reflowing
+// grid whose CELLS are per-column vertical stacks (reusing emitCardRow). DESKTOP-EXACT by ARM's explicit per-column
+// tracks (the captured column x's) + cell origin pinned to the BLOCK top (so each link lands at its captured x,y for
+// ANY column-top alignment). At mobile the column-grid reflows to fewer columns (footers go ~2-up). PRECISION: the
+// uniform-pitch + aligned-tops + link-length gates reject marketplace/testimonial/calendar noise (framer/notion).
+// Desktop is invariant regardless (explicit tracks) — a false group only changes mobile reflow.
+// DEFAULT-OFF (opt-in ABS_FOOTER_GRID=1): MEASURED a mobile-height REGRESSION — reactdev 4-col footer @390 went
+// 16600→17300 (+700) because at a 2-col reflow width (~180px) the link LABELS ("Code of Conduct", "Meet the Team")
+// WRAP to 2 lines, making the grid TALLER than the existing 1-col leaf stack (which gives each link full width, no
+// wrap). Footer link columns are therefore NOT a mobile-height lever — the 1-col stack is already near-optimal. The
+// detection + desktop-exact explicit-track placement WORK (reactdev columns land at captured x; framer/notion noise
+// correctly rejected) and are editability-positive, so the code is KEPT behind an opt-in flag, not deleted.
+const FOOTER_GRID = process.env.ABS_FOOTER_GRID === '1';
+const FOOTER_TEXT_KINDS = new Set(['text', 'button', 'heading', 'list']);
+const footerGrids = [];  // synthetic rows like looseGrids, but cells are per-column stacks
+let FOOTER_GRID_HITS = 0;
 
 // ── GENERALIZED CONTAINER POSITION-PIN (default ON, ABS_NO_CONTAINER_PIN=1 → legacy per-site pins) ──────────────────
 // THE DEEPER LESSON of the card-row collision-wall fix, lifted to a SINGLE choke point. Elementor CONTAINERS ignore
@@ -2266,6 +2285,80 @@ function detectLooseImgGrids(root) {
       looseGrids.push({ container: synthetic, cols: N, box: synthetic.box, cellCount: N, colGap: 0, rowGap: 0, reflowTablet, reflowMobile, desktopTemplate });
       LOOSE_IMG_GRID_HITS++;
     }
+  }
+}
+// DETECT footer-column grids (ARM-2). A clean footer block = >=2 X-columns, each a vertical stack of >=3 short text
+// links at UNIFORM y-pitch, with roughly-aligned column tops, in the page's bottom region. Each column becomes a
+// synthetic stack-container CELL; the block is emitted via emitCardRow with explicit per-column-x tracks (desktop-
+// exact) + a mobile reflow to ~2 columns. Mirrors detectLooseImgGrids' consume contract (_navConsumed).
+function detectFooterGrids(root) {
+  if (!FOOTER_GRID || NO_CARDREFLOW || !root) return;
+  const parent = new Map();
+  (function walk(n) { for (const c of (n.children || [])) { parent.set(c, n); walk(c); } })(root);
+  const leaves0 = gatherLeaves(root);
+  const pageBottom = Math.max(...leaves0.map((n) => (n.box ? n.box.y + (n.box.h || 0) : 0)), 1);
+  // candidate footer text leaves: short link-like text, narrow, in the bottom region, not consumed/nav/raster.
+  const cands = leaves0.filter((n) =>
+    n.box && FOOTER_TEXT_KINDS.has(n.kind) && !n._navConsumed && (n.text || '').trim() &&
+    (n.text || '').trim().length <= 34 && n.box.w >= 8 && n.box.w <= 220 && n.box.h >= 6 && n.box.h <= 40 &&
+    !inRaster(n.box.y + n.box.h / 2) && !(n.box.y + n.box.h <= HEADER_Y) && n.box.y > pageBottom * 0.66);
+  if (cands.length < 6) return;
+  const med = (arr) => { const s = arr.slice().sort((a, b) => a - b); return s[Math.floor(s.length / 2)] || 0; };
+  // cluster into X-columns (a column = leaves sharing a left edge within ~half a link width)
+  const medLW = med(cands.map((c) => c.box.w));
+  const xtol = Math.max(20, medLW * 0.5);
+  const byX = [...cands].sort((a, b) => a.box.x - b.box.x);
+  const cols = [];
+  for (const n of byX) { const last = cols[cols.length - 1]; if (last && n.box.x - last.x0 <= xtol) { last.cells.push(n); last.x0 = n.box.x; } else cols.push({ x0: n.box.x, xmin: n.box.x, cells: [n] }); }
+  // qualify each column: >=3 links at UNIFORM y-pitch (link spacing), monotone y, no overlap
+  const qualified = [];
+  for (const col of cols) {
+    const cs = col.cells.slice().sort((a, b) => a.box.y - b.box.y);
+    if (cs.length < 3) continue;
+    const pitches = []; for (let i = 1; i < cs.length; i++) pitches.push(cs[i].box.y - cs[i - 1].box.y);
+    const pm = pitches.reduce((a, b) => a + b, 0) / pitches.length;
+    if (pm < 12 || pm > 80) continue;                                  // link-row spacing band (rejects dense mockup / sparse scatter)
+    const ps = Math.sqrt(pitches.reduce((a, b) => a + (b - pm) ** 2, 0) / pitches.length);
+    if (ps > pm * 0.4) continue;                                       // UNIFORM pitch → a real link list (rejects irregular noise)
+    if (pitches.some((p) => p <= 2)) continue;                         // overlapping rows → not a clean list
+    const xmin = Math.min(...cs.map((c) => c.box.x));
+    qualified.push({ cells: cs, x: xmin, top: cs[0].box.y, bottom: cs[cs.length - 1].box.y + cs[cs.length - 1].box.h, pitch: pm });
+  }
+  if (qualified.length < 2) return;
+  qualified.sort((a, b) => a.x - b.x);
+  // group qualified columns into BLOCKS: adjacent columns whose tops align (within ~1.5 link rows) form one footer.
+  const rowH = med(cands.map((c) => c.box.h)) || 16;
+  const blocks = [];
+  for (const q of qualified) {
+    const last = blocks[blocks.length - 1];
+    if (last && Math.abs(q.top - last.top0) <= rowH * 2.5 && q.x - last.maxX <= 420) { last.cols.push(q); last.maxX = q.x; }
+    else blocks.push({ cols: [q], top0: q.top, maxX: q.x });
+  }
+  for (const blk of blocks) {
+    const bcols = blk.cols;
+    if (bcols.length < 2) continue;                                    // need >=2 columns to be a footer grid
+    const N = bcols.length;
+    const by = Math.min(...bcols.map((c) => c.top));
+    const bbottom = Math.max(...bcols.map((c) => c.bottom));
+    const bh = Math.round(bbottom - by);
+    const x0 = Math.round(bcols[0].x);
+    // explicit per-column tracks = consecutive column-x pitches; last track = last column's link width.
+    const tracks = [];
+    for (let i = 0; i < N - 1; i++) tracks.push(Math.round(bcols[i + 1].x - bcols[i].x));
+    tracks.push(Math.max(40, Math.round(med(bcols[N - 1].cells.map((c) => c.box.w)))));
+    if (tracks.some((t) => t < 20)) continue;
+    const bw = tracks.reduce((a, b) => a + b, 0);
+    const desktopTemplate = tracks.map((t) => `${t}px`).join(' ');
+    // each column → a synthetic stack-container CELL whose box.y = the BLOCK top, so leafWidget's cell-relative
+    // origin places every link at its EXACT captured (x,y) regardless of per-column top alignment.
+    const cellContainers = bcols.map((col) => ({ kind: 'container', box: { x: Math.round(col.x), y: by, w: Math.round(med(col.cells.map((c) => c.box.w))) || 120, h: bh }, children: col.cells }));
+    for (const col of bcols) for (const c of col.cells) c._navConsumed = true;
+    const synthetic = { kind: 'container', box: { x: x0, y: Math.round(by), w: bw, h: bh }, children: cellContainers };
+    // footers go ~2-up at narrow widths (a 4-col footer → 2 tablet → 2 mobile; a 2-col stays 2/1).
+    const reflowTablet = Math.max(2, Math.min(N, Math.ceil(N / 2)));
+    const reflowMobile = Math.min(N, 2);
+    footerGrids.push({ container: synthetic, cols: N, box: synthetic.box, cellCount: N, colGap: 0, rowGap: 0, reflowTablet, reflowMobile, desktopTemplate });
+    FOOTER_GRID_HITS++;
   }
 }
 // CELL-RELATIVE BACKGROUND collector — the card-row subtree is _navConsumed, so the GLOBAL collectBg() (which
@@ -3112,6 +3205,13 @@ const dryDump = process.env.ABS_DUMP_TREE || `/tmp/abs-dryrun-${pageId}.json`;
   let looseEmitted = 0;
   for (const row of looseGrids) { const r = emitCardRow(row); looseEmitted++; console.log(`loose-img grid: ${row.cellCount} icon(s) → #${r.eid} grid repeat(${r.cols},1fr) desktop / repeat(${row.reflowTablet},1fr) tablet / repeat(${row.reflowMobile},1fr) mobile, gap ${r.colGap}px, at (${Math.round(row.box.x)},${Math.round(row.box.y)},${Math.round(row.box.w)}x${Math.round(row.box.h)})`); }
   console.log(`loose-img grids: ${looseEmitted} reflowing grid(s) [${LOOSE_IMG_GRID_HITS} cluster(s)]${LOOSE_IMG_GRID ? '' : ' [DISABLED via ABS_NO_LOOSE_IMG_GRID]'}`);
+  // FOOTER-COLUMN GRID REFLOW (ARM-2) — re-cluster clean footer link columns (text leaves) into ONE reflowing grid
+  // whose cells are per-column stacks. Runs AFTER loose-img grids (image clusters already claimed). Same emitCardRow
+  // machinery (explicit per-column-x tracks → desktop-exact; mobile reflows to ~2 columns).
+  detectFooterGrids(L.root);
+  let footerEmitted = 0;
+  for (const row of footerGrids) { const r = emitCardRow(row); footerEmitted++; console.log(`footer-col grid: ${row.cellCount} column(s) → #${r.eid} explicit tracks desktop / repeat(${row.reflowTablet},1fr) tablet / repeat(${row.reflowMobile},1fr) mobile, at (${Math.round(row.box.x)},${Math.round(row.box.y)},${Math.round(row.box.w)}x${Math.round(row.box.h)})`); }
+  console.log(`footer-col grids: ${footerEmitted} reflowing grid(s) [${FOOTER_GRID_HITS} block(s)]${FOOTER_GRID ? '' : ' [DEFAULT-OFF — opt-in ABS_FOOTER_GRID=1; mobile-height-neutral, links wrap at 2-col]'}`);
   // ── TEXT-COLLISION DE-DUPE (USER #4 collision fix; default ON; ABS_NO_DEDUPE=1 → old behavior) ──────────────
   // ROOT: the captured tree is FAITHFUL — the SOURCE genuinely layers a button leaf OVER its own inner text-leaf
   // at a near-identical box (e.g. supabase hero "Start your project": button @576,474 + inner text-leaf @593,483;
