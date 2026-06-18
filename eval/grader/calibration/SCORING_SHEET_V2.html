@@ -1,0 +1,82 @@
+<!doctype html><html><head><meta charset=utf-8><title>Joist calibration V2 — blind scoring (fresh spread)</title>
+<style>
+ body{font:14px/1.5 -apple-system,system-ui,sans-serif;margin:0;background:#0e0f12;color:#e8e8ea}
+ header{position:sticky;top:0;background:#15171c;padding:12px 20px;border-bottom:1px solid #2a2d34;z-index:10}
+ h1{margin:0 0 4px;font-size:16px}.sub{color:#9aa0aa;font-size:12px;max-width:980px}
+ .pair{border:1px solid #2a2d34;border-radius:10px;margin:18px 20px;padding:14px;background:#13151a}
+ .imgs{display:flex;gap:12px}.col{flex:1;min-width:0}
+ .col h3{margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+ .src h3{color:#5b9dff}.cln h3{color:#ff9d4d}
+ .view{height:520px;overflow:auto;border:1px solid #2a2d34;border-radius:6px;background:#000}
+ .view img{width:100%;display:block}
+ .tag{font-size:10px;color:#6b7280;border:1px solid #2a2d34;border-radius:4px;padding:1px 6px;margin-left:8px}
+ .score{display:flex;align-items:center;gap:18px;margin-top:12px;flex-wrap:wrap}
+ .ov{display:flex;align-items:center;gap:8px}
+ .ov input{width:70px;font-size:18px;padding:5px;background:#0e0f12;color:#fff;border:1px solid #3a3d44;border-radius:5px}
+ .defects{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:#c7ccd4}
+ .defects label{display:flex;gap:4px;align-items:center;cursor:pointer}
+ details{margin-top:8px}.axes{display:flex;gap:12px;flex-wrap:wrap;margin-top:6px}
+ .axes label{font-size:11px;color:#9aa0aa;display:flex;flex-direction:column;gap:3px}
+ .axes input{width:64px;background:#0e0f12;color:#fff;border:1px solid #3a3d44;border-radius:4px;padding:3px}
+ footer{position:sticky;bottom:0;background:#15171c;border-top:1px solid #2a2d34;padding:10px 20px;display:flex;gap:14px;align-items:center}
+ button{background:#2d6cdf;color:#fff;border:0;border-radius:6px;padding:8px 14px;font-size:13px;cursor:pointer}
+ button.ghost{background:#272a31}#prog{color:#9aa0aa;font-size:12px}#saved{color:#5fd08a;font-size:12px;min-width:90px}
+</style></head><body>
+<header><h1>Joist clone calibration V2 — blind human scoring (fresh spread)</h1>
+<div class=sub>Score what a <b>real visitor</b> perceives: how close is the <b>clone</b> (right) to the <b>source</b> (left)?
+<b>0</b>=totally wrong/broken · <b>100</b>=indistinguishable. This set deliberately SPANS the range (some good, some broken) so the
+ranking is meaningful — the previous set was all-bad. <b>Overall (0–100) is the only required field</b>; tick any instantly-broken
+defect; per-axis is optional. Scroll each panel independently. Your work <b>autosaves</b> in this browser — do any order, then
+<b>Download</b> the JSON (save it as <code>calibration/v2-human-results.json</code>).</div></header>
+<main id=main></main>
+<footer><span id=prog></span><span id=saved></span>
+ <button onclick=exportJSON()>⬇ Download v2-human-results.json</button>
+ <button class=ghost onclick=copyJSON()>📋 Copy JSON</button>
+ <button class=ghost onclick=clearAll()>Reset</button></footer>
+<script>
+// pair_id is the REAL id (joins to V2_KEY in _region-judge-calibration.mjs --v2). `vp` = viewport tag for context.
+// site is intentionally NOT shown (blind). Display ORDER is a fixed shuffle so adjacent pairs aren't same-site.
+const RAW=[
+ {id:'V01',site:'supabase',vp:'desktop',src:'v2-shots/supabase-src-d.png',cln:'v2-shots/supabase-cln-d.png'},
+ {id:'V02',site:'linear',vp:'desktop',src:'v2-shots/linear-src-d.png',cln:'v2-shots/linear-cln-d.png'},
+ {id:'V03',site:'tailwind',vp:'desktop',src:'v2-shots/tailwind-src-d.png',cln:'v2-shots/tailwind-cln-d.png'},
+ {id:'V04',site:'resend',vp:'desktop',src:'v2-shots/resend-src-d.png',cln:'v2-shots/resend-cln-d.png'},
+ {id:'V05',site:'framer',vp:'desktop',src:'v2-shots/framer-src-d.png',cln:'v2-shots/framer-cln-d.png'},
+ {id:'V06',site:'notion',vp:'desktop',src:'v2-shots/notion-src-d.png',cln:'v2-shots/notion-cln-d.png'},
+ {id:'V07',site:'supabase',vp:'mobile',src:'v2-shots/supabase-src-m.png',cln:'v2-shots/supabase-cln-m.png'},
+ {id:'V08',site:'linear',vp:'mobile',src:'v2-shots/linear-src-m.png',cln:'v2-shots/linear-cln-m.png'},
+ {id:'V09',site:'',vp:'desktop',src:'v2-shots/supabase-src-d.png',cln:'v2-shots/framer-cln-d.png'},
+ {id:'V10',site:'',vp:'desktop',src:'v2-shots/linear-src-d.png',cln:'v2-shots/notion-cln-d.png'},
+];
+const ORDER=['V05','V09','V01','V07','V03','V10','V02','V06','V08','V04'];
+const PAIRS=ORDER.map(id=>RAW.find(p=>p.id===id));
+const KEY='joist-calib-v2';
+let data=JSON.parse(localStorage.getItem(KEY)||'{}');
+const DEFECTS=['wrong/missing logo','invisible heading','blank/broken hero','unstyled CTA','wrong layout','missing sections'];
+const AXES=['pixel','responsive','motion','editability'];
+function el(h){const d=document.createElement('div');d.innerHTML=h;return d.firstElementChild}
+function render(){const m=document.getElementById('main');m.innerHTML='';
+ PAIRS.forEach((p,i)=>{const d=data[p.id]||{};
+  m.appendChild(el(`<div class=pair>
+   <div style="font-size:12px;color:#9aa0aa;margin-bottom:8px">Pair ${i+1} / ${PAIRS.length}<span class=tag>${p.vp}</span></div>
+   <div class=imgs>
+    <div class="col src"><h3>Source</h3><div class=view><img loading=lazy src="${p.src}"></div></div>
+    <div class="col cln"><h3>Clone</h3><div class=view><img loading=lazy src="${p.cln}"></div></div></div>
+   <div class=score><div class=ov><b>Overall</b>
+     <input type=number min=0 max=100 placeholder="0–100" value="${d.overall??''}" oninput="set('${p.id}','overall',this.value)"></div>
+    <div class=defects>${DEFECTS.map(x=>`<label><input type=checkbox ${(d.defects||[]).includes(x)?'checked':''} onchange="tog('${p.id}','${x}',this.checked)">${x}</label>`).join('')}</div></div>
+   <details><summary style="cursor:pointer;color:#9aa0aa;font-size:12px">per-axis detail (optional)</summary>
+    <div class=axes>${AXES.map(a=>`<label>${a}<input type=number min=0 max=100 placeholder="0–100" value="${(d.axes||{})[a]??''}" oninput="setAx('${p.id}','${a}',this.value)"></label>`).join('')}</div></details></div>`));
+ });prog();}
+function save(){localStorage.setItem(KEY,JSON.stringify(data));const s=document.getElementById('saved');s.textContent='✓ autosaved';clearTimeout(window._t);window._t=setTimeout(()=>s.textContent='',1200);prog();}
+function set(id,k,v){data[id]=data[id]||{};data[id][k]=v===''?undefined:+v;save();}
+function setAx(id,a,v){data[id]=data[id]||{};data[id].axes=data[id].axes||{};data[id].axes[a]=v===''?undefined:+v;save();}
+function tog(id,x,on){data[id]=data[id]||{};const s=new Set(data[id].defects||[]);on?s.add(x):s.delete(x);data[id].defects=[...s];save();}
+function prog(){const n=PAIRS.filter(p=>data[p.id]&&data[p.id].overall!=null).length;document.getElementById('prog').textContent=`${n} / ${PAIRS.length} overall scored`;}
+// export includes the REAL site (from RAW) so the harness can label rows; the SHEET still hid it during scoring.
+function payload(){return{tool:'joist-calibration',version:2,results:PAIRS.map(p=>({pair_id:p.id,site:RAW.find(r=>r.id===p.id).site||p.id,...(data[p.id]||{})}))};}
+function exportJSON(){const b=new Blob([JSON.stringify(payload(),null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='v2-human-results.json';a.click();}
+function copyJSON(){navigator.clipboard.writeText(JSON.stringify(payload(),null,2)).then(()=>{const s=document.getElementById('saved');s.textContent='✓ copied';setTimeout(()=>s.textContent='',1500);});}
+function clearAll(){if(confirm('Clear all your scores?')){data={};localStorage.removeItem(KEY);render();}}
+render();
+</script></body></html>

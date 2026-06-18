@@ -57,22 +57,45 @@ const MIDRANGE_KEY = {
   ],
 };
 
-// mode selection: --midrange = the 4 M-pairs only; --all = union of 18 P-pairs + 4 M-pairs (22 total); default = 18 P.
+// ── V2_KEY: the FRESH-corpus SPREAD set (the P/M pairs were all-bad → human all 0 → no rank signal). These are the
+// CURRENT builder's clones vs the live source at desktop+mobile (high-mid fidelity) PLUS two MISMATCH low-anchors (a
+// source paired with a DIFFERENT site's clone → genuine ~0) so the human scores SPAN 0-100 and Spearman is meaningful.
+// Shots captured by /tmp/_calib-shots.sh into calibration/v2-shots/. Human scores → v2-human-results.json (produced by
+// SCORING_SHEET_V2.html). Run: node _region-judge-calibration.mjs --v2 --jobs 2.
+const V = (s) => `eval/grader/calibration/v2-shots/${s}.png`;
+const V2_KEY = { pairs: [
+  { pair_id: 'V01', site: 'supabase', source_img: V('supabase-src-d'), clone_img: V('supabase-cln-d') },
+  { pair_id: 'V02', site: 'linear',   source_img: V('linear-src-d'),   clone_img: V('linear-cln-d') },
+  { pair_id: 'V03', site: 'tailwind', source_img: V('tailwind-src-d'), clone_img: V('tailwind-cln-d') },
+  { pair_id: 'V04', site: 'resend',   source_img: V('resend-src-d'),   clone_img: V('resend-cln-d') },
+  { pair_id: 'V05', site: 'framer',   source_img: V('framer-src-d'),   clone_img: V('framer-cln-d') },
+  { pair_id: 'V06', site: 'notion',   source_img: V('notion-src-d'),   clone_img: V('notion-cln-d') },
+  { pair_id: 'V07', site: 'supabase-mobile', source_img: V('supabase-src-m'), clone_img: V('supabase-cln-m') },
+  { pair_id: 'V08', site: 'linear-mobile',   source_img: V('linear-src-m'),   clone_img: V('linear-cln-m') },
+  { pair_id: 'V09', site: 'MISMATCH-supabase-vs-framer', source_img: V('supabase-src-d'), clone_img: V('framer-cln-d'), mismatch: true },
+  { pair_id: 'V10', site: 'MISMATCH-linear-vs-notion',   source_img: V('linear-src-d'),   clone_img: V('notion-cln-d'), mismatch: true },
+] };
+
+// mode selection: --midrange = 4 M-pairs; --all = union of 18 P + 4 M (22); --v2 = the fresh spread set; default = 18 P.
 const MIDRANGE = has('midrange');
 const ALL = has('all');
-const HUMAN_FILE = MIDRANGE && !ALL ? 'midrange-human-results.json' : 'human-results.json';
+const V2 = has('v2');
+const HUMAN_FILE = V2 ? 'v2-human-results.json' : (MIDRANGE && !ALL ? 'midrange-human-results.json' : 'human-results.json');
 let humanById;
 if (ALL) {
   const hp = JSON.parse(fs.readFileSync(path.join(CAL, 'human-results.json'), 'utf8'));
   const hm = JSON.parse(fs.readFileSync(path.join(CAL, 'midrange-human-results.json'), 'utf8'));
   humanById = Object.fromEntries([...hp.results, ...hm.results].map(r => [r.pair_id, r]));
 } else {
-  const HUMAN = JSON.parse(fs.readFileSync(path.join(CAL, HUMAN_FILE), 'utf8'));
-  humanById = Object.fromEntries(HUMAN.results.map(r => [r.pair_id, r]));
+  // TOLERANT (v2 before the user has scored): a missing human file → empty map; the correlation loop skips unscored
+  // pairs (judge still runs/prints per-pair), so --v2 is runnable to smoke the JUDGE side before human scores land.
+  const hp = path.join(CAL, HUMAN_FILE);
+  const HUMAN = fs.existsSync(hp) ? JSON.parse(fs.readFileSync(hp, 'utf8')) : { results: [] };
+  humanById = Object.fromEntries((HUMAN.results || []).map(r => [r.pair_id, r]));
 }
 
-// pair set: P-pairs from GRADER_KEY, M-pairs from MIDRANGE_KEY, per mode; --pairs scopes within.
-const ALL_PAIRS = ALL ? [...KEY.pairs, ...MIDRANGE_KEY.pairs] : (MIDRANGE ? MIDRANGE_KEY.pairs : KEY.pairs);
+// pair set: P-pairs from GRADER_KEY, M-pairs from MIDRANGE_KEY, V-pairs from V2_KEY, per mode; --pairs scopes within.
+const ALL_PAIRS = V2 ? V2_KEY.pairs : (ALL ? [...KEY.pairs, ...MIDRANGE_KEY.pairs] : (MIDRANGE ? MIDRANGE_KEY.pairs : KEY.pairs));
 const PAIRS = ALL_PAIRS.filter(p => !ONLY || ONLY.split(',').includes(p.pair_id));
 
 // human fatal-class checkboxes -> our fatalClass buckets. The two new midrange strings ('missing imagery or panels' ->
@@ -110,24 +133,28 @@ async function pool(items, n, fn) { const out = new Array(items.length); let nex
   const rows = await pool(PAIRS, JOBS, async (p) => {
     const src = path.join(REPO, p.source_img), cln = path.join(REPO, p.clone_img);
     const r = await judgePair({ sourcePng: src, clonePng: cln, outDir: path.join(OUT, p.pair_id), vision: VISION, blind: VISION, jobs: 3 });
-    const h = humanById[p.pair_id];
-    const hf = humanFatals(h);
+    const h = humanById[p.pair_id];                                  // may be undefined for an UNSCORED v2 pair
+    const hf = h ? humanFatals(h) : new Set();
     const jf = new Set(r.fatalClasses);
-    console.error(`[cal] ${p.pair_id} (${p.site}): judge=${r.score} human=${h.overall} | judgeFatals={${[...jf].join(',')}} humanFatals={${[...hf].join(',')}}`);
+    console.error(`[cal] ${p.pair_id} (${p.site}): judge=${r.score} human=${h ? h.overall : 'UNSCORED'} | judgeFatals={${[...jf].join(',')}} humanFatals={${[...hf].join(',')}}`);
     return {
       pair_id: p.pair_id, site: p.site, oldGrader: p.grader_overall_0_100,
-      judge: r.score, human: h.overall,
+      judge: r.score, human: h ? h.overall : null, unscored: !h,
       judgeFatals: [...jf], humanFatals: [...hf],
       regions: r.regions.map(rg => ({ name: rg.name, score: rg.score, fatalClass: rg.fatalClass })),
       topDefects: r.defects.slice(0, 6).map(d => `[${d.severity}|${d.defect_class}|${d.source}] ${d.element || d.evidence}`),
     };
   });
 
+  // correlation runs ONLY over pairs that HAVE a human score (v2 before scoring → scored=[] → numbers are null, but
+  // the judge still ran + printed per-pair above, so --v2 smokes the judge side without a human file).
+  const scored = rows.filter(r => r.human != null);
+  const haveHuman = scored.length > 0;
   // (a) MAE
-  const mae = +(rows.reduce((s, r) => s + Math.abs(r.judge - r.human), 0) / rows.length).toFixed(2);
-  // (b) Spearman + lowAgreement (humans rated all <=6; what frac does the judge put <=30?)
-  const rho = spearman(rows.map(r => r.judge), rows.map(r => r.human));
-  const lowAgreement = +(rows.filter(r => r.judge <= 30).length / rows.length).toFixed(3);
+  const mae = haveHuman ? +(scored.reduce((s, r) => s + Math.abs(r.judge - r.human), 0) / scored.length).toFixed(2) : null;
+  // (b) Spearman + lowAgreement (over scored pairs only)
+  const rho = haveHuman ? spearman(scored.map(r => r.judge), scored.map(r => r.human)) : null;
+  const lowAgreement = haveHuman ? +(scored.filter(r => r.judge <= 30).length / scored.length).toFixed(3) : null;
   // for reference: how the OLD grader correlated (only on pairs where it has a number)
   const withOld = rows.filter(r => typeof r.oldGrader === 'number');
   const oldRho = withOld.length >= 4 ? spearman(withOld.map(r => r.oldGrader), withOld.map(r => r.human)) : null;
