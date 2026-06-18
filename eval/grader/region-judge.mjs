@@ -120,6 +120,29 @@ const RJ_FORCE_REGION_ENUM = process.env.RJ_FORCE_REGION_ENUM !== '0';
 const RJ_GRADED_FLOOR = process.env.RJ_GRADED_FLOOR !== '0';
 const RJ_STEP_FLOOR = process.env.RJ_STEP_FLOOR !== '0';
 const RJ_OVERLAP_DETECT = process.env.RJ_OVERLAP_DETECT !== '0';
+// RJ_HEADING_DARKINK_GUARD (DEFAULT-OFF, opt-in RJ_HEADING_DARKINK_GUARD=1): the invisible-heading veto uses
+// textContrast's MEDIAN ink-luma over the (tall, heterogeneous) heading/hero band. On a band dominated by LIGHT
+// decorative marks (gray logo/icon walls) the median is pulled light, so a FAITHFUL dark heading reads as "low
+// contrast / invisible" — the supabase "Trusted by the world's most innovative companies" false-fatal (clone heading
+// dark+readable, retains 87% of the source's dark ink, yet median-contrast measured 1.23 → fatal → page crushed to
+// ~4). This guard gates the fatal on DARK-INK RETENTION: fire only when the clone LOST most of the source's genuinely
+// dark ink (cloneDark < srcDark·RETAIN at a readable-darkness threshold). It CORRECTLY suppresses the supabase
+// artifact (L0 verified: heading veto cleared, dark-ink ratio ~1.0).
+//   DEFAULT-OFF BECAUSE — MEASURED LIMITATION: the band-level dark-ink measure cannot LOCALIZE the heading. On a band
+//   that carries OTHER dark text (sub-heading/body/nav), recoloring only the heading barely drops the band's dark ink
+//   → the guard would MASK a genuine invisible-heading (game-test invisible-heading on the linear/P16 band: the band
+//   retains other dark ink, so this guard suppresses the heading veto — the page is still caught via the hero/blank
+//   class so the game-test GATE still passes (exit 0), but heading-class recall regresses). A robust default-on needs
+//   heading-LOCALIZATION within the band (out of scope here) + the human anchor to set the floor center. Kept as an
+//   opt-in (default-off = byte-identical to HEAD, zero metric regression) preserving the validated direction.
+const RJ_HEADING_DARKINK_GUARD = process.env.RJ_HEADING_DARKINK_GUARD === '1';
+const HEADING_DARKINK_RETAIN = 0.4;   // clone must have LOST >60% of the source's dark ink for the fatal to stand
+// dark-ink luma threshold (bg − L >): PRINCIPLED, not fit — a READABLE heading is near-black (luma<60 on white →
+// diff>130); an "invisible" heading (contrast<=1.5, the veto's own bar) has the ink within ~factor-1.5 of bg → diff
+// ~55. 130 counts only genuine readable dark ink, so the faithful supabase heading stays "retained" (suppress the
+// artifact) while a recolored-to-bg heading — incl. the game-test's anti-aliased paintInkToBg residual — reads "lost"
+// (veto fires). Measured: faithful L0 clone/src dark-ink ratio 1.02 @130 (retained ✓); a true invisible → 0 (lost ✓).
+const HEADING_DARK_THR = 130;
 //   RJ_USE_CROPS          — RE-POINT (default OFF, opt-IN). Routes the vision pass to CORRESPONDENCE-ALIGNED,
 //                           NATIVE-RESOLUTION element/band crops + INJECTED measured facts (from grade-element-crops),
 //                           instead of the legacy proportional full-page band tiles fed at a downscaled thumbnail
@@ -228,6 +251,17 @@ function textContrast(img, x0, y0, x1, y1, step = 2) {
   const lin = (c) => { c = rel(c); return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
   const a = lin(inkL) + 0.05, b = lin(bg) + 0.05;
   return { ratio: +(Math.max(a, b) / Math.min(a, b)).toFixed(2), inkFrac: ink.length, bg, inkL };
+}
+// dark-ink fraction: pixels GENUINELY DARKER than the region bg (bg − L > thr). Unlike inkMass (symmetric |L−bg|) and
+// textContrast (median ink), this isolates DARK text and IGNORES light decorative marks (gray logos/icons) that pull a
+// tall band's median light. It is the invisible-heading discriminator: a faithful heading RETAINS the source's dark
+// ink; a painted-to-bg / blank / missing heading LOSES it. (bg via the same modal estimator textContrast/inkMass use.)
+function darkInkFrac(img, x0, y0, x1, y1, thr = 60, step = 2) {
+  x0 = Math.max(0, x0 | 0); y0 = Math.max(0, y0 | 0); x1 = Math.min(img.width, x1 | 0); y1 = Math.min(img.height, y1 | 0);
+  const bg = bgLuma(img, x0, y0, x1, y1, step);
+  let dark = 0, n = 0;
+  for (let y = y0; y < y1; y += step) for (let x = x0; x < x1; x += step) { if (bg - luma(img.data, (y * img.width + x) << 2) > thr) dark++; n++; }
+  return n ? dark / n : 0;
 }
 // downscaled-grayscale SSIM between two equal-size crops (logo header compare). Cheap structural similarity.
 function ssim(a, b) {
@@ -399,18 +433,26 @@ function corroborate(region, src, cln) {
     const cC = textContrast(cln, cx0, cy0, cx1, cy1);
     const sC = textContrast(src, sx0, sy0, sx1, sy1);
     signals.cloneHeadingContrast = cC.ratio; signals.srcHeadingContrast = sC.ratio;
+    // DARK-INK RETENTION GUARD: the low median-contrast is only a REAL invisible heading if the clone actually LOST
+    // the source's dark ink. If the clone RETAINS it (faithful dark heading that textContrast's median misread as low
+    // due to light decorative marks in the band), suppress — this is the supabase "Trusted by…" artifact. Recall-safe:
+    // a painted-to-bg / blank / missing heading drops clone dark-ink to ~0 → lostDarkInk → veto still fires.
+    const sDark = RJ_HEADING_DARKINK_GUARD ? darkInkFrac(src, sx0, sy0, sx1, sy1, HEADING_DARK_THR) : 1;
+    const cDark = RJ_HEADING_DARKINK_GUARD ? darkInkFrac(cln, cx0, cy0, cx1, cy1, HEADING_DARK_THR) : 0;
+    const lostDarkInk = !RJ_HEADING_DARKINK_GUARD || (sDark > 0.004 && cDark < sDark * HEADING_DARKINK_RETAIN);
+    signals.headingDarkInk = { src: +sDark.toFixed(4), clone: +cDark.toFixed(4), lost: lostDarkInk };
     if (RJ_FORCE_REGION_ENUM) {
       // RECALL fix: relax the over-strict 4-way AND that fired on ~0/10 real degraded pairs. Source must carry
       // readable text (sStat.std>14, sC.ratio>2) and the clone must carry SOME ink (inkFrac>=6, the lowered floor).
       // GRADED by clone contrast: <=1.5 => MISSING (painted-to-bg, invisible, fatal); <=2.2 => present-but-low
       // contrast heading (off-color-but-faint → high, partial credit). Drop the cStat.std<14 gate (a heading on a
-      // busy band keeps std>14 yet can still be near-invisible against its own local bg).
-      if (cC.ratio <= 2.2 && cC.inkFrac >= 6 && sStat.std > 14 && sC.ratio > 2) {
+      // busy band keeps std>14 yet can still be near-invisible against its own local bg). + dark-ink guard.
+      if (cC.ratio <= 2.2 && cC.inkFrac >= 6 && sStat.std > 14 && sC.ratio > 2 && lostDarkInk) {
         const missing = cC.ratio <= 1.5;
-        vetoes.push({ defect_class: 'invisible-text', fatalClass: 'heading', severity: missing ? 'fatal' : 'high', evidence: `heading region contrast ${cC.ratio}:1 vs source ${sC.ratio}:1 (${missing ? '<=1.5 — painted near its own background, invisible' : 'low-contrast, present-but-washed'})` });
+        vetoes.push({ defect_class: 'invisible-text', fatalClass: 'heading', severity: missing ? 'fatal' : 'high', evidence: `heading region contrast ${cC.ratio}:1 vs source ${sC.ratio}:1 (${missing ? '<=1.5 — painted near its own background, invisible' : 'low-contrast, present-but-washed'}); clone dark-ink ${(cDark * 100).toFixed(2)}% vs source ${(sDark * 100).toFixed(2)}% (lost)` });
       }
-    } else if (cC.ratio <= 1.5 && cC.inkFrac >= 12 && cStat.std < 14 && sStat.std > 18) {
-      vetoes.push({ defect_class: 'invisible-text', fatalClass: 'heading', severity: 'fatal', evidence: `heading region contrast ${cC.ratio}:1 (<=1.5 — heading painted near its own background, invisible)` });
+    } else if (cC.ratio <= 1.5 && cC.inkFrac >= 12 && cStat.std < 14 && sStat.std > 18 && lostDarkInk) {
+      vetoes.push({ defect_class: 'invisible-text', fatalClass: 'heading', severity: 'fatal', evidence: `heading region contrast ${cC.ratio}:1 (<=1.5 — heading painted near its own background, invisible); clone dark-ink lost` });
     }
   }
 
