@@ -8,10 +8,13 @@
  * become monotonic (catches regressions across the whole corpus, not one site at a time).
  * Usage: node corpus-run.mjs [--build] [--grade] [--conc 3]   (default: build+grade)
  *   --build  rebuild every clone   --grade  re-grade   (omit both = do both)
+ * ALWAYS-WORKS FLOOR (2026-06-16): also reports the corpus MINIMUM + veto-rate (+per-cap breakdown) as
+ * first-class "motor-cortex" numbers (floor-metrics.mjs) — optimize the worst case, not just the mean.
  */
 import { spawn } from 'child_process';
 import fs from 'fs';
 import { resolveBase } from '../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: never grade against a non-training host
+import { computeFloor, formatFloor } from './floor-metrics.mjs'; // ALWAYS-WORKS FLOOR: corpus-min + veto-rate (motor-cortex reframe)
 const has = (n) => process.argv.includes('--' + n);
 const arg = (n, d) => { const i = process.argv.indexOf('--' + n); return i > -1 && process.argv[i + 1] ? process.argv[i + 1] : d; };
 // §0 SAFETY GUARD: the clone host the corpus grades against. Was hardcoded to the PAUSED shared host
@@ -41,6 +44,17 @@ const CORPUS = [
   { name: 'linear', url: 'https://linear.app', page: 6732 },
   { name: 'notion', url: 'https://www.notion.so', page: 6734 },
 ];
+
+// Page IDs are INSTANCE-SPECIFIC: a re-provisioned sandbox renumbers pages, so the hardcoded IDs above go
+// stale (each build's PUT then fails 400 expected_hash_required against a 404 page). Optionally remap from a
+// JSON file ({ "<name>": <pageId> }, written by ensure-corpus-pages.mjs) so the corpus targets THIS instance
+// without editing the array. No-op if the file is absent. Env JOIST_CORPUS_PAGES overrides the path.
+try {
+  const pmPath = process.env.JOIST_CORPUS_PAGES || '/tmp/joist-corpus-pages.json';
+  const pm = JSON.parse(fs.readFileSync(pmPath, 'utf8'));
+  let n = 0; for (const s of CORPUS) if (pm[s.name] != null) { s.page = pm[s.name]; n++; }
+  if (n) console.log(`page-map: remapped ${n}/${CORPUS.length} corpus page IDs from ${pmPath}`);
+} catch { /* no map file → use hardcoded defaults */ }
 
 function run(cmd, args, logFile) {
   return new Promise((resolve) => {
@@ -96,16 +110,22 @@ async function pool(items, n, fn) { const res = []; let i = 0; const workers = A
     { lever: 'responsive (mobile-fit/overflow)', meanGap: mean((r) => 1 - (r.responsive ?? 1)), affects: defects.filter((d) => d.respGap > 0.15).length },
   ].sort((a, b) => b.meanGap - a.meanGap);
 
+  // ALWAYS-WORKS FLOOR (motor-cortex reframe, 2026-06-16): worst-case + veto-rate as first-class numbers
+  // (a reliable substrate means the corpus MIN and veto-rate are the headline, not the ~0.705 mean).
+  const floor = computeFloor(ok);
+
   const report = {
     corpusSize: CORPUS.length, graded: ok.length,
     corpusMean: { composite: mean((r) => r.composite), visual: mean((r) => r.visual), editability: mean((r) => r.editability), designSystem: mean((r) => r.designSystem ?? 1), responsive: mean((r) => r.responsive ?? 1) },
     perSite: rows.map((r) => ({ name: r.name, composite: r.composite, visual: r.visual, editability: r.editability, designSystem: r.designSystem, responsive: r.responsive, mobileFit: r.responsiveDetail?.mobileFit, mobileOrder: r.responsiveDetail?.mobileOrder, textCoverage: r.breakdown?.textCoverage, hRatio: r.breakdown?.hRatio, contrastPass: r.designLint?.contrastPass, paletteFidelity: r.designLint?.paletteFidelity, typeFidelity: r.designLint?.typeFidelity })),
     defects,
     rankedLevers: levers,
+    alwaysWorksFloor: floor,
   };
   fs.writeFileSync(`${OUT}/corpus-report.json`, JSON.stringify(report, null, 2));
   console.log('\n===== CORPUS REPORT =====');
   console.log(`graded ${ok.length}/${CORPUS.length} | MEAN composite ${report.corpusMean.composite} (visual ${report.corpusMean.visual}, editability ${report.corpusMean.editability}, designSystem ${report.corpusMean.designSystem}, responsive ${report.corpusMean.responsive})`);
+  if (floor.graded) console.log('\n' + formatFloor(floor).join('\n'));
   console.log('\nper-site:'); for (const r of report.perSite) console.log(`  ${r.name.padEnd(10)} composite ${r.composite ?? 'ERR'}  visual ${r.visual ?? '-'}  edit ${r.editability ?? '-'}  dsys ${r.designSystem ?? '-'}  resp ${r.responsive ?? '-'} (fit ${r.mobileFit ?? '-'} order ${r.mobileOrder ?? '-'})`);
   console.log('\ndefect tags:'); for (const d of defects) console.log(`  ${d.name.padEnd(10)} editGap ${d.editGap} visGap ${d.visGap} dsGap ${d.dsGap} respGap ${d.respGap} drift ${d.drift} → ${d.tags.join(', ') || 'clean'}`);
   console.log('\nRANKED LEVERS (highest-frequency failure first):'); for (const l of levers) console.log(`  ${l.meanGap.toFixed(3)} mean-gap | affects ${l.affects}/${ok.length} sites | ${l.lever}`);
