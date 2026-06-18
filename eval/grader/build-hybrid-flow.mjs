@@ -367,23 +367,28 @@ if (!has('no-render')) {
           const sH = bandSSIM(hybPNG, mres.top, mres.renderedH, s.srcY, s.srcBandH);
           const sF = (fres && fres.found) ? bandSSIM(flowPNG, fres.top, fres.renderedH, s.srcY, s.srcBandH) : null;
           if (sH != null && sF != null) {
-            const beatsFlow = sH >= sF + PRESERVE_MARGIN;
-            s._gate.vis = { ssimHybrid: sH, ssimFlow: sF, margin: PRESERVE_MARGIN, beatsFlow };
-            // DEBUG (JOIST_PRESERVE_VETO_DUMP=1): dump the EXACT crops the gate compared, to LOOK and confirm the
-            // source-band alignment is right (vs a captured-y-vs-live-shot mismatch on dynamic/tall sources).
+            // HEIGHT-AWARE compare (the fix): a section rendered far off the source band height is broken regardless
+            // of a top-aligned SSIM — flow frequently COLLAPSES a grid to a 3x-tall stack (exactly the case PRESERVE
+            // exists to fix), and a top-1058px crop misses that blowup entirely. Penalize each side's raw SSIM by its
+            // height ratio vs the source band (grade-structure's hPen), then compare the penalized scores. So preserve
+            // (hRatio≈1, faithful) correctly beats a 3.2x-tall flow even at a lower raw SSIM. (Verified: supabase §13.)
+            const hPen = (rh) => { const r = s.srcBandH > 0 ? rh / s.srcBandH : 1; return Math.max(0.3, Math.min(1, 1 - Math.max(0, Math.abs(r - 1) - 0.1) * 0.6)); };
+            const scoreH = +(sH * hPen(mres.renderedH)).toFixed(4), scoreF = +(sF * hPen(fres.renderedH)).toFixed(4);
+            const beatsFlow = scoreH >= scoreF + PRESERVE_MARGIN;
+            s._gate.vis = { ssimHybrid: sH, ssimFlow: sF, hRatioHyb: +(mres.renderedH / s.srcBandH).toFixed(2), hRatioFlow: +(fres.renderedH / s.srcBandH).toFixed(2), scoreHybrid: scoreH, scoreFlow: scoreF, margin: PRESERVE_MARGIN, beatsFlow };
+            // DEBUG (JOIST_PRESERVE_VETO_DUMP=1): dump the EXACT crops the gate compared, to LOOK.
             if (process.env.JOIST_PRESERVE_VETO_DUMP === '1') { try {
-              const fr = measuredF.byId[s.markId];
               fs.writeFileSync(`/tmp/veto-sec${s.i}-src.png`, PNG.sync.write(cropBand(srcPNG, s.srcY, s.srcBandH)));
-              if (fr && fr.found) fs.writeFileSync(`/tmp/veto-sec${s.i}-flow.png`, PNG.sync.write(cropBand(flowPNG, fr.top, fr.renderedH)));
+              if (fres && fres.found) fs.writeFileSync(`/tmp/veto-sec${s.i}-flow.png`, PNG.sync.write(cropBand(flowPNG, fres.top, fres.renderedH)));
               fs.writeFileSync(`/tmp/veto-sec${s.i}-hyb.png`, PNG.sync.write(cropBand(hybPNG, mres.top, mres.renderedH)));
-              console.log(`  (1a) DUMP §${s.i} crops → /tmp/veto-sec${s.i}-{src,flow,hyb}.png (srcY=${s.srcY} h=${s.srcBandH} | flowTop=${fr?.top} hybTop=${mres.top})`);
+              console.log(`  (1a) DUMP §${s.i} → /tmp/veto-sec${s.i}-{src,flow,hyb}.png (srcY=${s.srcY} h=${s.srcBandH} | flowH=${fres?.renderedH} hybH=${mres.renderedH})`);
             } catch (e) { console.log(`  (1a) dump failed: ${e.message}`); } }
-            if (!beatsFlow) { s._gate.pass = false; s._gate.reason += `; preserve SSIM ${sH} < flow ${sF}+${PRESERVE_MARGIN} (doesn't beat the flow floor)`; }
+            if (!beatsFlow) { s._gate.pass = false; s._gate.reason += `; preserve score ${scoreH} < flow ${scoreF}+${PRESERVE_MARGIN} (height-penalized SSIM; flow hRatio ${(fres.renderedH / s.srcBandH).toFixed(2)})`; }
           }
         }
       }
       if (meta) meta.gate = s._gate;
-      const visStr = s._gate.vis ? ` ssim H${s._gate.vis.ssimHybrid}/F${s._gate.vis.ssimFlow}${s._gate.vis.beatsFlow ? '✓' : '✗loses'}` : '';
+      const visStr = s._gate.vis ? ` score H${s._gate.vis.scoreHybrid}/F${s._gate.vis.scoreFlow} (ssim ${s._gate.vis.ssimHybrid}/${s._gate.vis.ssimFlow}, hR hyb${s._gate.vis.hRatioHyb}/flow${s._gate.vis.hRatioFlow})${s._gate.vis.beatsFlow ? '✓keeps' : '✗loses'}` : '';
       const verdict = s._gate.pass ? 'PASS — keep PRESERVE' : (AUTOREVERT ? 'FAIL → REVERT to flow' : 'FAIL (measure-only, kept)');
       console.log(`  §${s.i} ${s._gate.found ? `hRatio=${s._gate.hRatio} hOverflow=${s._gate.hOverflow}${visStr}` : 'NOT FOUND'} → ${verdict} (${s._gate.reason})`);
       if (!s._gate.pass && AUTOREVERT) {
