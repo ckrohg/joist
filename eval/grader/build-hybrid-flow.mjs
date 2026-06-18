@@ -48,6 +48,8 @@ import crypto from 'crypto';
 import { spawnSync } from 'child_process';
 import { topLevelSections, routeSections, ROUTER } from './flow-preserve-router.mjs';
 import { captureSection, presPayloadObj } from './preserve-capture.mjs';
+import { PNG } from 'pngjs';                  // (1a) per-section preserve-vs-flow SSIM
+import { ssim } from './grade-sections.mjs';  // (1a) reuse the grader's SSIM (gray() is in-module-scope there)
 
 const arg = (k, d = null) => { const i = process.argv.indexOf('--' + k); return i >= 0 && process.argv[i + 1] !== undefined && !String(process.argv[i + 1]).startsWith('--') ? process.argv[i + 1] : d; };
 const has = (k) => process.argv.includes('--' + k);
@@ -195,6 +197,7 @@ const preserveDecisions = decisions.filter((d) => d.arm === 'preserve').slice(0,
 console.log(`\n• capture + splice ${preserveDecisions.length} PRESERVE section(s)…`);
 const hybridTree = JSON.parse(JSON.stringify(flowTree));
 const used = new Set();
+const usedFlow = new Set(); // (1a) corresponding FLOW containers (same bandH, splice order) — so the gate can locate each section on the FLOW render too
 const spliceLog = [];
 // AUTO-REVERT metadata (NOT serialized into the ledger — carries live container refs + the byte-equivalent
 // flow snapshot so the post-render gate can revert a failing preserve section). Keyed by section index `i`.
@@ -234,6 +237,10 @@ for (const d of preserveDecisions) {
   // can be reverted to the exact native FLOW build it would have had (the router's "byte-equivalent fallback").
   const markId = container.id || newId();
   container.id = markId;
+  // (1a): stamp the SAME id on the corresponding FLOW container (same bandH, matched in splice order) so the
+  // gate can locate this section on the flow render too, for the per-section preserve-vs-flow visual compare.
+  const flowContainer = findSectionContainer(flowTree, bandH, usedFlow);
+  if (flowContainer) { flowContainer.id = markId; usedFlow.add(flowContainer); }
   const origSettings = JSON.parse(JSON.stringify(container.settings || {}));
   const origElements = JSON.parse(JSON.stringify(container.elements || []));
   // SPLICE: make this container the relative positioning root for the preserve overlay; replace its children.
@@ -247,8 +254,18 @@ for (const d of preserveDecisions) {
   spliceLog.push({ i: d.i, bandH: realBandH, spliced: true, overlay: overlay.length, stats, markId, byHashAttached: stats.byHashAttached, attachTotal: stats.attachTotal });
   // auto-revert payload (live refs — kept OUT of the serialized ledger): how to find this band on the
   // rendered page (markId) + how to revert it byte-equivalently (the saved flow settings + children).
-  spliceMeta.set(d.i, { markId, srcBandH: realBandH, container, origSettings, origElements });
+  spliceMeta.set(d.i, { markId, srcBandH: realBandH, srcY: round(d.box.y), container, origSettings, origElements });
 }
+// (1a) per-section veto input: one full-page SOURCE screenshot @width (the source page is still open). The gate
+// SSIMs each preserve section's flow render AND hybrid render against this source band, keeping preserve only when
+// it visually BEATS flow (preserve costs editability, so it must earn it). Falls back to geometry-only if missing.
+let srcShotPath = null;
+try {
+  await page.evaluate(async () => { window.scrollTo(0, 0); if (document.fonts?.ready) { try { await document.fonts.ready; } catch {} } await new Promise((r) => setTimeout(r, 200)); });
+  srcShotPath = '/tmp/hybrid-source-full.png';
+  fs.writeFileSync(srcShotPath, await page.screenshot({ fullPage: true }));
+  console.log(`• (1a) source shot → ${srcShotPath}`);
+} catch (e) { console.log(`• (1a) source shot failed (${e.message}) → preserve-veto falls back to geometry-only`); }
 await browser.close();
 
 console.log('\n=== SPLICE LEDGER ===');
@@ -298,12 +315,38 @@ if (!has('no-render')) {
   // re-recorded. So a preserve escalation that does NOT actually win is dropped — preserve must EARN its place.
   // Reversible: JOIST_NO_AUTOREVERT=1 skips the gate (measure-only, never reverts) for a pure-preserve baseline.
   const AUTOREVERT = process.env.JOIST_NO_AUTOREVERT !== '1';
+  // (1a) PER-SECTION VETO: a preserve section is layout-FROZEN (costs editability), so keep it only if it also
+  // VISUALLY BEATS the flow floor for that band by a margin — else the flow arm is strictly better (equal-or-better
+  // visual AND more editable). We SSIM each section's FLOW render and HYBRID render against the SOURCE band and
+  // revert preserve when ssimHybrid < ssimFlow + margin. Reversible: JOIST_NO_PRESERVE_VETO=1 → geometry-only gate
+  // (byte-identical to before); JOIST_PRESERVE_MARGIN tunes the bar (default 0.02, ~the SSIM noise floor).
+  const PRESERVE_VETO = process.env.JOIST_NO_PRESERVE_VETO !== '1';
+  const PRESERVE_MARGIN = parseFloat(process.env.JOIST_PRESERVE_MARGIN || '0.02');
   const splicedSecs = [...spliceMeta.entries()].map(([i, m]) => ({ i, ...m }));
   let reverted = [];
   if (splicedSecs.length) {
     console.log(`\n• AUTO-REVERT gate: measuring ${splicedSecs.length} preserve section(s) on the rendered hybrid…`);
     const { measureSections } = await import('./measure-sections.mjs');
     const measured = await measureSections(hybRes.url, splicedSecs.map((s) => ({ id: s.markId, srcBandH: s.srcBandH })), width);
+    // (1a) inputs: measure the FLOW render for the same section ids + load src/flow/hybrid shots for per-section SSIM.
+    let measuredF = { byId: {} }, srcPNG = null, flowPNG = null, hybPNG = null;
+    if (PRESERVE_VETO && srcShotPath && fs.existsSync(srcShotPath)) {
+      try {
+        measuredF = await measureSections(flowRes.url, splicedSecs.map((s) => ({ id: s.markId, srcBandH: s.srcBandH })), width);
+        srcPNG = PNG.sync.read(fs.readFileSync(srcShotPath));
+        flowPNG = PNG.sync.read(fs.readFileSync('/tmp/hybrid-flow-only.png'));
+        hybPNG = PNG.sync.read(fs.readFileSync('/tmp/hybrid-hybrid.png'));
+      } catch (e) { console.log(`  (1a) preserve-veto inputs unavailable (${e.message}) → geometry-only gate this run`); }
+    }
+    const cropBand = (png, top, h) => { const t = Math.max(0, Math.round(top)); const H = Math.max(1, Math.min(Math.round(h), png.height - t)); const o = new PNG({ width: png.width, height: H }); for (let r = 0; r < H; r++) { const src = ((t + r) * png.width) * 4; o.data.set(png.data.subarray(src, src + png.width * 4), (r * png.width) * 4); } return o; };
+    // SSIM a RENDER band (top..top+h on its page shot) against the SOURCE band (srcY..srcY+srcH on the source shot),
+    // both cropped to a common origin + min height (full width, x-aligned). null when a crop is too small to score.
+    const bandSSIM = (renderPNG, renderTop, renderH, srcY, srcH) => {
+      if (!renderPNG || !srcPNG || renderH == null || renderTop == null) return null;
+      const a = cropBand(renderPNG, renderTop, renderH), b = cropBand(srcPNG, srcY, srcH);
+      const h = Math.min(a.height, b.height); if (h < 16 || Math.min(a.width, b.width) < 16) return null;
+      return +ssim(a, b, 0, h).toFixed(4);
+    };
     for (const s of splicedSecs) {
       const mres = measured.byId[s.markId] || null;
       const meta = spliceLog.find((x) => x.i === s.i);
@@ -318,10 +361,31 @@ if (!has('no-render')) {
         const pass = inBand && noHOverflow && attachedSomething;
         const reason = pass ? 'hRatio in band + zero h-overflow' : [!inBand && `hRatio ${hRatio}∉[${ROUTER.HRATIO_LO},${ROUTER.HRATIO_HI}]`, !noHOverflow && 'introduces h-overflow', !attachedSomething && 'byHash attached nothing (low confidence)'].filter(Boolean).join('; ');
         s._gate = { found: true, hRatio, hOverflow: mres.hOverflow, renderedH: mres.renderedH, srcBandH: s.srcBandH, pass, reason };
+        // (1a) preserve-vs-flow VISUAL check — only when geometry PASSED and the SSIM inputs are available.
+        if (PRESERVE_VETO && pass && hybPNG && flowPNG && srcPNG) {
+          const fres = measuredF.byId[s.markId];
+          const sH = bandSSIM(hybPNG, mres.top, mres.renderedH, s.srcY, s.srcBandH);
+          const sF = (fres && fres.found) ? bandSSIM(flowPNG, fres.top, fres.renderedH, s.srcY, s.srcBandH) : null;
+          if (sH != null && sF != null) {
+            const beatsFlow = sH >= sF + PRESERVE_MARGIN;
+            s._gate.vis = { ssimHybrid: sH, ssimFlow: sF, margin: PRESERVE_MARGIN, beatsFlow };
+            // DEBUG (JOIST_PRESERVE_VETO_DUMP=1): dump the EXACT crops the gate compared, to LOOK and confirm the
+            // source-band alignment is right (vs a captured-y-vs-live-shot mismatch on dynamic/tall sources).
+            if (process.env.JOIST_PRESERVE_VETO_DUMP === '1') { try {
+              const fr = measuredF.byId[s.markId];
+              fs.writeFileSync(`/tmp/veto-sec${s.i}-src.png`, PNG.sync.write(cropBand(srcPNG, s.srcY, s.srcBandH)));
+              if (fr && fr.found) fs.writeFileSync(`/tmp/veto-sec${s.i}-flow.png`, PNG.sync.write(cropBand(flowPNG, fr.top, fr.renderedH)));
+              fs.writeFileSync(`/tmp/veto-sec${s.i}-hyb.png`, PNG.sync.write(cropBand(hybPNG, mres.top, mres.renderedH)));
+              console.log(`  (1a) DUMP §${s.i} crops → /tmp/veto-sec${s.i}-{src,flow,hyb}.png (srcY=${s.srcY} h=${s.srcBandH} | flowTop=${fr?.top} hybTop=${mres.top})`);
+            } catch (e) { console.log(`  (1a) dump failed: ${e.message}`); } }
+            if (!beatsFlow) { s._gate.pass = false; s._gate.reason += `; preserve SSIM ${sH} < flow ${sF}+${PRESERVE_MARGIN} (doesn't beat the flow floor)`; }
+          }
+        }
       }
       if (meta) meta.gate = s._gate;
+      const visStr = s._gate.vis ? ` ssim H${s._gate.vis.ssimHybrid}/F${s._gate.vis.ssimFlow}${s._gate.vis.beatsFlow ? '✓' : '✗loses'}` : '';
       const verdict = s._gate.pass ? 'PASS — keep PRESERVE' : (AUTOREVERT ? 'FAIL → REVERT to flow' : 'FAIL (measure-only, kept)');
-      console.log(`  §${s.i} ${s._gate.found ? `hRatio=${s._gate.hRatio} hOverflow=${s._gate.hOverflow}` : 'NOT FOUND'} → ${verdict} (${s._gate.reason})`);
+      console.log(`  §${s.i} ${s._gate.found ? `hRatio=${s._gate.hRatio} hOverflow=${s._gate.hOverflow}${visStr}` : 'NOT FOUND'} → ${verdict} (${s._gate.reason})`);
       if (!s._gate.pass && AUTOREVERT) {
         // REVERT this section to the saved byte-equivalent FLOW arm.
         s.container.settings = s.origSettings;
@@ -355,14 +419,32 @@ if (!has('no-render')) {
 
   // ── 6) GRADE the gated hybrid vs the SOURCE (the objective function; single end-to-end command closes here) ──
   if (!has('no-grade')) {
-    console.log('\n• grade HYBRID vs source (grade-structure: visual + editability + responsive)…');
-    const g = spawnSync('node', ['grade-structure.mjs', '--source', source, '--clone', hybRes.url, '--out', '/tmp/hybrid-grade'], { encoding: 'utf8', cwd: process.cwd(), env: process.env, maxBuffer: 64 * 1024 * 1024, timeout: 110000 });
-    const gOut = (g.stdout || '') + (g.stderr || '');
-    console.log(gOut.split('\n').filter((l) => /composite|visual|editab|responsive|designSystem|hRatio|note/i.test(l)).slice(0, 12).join('\n') || gOut.slice(-1200));
-    let grade = null; try { grade = JSON.parse(fs.readFileSync('/tmp/hybrid-grade/report.json', 'utf8')); } catch {}
-    residualLedger.grade = grade ? { composite: grade.composite, visual: grade.visual, editability: grade.editability, responsive: grade.responsive } : { raw: gOut.slice(-400) };
+    // FLOOR GUARANTEE (motor-cortex move ① — the "always-works floor" half): grade BOTH the hybrid (flow +
+    // preserve "skills") AND the flow-only FLOOR, then SHIP whichever wins. A preserve escalation is kept ONLY
+    // if the whole page BEATS the responsive flow floor; on a tie-or-worse we ship the floor (it reflows by
+    // construction → never trips the responsive veto-caps that sink desktop-pinned builds; baseline: absolute is
+    // veto-capped 7/7 on responsive). So we NEVER ship worse than the floor. Reversible: JOIST_NO_FLOORGUARD=1
+    // → grade hybrid only and ship it (legacy behavior). Both pages are already rendered; we only pick the URL.
+    const gradeOf = (url, out) => {
+      const g = spawnSync('node', ['grade-structure.mjs', '--source', source, '--clone', url, '--out', out], { encoding: 'utf8', cwd: process.cwd(), env: process.env, maxBuffer: 64 * 1024 * 1024, timeout: 110000 });
+      let r = null; try { r = JSON.parse(fs.readFileSync(`${out}/report.json`, 'utf8')); } catch {}
+      return { r, raw: (g.stdout || '') + (g.stderr || '') };
+    };
+    const slim = (g) => g ? { composite: g.composite, visual: g.visual, editability: g.editability, responsive: g.responsive } : null;
+    console.log('\n• grade HYBRID + FLOW-floor vs source (floor guarantee)…');
+    const Hg = gradeOf(hybRes.url, '/tmp/hybrid-grade');
+    const Fg = process.env.JOIST_NO_FLOORGUARD === '1' ? { r: null, raw: '' } : gradeOf(flowRes.url, '/tmp/flow-grade');
+    const hc = Hg.r?.composite ?? -1, fc = Fg.r?.composite ?? -1;
+    const floorWins = Fg.r != null && fc >= hc; // tie → ship the floor (more editable / responsive / robust)
+    const shipped = floorWins ? 'flow' : 'hybrid';
+    const shippedRes = floorWins ? flowRes : hybRes;
+    const shippedGrade = floorWins ? Fg.r : Hg.r;
+    residualLedger.grade = { composite: shippedGrade?.composite ?? null, shipped, floorGuaranteeFired: floorWins, hybrid: slim(Hg.r), flow: slim(Fg.r) };
+    residualLedger.shipped = { arm: shipped, url: shippedRes.url, pageId: shippedRes.pageId };
     fs.writeFileSync('/tmp/hybrid-residual-ledger.json', JSON.stringify(residualLedger, null, 2));
-    if (grade) console.log(`\n  GRADE composite ${grade.composite} (visual ${grade.visual} · editability ${grade.editability}${grade.responsive != null ? ` · responsive ${grade.responsive}` : ''})`);
+    console.log((Hg.raw || '').split('\n').filter((l) => /composite|visual|editab|responsive/i.test(l)).slice(0, 5).join('\n') || (Hg.raw || '').slice(-600));
+    console.log(`\n  FLOOR-GUARANTEE: hybrid ${hc} vs flow-floor ${fc} → SHIP ${shipped.toUpperCase()}  (${shippedRes.url})`);
+    if (shippedGrade) console.log(`  SHIPPED composite ${shippedGrade.composite} (visual ${shippedGrade.visual} · editability ${shippedGrade.editability}${shippedGrade.responsive != null ? ` · responsive ${shippedGrade.responsive}` : ''})`);
   }
   console.log('\n=== POST-GATE RESIDUAL LEDGER ===');
   console.log(`  kept-preserve ${keptPreserve}/${actuallySpliced} spliced (${reverted.length} auto-reverted) | covFrac ${effCov2} | heightFrac ${effH2}`);

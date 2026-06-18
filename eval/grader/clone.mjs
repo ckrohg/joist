@@ -5,11 +5,16 @@
  * grade-structure (visual + editability objective) → report composite + page URL.
  *
  * Modes (see knowledge/CLONE_PIPELINE.md for when each wins):
- *   absolute (default) — absolute-positioned NATIVE widgets: 1:1 structure + editable. Best on most sites.
+ *   router (default)   — build absolute (the high-fidelity skill); if it trips a RESPONSIVE veto-cap (a
+ *                        desktop-pixel build is mobile-broken), build the floor-guaranteed hybrid-flow and ship
+ *                        whichever WINS onto the page. The always-works floor (motor-cortex ①): never ship a
+ *                        mobile-broken desktop-pin when a responsive floor beats it. (corpus: MIN 0.35→0.45,
+ *                        veto-rate 1.0→0.29.) Reversible: pick an explicit mode, or JOIST_NO_ROUTER_FLOOR=1.
+ *   absolute           — absolute-positioned NATIVE widgets: 1:1 desktop structure + editable. Desktop-pixel.
  *   hybrid             — editable simple sections + rastered hard sections. Fallback when capture collapses.
  *   raster             — full section-raster: 1:1 visual, 0 editable. Fallback for headless-unrenderable sites.
  *
- * Usage: node clone.mjs --source <url> --page <id> [--mode absolute|hybrid|raster] [--no-grade] [--cache] [--refresh]
+ * Usage: node clone.mjs --source <url> --page <id> [--mode router|absolute|hybrid|raster] [--no-grade] [--cache] [--refresh]
  *   --cache    freeze the capture per source (absolute: cached ensemble layout at /tmp/abs-cache/<slug>/;
  *              hybrid: forwarded to build-hybrid's own /tmp/hybrid-cache). Deterministic rebuilds.
  *   --refresh  with --cache: force a fresh capture and re-freeze it. No-op without --cache.
@@ -56,7 +61,7 @@ import fs from 'fs';
 import { resolveBase } from '../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: never render/PUT to a non-training host
 const arg = (n, d = null) => { const i = process.argv.indexOf('--' + n); return i > -1 && process.argv[i + 1] ? process.argv[i + 1] : d; };
 const has = (n) => process.argv.includes('--' + n);
-const source = arg('source'), page = arg('page'), mode = arg('mode', 'absolute');
+const source = arg('source'), page = arg('page'), mode = arg('mode', 'router');
 const capDir = arg('cap');                                       // full source capture dir for the completeness gate
 const COMPLETENESS = process.env.JOIST_COMPLETENESS === '1';     // opt-in: run the finish-the-page rail
 const COMPLETENESS_HARD = process.env.JOIST_COMPLETENESS_GATE === '1'; // additionally: fail (exit≠0) when not pass
@@ -65,7 +70,7 @@ const MOTION = process.env.JOIST_MOTION === '1';                 // opt-in: run 
 // which agents strayed onto and tanked). resolveBase() throws LOUDLY before any network call if a
 // JOIST_BASE override points anywhere but localhost:8001 / JOIST_TRAINING_BASE / JOIST_ALLOWED_HOSTS.
 const base = resolveBase(process.env.JOIST_BASE || 'http://localhost:8001');
-if (!source || !page) { console.error('usage: node clone.mjs --source <url> --page <id> [--mode absolute|hybrid|raster] [--no-grade]'); process.exit(2); }
+if (!source || !page) { console.error('usage: node clone.mjs --source <url> --page <id> [--mode router|absolute|hybrid|raster] [--no-grade]'); process.exit(2); }
 const slug = source.replace(/^https?:\/\//, '').replace(/[^a-z0-9]/gi, '').slice(0, 16).toLowerCase();
 const layout = `/tmp/clone-layout-${slug}.json`;
 const run = (cmd, args) => new Promise((res, rej) => { const p = spawn(cmd, args, { stdio: 'inherit', env: process.env }); p.on('close', (c) => (c === 0 ? res() : rej(new Error(`${args.join(' ')} → exit ${c}`)))); });
@@ -80,7 +85,7 @@ const cachedLayout = cacheDir ? `${cacheDir}/layout.json` : null;
 
 (async () => {
   console.log(`\n=== CLONE ${source} → page ${page} (mode: ${mode}) ===`);
-  if (mode === 'absolute') {
+  if (mode === 'absolute' || mode === 'router') { // router starts from the absolute build (the high-fidelity skill)
     if (cachedLayout && fs.existsSync(cachedLayout) && !has('refresh')) {
       console.log(`• capture: CACHED ← ${cachedLayout}`); fs.copyFileSync(cachedLayout, layout);
     } else {
@@ -99,9 +104,41 @@ const cachedLayout = cacheDir ? `${cacheDir}/layout.json` : null;
   const cloneUrl = `${base}/?page_id=${page}`;
   if (!has('no-grade')) {
     console.log('• grade-structure…');
-    const out = `/tmp/clone-grade-${slug}`;
+    let out = `/tmp/clone-grade-${slug}`;
     await run('node', ['grade-structure.mjs', '--source', source, '--clone', cloneUrl, '--out', out]);
-    try { const r = JSON.parse(fs.readFileSync(`${out}/report.json`, 'utf8')); console.log(`\n=== RESULT ===\ncomposite ${r.composite} | visual ${r.visual} | editability ${r.editability} | hRatio ${r.breakdown.hRatio}`); } catch {}
+    let report = null; try { report = JSON.parse(fs.readFileSync(`${out}/report.json`, 'utf8')); console.log(`\n=== RESULT ===\ncomposite ${report.composite} | visual ${report.visual} | editability ${report.editability} | hRatio ${report.breakdown.hRatio}`); } catch {}
+
+    // ── ROUTER FLOOR GUARANTEE (mode=router, motor-cortex ①) ─────────────────────────────────────────
+    // If the absolute build tripped a RESPONSIVE veto-cap (cliff/mobileH/amputation in report.midwidth.caps —
+    // a desktop-pixel build that is mobile-broken), build the floor-guaranteed hybrid-flow (reusing the SAME
+    // cached layout, so no double capture) and ship whichever WINS onto --page. The flow floor reflows by
+    // construction → clears the responsive caps that floor absolute 7/7. We keep absolute only when it has NO
+    // responsive cap (rare, simple pages) OR still out-scores the floor. Reversible: any explicit non-router
+    // --mode skips this; JOIST_NO_ROUTER_FLOOR=1 forces keep-absolute. A hybrid-flow failure degrades to absolute.
+    if (mode === 'router' && report && report.midwidth?.caps?.length && process.env.JOIST_NO_ROUTER_FLOOR !== '1') {
+      console.log(`\n• router: absolute tripped responsive cap(s) [${report.midwidth.caps.join('; ')}] → build floor-guaranteed hybrid-flow…`);
+      try {
+        await run('node', ['build-hybrid-flow.mjs', '--layout', layout, '--source', source]);
+        let led = null; try { led = JSON.parse(fs.readFileSync('/tmp/hybrid-residual-ledger.json', 'utf8')); } catch {}
+        const hfComposite = led?.grade?.composite ?? -1, hfArm = led?.grade?.shipped ?? 'hybrid';
+        const absComposite = report.composite ?? -1;
+        if (led && hfComposite > absComposite) {
+          const treePath = hfArm === 'flow' ? '/tmp/flow-only-tree.json' : '/tmp/hybrid-flow-tree.json';
+          const tree = JSON.parse(fs.readFileSync(treePath, 'utf8'));
+          console.log(`• router: hybrid-flow:${hfArm} ${hfComposite} > absolute ${absComposite} → ship onto page ${page}…`);
+          const { render } = await import('../../sandbox/render.mjs');
+          await render([tree], { page, slug: `router-${slug}`, title: 'Router clone (floor-guaranteed hybrid-flow)', width: 1440 });
+          out = `/tmp/clone-grade-${slug}-router`;
+          await run('node', ['grade-structure.mjs', '--source', source, '--clone', cloneUrl, '--out', out]);
+          try { report = JSON.parse(fs.readFileSync(`${out}/report.json`, 'utf8')); } catch {}
+          console.log(`\n=== ROUTED RESULT (shipped hybrid-flow:${hfArm}) ===\ncomposite ${report?.composite} | visual ${report?.visual} | editability ${report?.editability} | responsive ${report?.responsive}`);
+        } else {
+          console.log(`• router: absolute ${absComposite} >= hybrid-flow ${hfComposite} → KEEP absolute (the skill beat the floor)`);
+        }
+      } catch (e) {
+        console.log(`• router: hybrid-flow fallback failed (${e.message}) → KEEP absolute (floor degrades to the rendered absolute build)`);
+      }
+    }
 
     // ── MOTION shadow field (opt-in JOIST_MOTION=1, REPORT-ONLY — NEVER touches the composite) ──────────
     // The grade above is a STATIC single-scroll fidelity grade: blind to hover/scroll-reveal/parallax/pin/
