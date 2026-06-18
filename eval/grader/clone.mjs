@@ -140,6 +140,19 @@ const cachedLayout = cacheDir ? `${cacheDir}/layout.json` : null;
       }
     }
 
+    // ── (1c) ROUND-TRIP SURVIVAL CERT on the shipped page (flush_css + tree-load; populates roundtripSurvival) ──
+    // Certifies the editability hard-requirement's tractable slice: the editor can LOAD the tree AND the page
+    // SURVIVES a CSS regen (the empty-element-id-collapse failure mode, 2d6041f). REPORT-ONLY (attached to the
+    // grade report, never folds into composite). Reversible: --no-cert / JOIST_NO_ROUNDTRIP_CERT=1.
+    if (!has('no-cert') && process.env.JOIST_NO_ROUNDTRIP_CERT !== '1') {
+      try {
+        const { certifyRoundtrip } = await import('./roundtrip-cert.mjs');
+        const rt = await certifyRoundtrip(page, { width: 1440 });
+        console.log(`\n=== ROUND-TRIP CERT ===\n${rt.survived ? 'SURVIVED ✓' : (rt.conclusive ? 'FAILED ✗' : 'INCONCLUSIVE ⚠')} | editorReadable=${rt.editorReadable} (${rt.nodeCount} nodes) | regenOk=${rt.regenOk} | renderSSIM=${rt.renderSSIM} heightStable=${rt.heightStable}`);
+        if (report) { report.roundtripSurvival = rt; try { fs.writeFileSync(`${out}/report.json`, JSON.stringify(report, null, 2)); } catch {} }
+      } catch (e) { console.log(`[round-trip cert] skipped (${e.message})`); }
+    }
+
     // ── MOTION shadow field (opt-in JOIST_MOTION=1, REPORT-ONLY — NEVER touches the composite) ──────────
     // The grade above is a STATIC single-scroll fidelity grade: blind to hover/scroll-reveal/parallax/pin/
     // marquee/library motion. grade-motion captures motion signals for source-vs-clone and scores their
