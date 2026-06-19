@@ -333,9 +333,85 @@ function overlapInkExcess(src, cln) {
 // proportional path vision-judge uses for flat PNGs), capped at MAX. Cross-width (P18 390 vs 1460) aligns x
 // proportionally inside crop (full-width crop on each side; the composer scales nothing but the judge sees both).
 // Each region carries: name, role (header/hero/cta/body/footer), src+clone rects, aboveFold, weight.
-function segmentRegions(src, cln, maxRegions = 8) {
+// ── DOM-DRIVEN section banding (the fix for the lumped-multi-section band) ───────────────────────────────────────
+// sanitizeBounds: accept source section seams as FRACTIONS (0..1) or pixel y's; return a sorted, deduped, page-spanning
+// seam array in source pixels — or null when the map is untrustworthy (too few bands / one band swallows the page).
+// Mirrors section-bounds.mjs's health gate so a degenerate (scroll-hydrated) capture falls back to proportional banding.
+function sanitizeBounds(fracsOrYs, sH) {
+  if (!Array.isArray(fracsOrYs) || fracsOrYs.length < 3) return null;
+  const asFrac = Math.max(...fracsOrYs) <= 1.5;                                   // fractions vs absolute pixels
+  let ys = [...new Set(fracsOrYs.map((v) => Math.round(asFrac ? v * sH : v)))].sort((a, b) => a - b).filter((y) => y >= 0 && y <= sH);
+  if (ys[0] !== 0) ys.unshift(0);
+  if (ys[ys.length - 1] < sH - 4) ys.push(sH);
+  const out = [ys[0]];                                                           // drop seams closer than 24px
+  for (let i = 1; i < ys.length; i++) if (ys[i] - out[out.length - 1] >= 24) out.push(ys[i]);
+  out[out.length - 1] = sH;
+  if (out.length < 5) return null;                                              // need >=4 real bands
+  for (let i = 0; i < out.length - 1; i++) if (out[i + 1] - out[i] > sH * 0.55) return null; // no band > 55% of page
+  return out;
+}
+
+// segmentBySections: one grader region per source section. Role by position (header=first, footer=last) + a HERO band
+// = the tallest ABOVE-FOLD non-header section (carries the hero+heading probe so the invisible-heading dark-ink guard
+// localizes to the real H1's section — recoloring that one heading now drops THAT region's dark ink → veto fires).
+// When the dark-ink guard is ON, other above-fold sections also carry a 'heading' probe for recall (the guard makes
+// broad probing false-positive-safe: a faithful section retains its dark ink → no veto). Keeps the dedicated logo-cell
+// + cta-cell (same as the proportional path) so logo/CTA vetoes are unaffected.
+function segmentBySections(seams, src, cln, maxRegions) {
+  const sH = src.height, cH = cln.height, sW = src.width, cW = cln.width, r = cH / sH;
+  const FOLD = Math.max(900, sH * 0.12);
+  let bands = [];
+  for (let i = 0; i < seams.length - 1; i++) bands.push({ y0: seams[i], y1: seams[i + 1] });
+  // COST BUDGET: coalesce the smallest adjacent BELOW-fold body bands until within budget. header/footer/above-fold
+  // bands are protected so the heading localization is never coarsened.
+  const budget = Math.max(4, maxRegions);
+  while (bands.length > budget) {
+    const prot = new Set([0, bands.length - 1]);
+    for (let i = 0; i < bands.length; i++) if (bands[i].y0 < FOLD) prot.add(i);
+    let best = -1, bestH = Infinity;
+    for (let i = 0; i < bands.length - 1; i++) {
+      if (prot.has(i) || prot.has(i + 1)) continue;
+      const h = (bands[i].y1 - bands[i].y0) + (bands[i + 1].y1 - bands[i + 1].y0);
+      if (h < bestH) { bestH = h; best = i; }
+    }
+    if (best < 0) break;                                                          // all remaining are protected → stop
+    bands[best] = { y0: bands[best].y0, y1: bands[best + 1].y1 };
+    bands.splice(best + 1, 1);
+  }
+  let heroI = -1, heroH = -1;                                                     // hero = tallest above-fold non-header
+  for (let i = 1; i < bands.length; i++) { const b = bands[i]; if (b.y0 < FOLD && (b.y1 - b.y0) > heroH) { heroH = b.y1 - b.y0; heroI = i; } }
+  if (heroI < 0) heroI = Math.min(1, bands.length - 1);
+  const regions = [];
+  for (let i = 0; i < bands.length; i++) {
+    const { y0, y1 } = bands[i];
+    const cy0 = Math.round(y0 * r), cy1 = Math.min(cH, Math.round(y1 * r));
+    let role = 'body', weight = 1.0, name = `section-${i}`, probe = null;
+    if (i === 0) { role = 'header'; name = 'header'; weight = 1.5; probe = 'logo'; }
+    else if (i === bands.length - 1) { role = 'footer'; name = 'footer'; weight = 0.5; }
+    if (i === heroI) { role = 'hero'; name = 'hero'; weight = 2.0; probe = 'hero+heading'; }
+    else if (probe == null && y0 < FOLD && RJ_HEADING_DARKINK_GUARD) probe = 'heading'; // broad recall, guard-gated
+    regions.push({ name, role, sRect: [0, y0, sW, y1], cRect: [0, cy0, cW, cy1], aboveFold: y0 < 1000, weight, fatalProbe: probe });
+  }
+  const logoW = Math.round(sW * 0.30), cLogoW = Math.round(cW * 0.30), nav = Math.round(Math.min(120, sH * 0.04));
+  regions.unshift({ name: 'logo-cell', role: 'header', sRect: [0, 0, logoW, nav], cRect: [0, 0, cLogoW, nav], aboveFold: true, weight: 1.0, fatalProbe: 'logo' });
+  const ctaSy0 = Math.round(sH * 0.10), ctaSy1 = Math.round(sH * 0.22);
+  regions.splice(2, 0, { name: 'cta-cell', role: 'cta', sRect: [0, ctaSy0, sW, ctaSy1], cRect: [0, Math.round(ctaSy0 * r), cW, Math.round(ctaSy1 * r)], aboveFold: true, weight: 2.0, fatalProbe: 'CTA' });
+  return regions.slice(0, 24);                                                    // hard safety cap on region count
+}
+
+function segmentRegions(src, cln, maxRegions = 8, sectionFracs = null) {
   const sH = src.height, cH = cln.height, sW = src.width, cW = cln.width;
   const tall = sH > 1400 || cH > 1400;
+  // DOM-DRIVEN: when valid source section seams are supplied (and the page is tall), band by REAL sections so each
+  // region == one source section → the invisible-heading dark-ink guard localizes. Bundled under the SAME master
+  // switch as the guard (RJ_HEADING_DARKINK_GUARD, default-off) so the DEFAULT is byte-identical EVERYWHERE — DOM
+  // banding + dark-ink suppressor + dark-ink trigger ship as one cohesive, reversible default-off feature. RJ_DOM_SECTIONS
+  // overrides (1 = force on, 0 = force off) for A/B; RJ_NO_DOM_SECTIONS=1 also forces the proportional fallback.
+  const domOn = process.env.RJ_DOM_SECTIONS ? process.env.RJ_DOM_SECTIONS === '1' : RJ_HEADING_DARKINK_GUARD;
+  if (tall && sectionFracs && domOn && process.env.RJ_NO_DOM_SECTIONS !== '1') {
+    const seams = sanitizeBounds(sectionFracs, sH);
+    if (seams) return segmentBySections(seams, src, cln, maxRegions);
+  }
   const regions = [];
   const push = (name, role, sRect, cRect, aboveFold, weight, fatalProbe) =>
     regions.push({ name, role, sRect, cRect, aboveFold, weight, fatalProbe });
@@ -453,6 +529,17 @@ function corroborate(region, src, cln) {
       }
     } else if (cC.ratio <= 1.5 && cC.inkFrac >= 12 && cStat.std < 14 && sStat.std > 18 && lostDarkInk) {
       vetoes.push({ defect_class: 'invisible-text', fatalClass: 'heading', severity: 'fatal', evidence: `heading region contrast ${cC.ratio}:1 (<=1.5 — heading painted near its own background, invisible); clone dark-ink lost` });
+    }
+    // DARK-INK-LOSS TRIGGER (guard-on, section-aligned): when the source band's MEDIAN contrast reads low because it is
+    // decoration-heavy (supabase hero sC.ratio 1.83 < the 2.0 gate) the contrast veto CANNOT fire even on a genuinely
+    // invisible/blanked heading. With DOM-section banding the dark-ink retention signal localizes to the real heading's
+    // section and becomes a robust DISCRIMINATOR — so use it as a TRIGGER, not just a suppressor: source carried a real
+    // dark heading (rich, inky, dark-ink present) and the clone lost essentially ALL of it (>=85%). Tight + guard-gated
+    // (RJ_HEADING_DARKINK_GUARD default-off) → byte-identical default; false-positive-safe on faithful clones (they
+    // RETAIN dark ink → cDark not collapsed → no fire). This is the half that makes the dark-ink guard robust.
+    if (RJ_HEADING_DARKINK_GUARD && sDark > 0.006 && sStat.std > 16 && sInk > 0.012 && cDark < sDark * 0.15
+        && !vetoes.some((v) => v.fatalClass === 'heading')) {
+      vetoes.push({ defect_class: 'invisible-text', fatalClass: 'heading', severity: 'fatal', evidence: `heading section lost its dark ink: clone ${(cDark * 100).toFixed(2)}% vs source ${(sDark * 100).toFixed(2)}% (>=85% gone — heading invisible/blanked)` });
     }
   }
 
@@ -860,10 +947,23 @@ export async function judgePairCrops({ compare, outDir = '/tmp/region-judge-crop
 }
 
 // ── MAIN judge entrypoint (importable: judgePair) ────────────────────────────────────────────────────────────
-export async function judgePair({ sourcePng, clonePng, outDir = '/tmp/region-judge', model = 'sonnet', blind = true, vision = true, maxRegions = 8, jobs = 3 }) {
+// Load a frozen DOM-section sidecar (`<sourcePng>.sections.json`, written by section-bounds.mjs) → section TOP fracs,
+// or null when absent/malformed. This is how judgePair gets DOM-driven seams for a static PNG pair (calibration path).
+function loadSectionSidecar(sourcePng) {
+  try {
+    const p = sourcePng.replace(/\.png$/i, '') + '.sections.json';
+    if (!fs.existsSync(p)) return null;
+    const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+    return Array.isArray(j.fracs) && j.fracs.length >= 5 ? j.fracs : null;
+  } catch { return null; }
+}
+
+export async function judgePair({ sourcePng, clonePng, outDir = '/tmp/region-judge', model = 'sonnet', blind = true, vision = true, maxRegions = 8, jobs = 3, sectionFracs = null }) {
   fs.mkdirSync(outDir, { recursive: true });
   const src = loadPng(sourcePng), cln = loadPng(clonePng);
-  const regions = segmentRegions(src, cln, maxRegions);
+  // DOM-driven section seams: explicit param wins; else auto-load a frozen sidecar next to the source PNG.
+  const fracs = sectionFracs || loadSectionSidecar(sourcePng);
+  const regions = segmentRegions(src, cln, maxRegions, fracs);
   let cost = 0, usedModel = model;
   // deterministic corroboration is synchronous + cheap → compute up-front for every region.
   const dets = regions.map(region => corroborate(region, src, cln));
@@ -1003,9 +1103,14 @@ if (IS_MAIN) (async () => {
   for (const a of [SOURCE, CLONE]) if (/^https?:/i.test(a)) assertNotBlocked(a);
   for (const a of [SOURCE, CLONE]) if (!fs.existsSync(a)) { console.error(`not found: ${a}`); process.exit(2); }
   const OUT = arg('out', '/tmp/region-judge');
+  // --sections <sidecar.json|inline-json> overrides the auto-loaded `<source>.sections.json`. --no-sections forces
+  // the proportional fallback (A/B against the DOM-driven path).
+  let sectionFracs = null;
+  if (has('no-sections')) process.env.RJ_NO_DOM_SECTIONS = '1';
+  else if (arg('sections')) { const s = arg('sections'); try { const raw = fs.existsSync(s) ? JSON.parse(fs.readFileSync(s, 'utf8')) : JSON.parse(s); sectionFracs = Array.isArray(raw) ? raw : raw.fracs; } catch (e) { console.error('bad --sections:', e.message); } }
   const r = await judgePair({
     sourcePng: SOURCE, clonePng: CLONE, outDir: OUT, model: arg('model', 'sonnet'),
-    blind: arg('blind', '1') !== '0', vision: !has('no-vision'), maxRegions: +arg('max-regions', 8), jobs: +arg('jobs', 3),
+    blind: arg('blind', '1') !== '0', vision: !has('no-vision'), maxRegions: +arg('max-regions', 8), jobs: +arg('jobs', 3), sectionFracs,
   });
   fs.writeFileSync(path.join(OUT, 'results.json'), JSON.stringify(r, null, 2));
   if (has('json')) { console.log(JSON.stringify(r, null, 2)); return; }
@@ -1018,4 +1123,4 @@ if (IS_MAIN) (async () => {
 })().catch(e => { console.error('REGION-JUDGE FAILED:', e && e.stack || e); process.exit(1); });
 
 // (judgePairCrops is already exported via its `export async function` declaration above.)
-export { segmentRegions, corroborate, rollup, regionScore, textContrast, inkMass, regionStats, saturatedMass, ssim, FATAL_OF, DEFECT_CLASSES, loadPng, inspectorPrompt, inspectOnce, overlapInkExcess, DISQUALIFYING_FATAL };
+export { segmentRegions, segmentBySections, sanitizeBounds, loadSectionSidecar, corroborate, rollup, regionScore, textContrast, inkMass, regionStats, saturatedMass, ssim, FATAL_OF, DEFECT_CLASSES, loadPng, inspectorPrompt, inspectOnce, overlapInkExcess, DISQUALIFYING_FATAL };
