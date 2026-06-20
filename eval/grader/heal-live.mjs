@@ -35,7 +35,7 @@ export function makeScoreFn({ sourceLeaves, page, heroBand = HEROBAND, sec = SEC
 }
 
 // HTML-level degradations (the loop heals HTML, so degrade the HTML — distinct from Arm C's box-tree mutators).
-const DEGRADE = {
+export const DEGRADE = {
   recolor: (h) => h.replace(/(class="heal-headline"[^>]*style="[^"]*?color:\s*)#?[0-9a-fA-Frgba(),. ]+/i, '$1#777777')
                    .replace(/(\.heal-headline\s*\{[^}]*?color:\s*)[^;]+/i, '$1#777777'),
   dropcta: (h) => h.replace(/<[^>]*class="heal-cta2"[\s\S]*?<\/[a-z]+>/i, ''),
