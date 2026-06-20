@@ -38,9 +38,9 @@ const corr2 = {
   unmatchedClone: [{ cloneIdx: 1, healId: 'headline', text: 'Email for everyone', box: { x: 168, y: 300, w: 600, h: 140 }, ny: 0.41 }],
 };
 const m2 = diagnose(corr2, [{ healId: 'b1', text: 'Resend' }, { healId: 'headline', text: 'Email for everyone' }]);
-ok('source paired with nearby unmatched clone → wrong-text on its heal-id', m2.targets.some((t) => t.issue === 'wrong-text' && t.currentHealId === 'headline' && t.srcText === 'Email for developers'), `targets=${m2.targets.map((t) => t.issue + (t.currentHealId ? ':' + t.currentHealId : '')).join(',')}`);
+ok('source paired with the TEXT-SIMILAR wrong clone → wrong-text fix-in-place', m2.targets.some((t) => t.issue === 'wrong-text' && t.cloneText === 'Email for everyone' && t.srcText === 'Email for developers'), `targets=${m2.targets.map((t) => t.issue).join(',')}`);
 ok('NOT a duplicating add (no missing target for the paired block)', !m2.targets.some((t) => t.issue === 'missing'));
-ok('directive instructs fix-in-place by heal-id', m2.targets.find((t) => t.issue === 'wrong-text').directive.includes('heal-headline'));
+ok('directive references the WRONG clone text (locate + replace in place)', m2.targets.find((t) => t.issue === 'wrong-text').directive.includes('Email for everyone') && m2.targets.find((t) => t.issue === 'wrong-text').directive.includes('Email for developers'));
 // an unmatched source with NO nearby clone stays 'missing' (clone is in a far band).
 const corr3 = { matches: [], unmatchedSource: [{ idx: 0, text: 'Documentation', box: { x: 320, y: 560, w: 170, h: 50 }, ny: 0.70 }], unmatchedClone: [{ cloneIdx: 0, healId: 'z', text: 'Other', box: { x: 0, y: 0, w: 50, h: 20 }, ny: 0.05 }] };
 ok('no nearby unmatched clone → stays missing (add)', diagnose(corr3, [{ healId: 'z', text: 'Other' }]).targets.some((t) => t.issue === 'missing'));

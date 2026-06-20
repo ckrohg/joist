@@ -47,7 +47,7 @@ function levenshtein(a, b) { const m = a.length, n = b.length; if (!m) return n;
   for (let i = 1; i <= m; i++) { const cur = [i]; for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = cur; } return prev[n]; }
 function trigrams(s) { const g = new Set(); const p = '  ' + s + ' '; for (let i = 0; i < p.length - 2; i++) g.add(p.slice(i, i + 3)); return g; }
 function trigramJaccard(a, b) { const ga = trigrams(a), gb = trigrams(b); let inter = 0; for (const g of ga) if (gb.has(g)) inter++; const uni = ga.size + gb.size - inter; return uni ? inter / uni : 1; }
-function textSim(a, b) { const na = norm(a), nb = norm(b); if (na === nb) return 1; const L = Math.max(na.length, nb.length, 1); if (L > 120) return trigramJaccard(na, nb); return 1 - levenshtein(na, nb) / L; }
+export function textSim(a, b) { const na = norm(a), nb = norm(b); if (na === nb) return 1; const L = Math.max(na.length, nb.length, 1); if (L > 120) return trigramJaccard(na, nb); return 1 - levenshtein(na, nb) / L; }
 
 // ── leaf extraction + sectioning ────────────────────────────────────────────────────────────────────────────────
 export function flatten(tree) { const root = tree.root || tree; const out = []; let di = 0;

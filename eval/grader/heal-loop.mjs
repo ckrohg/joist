@@ -19,6 +19,7 @@
 import { execFile } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import { textSim } from './correspondence-reward.mjs';
 
 const AXES = ['existence', 'text', 'position', 'color', 'typography'];
 
@@ -41,14 +42,16 @@ export function diagnose(corr, cloneLeaves, { lockComposite = 0.85, lockAxisMin 
     const worst = Object.entries(ax).sort((a, b) => a[1] - b[1])[0]; // [axisName, score]
     cands.push({ issue: worst[0] === 'text' ? 'wrong-text' : 'wrong-' + worst[0], axis: worst[0], severity: (1 - worst[1]) * Math.sqrt(Math.max(1, (m.srcBox?.w || 50) * (m.srcBox?.h || 20))), srcText: m.srcText, box: m.srcBox, currentHealId: healOf(m.cloneIdx), directive: null });
   }
-  // WRONG-CONTENT-IN-PLACE: pair each unmatched SOURCE block with a nearby unmatched CLONE block (same band) — that
-  // clone block is the WRONG version (e.g. source "Email for developers" vs clone "Email for everyone"), so fix it IN
-  // PLACE (wrong-text on its heal-id) instead of a duplicating "add missing". Leftover unmatched source = truly missing.
-  const uClonePool = (corr.unmatchedClone || []).filter((c) => c.healId != null);
+  // WRONG-CONTENT-IN-PLACE: pair each unmatched SOURCE block with the unmatched CLONE block of HIGHEST text-similarity
+  // (the present-but-wrong version of the SAME block — "Email for developers" ↔ "Email for everyone" sim≈0.6, vs
+  // "Documentation" sim≈0.1 — within a loose band). Fix it IN PLACE by referencing the wrong TEXT (heal-ids land on the
+  // Elementor widget wrapper, not the captured text leaf, so they're unreliable here). Leftover source = truly missing.
+  const uClonePool = [...(corr.unmatchedClone || [])];
   for (const u of corr.unmatchedSource || []) {
     const sev = 2 * Math.sqrt(Math.max(1, (u.box?.w || 50) * (u.box?.h || 20)));
-    let bi = -1, bd = 0.15; for (let ci = 0; ci < uClonePool.length; ci++) { const d = Math.abs((u.ny ?? 0) - (uClonePool[ci].ny ?? 0)); if (d < bd) { bd = d; bi = ci; } }
-    if (bi >= 0) { const c = uClonePool.splice(bi, 1)[0]; cands.push({ issue: 'wrong-text', axis: 'text', severity: sev, srcText: u.text, box: u.box, currentHealId: c.healId, directive: null }); }
+    let bi = -1, bestSim = 0.30; // require similar-but-wrong (>0.30) within a loose band (clone reflow shifts ny)
+    for (let ci = 0; ci < uClonePool.length; ci++) { const c = uClonePool[ci]; if (Math.abs((u.ny ?? 0) - (c.ny ?? 0)) > 0.30) continue; const s = textSim(u.text, c.text || ''); if (s > bestSim) { bestSim = s; bi = ci; } }
+    if (bi >= 0) { const c = uClonePool.splice(bi, 1)[0]; cands.push({ issue: 'wrong-text', axis: 'text', severity: sev, srcText: u.text, box: u.box, currentHealId: c.healId, cloneText: c.text, directive: null }); }
     else cands.push({ issue: 'missing', axis: 'existence', severity: sev, srcText: u.text, box: u.box, fg: u.fg, typo: u.typo, directive: null });
   }
   cands.sort((a, b) => b.severity - a.severity);
@@ -64,7 +67,7 @@ function directiveFor(t) {
   const bb = t.box ? `bbox≈{${Math.round(t.box.x)},${Math.round(t.box.y)},${Math.round(t.box.w)},${Math.round(t.box.h)}}` : '';
   switch (t.issue) {
     case 'missing': return `[EXISTENCE] Add the text "${t.srcText}" exactly once, ${bb}${t.fg ? ' color=' + t.fg : ''}${t.typo ? ' typo=' + (t.typo.size || '') + '/' + (t.typo.weight || '') : ''}. Match approximate position/role/color/typography; do not invent other copy.`;
-    case 'wrong-text': return `[TEXT] Fix the text of block heal-${t.currentHealId} to exactly "${t.srcText}". Replace text only — do not move, restyle, or paraphrase.`;
+    case 'wrong-text': return `[TEXT] Find the block currently showing "${(t.cloneText || '').slice(0, 50)}"${t.currentHealId ? ' (class heal-' + t.currentHealId + ')' : ''} and change its text to exactly "${t.srcText}". Replace THAT text only — do NOT add a new element, move it, restyle, or paraphrase.`;
     case 'wrong-color': return `[COLOR] Recolor block heal-${t.currentHealId} ("${(t.srcText || '').slice(0, 24)}") toward the source color. Change foreground/background only; geometry and text frozen.`;
     case 'wrong-position': return `[POSITION] Reposition block heal-${t.currentHealId} ("${(t.srcText || '').slice(0, 24)}") to ${bb} via parent layout/spacing (display/gap/padding/margin/width/align). Keep its text, color, typography unchanged.`;
     case 'wrong-typography': return `[TYPOGRAPHY] Fix typography of block heal-${t.currentHealId} ("${(t.srcText || '').slice(0, 24)}")${t.typo ? ' to ' + (t.typo.size || '') + 'px/' + (t.typo.weight || '') : ''}. Change font props only; do not move or rewrite.`;
@@ -119,19 +122,21 @@ RULES: keep all locked text verbatim; do not invent marketing copy; do not remov
 function extractHtml(s) { if (!s) return null; const m = String(s).match(/<section[\s\S]*<\/section>/i) || String(s).match(/<html[\s\S]*<\/html>/i) || String(s).match(/<body[\s\S]*<\/body>/i); return m ? m[0] : (String(s).includes('<') ? String(s) : null); }
 function authorOnce(sourceImagePath, currentHtml, manifest, { model = 'sonnet', timeoutMs = 180000 } = {}) {
   return new Promise((resolve) => {
-    let child = null; const hard = setTimeout(() => { try { if (child) child.kill('SIGKILL'); } catch {} resolve({ ok: false }); }, timeoutMs + 30000); hard.unref();
+    let child = null; const hard = setTimeout(() => { try { if (child) child.kill('SIGKILL'); } catch {} resolve({ ok: false, error: 'hard-timeout' }); }, timeoutMs + 30000); hard.unref();
     child = execFile('claude', ['-p', PATCH_PROMPT(path.resolve(sourceImagePath), currentHtml, manifest), '--model', model, '--output-format', 'json', '--allowedTools', 'Read', '--max-budget-usd', '0.40', '--strict-mcp-config', '--setting-sources', ''],
       { timeout: timeoutMs, killSignal: 'SIGKILL', maxBuffer: 16 * 1024 * 1024, cwd: '/tmp' }, (err, stdout) => {
-        clearTimeout(hard); if (err && !stdout) return resolve({ ok: false });
-        let outer = null; try { outer = JSON.parse(stdout); } catch {} if (!outer) return resolve({ ok: false });
-        const html = extractHtml(outer.result); resolve(html ? { ok: true, html, cost: +outer.total_cost_usd || 0 } : { ok: false });
+        clearTimeout(hard); if (err && !stdout) return resolve({ ok: false, error: 'exec:' + String(err && err.message || err).slice(0, 60) });
+        let outer = null; try { outer = JSON.parse(stdout); } catch {} if (!outer) return resolve({ ok: false, error: 'outer-parse' });
+        const html = extractHtml(outer.result); resolve(html ? { ok: true, html, cost: +outer.total_cost_usd || 0 } : { ok: false, error: 'no-html-in-result' });
       });
-    child.on('error', () => resolve({ ok: false }));
+    child.on('error', () => resolve({ ok: false, error: 'spawn' }));
   });
 }
 export async function regenPatch({ currentHtml, sourceImagePath, manifest, k = 3, model = 'sonnet' }) {
   const runs = await Promise.all(Array.from({ length: k }, () => authorOnce(sourceImagePath, currentHtml, manifest, { model })));
-  return runs.filter((r) => r.ok).map((r) => ({ html: r.html, cost: r.cost || 0 }));
+  const ok = runs.filter((r) => r.ok);
+  if (!ok.length) console.error(`[regen] 0/${k} candidates (model=${model}) — reasons: ${runs.map((r) => r.error || 'ok').join(', ')}`); // diagnostic: why no candidates
+  return ok.map((r) => ({ html: r.html, cost: r.cost || 0 }));
 }
 
 // ── CONTROLLER: render→capture→score the current HTML, loop diagnose→regen→accept (≤maxRounds) ───────────────────
