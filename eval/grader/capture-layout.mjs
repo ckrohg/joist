@@ -478,9 +478,17 @@ function cropPng(png, box, dpr) {
   // PER-TOKEN SYNTAX COLORS for code panels (default ON; CAPTURE_NO_CODE_TOKENS=1 → __NO_CODE_TOKENS true → a
   // code leaf carries tokens:[] → the builder paints the whole <pre> in the single dominant codeColor (legacy)).
   try { await page.evaluate((off) => { window.__NO_CODE_TOKENS = off; }, process.env.CAPTURE_NO_CODE_TOKENS === '1'); } catch {}
+  try { await page.evaluate((off) => { window.__NO_ELEMENTOR_DEPTH = off; }, process.env.CAP_NO_ELEMENTOR_DEPTH === '1'); } catch {}
 
   const data = await page.evaluate(() => {
-    const MAXD = 8; const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
+    // MAXD: a rendered Elementor clone nests content under deep .e-con / .elementor-widget-container wrappers (median
+    // text-element depth ~17 vs a plain site's ~11), so the depth-8 cap triggers the lossy flatten path on the CLONE
+    // far earlier than on the SOURCE — capture-layout read resend's clone at 14.6% word-recall vs 34.2% on the source
+    // (a 2.3x under-read), structurally deflating clone grades. Raise the cap ONLY on rendered-Elementor pages (the
+    // wrapper structure IS the signal); non-Elementor source/corpus captures keep MAXD=8 and stay BYTE-IDENTICAL (zero
+    // regression). Reversible: CAP_NO_ELEMENTOR_DEPTH=1 → always 8.
+    const isElementorPage = window.__NO_ELEMENTOR_DEPTH !== true && !!document.querySelector('.elementor-widget-container, .e-con, [data-elementor-type]');
+    const MAXD = isElementorPage ? 20 : 8; const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
     // ── CONTENT-ADDRESSED SOURCE-PATH STAMP (default ON; CAPTURE_NO_SRCPATH=1 → omit srcPath) ───────────────────
     // O(1)-CORRESPONDENCE FEED: compare-capture.mjs joins source⇄clone records by a STABLE content-addressed path
     // `tagchain|nth|h<8hex>` (srcPathOf there). The clone carries the SAME string in a `--joist-src` CSS var (built
