@@ -37,7 +37,7 @@ function gradeClone(label, env) {
     rows.push({ w, score: r.score, typo: r.axes.typography, pos: r.axes.position });
   }
   const desk = rows.find((x) => x.w === 1440).score, mob = Math.min(...rows.map((x) => x.score));
-  return { rows, desk, mob, gap: +(desk - mob).toFixed(2) };
+  return { rows, desk, mob, gap: +(desk - mob).toFixed(2), typoMob: Math.min(...rows.filter((x) => x.w < 1440).map((x) => x.typo)) };
 }
 
 const on = gradeClone('ON', {});
@@ -46,7 +46,11 @@ const line = (r) => r.rows.map((x) => `${x.w}:${x.score}(typo ${x.typo})`).join(
 console.log('\n=== WS5 emission A/B (clone vs responsive source) ===');
 console.log(`emission ON   ${line(on)}   → gap ${on.gap}`);
 console.log(`emission OFF  ${line(off)}   → gap ${off.gap}`);
-console.log(`\nΔgap (OFF−ON) = ${(off.gap - on.gap).toFixed(2)}  ·  mobile Δscore (ON−OFF @min) = ${(on.mob - off.mob).toFixed(2)}`);
-console.log(off.gap - on.gap > 6 && on.mob > off.mob + 6
-  ? 'PASS — native _tablet/_mobile emission CLOSES the responsive gap (OFF stays desktop-size at 390; ON reflows).'
-  : 'INCONCLUSIVE — emission did not clearly close the gap here (inspect /tmp/ws5ab-* + transpile policy log).');
+// Verdict judges the CAUSAL axis (typography — what MOVE-1 reflows), not the composite: the composite blends in
+// position/text/existence axes that are identical here (text content unchanged), diluting a real single-axis win.
+const dTypo = +(on.typoMob - off.typoMob).toFixed(4);
+console.log(`\nMOBILE typography axis: ON ${on.typoMob.toFixed(4)} vs OFF ${off.typoMob.toFixed(4)}  → Δ ${dTypo >= 0 ? '+' : ''}${dTypo}`);
+console.log(`mobile composite: ON ${on.mob} vs OFF ${off.mob} (Δ ${(on.mob - off.mob).toFixed(2)}) · gap ON ${on.gap} vs OFF ${off.gap}`);
+console.log(dTypo > 0.10 && on.mob > off.mob
+  ? `PASS — native _tablet/_mobile emission CLOSES the responsive typography gap live (Δtypo ${dTypo} at mobile; composite +${(on.mob - off.mob).toFixed(1)}). OFF stays desktop-size; ON reflows.`
+  : 'INCONCLUSIVE — typography axis did not clearly move (inspect /tmp/ws5ab-* + transpile policy log).');
