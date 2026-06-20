@@ -30,6 +30,21 @@ ok('targets ≤3 and includes the missing block + bad-color heading', m.targets.
 ok('every target has a concrete directive', m.targets.every((t) => t.directive && t.directive.length > 10));
 ok('touchesText true (a missing text block is targeted)', m.touchesText === true);
 
+console.log('── (A2) wrong-content-in-place pairing (the mutate-class fix) ──');
+// unmatched source paired with a nearby unmatched clone (same band) → fix IN PLACE on its heal-id, not a duplicating add.
+const corr2 = {
+  matches: [{ srcIdx: 0, cloneIdx: 0, srcText: 'Resend', cloneText: 'Resend', textSim: 1, axes: { position: 0.95, color: 0.95, typography: 0.95 }, pairScore: 0.95, srcBox: { x: 40, y: 20, w: 90, h: 30 } }],
+  unmatchedSource: [{ idx: 1, text: 'Email for developers', box: { x: 168, y: 300, w: 600, h: 140 }, ny: 0.40, fg: 'rgb(255,255,255)', typo: { size: 72, weight: 700 } }],
+  unmatchedClone: [{ cloneIdx: 1, healId: 'headline', text: 'Email for everyone', box: { x: 168, y: 300, w: 600, h: 140 }, ny: 0.41 }],
+};
+const m2 = diagnose(corr2, [{ healId: 'b1', text: 'Resend' }, { healId: 'headline', text: 'Email for everyone' }]);
+ok('source paired with nearby unmatched clone → wrong-text on its heal-id', m2.targets.some((t) => t.issue === 'wrong-text' && t.currentHealId === 'headline' && t.srcText === 'Email for developers'), `targets=${m2.targets.map((t) => t.issue + (t.currentHealId ? ':' + t.currentHealId : '')).join(',')}`);
+ok('NOT a duplicating add (no missing target for the paired block)', !m2.targets.some((t) => t.issue === 'missing'));
+ok('directive instructs fix-in-place by heal-id', m2.targets.find((t) => t.issue === 'wrong-text').directive.includes('heal-headline'));
+// an unmatched source with NO nearby clone stays 'missing' (clone is in a far band).
+const corr3 = { matches: [], unmatchedSource: [{ idx: 0, text: 'Documentation', box: { x: 320, y: 560, w: 170, h: 50 }, ny: 0.70 }], unmatchedClone: [{ cloneIdx: 0, healId: 'z', text: 'Other', box: { x: 0, y: 0, w: 50, h: 20 }, ny: 0.05 }] };
+ok('no nearby unmatched clone → stays missing (add)', diagnose(corr3, [{ healId: 'z', text: 'Other' }]).targets.some((t) => t.issue === 'missing'));
+
 console.log('── (B) accept — guarded improvement + anti-gaming ──');
 const base = { corr, cloneLeaves };
 const better = (over) => ({ corr: { ...corr, axes: { ...corr.axes, ...over.axes }, score: over.score ?? corr.score, R_text: over.R_text ?? corr.R_text, unmatchedSource: over.unmatchedSource ?? corr.unmatchedSource }, cloneLeaves: over.cloneLeaves ?? cloneLeaves });
