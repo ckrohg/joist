@@ -1154,8 +1154,31 @@ function cropPng(png, box, dpr) {
       const kept = children.filter((c) => !isDecorativeFragment(c));
       return kept.length ? kept : children; // never empty out a band
     };
-    // recursive walk → container node OR leaf; prune pass-through wrappers; cap depth
+    // ── WS2 SELF-HEAL (Arm B): read a `heal-<id>` class off the rendered element → node.healId ───────────────────
+    // The transpiler preserves an author-supplied `heal-<id>` CSS class into the Elementor element's _css_classes,
+    // so Elementor stamps it onto the rendered DOM node's classList. Reading it back here attaches a STABLE
+    // per-block identifier that survived the full round-trip (authored HTML → Elementor tree → render → re-capture),
+    // letting a downstream self-heal loop diagnose and lock specific blocks. ADDITIVE: healId is only present when
+    // the element actually carries a heal-* class (authored blocks); every other node is byte-identical legacy.
+    const healOf = (el) => {
+      try {
+        const cls = el && el.classList;
+        if (!cls) return null;
+        for (const c of cls) { const m = /^heal-([\w-]+)$/.exec(c); if (m) return m[1]; }
+      } catch {}
+      return null;
+    };
+    // Wrapper: run the real recursive walk, then stamp this element's healId onto the produced node. Pass-through
+    // wrappers / collapse-to-descendant cases return a node built from a CHILD element — that child's own walk()
+    // already stamped its healId, and a heal-* class is authored on the content element (h1/p/…) not on a bare
+    // wrapper, so stamping el's id here is safe and never overwrites a present child id (only set when missing).
     function walk(el, depth) {
+      const node = walkImpl(el, depth);
+      if (node && typeof node === 'object' && node.healId == null) { const id = healOf(el); if (id) node.healId = id; }
+      return node;
+    }
+    // recursive walk → container node OR leaf; prune pass-through wrappers; cap depth
+    function walkImpl(el, depth) {
       if (!visible(el)) {
         // COLLAPSED-FLOW WRAPPER (navgap fix): a static wrapper collapsed to zero-height because its only content
         // is a position:fixed/sticky/absolute child (linear's Header_root → fixed <header>). Don't stop here:

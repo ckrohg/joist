@@ -66,5 +66,16 @@ const rTall = correspondSection(B, scaled, SEC, tallSec, CTX);
 ok('center elements survive a 1.5x-taller clone section (position not deflated)', rTall.axes.position >= 0.85, `position=${rTall.axes.position}`);
 ok('that tall-but-correct clone still scores high (≥ 90)', rTall.score >= 90, `score=${rTall.score}`);
 
+console.log('── (D) anti-gaming (invisible-stuffing earns no recall) ──');
+// clone reproduces EVERY source text byte-for-byte but stuffs each into an invisible element (fg = bg = rgb(8,8,8),
+// contrast≈1). The visibility pre-filter must drop all clone leaves → R_text~0 → low score (no recall farmed).
+const stuffed = clone(B).map((n) => { n.paint.value = 'rgb(8,8,8)'; n.bg = 'rgb(8,8,8)'; return n; });
+const rStuff = score(stuffed);
+console.log('   invisible-stuffing: R_text=' + rStuff.R_text, 'score=' + rStuff.score, 'nClone=' + rStuff.nClone);
+ok('invisible-stuffed clone earns ~no recall (R_text ≤ 0.1)', rStuff.R_text <= 0.1, `R_text=${rStuff.R_text}`);
+ok('invisible-stuffed clone scores low (≤ 30)', rStuff.score <= 30, `score=${rStuff.score}`);
+ok('correspondSection exposes matches[] breakdown', Array.isArray(r0.matches) && r0.matches.length === r0.nMatch, `matches=${r0.matches && r0.matches.length}`);
+ok('correspondSection exposes unmatchedSource[]', Array.isArray(r0.unmatchedSource), `unmatchedSource=${r0.unmatchedSource && r0.unmatchedSource.length}`);
+
 console.log(`\n${fails === 0 ? 'ALL PASS' : fails + ' FAIL'} — correspondence-reward selftest`);
 process.exit(fails === 0 ? 0 : 1);

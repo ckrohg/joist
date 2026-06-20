@@ -102,11 +102,24 @@ function typoScore(s, c) {
 const genericClass = (f) => /mono|courier|consol/i.test(f) ? 'mono' : /serif/i.test(f) && !/sans/i.test(f) ? 'serif' : 'sans';
 const wnum = (w) => { if (typeof w === 'number') return w; const m = { normal: 400, bold: 700 }; return m[w] || parseInt(w, 10) || 400; };
 
+// VISIBILITY pre-filter (anti-Goodhart foundation): a text leaf that is invisible/off-screen is NOT content — drop it
+// from BOTH sides before matching AND from the source-weight denominator. Kills the exploit of stuffing required text
+// into invisible elements to farm recall. effectiveBg = leaf.bg ?? section bg ?? page bg (already prepped onto n.bg).
+function isVisibleLeaf(n) {
+  const sz = +((n.typo && n.typo.size)) || 16; if (sz < 4) return false;
+  const b = n.box || {}; if ((b.w || 0) < 2 || (b.h || 0) < 2) return false;
+  if (b.x < -1000 || b.y < -1000 || b.x > 6000) return false;
+  const fg = fgOf(n); if (fg && contrastRatio(fg, n.bg) < 1.15) return false; // fg ≈ effectiveBg → perceptually absent
+  return true;
+}
+
 // ── CORE: single-section correspondence ─────────────────────────────────────────────────────────────────────────
 export function correspondSection(srcLeavesRaw, cloneLeavesRaw, srcSec, cloneSec, ctx = {}) {
   const pageBgS = ctx.srcPageBg || 'rgb(255,255,255)', pageBgC = ctx.clonePageBg || 'rgb(255,255,255)';
   const prep = (leaves, sec, pageBg) => textLeaves(leaves).map((n) => ({ ...n, g: normGeo(n.box, sec), bg: n.bg || sec.bg || pageBg }));
-  const S = prep(srcLeavesRaw, srcSec, pageBgS), C = prep(cloneLeavesRaw, cloneSec, pageBgC);
+  // VISIBILITY pre-filter: drop invisible/off-screen leaves on BOTH sides (effectiveBg already on n.bg). Invisible text
+  // can never be matched (no recall farming) and never counts toward the source-weight denominator (it isn't content).
+  const S = prep(srcLeavesRaw, srcSec, pageBgS).filter(isVisibleLeaf), C = prep(cloneLeavesRaw, cloneSec, pageBgC).filter(isVisibleLeaf);
   const secHeightScore = Math.exp(-0.5 * (Math.log(Math.max(1, cloneSec.h) / Math.max(1, srcSec.h)) / 0.40) ** 2);
 
   // candidate text pairs (gate: text threshold + same band), greedy-EXCLUSIVE by descending assignment score.
@@ -131,6 +144,7 @@ export function correspondSection(srcLeavesRaw, cloneLeavesRaw, srcSec, cloneSec
   // LLEM aggregated over ALL source weight (unmatched source leaf → pairScore 0)
   const mOf = new Map(matches.map((m) => [m.i, m]));
   let llemW = 0; const axisAcc = { existence: 0, text: 0, position: 0, color: 0, typography: 0 };
+  const matchBreakdown = [], unmatchedSource = []; // per-block diagnostics for the downstream diagnose step (additive)
   for (let i = 0; i < S.length; i++) { const w = textWeight(S[i]); const m = mOf.get(i);
     let ax = { existence: 0, text: 0, position: 0, color: 0, typography: 0 }; let vis = 1;
     if (m) { const c = C[m.j]; vis = visibilityGate(S[i], c, S[i].bg, c.bg);
@@ -138,6 +152,8 @@ export function correspondSection(srcLeavesRaw, cloneLeavesRaw, srcSec, cloneSec
     // visibility multiplies the WHOLE pairScore: a matched-but-invisible element ≈ missing (perceptually).
     const pairScore = vis * (0.10 * ax.existence + 0.30 * ax.text + 0.25 * ax.position + 0.20 * ax.color + 0.15 * ax.typography);
     for (const k of Object.keys(axisAcc)) axisAcc[k] += w * vis * ax[k]; llemW += w * pairScore;
+    if (m) { const c = C[m.j]; matchBreakdown.push({ srcIdx: i, cloneIdx: m.j, srcText: S[i].text, cloneText: c.text, textSim: +m.ts.toFixed(4), axes: { position: +ax.position.toFixed(4), color: +ax.color.toFixed(4), typography: +ax.typography.toFixed(4) }, visibility: +vis.toFixed(4), pairScore: +pairScore.toFixed(4), srcBox: { x: S[i].box.x, y: S[i].box.y, w: S[i].box.w, h: S[i].box.h } }); }
+    else unmatchedSource.push({ idx: i, text: S[i].text, box: { x: S[i].box.x, y: S[i].box.y, w: S[i].box.w, h: S[i].box.h }, fg: fgOf(S[i]), bg: S[i].bg, typo: { size: (S[i].typo || {}).size, weight: (S[i].typo || {}).weight } });
   }
   const LLEM = W_S ? llemW / W_S : 1; const axes = {}; for (const k of Object.keys(axisAcc)) axes[k] = +(W_S ? axisAcc[k] / W_S : 1).toFixed(4);
 
@@ -149,7 +165,7 @@ export function correspondSection(srcLeavesRaw, cloneLeavesRaw, srcSec, cloneSec
   const textRecallCap = 0.05 + 0.95 * R_text;
   const imageRecallCap = visual.srcHasImages ? 1 - (visual.imgAreaFrac ?? 0.4) * (1 - visual.R) : 1; // area-aware (see correspondImages)
   const score = 100 * Math.min(base, textRecallCap, imageRecallCap);
-  return { score: +score.toFixed(2), blockMatchF2: +blockMatchF2.toFixed(4), R_text: +R_text.toFixed(4), P_text: +P_text.toFixed(4), LLEM: +LLEM.toFixed(4), axes, visualF2: +visual.F2.toFixed(4), imageRecall: +visual.R.toFixed(4), caps: { textRecallCap: +textRecallCap.toFixed(3), imageRecallCap: +imageRecallCap.toFixed(3) }, nSrc: S.length, nClone: C.length, nMatch: matches.length, W_S: +W_S.toFixed(1) };
+  return { score: +score.toFixed(2), blockMatchF2: +blockMatchF2.toFixed(4), R_text: +R_text.toFixed(4), P_text: +P_text.toFixed(4), LLEM: +LLEM.toFixed(4), axes, visualF2: +visual.F2.toFixed(4), imageRecall: +visual.R.toFixed(4), caps: { textRecallCap: +textRecallCap.toFixed(3), imageRecallCap: +imageRecallCap.toFixed(3) }, nSrc: S.length, nClone: C.length, nMatch: matches.length, W_S: +W_S.toFixed(1), matches: matchBreakdown, unmatchedSource };
 }
 
 function boxIoU(a, b) { const x0 = Math.max(a.x, b.x), y0 = Math.max(a.y, b.y), x1 = Math.min(a.x + a.w, b.x + b.w), y1 = Math.min(a.y + a.h, b.y + b.h); const iw = Math.max(0, x1 - x0), ih = Math.max(0, y1 - y0); const inter = iw * ih; const uni = a.w * a.h + b.w * b.h - inter; return uni ? inter / uni : 0; }
