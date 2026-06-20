@@ -178,7 +178,7 @@ reward change.
 - *Success metric:* absolute-scalar correlation to the human-anchor set improves over WS1-alone, and CLIP
   separates the dark-hero broken/clean pair where SSIM was flat.
 
-**WS5 — Responsive correspondence (native controls), then multi-page.**
+**WS5 — Responsive correspondence (native controls), then multi-page.**  *(measurement + emission BUILT 2026-06-20)*
 - *Deliverable:* capture + correspond at **3 viewports**; emit native `_tablet`/`_mobile` Elementor
   controls instead of routing font-size + off-grid breakpoints through a `custom_css @media` channel that
   Hello+Free strips; grade per-breakpoint correspondence. Slot **multi-page / whole-site round-trip** as
@@ -187,6 +187,17 @@ reward change.
   correspondence extends per-viewport trivially.
 - *Success metric:* per-breakpoint Block-Match/LLEM at 768/390 within tolerance of desktop; native controls
   firing (**zero `@media` in `custom_css`**).
+- *Status (2026-06-20):*
+  - **Measurement DONE** — `correspondence-responsive.mjs` (per-bp grade + desktop/mobile-min/GAP),
+    `_correspondence-responsive-selftest.mjs` hermetic ALL PASS. Live: a desktop-only fixture collapses
+    59.6→38.63→11.66 (gap 47.94) — quantifies the gap. `_ws5-quantify.mjs`.
+  - **Emission ALREADY EXISTS** in `transpile-html.mjs`: MOVE-1 `responsiveTypo` emits native
+    `typography_font_size_tablet/_mobile` (+ line-height); MOVE-2 native grid regroup → `width_tablet/_mobile`;
+    P3 custom-breakpoint tablet controls + scoped css; mobile width-pin clears. Reversible:
+    `RESPONSIVE_NO_NATIVE_FONTSIZE=1`. Deterministically VERIFIED firing (h1 64→40→28 → native controls in tree).
+  - **Emission A/B** (`_ws5-emission-ab.mjs` + `_ws5-responsive-hero.html`): responsive-source fixture →
+    clone gap ON vs OFF, proves the native controls SURVIVE Hello+Free and close the gap live. [result pending live run]
+  - **LEFT:** multi-page / whole-site round-trip epic; responsive on the *absolute* builder (still desktop-pin).
 
 *(Riding all five, not a workstream: round-trip editability stays a hard green gate — every output is
 native V3 widgets, never raster.)*
