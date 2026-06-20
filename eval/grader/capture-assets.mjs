@@ -60,6 +60,7 @@ const CROP_CAP = parseInt(flag('crop-cap', '120'), 10);   // GAP 1 — region-ra
 const NO_SVGFIX = process.env.CAPTURE_NO_SVGFIX === '1';  // GAP 2 — fall back to raw <svg>.outerHTML
 const NO_DOM    = process.env.CAPTURE_NO_DOM === '1';     // GAP 3 — skip outline.txt + source.html
 const NO_CROPS  = process.env.CAPTURE_NO_CROPS === '1';   // GAP 1 — skip crops/ + crops-manifest.json
+const NO_CSS_INLINE = process.env.CAPTURE_NO_CSS_INLINE === '1'; // GAP 4 — leave external <link> CSS (source.html not self-contained)
 if (!SOURCE || !OUT) {
   console.error('usage: node capture-assets.mjs --source <url> --out <dir> [--widths 1440,1100,768] [--max-px 20000]');
   process.exit(2);
@@ -408,6 +409,30 @@ async function extractFacts(page, opts) {
     // a few representative paragraph lines. Built from the SAME band heuristic as the section map so the outline
     // lines up 1:1 with sections/w<W>-s<i>.png. Best-effort & defensive — never throws out of the evaluate.
     if (O.emitDom) {
+      // GAP 4 (reversible: CAPTURE_NO_CSS_INLINE): INLINE all accessible stylesheet CSS so source.html is
+      // SELF-CONTAINED and transpilable OFFLINE. The page is loaded ONLINE here (full CSSOM) but transpile-html
+      // re-loads source.html from file:// — external <link rel=stylesheet> (e.g. Next.js /_next/static/*.css) then
+      // 404s and the projection renders UNSTYLED (hero h1 falls back to ~32px). Serialize every accessible sheet's
+      // cssText into one <style> and remove the external links. Cross-origin sheets throw on .cssRules → skipped.
+      if (!O.noCssInline) {
+        try {
+          const blocks = []; let nSheets = 0;
+          for (const sheet of Array.from(document.styleSheets)) {
+            let rules; try { rules = sheet.cssRules; } catch { continue; } // cross-origin (e.g. fonts CDN) → skip
+            if (!rules || !rules.length) continue;
+            let css = ''; for (const r of Array.from(rules)) { try { css += r.cssText + '\n'; } catch {} }
+            if (css.trim()) { blocks.push(css); nSheets++; }
+          }
+          if (blocks.length) {
+            const styleEl = document.createElement('style');
+            styleEl.setAttribute('data-joist-inlined', String(nSheets));
+            styleEl.textContent = blocks.join('\n');
+            document.head.appendChild(styleEl);
+            document.querySelectorAll('link[rel="stylesheet"]').forEach((l) => l.parentNode && l.parentNode.removeChild(l));
+            out.cssInlined = nSheets;
+          }
+        } catch { out.cssInlined = 0; }
+      }
       try {
         out.domHtml = '<!doctype html>\n' + document.documentElement.outerHTML;
       } catch { out.domHtml = ''; }
@@ -707,7 +732,7 @@ for (const w of WIDTHS) {
     fs.writeFileSync(path.join(OUT, shotRel), shotBuf);
 
     const wantDom = !NO_DOM && !domWritten;   // GAP 3 — extract rendered DOM + outline on the FIRST good width
-    const facts = await extractFacts(page, { maxPx: MAX_PX, elCap: EL_CAP, ruleElCap: RULE_EL_CAP, perElRuleCap: PER_EL_RULE_CAP, mediaRuleCap: MEDIA_RULE_CAP, assetCap: ASSET_CAP, noSvgFix: NO_SVGFIX, emitCrops: !NO_CROPS, cropCap: CROP_CAP, emitDom: wantDom });
+    const facts = await extractFacts(page, { maxPx: MAX_PX, elCap: EL_CAP, ruleElCap: RULE_EL_CAP, perElRuleCap: PER_EL_RULE_CAP, mediaRuleCap: MEDIA_RULE_CAP, assetCap: ASSET_CAP, noSvgFix: NO_SVGFIX, emitCrops: !NO_CROPS, cropCap: CROP_CAP, emitDom: wantDom, noCssInline: NO_CSS_INLINE });
 
     // GAP 3: persist source.html + outline.txt from the first width that yielded them. Written here (not at the
     // end) so a later-width crash can't lose them — the prior "missing for linear, present for clerk" failure.
