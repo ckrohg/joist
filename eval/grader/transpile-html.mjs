@@ -652,7 +652,11 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
       border_radius: dims(px(n.s['border-radius']), px(n.s['border-radius']), px(n.s['border-radius']), px(n.s['border-radius'])),
       text_padding: dims(vpad, px(n.s['padding-right']) || 16, vpad, px(n.s['padding-left']) || 16),
       background_background: 'classic',
-      background_color: hex(n.s['background-color']) || '#FFFFFF',
+      // GHOST-CTA fix: a transparent source button (white text + transparent bg + a faint gradient, legible on a DARK
+      // page — resend hero 'Get started') must NOT fall back to #FFFFFF: that painted the pill white and made the white
+      // label INVISIBLE (white-on-white). Emit transparent so the dark parent shows through and the label stays
+      // legible — faithful to the source ghost button. Opaque source bgs are unchanged. Reversible: TRANSPILE_NO_GHOST_CTA=1.
+      background_color: hex(n.s['background-color']) || (process.env.TRANSPILE_NO_GHOST_CTA ? '#FFFFFF' : 'rgba(0,0,0,0)'),
       ...borderSettings(n.s),
       ...widgetCommon(n),
     };
@@ -1110,7 +1114,9 @@ export function validateTree(elements, errs = [], pathStr = 'root') {
       if (SIZE_KEYS.test(k)) {
         if (!v || typeof v !== 'object' || typeof v.size !== 'number' || !Number.isFinite(v.size) || !v.unit) errs.push(`${p}.${k}: bad size shape`);
       }
-      if (/_color$/.test(k) && typeof v === 'string' && v && !/^#[0-9a-fA-F]{6}$/.test(v)) errs.push(`${p}.${k}: bad color "${v}"`);
+      // Elementor color controls accept 3/6/8-digit hex, rgb()/rgba() and 'transparent' — not just 6-hex. The old
+      // 6-hex-only check rejected the legitimate transparent ghost-CTA background (rgba(0,0,0,0)).
+      if (/_color$/.test(k) && typeof v === 'string' && v && !/^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?([0-9a-fA-F]{2})?$/.test(v) && !/^rgba?\([\d.,\s]+\)$/.test(v) && v !== 'transparent') errs.push(`${p}.${k}: bad color "${v}"`);
       if (k === 'selected_icon' && (!v || typeof v.value !== 'string' || !v.library)) errs.push(`${p}.${k}: bad icon shape`);
     }
     if (el.elType === 'widget') {
