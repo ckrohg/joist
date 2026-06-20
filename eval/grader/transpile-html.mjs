@@ -175,6 +175,11 @@ export async function extract(htmlFile, width) {
         if (n.nodeType === 3) { if (prevWasEl && gapSep && !/^\s/.test(n.textContent)) html += gapSep; html += n.textContent; prevWasEl = false; }
         else if (n.nodeType === 1 && n.tagName === 'BR') { html += '<br>'; prevWasEl = false; }
         else if (n.nodeType === 1) {
+          // LEVER A': never emit non-rendered text. A leaf div containing an inline <script>/<style> (e.g. a
+          // text-wrap-balance polyfill `self.__wrap_n=...`) otherwise has its JS/CSS source grabbed as a visible
+          // text widget. Also skip elements hidden at the authoring width (display:none responsive duplicates).
+          if (['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE'].includes(n.tagName)) continue;
+          if (!opts.noVisGate && isHiddenEl(n)) continue;
           if (prevWasEl && gapSep) html += gapSep;
           const st = inlineSpan(n, cs);
           html += `<span${st ? ` style="${st}"` : ''}>${n.textContent}</span>`;
@@ -281,11 +286,34 @@ export async function extract(htmlFile, width) {
       }
       node.autoML = (node.declared['margin-left'] || '') === 'auto';
       node.autoMR = (node.declared['margin-right'] || '') === 'auto';
-      if (!isLeaf) node.children = kids.map(ser).filter(Boolean);
+      if (!isLeaf) {
+        // LEVER b (reversible: TRANSPILE_NO_LOOSE_TEXT): build children in DOM order, SYNTHESIZING a text leaf for any
+        // significant LOOSE TEXT node (direct text interleaved with element children). Without this a non-leaf container
+        // — e.g. <p>prose<a>link</a>more prose</p> or <button>Features<svg/></button> — recurses into its element
+        // children only and DROPS its own text. On resend this lost ~326 words of body prose + the whole nav.
+        if (opts.noLooseText) { node.children = kids.map(ser).filter(Boolean); }
+        else {
+          const out = [];
+          for (const cn of el.childNodes) {
+            if (cn.nodeType === 1) {
+              if (['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE'].includes(cn.tagName)) continue;
+              if (!opts.noVisGate && isHiddenEl(cn)) continue;
+              const sub = ser(cn); if (sub) out.push(sub);
+            } else if (cn.nodeType === 3) {
+              const tx = cn.textContent.replace(/\s+/g, ' ').trim();
+              if (tx.length < 2) continue;
+              const range = document.createRange(); range.selectNodeContents(cn); const rr = range.getBoundingClientRect();
+              if (rr.width < 1 || rr.height < 1) continue; // not laid out (whitespace-only / collapsed) → skip
+              out.push({ tag: 'span', cls: '', isLeaf: true, isBtn: false, rect: { x: Math.round(rr.x), y: Math.round(rr.y), w: Math.round(rr.width), h: Math.round(rr.height) }, declared: {}, media: [], text: tx, parts: null, s: { ...node.s }, synthLoose: true });
+            }
+          }
+          node.children = out;
+        }
+      }
       return node;
     };
     return { tree: ser(document.body), notes };
-  }, { noVisGate: process.env.TRANSPILE_NO_VIS_GATE === '1' });
+  }, { noVisGate: process.env.TRANSPILE_NO_VIS_GATE === '1', noLooseText: process.env.TRANSPILE_NO_LOOSE_TEXT === '1' });
   await browser.close();
   return spec;
 }
