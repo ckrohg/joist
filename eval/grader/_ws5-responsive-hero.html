@@ -1,0 +1,32 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- @purpose _ws5-responsive-hero.html — WS5 emission A/B fixture: a hero whose typography reflows via source @media
+     (h1 64→40→28, sub 22→18→15, cta 18→16→14). Captured DIRECTLY as the responsive "source"; transpiled→rendered as the
+     "clone". With MOVE-1 emission ON the clone's native _tablet/_mobile controls reflow it to match; OFF (the stripped
+     custom_css @media channel) it stays desktop-size at 390. Self-contained, dark bg, visible text. -->
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#08080a;color:#fff;font-family:Inter,Arial,sans-serif}
+  .hero{min-height:760px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:120px 64px;gap:28px}
+  .hero h1{font-size:64px;line-height:68px;font-weight:700;letter-spacing:-0.02em;max-width:900px;color:#ffffff}
+  .hero p{font-size:22px;line-height:32px;font-weight:400;max-width:620px;color:#c8c8d0}
+  .hero a.cta{font-size:18px;line-height:24px;font-weight:600;color:#08080a;background:#d7ff3e;padding:14px 28px;border-radius:8px;text-decoration:none;display:inline-block}
+  @media (max-width:768px){
+    .hero{padding:80px 32px;min-height:620px}
+    .hero h1{font-size:40px;line-height:44px}
+    .hero p{font-size:18px;line-height:26px}
+    .hero a.cta{font-size:16px;line-height:22px}
+  }
+  @media (max-width:390px){
+    .hero{padding:56px 20px;min-height:520px}
+    .hero h1{font-size:28px;line-height:32px}
+    .hero p{font-size:15px;line-height:22px}
+    .hero a.cta{font-size:14px;line-height:20px}
+  }
+</style></head>
+<body>
+  <section class="hero">
+    <h1>Email for developers, reflowed at every width</h1>
+    <p>The best platform to reach humans instead of spam folders — responsive typography that holds from desktop to phone.</p>
+    <a class="cta" href="#">Get started</a>
+  </section>
+</body></html>
