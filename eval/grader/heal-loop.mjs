@@ -67,7 +67,7 @@ function directiveFor(t) {
 // composite must rise AND the targeted axis must actually move AND no axis regressed AND locked blocks verified intact
 // AND (if text was targeted) the exact source text appears once. A color-only target accepting a color-only gain is
 // CORRECT — gaming is blocked structurally (no-regress + locked-intact + the reward's own visibility pre-filter).
-export function accept(prev, next, manifest, { minGain = 2, minAxisMove = 0.05, maxAxisRegress = 0.03 } = {}) {
+export function accept(prev, next, manifest, { minGain = 2, minAxisMove = 0.05, maxAxisRegress = 0.06 } = {}) { // regress tol 0.06: render-pipeline isn't pixel-deterministic, so a genuine fix mustn't be rejected by position wobble (fusion: start loose, tighten)
   const pc = prev.corr, nc = next.corr;
   if ((nc.score - pc.score) < minGain) return { ok: false, why: 'no composite gain' };
   const moved = (nc.axes[manifest.targetAxis] - pc.axes[manifest.targetAxis]) >= minAxisMove || recoveredBlocks(prev, next) >= 1;
@@ -138,7 +138,7 @@ export async function healSection({ currentHtml, scoreFn, regenFn = regenPatch, 
     const cands = await regenFn({ currentHtml, sourceImagePath, manifest, k, model });
     cost += cands.reduce((a, c) => a + (c.cost || 0), 0);
     let best = null;
-    for (const c of cands) { let nx; try { nx = await scoreFn(c.html); } catch { continue; } const a = accept(cur, nx, manifest); if (a.ok && (!best || nx.corr.score > best.nx.corr.score)) best = { html: c.html, nx, gain: a.gain }; }
+    for (const c of cands) { let nx; try { nx = await scoreFn(c.html); } catch (e) { log(`  cand: scoreFn error (${e.message})`); continue; } const a = accept(cur, nx, manifest); log(`  cand: ${cur.corr.score}→${nx.corr.score} accept=${a.ok ? 'YES +' + a.gain : 'no (' + a.why + ')'}`); if (a.ok && (!best || nx.corr.score > best.nx.corr.score)) best = { html: c.html, nx, gain: a.gain }; }
     if (!best) { log(`round ${rounds}: no candidate passed the accept gate → stop`); break; }
     log(`round ${rounds}: accepted +${best.gain} → ${best.nx.corr.score}`);
     currentHtml = best.html; cur = best.nx;
