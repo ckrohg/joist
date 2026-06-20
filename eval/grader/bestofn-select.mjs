@@ -15,11 +15,31 @@
  *        [--panel 3] [--model haiku] [--json]
  * Renders NOTHING; reads PNGs/trees + calls `claude -p`. Pairs --trees positionally with --candidates (optional).
  */
+import fs from 'fs';
 import path from 'path';
-import { judgeRender } from './reward-vision.mjs';
+import { judgeRender, judgeListwise } from './reward-vision.mjs';
+import { floorCheck } from './reward-features.mjs';
 
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i >= 0 ? process.argv[i + 1] : d; };
 const has = (k) => process.argv.includes('--' + k);
+
+// CHEAP selector: (1) $0/eval VETO-FLOOR pre-filter rejects gross-broken candidates; (2) ONE batched LISTWISE judge
+// ranks the survivors on a single consistent scale (cheap + stable vs K independent calls). Falls back to listwise-all
+// when everything floors. This is the pragmatic distilled-reward selection: free reject of the worst + cheap stable rank.
+export async function bestOfNCheap({ sourcePng, candidates, sidecarFracs = null, model = 'haiku' }) {
+  const floors = candidates.map((c) => ({ cand: c, floor: floorCheck(sourcePng, c, { sidecarFracs }) }));
+  let pool = floors.filter((f) => !f.floor.floored).map((f) => f.cand);
+  const allFloored = pool.length === 0;
+  if (allFloored) pool = candidates; // nothing survived → still rank them so we return the least-bad
+  const lw = pool.length ? await judgeListwise({ sourcePng, renderPngs: pool, model }) : { visual: [], cost: 0 };
+  const lwOf = (c) => { const i = pool.indexOf(c); return i >= 0 ? (lw.visual?.[i] ?? null) : null; };
+  const rows = floors.map((f) => {
+    const floored = f.floor.floored && !allFloored; const v = lwOf(f.cand);
+    return { cand: f.cand, floored, visual: floored ? null : v, reward: floored ? 0 : (v == null ? null : +(v / 100).toFixed(3)), floorReasons: f.floor.reasons };
+  });
+  rows.sort((a, b) => (b.reward ?? -1) - (a.reward ?? -1));
+  return { winner: rows[0], ranked: rows, flooredCount: floors.filter((f) => f.floor.floored).length, allFloored, cost: +(lw.cost || 0).toFixed(4), model, mode: 'floor+listwise' };
+}
 
 export async function bestOfN({ sourcePng, candidates, trees = [], panel = 3, model = 'haiku' }) {
   const rows = [];
@@ -40,7 +60,18 @@ const IS_MAIN = process.argv[1] && path.resolve(process.argv[1]) === path.resolv
 if (IS_MAIN) (async () => {
   const SRC = arg('source'); const cands = (arg('candidates') || '').split(',').map((s) => s.trim()).filter(Boolean);
   const trees = (arg('trees') || '').split(',').map((s) => s.trim()).filter(Boolean);
-  if (!SRC || !cands.length) { console.error('usage: bestofn-select.mjs --source <png> --candidates a.png,b.png,... [--trees a.json,...] [--panel 3] [--model haiku] [--json]'); process.exit(2); }
+  if (!SRC || !cands.length) { console.error('usage: bestofn-select.mjs --source <png> --candidates a.png,b.png,... [--trees a.json,...]\n   panel mode:  [--panel 3] [--model haiku]\n   cheap mode:  --cheap [--sections <src.sections.json>]   (veto-floor pre-filter + one batched listwise judge)'); process.exit(2); }
+  if (has('cheap')) {
+    let sidecarFracs = null; const sFile = arg('sections'); if (sFile) { try { const j = JSON.parse(fs.readFileSync(sFile, 'utf8')); sidecarFracs = Array.isArray(j) ? j : j.fracs; } catch (e) { console.error('bad --sections:', e.message); } }
+    const res = await bestOfNCheap({ sourcePng: SRC, candidates: cands, sidecarFracs, model: arg('model', 'haiku') });
+    if (has('json')) { console.log(JSON.stringify(res, null, 2)); return; }
+    console.log(`\n=== BEST-OF-N CHEAP (veto-floor + listwise ${res.model}) ===`);
+    console.log(`floored ${res.flooredCount}/${cands.length} (gross-broken, $0/eval pre-filter)${res.allFloored ? ' — ALL floored, ranking anyway' : ''}`);
+    console.log('rank  candidate              floored  visual  reward  floor-reasons');
+    res.ranked.forEach((r, i) => console.log(`  ${i + 1}.  ${path.basename(r.cand).padEnd(20)}  ${r.floored ? 'FLOOR' : '  -  '}    ${String(r.visual ?? '-').padStart(4)}    ${r.reward ?? '-'}    ${(r.floorReasons || []).join(',')}`));
+    console.log(`\nSELECTED → ${path.basename(res.winner.cand)} (reward ${res.winner.reward})  |  one LLM call, cost $${res.cost}`);
+    return;
+  }
   const res = await bestOfN({ sourcePng: SRC, candidates: cands, trees, panel: +arg('panel', 3), model: arg('model', 'haiku') });
   if (has('json')) { console.log(JSON.stringify(res, null, 2)); return; }
   console.log(`\n=== BEST-OF-N SELECT (reward-vision, panel=${res.panel} ${res.model}) ===`);

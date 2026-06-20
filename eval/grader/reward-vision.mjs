@@ -62,6 +62,48 @@ function scoreOnce(srcAbs, candAbs, { model = 'haiku', timeoutMs = 180000 } = {}
   });
 }
 
+// ── LISTWISE judge: ONE `claude -p` call scores ALL K candidates against the source together. ~1/K the cost of K
+// independent calls AND internally consistent (the judge sees every candidate on one scale) → far more STABLE selection
+// than independent per-candidate calls (which reshuffle run-to-run). Order is shuffled to blunt position bias.
+const LISTWISE_RUBRIC = (srcAbs, items) => `You are a STRICT visual-fidelity judge for a website-cloning system.
+First Read the TARGET (the original we are reproducing): ${srcAbs}
+Then Read each CANDIDATE reconstruction and score how faithfully it reproduces the TARGET:
+${items.map((it) => `  [${it.key}] ${it.path}`).join('\n')}
+
+Score EACH 0-100. Weigh: completeness (logo, full nav, badge, headline, sub-text, every CTA); correctness (text correct
+and correctly wrapped; nav a single clean horizontal row); broken-artifact penalties (broken/wrapped/orange nav; missing
+or wrong logo; clipped/garbled text; INVISIBLE white-on-white button; element at wrong size e.g. a small badge as a
+full-width bar); layout/type/color match. Anchors: pixel-perfect=100; faithful w/ minor flaws=65-85; recognizable but
+clearly broken=15-40; blank/unrecognizable=0. Be discriminating; you are ranking them against EACH OTHER on one scale.
+
+Output ONLY this JSON (no prose): {"scores": {${items.map((it) => `"${it.key}": <0-100>`).join(', ')}}}`;
+
+export async function judgeListwise({ sourcePng, renderPngs, model = 'haiku', timeoutMs = 240000 }) {
+  const srcAbs = path.resolve(sourcePng);
+  // shuffle order (deterministic rotation by length — no Math.random) to reduce position bias.
+  const idx = renderPngs.map((_, i) => i); const rot = renderPngs.length ? (renderPngs.length % 7 + 1) : 0;
+  const shuffled = idx.map((_, i) => idx[(i + rot) % idx.length]);
+  const items = shuffled.map((origIdx, k) => ({ key: String(k), origIdx, path: path.resolve(renderPngs[origIdx]) }));
+  const prompt = LISTWISE_RUBRIC(srcAbs, items);
+  const res = await new Promise((resolve) => {
+    let child = null; const hard = setTimeout(() => { try { if (child) child.kill('SIGKILL'); } catch {} resolve({ ok: false, error: 'hard-timeout' }); }, timeoutMs + 30000); hard.unref();
+    child = execFile('claude', ['-p', prompt, '--model', model, '--output-format', 'json', '--allowedTools', 'Read', '--max-budget-usd', '0.50', '--strict-mcp-config', '--setting-sources', ''],
+      { timeout: timeoutMs, killSignal: 'SIGKILL', maxBuffer: 16 * 1024 * 1024, cwd: '/tmp' }, (err, stdout) => {
+        clearTimeout(hard); if (err && !stdout) return resolve({ ok: false, error: String(err && err.message || err) });
+        let outer = null; try { outer = JSON.parse(stdout); } catch {} if (!outer) return resolve({ ok: false, error: 'outer JSON parse failed' });
+        const obj = extractJson(outer.result); const sc = obj && obj.scores;
+        if (!sc) return resolve({ ok: false, error: 'scores JSON invalid', cost: +outer.total_cost_usd || 0, raw: String(outer.result || '').slice(0, 300) });
+        resolve({ ok: true, scores: sc, cost: +outer.total_cost_usd || 0 });
+      });
+    child.on('error', () => resolve({ ok: false, error: 'spawn failed' }));
+  });
+  if (!res.ok) return { ok: false, error: res.error, cost: res.cost || 0 };
+  // de-shuffle back to original candidate order
+  const visual = new Array(renderPngs.length).fill(null);
+  for (const it of items) { const v = res.scores[it.key]; if (typeof v === 'number') visual[it.origIdx] = Math.max(0, Math.min(100, v)); }
+  return { ok: true, visual, cost: +(res.cost || 0).toFixed(4) };
+}
+
 // native-widget editability coverage from a transpiled/built Elementor tree (anti-raster term).
 function editability(treePath, target = 15) {
   try { const t = JSON.parse(fs.readFileSync(treePath, 'utf8')); const n = Array.isArray(t) ? t : [t]; let w = 0;

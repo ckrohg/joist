@@ -54,6 +54,24 @@ export function features(srcPng, renderPng, treePath = null, { editTarget = 15 }
   return { ssimCoarse, ssimFine, vetoFatal, vetoHigh, logoFatal, heroDefect, headingDefect, ctaDefect, colorHistDist, inkDelta, widgets, editability };
 }
 
+// VETO-FLOOR pre-filter: a $0/eval reject of GROSS-broken candidates (blank/missing hero, broken/missing logo,
+// invisible heading) using region-judge's deterministic detectors — runs BEFORE any LLM judge so best-of-N never
+// spends a call on (or selects) an obviously-broken candidate. Pass the source's DOM-section sidecar fracs to also
+// catch invisible-heading (it needs RJ_HEADING_DARKINK_GUARD=1 + section localization); without them it catches the
+// gross structural breaks only. NOT a full reward — it floors the worst; the LLM judge ranks the survivors.
+export function floorCheck(srcPng, renderPng, { sidecarFracs = null } = {}) {
+  const src = loadPng(srcPng), ren = loadPng(renderPng);
+  const regions = segmentRegions(src, ren, 8, sidecarFracs);
+  let vetoFatal = 0, heroDefect = 0, headingDefect = 0, logoFatal = 0; const reasons = [];
+  for (const r of regions) for (const v of corroborate(r, src, ren).vetoes) {
+    if (v.severity === 'fatal') { vetoFatal++; reasons.push(v.fatalClass + ':fatal'); }
+    if (v.fatalClass === 'hero') heroDefect = 1; if (v.fatalClass === 'heading') headingDefect = 1;
+    if (v.fatalClass === 'logo' && v.severity === 'fatal') logoFatal = 1;
+  }
+  const floored = vetoFatal > 0 || heroDefect === 1 || headingDefect === 1;
+  return { floored, vetoFatal, heroDefect, headingDefect, logoFatal, reasons: [...new Set(reasons)] };
+}
+
 const IS_MAIN = process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop());
 if (IS_MAIN) { const a = (k) => { const i = process.argv.indexOf('--' + k); return i >= 0 ? process.argv[i + 1] : null; };
   console.log(JSON.stringify(features(a('source'), a('render'), a('tree')), null, 2)); }
