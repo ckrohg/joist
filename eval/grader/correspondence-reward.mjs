@@ -153,8 +153,12 @@ export function correspondSection(srcLeavesRaw, cloneLeavesRaw, srcSec, cloneSec
     const pairScore = vis * (0.10 * ax.existence + 0.30 * ax.text + 0.25 * ax.position + 0.20 * ax.color + 0.15 * ax.typography);
     for (const k of Object.keys(axisAcc)) axisAcc[k] += w * vis * ax[k]; llemW += w * pairScore;
     if (m) { const c = C[m.j]; matchBreakdown.push({ srcIdx: i, cloneIdx: m.j, srcText: S[i].text, cloneText: c.text, textSim: +m.ts.toFixed(4), axes: { position: +ax.position.toFixed(4), color: +ax.color.toFixed(4), typography: +ax.typography.toFixed(4) }, visibility: +vis.toFixed(4), pairScore: +pairScore.toFixed(4), srcBox: { x: S[i].box.x, y: S[i].box.y, w: S[i].box.w, h: S[i].box.h } }); }
-    else unmatchedSource.push({ idx: i, text: S[i].text, box: { x: S[i].box.x, y: S[i].box.y, w: S[i].box.w, h: S[i].box.h }, fg: fgOf(S[i]), bg: S[i].bg, typo: { size: (S[i].typo || {}).size, weight: (S[i].typo || {}).weight } });
+    else unmatchedSource.push({ idx: i, text: S[i].text, box: { x: S[i].box.x, y: S[i].box.y, w: S[i].box.w, h: S[i].box.h }, ny: +S[i].g.ny.toFixed(4), fg: fgOf(S[i]), bg: S[i].bg, typo: { size: (S[i].typo || {}).size, weight: (S[i].typo || {}).weight } });
   }
+  // UNMATCHED CLONE blocks (matched nothing) — present-but-wrong content. Paired with a nearby unmatched-source by the
+  // diagnose step into a 'wrong-text-in-place' fix (vs a duplicating 'add'), so the loop heals the changed-content class.
+  const unmatchedClone = [];
+  for (let j = 0; j < C.length; j++) if (!usedC.has(j)) unmatchedClone.push({ cloneIdx: j, healId: C[j].healId || null, text: C[j].text, box: { x: C[j].box.x, y: C[j].box.y, w: C[j].box.w, h: C[j].box.h }, ny: +C[j].g.ny.toFixed(4) });
   const LLEM = W_S ? llemW / W_S : 1; const axes = {}; for (const k of Object.keys(axisAcc)) axes[k] = +(W_S ? axisAcc[k] / W_S : 1).toFixed(4);
 
   // images (ctx.textOnly skips them entirely — for isolating the text/layout/color signal from the image confound)
@@ -165,7 +169,7 @@ export function correspondSection(srcLeavesRaw, cloneLeavesRaw, srcSec, cloneSec
   const textRecallCap = 0.05 + 0.95 * R_text;
   const imageRecallCap = visual.srcHasImages ? 1 - (visual.imgAreaFrac ?? 0.4) * (1 - visual.R) : 1; // area-aware (see correspondImages)
   const score = 100 * Math.min(base, textRecallCap, imageRecallCap);
-  return { score: +score.toFixed(2), blockMatchF2: +blockMatchF2.toFixed(4), R_text: +R_text.toFixed(4), P_text: +P_text.toFixed(4), LLEM: +LLEM.toFixed(4), axes, visualF2: +visual.F2.toFixed(4), imageRecall: +visual.R.toFixed(4), caps: { textRecallCap: +textRecallCap.toFixed(3), imageRecallCap: +imageRecallCap.toFixed(3) }, nSrc: S.length, nClone: C.length, nMatch: matches.length, W_S: +W_S.toFixed(1), matches: matchBreakdown, unmatchedSource };
+  return { score: +score.toFixed(2), blockMatchF2: +blockMatchF2.toFixed(4), R_text: +R_text.toFixed(4), P_text: +P_text.toFixed(4), LLEM: +LLEM.toFixed(4), axes, visualF2: +visual.F2.toFixed(4), imageRecall: +visual.R.toFixed(4), caps: { textRecallCap: +textRecallCap.toFixed(3), imageRecallCap: +imageRecallCap.toFixed(3) }, nSrc: S.length, nClone: C.length, nMatch: matches.length, W_S: +W_S.toFixed(1), matches: matchBreakdown, unmatchedSource, unmatchedClone };
 }
 
 function boxIoU(a, b) { const x0 = Math.max(a.x, b.x), y0 = Math.max(a.y, b.y), x1 = Math.min(a.x + a.w, b.x + b.w), y1 = Math.min(a.y + a.h, b.y + b.h); const iw = Math.max(0, x1 - x0), ih = Math.max(0, y1 - y0); const inter = iw * ih; const uni = a.w * a.h + b.w * b.h - inter; return uni ? inter / uni : 0; }

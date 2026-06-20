@@ -41,7 +41,16 @@ export function diagnose(corr, cloneLeaves, { lockComposite = 0.85, lockAxisMin 
     const worst = Object.entries(ax).sort((a, b) => a[1] - b[1])[0]; // [axisName, score]
     cands.push({ issue: worst[0] === 'text' ? 'wrong-text' : 'wrong-' + worst[0], axis: worst[0], severity: (1 - worst[1]) * Math.sqrt(Math.max(1, (m.srcBox?.w || 50) * (m.srcBox?.h || 20))), srcText: m.srcText, box: m.srcBox, currentHealId: healOf(m.cloneIdx), directive: null });
   }
-  for (const u of corr.unmatchedSource || []) cands.push({ issue: 'missing', axis: 'existence', severity: 2 * Math.sqrt(Math.max(1, (u.box?.w || 50) * (u.box?.h || 20))), srcText: u.text, box: u.box, fg: u.fg, typo: u.typo, directive: null });
+  // WRONG-CONTENT-IN-PLACE: pair each unmatched SOURCE block with a nearby unmatched CLONE block (same band) — that
+  // clone block is the WRONG version (e.g. source "Email for developers" vs clone "Email for everyone"), so fix it IN
+  // PLACE (wrong-text on its heal-id) instead of a duplicating "add missing". Leftover unmatched source = truly missing.
+  const uClonePool = (corr.unmatchedClone || []).filter((c) => c.healId != null);
+  for (const u of corr.unmatchedSource || []) {
+    const sev = 2 * Math.sqrt(Math.max(1, (u.box?.w || 50) * (u.box?.h || 20)));
+    let bi = -1, bd = 0.15; for (let ci = 0; ci < uClonePool.length; ci++) { const d = Math.abs((u.ny ?? 0) - (uClonePool[ci].ny ?? 0)); if (d < bd) { bd = d; bi = ci; } }
+    if (bi >= 0) { const c = uClonePool.splice(bi, 1)[0]; cands.push({ issue: 'wrong-text', axis: 'text', severity: sev, srcText: u.text, box: u.box, currentHealId: c.healId, directive: null }); }
+    else cands.push({ issue: 'missing', axis: 'existence', severity: sev, srcText: u.text, box: u.box, fg: u.fg, typo: u.typo, directive: null });
+  }
   cands.sort((a, b) => b.severity - a.severity);
   const targets = cands.slice(0, maxTargets).map((t) => ({ ...t, directive: directiveFor(t) }));
   // the dominant low axis (for accept's "targeted axis moved" check) + whether any target touches text/existence.
