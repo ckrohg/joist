@@ -50,14 +50,14 @@ function trigramJaccard(a, b) { const ga = trigrams(a), gb = trigrams(b); let in
 function textSim(a, b) { const na = norm(a), nb = norm(b); if (na === nb) return 1; const L = Math.max(na.length, nb.length, 1); if (L > 120) return trigramJaccard(na, nb); return 1 - levenshtein(na, nb) / L; }
 
 // ── leaf extraction + sectioning ────────────────────────────────────────────────────────────────────────────────
-function flatten(tree) { const root = tree.root || tree; const out = []; let di = 0;
+export function flatten(tree) { const root = tree.root || tree; const out = []; let di = 0;
   (function w(n) { if (!n) return; if (n.children && n.children.length) { n.children.forEach(w); return; } out.push({ ...n, domIndex: di++ }); })(root); return out; }
 const fgOf = (n) => (n.paint && n.paint.value) || n.color || null;
 const isText = (n) => n.text && norm(n.text) !== '';
 function textLeaves(leaves) { return leaves.filter(isText).map((n) => ({ ...n, ntext: norm(n.text) })); }
 function imageLeaves(leaves) { return leaves.filter((n) => n.kind === 'image' && n.box && n.box.w > 4 && n.box.h > 4); }
 // section segmentation by vertical-gap (fallback; clone Elementor sections / source full-width ancestors = upgrade).
-function segmentSections(leaves, pageBox) {
+export function segmentSections(leaves, pageBox) {
   const txt = leaves.filter((n) => n.box).sort((a, b) => a.box.y - b.box.y); if (!txt.length) return [{ box: pageBox, leaves }];
   const lh = txt.map((n) => n.box.h).filter((h) => h > 0).sort((a, b) => a - b); const medLH = lh[Math.floor(lh.length / 2)] || 20;
   const gapThr = Math.max(2 * medLH, 64); const bands = []; let cur = [txt[0]]; let prevBottom = txt[0].box.y + txt[0].box.h;
@@ -141,13 +141,13 @@ export function correspondSection(srcLeavesRaw, cloneLeavesRaw, srcSec, cloneSec
   }
   const LLEM = W_S ? llemW / W_S : 1; const axes = {}; for (const k of Object.keys(axisAcc)) axes[k] = +(W_S ? axisAcc[k] / W_S : 1).toFixed(4);
 
-  // images
-  const visual = correspondImages(imageLeaves(srcLeavesRaw), imageLeaves(cloneLeavesRaw), srcSec, cloneSec);
+  // images (ctx.textOnly skips them entirely — for isolating the text/layout/color signal from the image confound)
+  const visual = ctx.textOnly ? { F2: 1, R: 1, srcHasImages: false } : correspondImages(imageLeaves(srcLeavesRaw), imageLeaves(cloneLeavesRaw), srcSec, cloneSec);
 
   // combination: weighted geometric mean capped by recall
   const base = Math.pow(Math.max(1e-6, blockMatchF2), 0.50) * Math.pow(Math.max(1e-6, LLEM), 0.35) * Math.pow(Math.max(0.10, visual.F2), 0.15);
   const textRecallCap = 0.05 + 0.95 * R_text;
-  const imageRecallCap = visual.srcHasImages ? 0.25 + 0.75 * visual.R : 1;
+  const imageRecallCap = visual.srcHasImages ? 1 - (visual.imgAreaFrac ?? 0.4) * (1 - visual.R) : 1; // area-aware (see correspondImages)
   const score = 100 * Math.min(base, textRecallCap, imageRecallCap);
   return { score: +score.toFixed(2), blockMatchF2: +blockMatchF2.toFixed(4), R_text: +R_text.toFixed(4), P_text: +P_text.toFixed(4), LLEM: +LLEM.toFixed(4), axes, visualF2: +visual.F2.toFixed(4), imageRecall: +visual.R.toFixed(4), caps: { textRecallCap: +textRecallCap.toFixed(3), imageRecallCap: +imageRecallCap.toFixed(3) }, nSrc: S.length, nClone: C.length, nMatch: matches.length, W_S: +W_S.toFixed(1) };
 }
@@ -171,7 +171,12 @@ function correspondImages(srcImgs, cloneImgs, srcSec, cloneSec) {
   const W_S = srcImgs.reduce((a, n) => a + imgW(n), 0), W_C = cloneImgs.reduce((a, n) => a + imgW(n), 0);
   let Rw = 0, Pw = 0; for (const p of m) { Rw += imgW(srcImgs[p.i]) * p.ps; Pw += Math.min(imgW(cloneImgs[p.j]), 1.25 * imgW(srcImgs[p.i])) * p.ps; }
   const R = W_S ? Rw / W_S : 1, P = W_C ? Pw / W_C : 1; const F2 = (P + R) ? (5 * P * R) / (4 * P + R) : 0;
-  return { F2, R, srcHasImages: true };
+  // AREA-AWARE image weight: how much of the section is source imagery (clamped 0.6 so imagery never caps below 0.4).
+  // Replaces the harsh flat 0.25 floor — a text-dominant section must not be capped to 25 for a missing decorative image.
+  // CALIBRATION CAVEAT: validated only on text axes so far; the image cap itself is unvalidated on image-INCLUDING
+  // candidates (the cross-val candidates were authored image-less). Missing-LOGO specifically belongs in a Layer-0 veto.
+  const secA = Math.max(1, srcSec.w * srcSec.h); const imgAreaFrac = Math.min(0.6, srcImgs.reduce((a, n) => a + n.box.w * n.box.h, 0) / secA);
+  return { F2, R, srcHasImages: true, imgAreaFrac };
 }
 
 // ── whole-page wrapper: segment → greedy align by order → per-section correspond → source-weight aggregate ────────
