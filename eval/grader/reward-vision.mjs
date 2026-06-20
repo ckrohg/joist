@@ -73,8 +73,9 @@ function editability(treePath, target = 15) {
 // MAIN reward: judgeRender → {visual (0-100), editability, reward (0-1), cost}. panel>1 averages visual.
 export async function judgeRender({ sourcePng, renderPng, tree = null, model = 'haiku', panel = 1, editTarget = 15 }) {
   const srcAbs = path.resolve(sourcePng), candAbs = path.resolve(renderPng);
-  const runs = [];
-  for (let i = 0; i < panel; i++) runs.push(await scoreOnce(srcAbs, candAbs, { model }));
+  // panel calls run CONCURRENTLY (a panel of N independent judges); candidates stay sequential in callers so the
+  // process fan-out is bounded by `panel` (≈3), not panel×pool.
+  const runs = await Promise.all(Array.from({ length: panel }, () => scoreOnce(srcAbs, candAbs, { model })));
   const ok = runs.filter((r) => r.ok);
   const cost = runs.reduce((s, r) => s + (r.cost || 0), 0);
   if (!ok.length) return { ok: false, error: runs[0]?.error || 'all calls failed', cost, visual: null, reward: null };
