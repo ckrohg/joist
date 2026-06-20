@@ -695,7 +695,28 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
     return { elType: 'widget', widgetType: 'image', settings: set };
   }
 
+  // WS2 SELF-HEAL (Arm B): preserve any author-supplied `heal-<id>` CSS class through the transpile so it
+  // lands on the rendered DOM node as a real CSS class. Elementor stamps a widget/container's `_css_classes`
+  // string onto the element's classList, so a class authored as `<h1 class="heal-s3b01">` survives the full
+  // round-trip (authored HTML → Elementor tree → render) and capture-layout can read it back as healId. We
+  // APPEND (never clobber) so any future class-handling path is preserved. n.cls is the source element's
+  // className (captured in extract()/ser()). Only heal-* tokens are forwarded — no other classes leak in.
+  const healClasses = (n) => String((n && n.cls) || '').split(/\s+/).filter((c) => /^heal-[\w-]+$/.test(c));
+  function stampHealClasses(node, n) {
+    if (!node || typeof node !== 'object' || !node.settings) return node;
+    const heals = healClasses(n);
+    if (!heals.length) return node;
+    const existing = String(node.settings._css_classes || '').split(/\s+/).filter(Boolean);
+    for (const h of heals) if (!existing.includes(h)) existing.push(h);
+    node.settings._css_classes = existing.join(' ');
+    return node;
+  }
+
   function mapNode(n, parent, inherit) {
+    return stampHealClasses(mapNodeInner(n, parent, inherit), n);
+  }
+
+  function mapNodeInner(n, parent, inherit) {
     const cls = (c) => String(n.cls).split(/\s+/).includes(c);
     const childInherit = inheritedAligns(n, inherit);
     if (n.tag === 'img' || n.tag === 'svg') return imageWidget(n, parent);
