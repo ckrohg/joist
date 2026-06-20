@@ -239,9 +239,23 @@ export async function extract(htmlFile, width) {
         };
       }
       if (el.tagName.toLowerCase() === 'svg') {
+        // currentColor resolution (logo fix): an SVG whose paths use fill="currentColor" (or strokes on fill:none —
+        // resend's 'Resend' wordmark, color rgb(240,240,240) on the dark header) INHERITS the element's `color`.
+        // Serializing the SVG standalone loses that inherited color, so currentColor later resolves to the wrong
+        // (Elementor-default) color → a faint/wrong logo. Inject the computed color (and a real fill if set) onto the
+        // SVG root so currentColor resolves identically in the html-widget context. Reversible: TRANSPILE_NO_SVG_CURRENTCOLOR=1.
+        let svgMarkup = el.outerHTML;
+        if (!opts.noSvgCurrentColor) {
+          try {
+            const clone = el.cloneNode(true);
+            clone.style.color = cs.color;
+            if (cs.fill && cs.fill !== 'none' && cs.fill !== 'rgba(0, 0, 0, 0)') clone.style.fill = cs.fill;
+            svgMarkup = clone.outerHTML;
+          } catch {}
+        }
         return {
           tag: 'svg', cls: (el.getAttribute('class') || ''), isLeaf: true, text: null,
-          svg: el.outerHTML.replace(/\s+/g, ' ').trim(),
+          svg: svgMarkup.replace(/\s+/g, ' ').trim(),
           rect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) },
           declared: _mdecl, media: mediaOf(el), s: mediaS,
         };
@@ -313,7 +327,7 @@ export async function extract(htmlFile, width) {
       return node;
     };
     return { tree: ser(document.body), notes };
-  }, { noVisGate: process.env.TRANSPILE_NO_VIS_GATE === '1', noLooseText: process.env.TRANSPILE_NO_LOOSE_TEXT === '1' });
+  }, { noVisGate: process.env.TRANSPILE_NO_VIS_GATE === '1', noLooseText: process.env.TRANSPILE_NO_LOOSE_TEXT === '1', noSvgCurrentColor: process.env.TRANSPILE_NO_SVG_CURRENTCOLOR === '1' });
   await browser.close();
   return spec;
 }
