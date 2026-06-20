@@ -207,12 +207,27 @@ export function gradeCorrespondence(srcTree, cloneTree, opts = {}) {
   const pageBg = (t, l) => (t.root && t.root.bgSampled) || (t.root && t.root.background && t.root.background.color) || 'rgb(255,255,255)';
   const ctx = { srcPageBg: pageBg(srcTree), clonePageBg: pageBg(cloneTree), textOnly: !!opts.textOnly };
   const sSecs = segmentSections(sL, sPage), cSecs = segmentSections(cL, cPage);
-  // greedy align by normalized y-order (Needleman-Wunsch is the documented upgrade).
-  const cByY = cSecs.map((s, i) => ({ i, ny: (s.box.y + s.box.h / 2) / cPage.h })).sort((a, b) => a.ny - b.ny);
+  // CONTENT-AWARE section alignment (LEVER B): pair each source section with the clone section of highest TEXT
+  // OVERLAP, not nearest position. A position-only aligner mispairs whenever the clone's content distribution differs
+  // from the source's — a residual void, height drift, or a missing/extra section shifts every normalized-y, so a
+  // real resend projection (text clustered into its top half) scored 0 with 6 "matched" sections all at R_text 0.
+  // Token-overlap pairing is robust to vertical scale + structure drift; a small position penalty breaks ties between
+  // sections that repeat the same text (header vs footer "Get started"). Reversible: CORR_NO_CONTENT_ALIGN=1.
+  const NO_CONTENT_ALIGN = (typeof process !== 'undefined' && process.env && process.env.CORR_NO_CONTENT_ALIGN === '1');
+  const secTokens = (sec) => { const m = new Map(); for (const n of sec.leaves) { if (!isText(n)) continue; for (const t of norm(n.text).split(' ')) if (t.length >= 2) m.set(t, (m.get(t) || 0) + 1); } return m; };
+  const tokOverlap = (a, b) => { if (!a.size || !b.size) return 0; let inter = 0; for (const [t, ca] of a) { const cb = b.get(t); if (cb) inter += Math.min(ca, cb); } const ua = [...a.values()].reduce((x, y) => x + y, 0), ub = [...b.values()].reduce((x, y) => x + y, 0); return inter / Math.max(1, Math.min(ua, ub)); };
+  const cMeta = cSecs.map((s, i) => ({ i, ny: (s.box.y + s.box.h / 2) / cPage.h, tok: secTokens(s) }));
   const usedC = new Set(); const perSec = [];
-  for (const ss of sSecs) { const sny = (ss.box.y + ss.box.h / 2) / sPage.h; let best = -1, bd = 1e9;
-    for (const cc of cByY) { if (usedC.has(cc.i)) continue; const d = Math.abs(cc.ny - sny); if (d < bd) { bd = d; best = cc.i; } }
-    if (best >= 0 && bd <= 0.18) { usedC.add(best); perSec.push(correspondSection(ss.leaves, cSecs[best].leaves, ss.box, cSecs[best].box, ctx)); }
+  for (const ss of sSecs) {
+    const sny = (ss.box.y + ss.box.h / 2) / sPage.h; const stok = secTokens(ss);
+    let best = -1, bestScore = -1, byY = -1, bdY = 1e9;
+    for (const cc of cMeta) {
+      if (usedC.has(cc.i)) continue;
+      const dY = Math.abs(cc.ny - sny); if (dY < bdY) { bdY = dY; byY = cc.i; }
+      const sim = tokOverlap(stok, cc.tok) - 0.15 * dY; if (sim > bestScore) { bestScore = sim; best = cc.i; }
+    }
+    const matched = NO_CONTENT_ALIGN ? (byY >= 0 && bdY <= 0.18 ? byY : -1) : (best >= 0 && bestScore >= 0.10 ? best : -1);
+    if (matched >= 0) { usedC.add(matched); perSec.push(correspondSection(ss.leaves, cSecs[matched].leaves, ss.box, cSecs[matched].box, ctx)); }
     else perSec.push({ score: 0, R_text: 0, LLEM: 0, blockMatchF2: 0, axes: { existence: 0, text: 0, position: 0, color: 0, typography: 0 }, W_S: ss.leaves.reduce((a, n) => a + (isText(n) ? textWeight({ ...n, kind: n.kind }) : 0), 0), unmatchedSection: true });
   }
   const totW = perSec.reduce((a, s) => a + (s.W_S || 0), 0) || 1;
