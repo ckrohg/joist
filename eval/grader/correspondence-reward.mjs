@@ -180,12 +180,12 @@ function correspondImages(srcImgs, cloneImgs, srcSec, cloneSec) {
 }
 
 // ── whole-page wrapper: segment → greedy align by order → per-section correspond → source-weight aggregate ────────
-export function gradeCorrespondence(srcTree, cloneTree) {
+export function gradeCorrespondence(srcTree, cloneTree, opts = {}) {
   const sL = flatten(srcTree), cL = flatten(cloneTree);
   const sPage = { x: 0, y: 0, w: srcTree.vw || 1440, h: srcTree.pageH || Math.max(...sL.map((n) => n.box ? n.box.y + n.box.h : 0), 1) };
   const cPage = { x: 0, y: 0, w: cloneTree.vw || 1440, h: cloneTree.pageH || Math.max(...cL.map((n) => n.box ? n.box.y + n.box.h : 0), 1) };
   const pageBg = (t, l) => (t.root && t.root.bgSampled) || (t.root && t.root.background && t.root.background.color) || 'rgb(255,255,255)';
-  const ctx = { srcPageBg: pageBg(srcTree), clonePageBg: pageBg(cloneTree) };
+  const ctx = { srcPageBg: pageBg(srcTree), clonePageBg: pageBg(cloneTree), textOnly: !!opts.textOnly };
   const sSecs = segmentSections(sL, sPage), cSecs = segmentSections(cL, cPage);
   // greedy align by normalized y-order (Needleman-Wunsch is the documented upgrade).
   const cByY = cSecs.map((s, i) => ({ i, ny: (s.box.y + s.box.h / 2) / cPage.h })).sort((a, b) => a.ny - b.ny);
