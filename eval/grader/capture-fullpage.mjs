@@ -45,8 +45,11 @@ export async function captureFullPage(page, { vw = 1440, vh = 900 } = {}) {
     const srcYoff = top - realY;                          // ≥0; >0 only on the bottom-clamped last tile
     const h = Math.min(vh - srcYoff, H - top);
     if (h > 0 && srcYoff >= 0 && srcYoff < vh) PNG.bitblt(tile, out, 0, srcYoff, vw, h, 0, top);
-    if (!firstDone) { // after tile 0, neutralize sticky/fixed chrome so it isn't repeated down the page
-      await page.evaluate(() => { for (const el of document.querySelectorAll('*')) { const p = getComputedStyle(el).position; if (p === 'fixed' || p === 'sticky') el.style.setProperty('position', 'absolute', 'important'); } });
+    if (!firstDone) { // after tile 0, HIDE truly viewport-pinned chrome so a sticky header isn't repeated down the page.
+      // Use visibility:hidden (NO reflow) — NOT position:absolute, which collapses complex source layouts to black
+      // (resend's source has many fixed/sticky/translate layers; reparenting them destroyed the page). Only 'fixed'
+      // (viewport-pinned, genuinely repeats); 'sticky' scrolls within its container and won't repeat at our offsets.
+      await page.evaluate(() => { for (const el of document.querySelectorAll('*')) { if (getComputedStyle(el).position === 'fixed') el.style.setProperty('visibility', 'hidden', 'important'); } });
       firstDone = true;
     }
   }
