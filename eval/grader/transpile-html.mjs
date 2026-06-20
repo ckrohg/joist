@@ -104,8 +104,16 @@ export async function extract(htmlFile, width) {
   const browser = await chromium.launch({ headless: true });
   const page = await (await browser.newContext({ viewport: { width, height: 1200 } })).newPage();
   await page.goto(pathToFileURL(path.resolve(htmlFile)).href, { waitUntil: 'load' });
-  const spec = await page.evaluate(() => {
+  const spec = await page.evaluate((opts) => {
     const notes = [];
+    // LEVER A (reversible: TRANSPILE_NO_VIS_GATE): is this element HIDDEN at the authoring width? Responsive sites ship
+    // duplicate DOM (e.g. a mobile nav/hero display:none at 1440). leafHTML still reads a hidden element's text, so
+    // without this gate the duplicate gets emitted as a visible Elementor widget → duplicate content + extra page
+    // height (resend hero headline rendered 5x in the tree; page 2x too tall). Gate ONLY on the definitive not-painted,
+    // not-in-layout signals: display:none + visibility:hidden/collapse. NOT opacity:0 — scroll-reveal / AOS content
+    // starts at opacity:0 and animates in on scroll, and transpile loads source.html UN-scrolled, so gating opacity
+    // would FALSE-DROP legitimately-visible content.
+    const isHiddenEl = (el) => { const c = getComputedStyle(el); return c.display === 'none' || c.visibility === 'hidden' || c.visibility === 'collapse'; };
     const declared = (el) => {
       const out = {};
       for (const sheet of document.styleSheets) {
@@ -203,6 +211,7 @@ export async function extract(htmlFile, width) {
       return parts;
     };
     const ser = (el) => {
+      if (!opts.noVisGate && isHiddenEl(el)) return null; // LEVER A: drop hidden / off-breakpoint-duplicate DOM
       const cs = getComputedStyle(el);
       const r = el.getBoundingClientRect();
       // Capture the layout margin-top for media nodes so widgetCommon can preserve it — without
@@ -232,7 +241,7 @@ export async function extract(htmlFile, width) {
           declared: _mdecl, media: mediaOf(el), s: mediaS,
         };
       }
-      const kids = [...el.children];
+      const kids = [...el.children].filter((k) => opts.noVisGate || !isHiddenEl(k)); // LEVER A: visible kids only (isLeaf + emission)
       // CTA-pill detector (2026-06-12, hero-CTA-ghost fix): a button is an <a>/<button> that
       // (a) is solidly filled (non-transparent bg) OR has a visible border, AND (b) is a pill
       // (horizontal padding > 0 OR a fixed pill height with a rounded radius). This is the TRUE
@@ -272,11 +281,11 @@ export async function extract(htmlFile, width) {
       }
       node.autoML = (node.declared['margin-left'] || '') === 'auto';
       node.autoMR = (node.declared['margin-right'] || '') === 'auto';
-      if (!isLeaf) node.children = kids.map(ser);
+      if (!isLeaf) node.children = kids.map(ser).filter(Boolean);
       return node;
     };
     return { tree: ser(document.body), notes };
-  });
+  }, { noVisGate: process.env.TRANSPILE_NO_VIS_GATE === '1' });
   await browser.close();
   return spec;
 }
