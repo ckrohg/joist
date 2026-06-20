@@ -19,6 +19,29 @@ import fs from 'fs';
 import path from 'path';
 import { judgeRender, judgeListwise } from './reward-vision.mjs';
 import { floorCheck } from './reward-features.mjs';
+import { gradeCorrespondence } from './correspondence-reward.mjs';
+
+// WS3 — 3-TIER selector (PATH_TO_TRUE_1TO1_V2): Tier-0 $0 veto-floor rejects gross-broken; Tier-1 $0 deterministic
+// CORRESPONDENCE narrows to a frontier band (rejects broken-but-not-veto'd builds — it ranked the broken D0 LAST,
+// agreeing with the vision judge at ρ=0.714 where SSIM put D0 mid-pack); Tier-2 ONE listwise LLM call fine-picks within
+// the near-tied clean frontier. Correspondence + veto are FREE and keep broken builds away from the (paid) judge.
+// candidates: [{ shot, tree, id? }] — `shot` = render PNG (veto + judge), `tree` = re-captured clone box-tree
+// (correspondence). `correspond(cand)→0-100` may be supplied (e.g. per-section); else gradeCorrespondence(sourceTree,·).
+export async function bestOfNCorr({ sourcePng, sourceTree = null, candidates, correspond = null, sidecarFracs = null, model = 'haiku', frontierBand = 14, textOnly = true }) {
+  const scoreCorr = correspond || ((c) => (sourceTree && c.tree) ? gradeCorrespondence(sourceTree, c.tree, { textOnly }).score : null);
+  const rows = candidates.map((c) => ({ ...c, floor: floorCheck(sourcePng, c.shot, { sidecarFracs }) }));
+  for (const r of rows) r.corr = r.floor.floored ? null : scoreCorr(r);
+  const survivors = rows.filter((r) => !r.floor.floored && r.corr != null);
+  const maxCorr = survivors.length ? Math.max(...survivors.map((r) => r.corr)) : 0;
+  for (const r of rows) r.frontier = !r.floor.floored && r.corr != null && r.corr >= maxCorr - frontierBand;
+  const frontier = rows.filter((r) => r.frontier);
+  // Tier-2: ONE listwise call over the frontier only (never over floored/below-frontier broken builds).
+  const lw = frontier.length > 1 ? await judgeListwise({ sourcePng, renderPngs: frontier.map((r) => r.shot), model }) : { visual: frontier.map(() => 100), cost: 0 };
+  frontier.forEach((r, i) => { r.judge = lw.visual?.[i] ?? null; });
+  rows.forEach((r) => { r.reward = r.floor.floored ? 0 : !r.frontier ? +(r.corr / 100 * 0.5).toFixed(3) : +((r.judge ?? 0) / 100).toFixed(3); }); // below-frontier kept but de-rated
+  const ranked = [...rows].sort((a, b) => (b.frontier - a.frontier) || ((b.judge ?? -1) - (a.judge ?? -1)) || ((b.corr ?? -1) - (a.corr ?? -1)));
+  return { winner: ranked[0], ranked, flooredCount: rows.filter((r) => r.floor.floored).length, frontierCount: frontier.length, maxCorr, judgeCalls: frontier.length > 1 ? 1 : 0, cost: +(lw.cost || 0).toFixed(4), mode: '3-tier(veto→corr→listwise)' };
+}
 
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i >= 0 ? process.argv[i + 1] : d; };
 const has = (k) => process.argv.includes('--' + k);
