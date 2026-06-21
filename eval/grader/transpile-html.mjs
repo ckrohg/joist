@@ -870,12 +870,14 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
     // (per-keystone) so it packs C-per-row, instead of the offline-collapsed full-width px pin that stacks it. The
     // image inside stays image_size:full (fluid-in-cell, never resized). Takes precedence over the px row-child pin.
     if (n._maWidthPct) {
-      settings._element_width = 'initial';
-      settings._element_custom_width = { unit: '%', size: n._maWidthPct };
-      if (n._maWidthPctTablet != null) settings._element_custom_width_tablet = { unit: '%', size: n._maWidthPctTablet };
-      if (n._maWidthPctMobile != null) settings._element_custom_width_mobile = { unit: '%', size: n._maWidthPctMobile };
+      // Use the container WIDTH control + _flex_size:'custom' (the proven flex-child sizing in this stack, P4 line ~861)
+      // — NOT _element_custom_width (the Advanced custom-width), which this Elementor version does NOT apply to a flex
+      // CHILD container (verified: the cell rendered full-width). width:% + flex_size:custom + shrink:0 packs C-per-row.
+      settings.width = { unit: '%', size: n._maWidthPct };
+      if (n._maWidthPctTablet != null) settings.width_tablet = { unit: '%', size: n._maWidthPctTablet };
+      if (n._maWidthPctMobile != null) settings.width_mobile = { unit: '%', size: n._maWidthPctMobile };
       settings._flex_size = 'custom'; settings._flex_shrink = 0;
-      delete settings.width;
+      delete settings._element_custom_width; delete settings._element_width;
     }
     // P4: e-con row children default to 100% width — pin px width + buffer, never shrink.
     else if (parent && isRowParent(parent.s) && !settings.width && !settings._flex_grow) {
