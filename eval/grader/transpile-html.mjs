@@ -795,10 +795,15 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
     const childInherit = inheritedAligns(n, inherit);
     if (n.tag === 'img' || n.tag === 'svg') return imageWidget(n, parent);
     if (n.isLeaf) {
-      if (!n.text) { // empty box: divider / dot / filler
+      if (!n.text) { // empty box: divider / dot / filler / grid-gap spacer
         counts.container++;
         const st = containerSettings(n);
         if (n.rect.w <= 2) { st.width = { unit: 'px', size: 1 }; st.min_height = { unit: 'px', size: n.rect.h }; }
+        // MULTI-COLUMN-COLLAPSE fix (gen-test linear/tailwind): an EMPTY container in a flex-row/grid parent (a
+        // grid-gap spacer or a column-spanning empty cell) otherwise gets NO width → Elementor defaults it to 100%,
+        // which forces every sibling to WRAP → the source's [sidebar|main] columns collapse to a vertical stack +
+        // height blowup. Pin it to its captured width so the row holds. Reversible: TRANSPILE_NO_GRID_ROW=1.
+        else if (parent && isRowParent(parent.s) && !st.width) { st.width = { unit: 'px', size: Math.max(1, n.rect.w) }; st._flex_size = 'custom'; st._flex_shrink = 0; if (n.rect.h > 0) st.min_height = { unit: 'px', size: n.rect.h }; }
         applyMedia(n, st, 'container');
         return { elType: 'container', settings: st, elements: [] };
       }
