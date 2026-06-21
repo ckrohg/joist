@@ -558,7 +558,7 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
     if (s['justify-content'] && !['normal', 'flex-start'].includes(s['justify-content'])) out.flex_justify_content = s['justify-content'];
     if (s['align-items'] && !['normal', 'stretch'].includes(s['align-items'])) out.flex_align_items = s['align-items'];
     if (s['flex-wrap'] === 'wrap' || isGrid || maWrap) out.flex_wrap = 'wrap';
-    if (maWrap) { out.flex_direction_tablet = 'row'; out.flex_direction_mobile = 'row'; } // cells (not the container) restack via their % widths
+    if (maWrap) { out.flex_direction_tablet = 'row'; out.flex_direction_mobile = 'row'; out.flex_wrap_tablet = 'wrap'; out.flex_wrap_mobile = 'wrap'; } // keep row+wrap at every keystone; cells restack via their % widths
     const gap = Math.max(px(s['row-gap']), px(s['column-gap']));
     out.flex_gap = { unit: 'px', size: gap, column: String(gap), row: String(gap), isLinked: true };
     const pads = ['padding-top', 'padding-right', 'padding-bottom', 'padding-left'].map((p) => px(s[p]));
@@ -874,9 +874,12 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
       // — NOT _element_custom_width (the Advanced custom-width), which this Elementor version does NOT apply to a flex
       // CHILD container (verified: the cell rendered full-width). width:% + flex_size:custom + shrink:0 packs C-per-row.
       settings.width = { unit: '%', size: n._maWidthPct };
-      if (n._maWidthPctTablet != null) settings.width_tablet = { unit: '%', size: n._maWidthPctTablet };
-      if (n._maWidthPctMobile != null) settings.width_mobile = { unit: '%', size: n._maWidthPctMobile };
-      settings._flex_size = 'custom'; settings._flex_shrink = 0;
+      settings._flex_size = 'custom'; settings._flex_shrink = 0; settings._flex_grow = 0;
+      // The flex-child WIDTH control must be re-asserted PER BREAKPOINT: _flex_size:'custom' at desktop does NOT carry
+      // to tablet/mobile, so without _flex_size_tablet/_mobile the cell reverts to grow → full-width → re-stacks (the
+      // blowup returns at 900/390, DOM-verified). Pin custom + the % at every keystone so it packs C-per-row at all widths.
+      if (n._maWidthPctTablet != null) { settings.width_tablet = { unit: '%', size: n._maWidthPctTablet }; settings._flex_size_tablet = 'custom'; settings._flex_grow_tablet = 0; settings._flex_shrink_tablet = 0; }
+      if (n._maWidthPctMobile != null) { settings.width_mobile = { unit: '%', size: n._maWidthPctMobile }; settings._flex_size_mobile = 'custom'; settings._flex_grow_mobile = 0; settings._flex_shrink_mobile = 0; }
       delete settings._element_custom_width; delete settings._element_width;
     }
     // P4: e-con row children default to 100% width — pin px width + buffer, never shrink.
@@ -1139,6 +1142,10 @@ function columnsFor(type, n) {
   if (type === 'carousel-x') return Math.min(kids, 4);
   if (type === 'scrollsnap-y') return 3;
   // grid: count resolved tracks in grid-template-columns (paren-safe); offline-collapsed (<2) → content-derived.
+  // NOTE (follow-on): a PORTRAIT-image gallery wants MORE columns (narrower cells → shorter images → fewer rows, the
+  // height-budget lever). We can't detect portrait OFFLINE — the offline rect aspect is landscape (0.57) and the attrs
+  // are square (1280²) while the real asset file is portrait; only the captured asset manifest has the true aspect,
+  // which resolves AFTER this pre-pass. Threading the asset map in (a pipeline reorder) is the fix for the cliff@900.
   const gtc = String((n.s || {})['grid-template-columns'] || '');
   let tracks = gtc && gtc !== 'none' ? gtc.trim().split(/\s+(?![^(]*\))/).length : 0;
   if (tracks < 2) tracks = Math.min(4, Math.max(2, Math.round(Math.sqrt(kids)))); // collapsed offline → a sane grid
