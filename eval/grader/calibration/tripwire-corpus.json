@@ -1,0 +1,357 @@
+{
+  "tool": "joist-tripwire-corpus",
+  "version": 1,
+  "note": "append-only, hash-pinned FROZEN INPUTS; expects derive from known labels + a human anchor, NEVER from a grader score; relax one-way (Arm2→Arm1) only",
+  "fixtures": [
+    {
+      "id": "TW-0001",
+      "class": "regression:clean-control",
+      "veto": null,
+      "expect": {
+        "detectionFires": [],
+        "gate": "publish"
+      },
+      "humanAnchor": {
+        "overall_0_100": 100
+      },
+      "frozen": {
+        "source": "eval/grader/calibration/v2-shots/supabase-src-d.png",
+        "clone": "eval/grader/calibration/ladders/supabase-L0-pristine.png"
+      },
+      "hashes": {
+        "source": "sha256:7cdcc1f1a96e2ab4e23a4c5d4db19201a0a44228484ae32be013d3e9e3e8a820",
+        "clone": "sha256:13f625d56aa1fe10364761c200d37b68da6f85d313dceafaf138b276369e8833"
+      },
+      "provenance": "ladder:supabase-L0-pristine",
+      "immutable": true
+    },
+    {
+      "id": "TW-0002",
+      "class": "regression:clean-control",
+      "veto": null,
+      "expect": {
+        "detectionFires": [],
+        "gate": "publish"
+      },
+      "humanAnchor": {
+        "overall_0_100": 100
+      },
+      "frozen": {
+        "source": "eval/grader/calibration/v2-shots/supabase-src-d.png",
+        "clone": "eval/grader/calibration/ladders/supabase-L1-desat35.png"
+      },
+      "hashes": {
+        "source": "sha256:7cdcc1f1a96e2ab4e23a4c5d4db19201a0a44228484ae32be013d3e9e3e8a820",
+        "clone": "sha256:60b3101abb13cdb13150e27dbebd5b23df51bc5d434f12fb4da70dbecebff89e"
+      },
+      "provenance": "ladder:supabase-L1-desat35",
+      "immutable": true
+    },
+    {
+      "id": "TW-0003",
+      "class": "canary:blind-spot",
+      "veto": null,
+      "expect": {
+        "detectionFires": [],
+        "gate": "publish",
+        "liability": "open"
+      },
+      "humanAnchor": {
+        "overall_0_100": 0
+      },
+      "note": "invisible-heading needs live style-runs (contrastFails) — pixel-only here",
+      "frozen": {
+        "source": "eval/grader/calibration/v2-shots/supabase-src-d.png",
+        "clone": "eval/grader/calibration/ladders/supabase-L2-invis-heading.png"
+      },
+      "hashes": {
+        "source": "sha256:7cdcc1f1a96e2ab4e23a4c5d4db19201a0a44228484ae32be013d3e9e3e8a820",
+        "clone": "sha256:357945f70c16b16e677cf2838abdefd2578fb8bf9ec006290f20ddb2ef9e04f3"
+      },
+      "provenance": "ladder:supabase-L2-invis-heading",
+      "immutable": true
+    },
+    {
+      "id": "TW-0004",
+      "class": "regression:veto",
+      "veto": "broken-hero",
+      "expect": {
+        "detectionFires": [
+          "broken-hero"
+        ],
+        "gate": "hold"
+      },
+      "humanAnchor": {
+        "overall_0_100": 5
+      },
+      "frozen": {
+        "source": "eval/grader/calibration/v2-shots/supabase-src-d.png",
+        "clone": "eval/grader/calibration/ladders/supabase-L3-blank-hero.png"
+      },
+      "hashes": {
+        "source": "sha256:7cdcc1f1a96e2ab4e23a4c5d4db19201a0a44228484ae32be013d3e9e3e8a820",
+        "clone": "sha256:a2459d5da8d7a91300888efd3360a2a51b045edc89d105721437d0f0ff0f17a0"
+      },
+      "provenance": "ladder:supabase-L3-blank-hero",
+      "immutable": true
+    },
+    {
+      "id": "TW-0005",
+      "class": "regression:veto",
+      "veto": "broken-hero",
+      "expect": {
+        "detectionFires": [
+          "broken-hero"
+        ],
+        "gate": "hold"
+      },
+      "humanAnchor": {
+        "overall_0_100": 5
+      },
+      "frozen": {
+        "source": "eval/grader/calibration/v2-shots/supabase-src-d.png",
+        "clone": "eval/grader/calibration/ladders/supabase-L4-blank-hero+section.png"
+      },
+      "hashes": {
+        "source": "sha256:7cdcc1f1a96e2ab4e23a4c5d4db19201a0a44228484ae32be013d3e9e3e8a820",
+        "clone": "sha256:0dd3e256a8050cb60d0adc549f16bb2434438cd3d933692f6eb57436c5e91449"
+      },
+      "provenance": "ladder:supabase-L4-blank-hero+section",
+      "immutable": true
+    },
+    {
+      "id": "TW-0006",
+      "class": "canary:blind-spot",
+      "veto": null,
+      "expect": {
+        "detectionFires": [],
+        "gate": "publish",
+        "liability": "open"
+      },
+      "humanAnchor": {
+        "overall_0_100": 0
+      },
+      "note": "missing-nav: broken-hero is hero-scoped (skips band 0) and no nav/content-void veto exists yet",
+      "frozen": {
+        "source": "eval/grader/calibration/v2-shots/linear-src-d.png",
+        "clone": "eval/grader/calibration/ladders/linear-L0-pristine.png"
+      },
+      "hashes": {
+        "source": "sha256:ae52721336ce97150e467696c1a6d4a15ddb702471b73d166a847e84a48bc542",
+        "clone": "sha256:8d4e8caa4d56b5e77ad15b87270aff952c4ac77e23760de55494652ce804ce02"
+      },
+      "provenance": "ladder:linear-L0-pristine",
+      "immutable": true
+    },
+    {
+      "id": "TW-0007",
+      "class": "regression:clean-control",
+      "veto": null,
+      "expect": {
+        "detectionFires": [],
+        "gate": "publish"
+      },
+      "humanAnchor": {
+        "overall_0_100": 100
+      },
+      "frozen": {
+        "source": "eval/grader/calibration/v2-shots/linear-src-d.png",
+        "clone": "eval/grader/calibration/ladders/linear-L1-desat35.png"
+      },
+      "hashes": {
+        "source": "sha256:ae52721336ce97150e467696c1a6d4a15ddb702471b73d166a847e84a48bc542",
+        "clone": "sha256:0e2ef2edee77dfaee8af7aed5f3181fda9c35107c45d7ac201088795a9681253"
+      },
+      "provenance": "ladder:linear-L1-desat35",
+      "immutable": true
+    },
+    {
+      "id": "TW-0008",
+      "class": "canary:blind-spot",
+      "veto": null,
+      "expect": {
+        "detectionFires": [],
+        "gate": "publish",
+        "liability": "open"
+      },
+      "humanAnchor": {
+        "overall_0_100": 0
+      },
+      "note": "invisible-heading needs live style-runs (contrastFails) — pixel-only here",
+      "frozen": {
+        "source": "eval/grader/calibration/v2-shots/linear-src-d.png",
+        "clone": "eval/grader/calibration/ladders/linear-L2-invis-heading.png"
+      },
+      "hashes": {
+        "source": "sha256:ae52721336ce97150e467696c1a6d4a15ddb702471b73d166a847e84a48bc542",
+        "clone": "sha256:5fc49f8bc7ca8763d81bda9b232dc145eb7409c7f8a214e341b03dd6c095898e"
+      },
+      "provenance": "ladder:linear-L2-invis-heading",
+      "immutable": true
+    },
+    {
+      "id": "TW-0009",
+      "class": "regression:veto",
+      "veto": "broken-hero",
+      "expect": {
+        "detectionFires": [
+          "broken-hero"
+        ],
+        "gate": "hold"
+      },
+      "humanAnchor": {
+        "overall_0_100": 5
+      },
+      "frozen": {
+        "source": "eval/grader/calibration/v2-shots/linear-src-d.png",
+        "clone": "eval/grader/calibration/ladders/linear-L3-blank-hero.png"
+      },
+      "hashes": {
+        "source": "sha256:ae52721336ce97150e467696c1a6d4a15ddb702471b73d166a847e84a48bc542",
+        "clone": "sha256:8f6c909c3bd4cbabba6582b8d7600d76f75938558b2ef5d416022b0a2caa5402"
+      },
+      "provenance": "ladder:linear-L3-blank-hero",
+      "immutable": true
+    },
+    {
+      "id": "TW-0010",
+      "class": "regression:veto",
+      "veto": "broken-hero",
+      "expect": {
+        "detectionFires": [
+          "broken-hero"
+        ],
+        "gate": "hold"
+      },
+      "humanAnchor": {
+        "overall_0_100": 5
+      },
+      "frozen": {
+        "source": "eval/grader/calibration/v2-shots/linear-src-d.png",
+        "clone": "eval/grader/calibration/ladders/linear-L4-blank-hero+section.png"
+      },
+      "hashes": {
+        "source": "sha256:ae52721336ce97150e467696c1a6d4a15ddb702471b73d166a847e84a48bc542",
+        "clone": "sha256:bff48a58b8989b72a70f808ed9c844ae9da06621a880783936bf6bffbc652bcc"
+      },
+      "provenance": "ladder:linear-L4-blank-hero+section",
+      "immutable": true
+    },
+    {
+      "id": "TW-0011",
+      "class": "regression:clean-control",
+      "veto": null,
+      "expect": {
+        "detectionFires": [],
+        "gate": "publish"
+      },
+      "humanAnchor": {
+        "overall_0_100": 100
+      },
+      "frozen": {
+        "source": "eval/grader/calibration/v2-shots/framer-src-d.png",
+        "clone": "eval/grader/calibration/ladders/framer-L0-pristine.png"
+      },
+      "hashes": {
+        "source": "sha256:e9d4daa7970490b76db37087aa894d9fd4e93239632ce330de914de9f28a6c09",
+        "clone": "sha256:93c8d7821b218e5ba1f5fe67218f28c2b1ecdd90422d52377cc4dc04db7da6de"
+      },
+      "provenance": "ladder:framer-L0-pristine",
+      "immutable": true
+    },
+    {
+      "id": "TW-0012",
+      "class": "regression:clean-control",
+      "veto": null,
+      "expect": {
+        "detectionFires": [],
+        "gate": "publish"
+      },
+      "humanAnchor": {
+        "overall_0_100": 100
+      },
+      "frozen": {
+        "source": "eval/grader/calibration/v2-shots/framer-src-d.png",
+        "clone": "eval/grader/calibration/ladders/framer-L1-desat35.png"
+      },
+      "hashes": {
+        "source": "sha256:e9d4daa7970490b76db37087aa894d9fd4e93239632ce330de914de9f28a6c09",
+        "clone": "sha256:8ea0d014258615ce677bab5337a9088e2c4a1e74d09271f24fdd809a51914284"
+      },
+      "provenance": "ladder:framer-L1-desat35",
+      "immutable": true
+    },
+    {
+      "id": "TW-0013",
+      "class": "canary:blind-spot",
+      "veto": null,
+      "expect": {
+        "detectionFires": [],
+        "gate": "publish",
+        "liability": "open"
+      },
+      "humanAnchor": {
+        "overall_0_100": 0
+      },
+      "note": "invisible-heading needs live style-runs (contrastFails) — pixel-only here",
+      "frozen": {
+        "source": "eval/grader/calibration/v2-shots/framer-src-d.png",
+        "clone": "eval/grader/calibration/ladders/framer-L2-invis-heading.png"
+      },
+      "hashes": {
+        "source": "sha256:e9d4daa7970490b76db37087aa894d9fd4e93239632ce330de914de9f28a6c09",
+        "clone": "sha256:162b9e4ebdbcaf7cb3053903f58248dd49c313d3b97f133cf455c0af7a293543"
+      },
+      "provenance": "ladder:framer-L2-invis-heading",
+      "immutable": true
+    },
+    {
+      "id": "TW-0014",
+      "class": "regression:veto",
+      "veto": "broken-hero",
+      "expect": {
+        "detectionFires": [
+          "broken-hero"
+        ],
+        "gate": "hold"
+      },
+      "humanAnchor": {
+        "overall_0_100": 5
+      },
+      "frozen": {
+        "source": "eval/grader/calibration/v2-shots/framer-src-d.png",
+        "clone": "eval/grader/calibration/ladders/framer-L3-blank-hero.png"
+      },
+      "hashes": {
+        "source": "sha256:e9d4daa7970490b76db37087aa894d9fd4e93239632ce330de914de9f28a6c09",
+        "clone": "sha256:867575a156a218b68575d4817e6239acb1a55c1d6a43d6a93fa04e298941acda"
+      },
+      "provenance": "ladder:framer-L3-blank-hero",
+      "immutable": true
+    },
+    {
+      "id": "TW-0015",
+      "class": "regression:veto",
+      "veto": "broken-hero",
+      "expect": {
+        "detectionFires": [
+          "broken-hero"
+        ],
+        "gate": "hold"
+      },
+      "humanAnchor": {
+        "overall_0_100": 5
+      },
+      "frozen": {
+        "source": "eval/grader/calibration/v2-shots/framer-src-d.png",
+        "clone": "eval/grader/calibration/ladders/framer-L4-blank-hero+section.png"
+      },
+      "hashes": {
+        "source": "sha256:e9d4daa7970490b76db37087aa894d9fd4e93239632ce330de914de9f28a6c09",
+        "clone": "sha256:070ce27195274a4c180e6f05ca93e52196ecfec35c97f6132abe5642638f1688"
+      },
+      "provenance": "ladder:framer-L4-blank-hero+section",
+      "immutable": true
+    }
+  ]
+}
