@@ -65,6 +65,12 @@ function lumRangeCrop(img, x0, y0, x1, y1) {
   return n ? hi - lo : 0;
 }
 
+// median fsz of body-range text runs (fsz<28) — derives the "is this run a hero heading" size threshold.
+function medianBodyFsz(runs) {
+  const fsz = (runs || []).map((t) => t.fsz || 0).filter((f) => f > 0 && f < 28).sort((a, b) => a - b);
+  return fsz.length ? fsz[Math.floor(fsz.length / 2)] : 0;
+}
+
 // per-run "is this rendered invisible" — first-line strip, local-bg median, <1% contrasting glyph pixels.
 // (Verbatim port of grade-structure.invisibleLocal so the heading veto reuses the trusted, FP-guarded logic.)
 function invisibleLocal(img, f) {
@@ -92,6 +98,14 @@ export const VETO_DEFAULTS = {
   HERO_SSIM_FLOOR: 0.30,  // top-band SSIM at/below floor
   HERO_FLAT: 24,          // clone hero luminance-range below this = flat/empty slab
   HERO_SRC_MIN: 40,       // ...only if the SOURCE hero actually has content (range above this)
+  HERO_NAV_SKIP: 1,       // band 0 (top 200px) is the NAV on a tall capture — never inspected as the hero
+  HERO_FOLD_PX: 1000,     // above-the-fold ≈ one 1440-wide viewport — the hero lives here
+  HERO_BAND_MAX: 6,       // default scan window = bands [NAV_SKIP..BAND_MAX] (~200..1400px hero region) — deep enough
+                          // to find the ADJACENT flat-band pair when a blanked hero starts a little below the nav
+                          // (framer/linear blanks begin ~band 3.5; a [1..4] window saw only one flat band → no pair)
+  HERO_EXACT_FLOOR: 0.15, // (legacy) bandExact conjunct
+  HERO_CONTENT_GAP: 50,   // src-minus-clone luminance-range delta = "the clone DROPPED the band's content" (the
+                          // robust replacement for the SSIM floor, which a shared white bg fools — see tripwire-seed)
   // unstyled-CTA
   CTA_SAT: 0.20,          // accent saturation threshold (fg or bg)
   CTA_MIN_SRC: 1,         // source must have >=1 styled CTA for the veto to be eligible
@@ -130,24 +144,76 @@ function detectInvisibleHeading(ctx, T) {
 }
 
 // ---- DETECTOR 3: broken-hero ---------------------------------------------------------------------------------
-// Top band near-empty/near-uniform on the clone WHILE the source hero has real content. Two independent signals
-// (band SSIM at floor, OR clone hero flat with content-bearing source hero); either fires.
+// A hero band near-empty/near-uniform on the clone WHILE the co-located SOURCE band has real content. The legacy
+// rule inspected a FIXED top-200px band — but on a tall full-page capture that band is the NAV, not the hero, which
+// caused BOTH a miss (a hero blanked BELOW the nav was invisible) and a false-positive (a flat dark nav read as a
+// broken hero). The default rule now SKIPS the nav band, locates the hero below it (anchored to the source's first
+// large heading when text positions are plumbed, else a nav-skipped above-the-fold scan), and fires ONLY on a
+// contiguous blank SLAB: two ADJACENT bands each FLAT-on-clone AND source-has-content AND fidelity-at-floor. The
+// mandatory bandFloor (SSIM) conjunct is the FP guard — a faithful dark/photo hero matches its source (high SSIM)
+// so it never fires, while a genuinely blank hero bottoms out and still does. Reversible: GRADER_BROKEN_HERO_LEGACY=1
+// restores the byte-identical band-0 rule. (fusion-locked 2026-06-20; validated by tripwire-seed on labeled ladders.)
 function detectBrokenHero(ctx, T) {
   if (flagOff('BROKENHERO')) return null;
-  const { srcShot, cloneShot, bandSSIM, bandExact } = ctx;
+  const { srcShot, cloneShot, bandSSIM, bandExact, srcTextPositions } = ctx;
   if (!cloneShot) return null;
-  const hb = Math.min(T.HERO_BAND_PX, cloneShot.height);
-  const cloneHeroRange = lumRangeCrop(cloneShot, 0, 0, cloneShot.width, hb);
-  const srcHeroRange = srcShot ? lumRangeCrop(srcShot, 0, 0, srcShot.width, Math.min(T.HERO_BAND_PX, srcShot.height)) : T.HERO_SRC_MIN + 1; // no source → assume content
-  const flatClone = cloneHeroRange < T.HERO_FLAT;
-  const srcHasContent = srcHeroRange >= T.HERO_SRC_MIN;
-  // band-fidelity signal (only when bands provided): top band SSIM AND exact both at floor = empty/wrong hero.
-  const topSSIM = (bandSSIM && bandSSIM.length) ? bandSSIM[0] : null;
-  const topExact = (bandExact && bandExact.length) ? bandExact[0] : null;
-  const bandFloor = (topSSIM != null && topExact != null) ? (topSSIM <= T.HERO_SSIM_FLOOR && topExact <= 0.15) : false;
-  const fired = (flatClone && srcHasContent) || (bandFloor && srcHasContent);
-  const severity = fired ? +Math.min(1, 0.6 + (flatClone ? 0.3 : 0) + (bandFloor ? 0.1 : 0)).toFixed(3) : 0;
-  return { veto: 'broken-hero', fired, severity, evidence: { cloneHeroRange: +cloneHeroRange.toFixed(1), srcHeroRange: +srcHeroRange.toFixed(1), flatClone, srcHasContent, topSSIM: topSSIM == null ? null : +topSSIM.toFixed(3), topExact: topExact == null ? null : +topExact.toFixed(3), bandFloor } };
+
+  // LEGACY band-0 rule (byte-identical to the pre-2026-06-20 behavior) behind a revert flag.
+  if (process.env.GRADER_BROKEN_HERO_LEGACY === '1') {
+    const hb = Math.min(T.HERO_BAND_PX, cloneShot.height);
+    const cloneHeroRange = lumRangeCrop(cloneShot, 0, 0, cloneShot.width, hb);
+    const srcHeroRange = srcShot ? lumRangeCrop(srcShot, 0, 0, srcShot.width, Math.min(T.HERO_BAND_PX, srcShot.height)) : T.HERO_SRC_MIN + 1;
+    const flatClone = cloneHeroRange < T.HERO_FLAT, srcHasContent = srcHeroRange >= T.HERO_SRC_MIN;
+    const topSSIM = (bandSSIM && bandSSIM.length) ? bandSSIM[0] : null, topExact = (bandExact && bandExact.length) ? bandExact[0] : null;
+    const bandFloor = (topSSIM != null && topExact != null) ? (topSSIM <= T.HERO_SSIM_FLOOR && topExact <= 0.15) : false;
+    const fired = (flatClone && srcHasContent) || (bandFloor && srcHasContent);
+    return { veto: 'broken-hero', fired, severity: fired ? +Math.min(1, 0.6 + (flatClone ? 0.3 : 0) + (bandFloor ? 0.1 : 0)).toFixed(3) : 0, evidence: { legacy: true, cloneHeroRange: +cloneHeroRange.toFixed(1), srcHeroRange: +srcHeroRange.toFixed(1), flatClone, srcHasContent, bandFloor } };
+  }
+
+  // NEW hero-scan rule. Requires a source to compare against (gate always has both shots); absent → no-op (never
+  // fire blind). The scan is bounded — conservatism comes from the per-band three-way AND + the adjacency slab.
+  if (!srcShot) return { veto: 'broken-hero', fired: false, severity: 0, evidence: { rule: 'hero-scan', note: 'no source', cloneHeroRange: 0, srcHeroRange: 0, flatClone: false, srcHasContent: false, bandFloor: false } };
+  const BAND = T.HERO_BAND_PX;
+  const H = Math.min(srcShot.height, cloneShot.height), Wm = Math.min(srcShot.width, cloneShot.width), nb = Math.floor(H / BAND);
+  if (nb < T.HERO_NAV_SKIP + 2) return { veto: 'broken-hero', fired: false, severity: 0, evidence: { rule: 'hero-scan', note: 'capture too short', nb, cloneHeroRange: 0, srcHeroRange: 0, flatClone: false, srcHasContent: false, bandFloor: false } };
+
+  // hero WINDOW: heading-anchored when source text positions are plumbed, else a nav-skipped above-the-fold scan.
+  let window = null;
+  if (Array.isArray(srcTextPositions) && srcTextPositions.length) {
+    const bodyFsz = medianBodyFsz(srcTextPositions) || 16;
+    const heads = srcTextPositions
+      .filter((t) => (t.y + (t.h || 0)) > BAND && t.y < T.HERO_FOLD_PX && (t.fsz || 0) >= Math.max(28, 1.55 * bodyFsz) && String(t.text || '').trim().length >= 3 && (t.w || 0) >= 0.12 * srcShot.width)
+      .sort((a, b) => a.y - b.y || (b.fsz || 0) - (a.fsz || 0));
+    if (heads.length) { const anchor = Math.max(T.HERO_NAV_SKIP, Math.floor(heads[0].y / BAND)); window = []; for (let b = Math.max(T.HERO_NAV_SKIP, anchor - 1); b <= Math.min(nb - 1, anchor + 1); b++) window.push(b); }
+  }
+  if (!window) { window = []; for (let b = T.HERO_NAV_SKIP; b <= Math.min(nb - 1, T.HERO_BAND_MAX); b++) window.push(b); }
+
+  // per-band breakage: flat-on-clone AND source-has-content AND fidelity-at-floor (ALL three).
+  const broken = {}, ranges = {};
+  for (const b of window) {
+    const y0 = b * BAND, y1 = Math.min(H, y0 + BAND);
+    const clR = lumRangeCrop(cloneShot, 0, y0, cloneShot.width, y1), srR = lumRangeCrop(srcShot, 0, y0, srcShot.width, y1);
+    ranges[b] = { cl: +clR.toFixed(1), sr: +srR.toFixed(1) };
+    const flatClone = clR < T.HERO_FLAT;
+    const srcHasContent = srR >= T.HERO_SRC_MIN || (Array.isArray(srcTextPositions) && srcTextPositions.some((t) => String(t.text || '').trim() && t.y < y1 && (t.y + (t.h || 0)) > y0));
+    // CONTENT-DROP measure (replaces the SSIM/exact floor — that floor is fooled by a shared dominant bg: blanking a
+    // LIGHT hero to white is pixel-SIMILAR to a sparse white-with-text source, so SSIM/exact stay HIGH on a REAL
+    // defect; empirically supabase blank ssim≈0.96, exact≈0.98). The luminance-RANGE DELTA is robust: a blanked band
+    // collapses to range≈0 while the source band keeps its content range, so srR-clR is large on a true drop and ~0
+    // on a faithful render — and it spares a near-faithful low-contrast/dark hero (small delta). (tripwire-seed-driven.)
+    const contentDropped = (srR - clR) >= T.HERO_CONTENT_GAP;
+    broken[b] = flatClone && srcHasContent && contentDropped;
+  }
+  // fire ONLY on two ADJACENT broken bands (≥400px contiguous blank slab) — a lone band or a benign shift won't trip.
+  let fired = false, slab = null;
+  for (let i = 0; i < window.length - 1; i++) { const b = window[i]; if (window[i + 1] === b + 1 && broken[b] && broken[b + 1]) { fired = true; slab = [b, b + 1]; break; } }
+  const brokenBands = window.filter((b) => broken[b]);
+  const eb = window[0], cloneHeroRange = ranges[eb] ? ranges[eb].cl : 0, srcHeroRange = ranges[eb] ? ranges[eb].sr : 0;
+  return {
+    veto: 'broken-hero', fired,
+    severity: fired ? +Math.min(1, 0.6 + brokenBands.length * 0.1).toFixed(3) : 0,
+    evidence: { rule: 'hero-scan', window: [window[0], window[window.length - 1]], brokenBands, slab, cloneHeroRange, srcHeroRange, flatClone: cloneHeroRange < T.HERO_FLAT, srcHasContent: srcHeroRange >= T.HERO_SRC_MIN, contentGap: +(srcHeroRange - cloneHeroRange).toFixed(1) },
+  };
 }
 
 // ---- DETECTOR 4: unstyled-CTA --------------------------------------------------------------------------------
