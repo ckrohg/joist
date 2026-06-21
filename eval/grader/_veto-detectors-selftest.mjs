@@ -115,6 +115,34 @@ console.log('=== A) DETECTOR UNIT TESTS ===');
   delete process.env.GRADER_NO_VETO_BROKENHERO;
 }
 
+// ---------- BROKEN-HERO (TALL full-page — the nav-vs-hero confound the fixed band-0 rule was blind to) ----------
+// The legacy fixture above is an 800px slab flat from the very top, so it never resembled a real ~8-12k px capture
+// where the hero sits BELOW a content-bearing nav. These fixtures encode that reality so a top-200px-only rule FAILS.
+{
+  const clone = (img) => { const c = new PNG({ width: img.width, height: img.height }); img.data.copy(c.data); return c; };
+  const paintBand = (img, b0, b1) => { for (let y = b0 * 200; y < b1 * 200; y++) for (let x = 0; x < img.width; x++) { const i = (y * img.width + x) * 4; img.data[i] = 245; img.data[i + 1] = 245; img.data[i + 2] = 245; } };
+  const W = 1440, Hh = 4000;                          // 20 bands; band 0 = nav, the hero lives below it
+  const srcTall = noisy(W, Hh, 120, 120, 120);        // content everywhere (nav + hero + body)
+  // POSITIVE: faithful nav (band 0 intact), hero region bands 3..7 BLANKED → must FIRE (the band-0 rule was blind).
+  const clnBlank = clone(srcTall); paintBand(clnBlank, 3, 8);
+  const posR = runVetoes({ srcShot: srcTall, cloneShot: clnBlank }).all.find((r) => r.veto === 'broken-hero');
+  check('BROKEN-HERO tall: hero blanked BELOW an intact nav FIRES (band-0 rule missed this)', posR.fired === true, `brokenBands ${JSON.stringify(posR.evidence.brokenBands)} slab ${JSON.stringify(posR.evidence.slab)}`);
+  // NEGATIVE: faithful identical clone → no flat slab → no fire.
+  const negR = runVetoes({ srcShot: srcTall, cloneShot: clone(srcTall) }).all.find((r) => r.veto === 'broken-hero');
+  check('BROKEN-HERO tall neg: faithful clone does NOT fire', negR.fired === false, `brokenBands ${JSON.stringify(negR.evidence.brokenBands)}`);
+  // NEGATIVE CONTROL (FP guard): a faithfully-reproduced DARK/low-contrast hero — the clone keeps the content, so the
+  // content-range DELTA stays small → must NOT fire. (The SSIM floor was dropped: it is fooled by a shared white bg —
+  // see tripwire-seed; the luminance-range delta is the robust guard.)
+  const srcDark = noisy(W, Hh, 60, 60, 60);          // a darker page; the hero is still content-bearing (range >= SRC_MIN)
+  const darkR = runVetoes({ srcShot: srcDark, cloneShot: clone(srcDark) }).all.find((r) => r.veto === 'broken-hero');
+  check('BROKEN-HERO tall neg-control: faithfully-reproduced dark hero does NOT fire (content-gap ~0)', darkR.fired === false, `brokenBands ${JSON.stringify(darkR.evidence.brokenBands)}`);
+  // LEGACY revert flag → byte-identical band-0 rule (an intact nav means the OLD rule cannot see the lower blank).
+  process.env.GRADER_BROKEN_HERO_LEGACY = '1';
+  const legR = runVetoes({ srcShot: srcTall, cloneShot: clnBlank, bandSSIM: [0.9], bandExact: [0.9] }).all.find((r) => r.veto === 'broken-hero');
+  check('BROKEN-HERO legacy flag: band-0 rule restored (intact nav → old rule blind to the lower blank)', legR.evidence.legacy === true && legR.fired === false, `legacy=${legR.evidence.legacy} fired=${legR.fired}`);
+  delete process.env.GRADER_BROKEN_HERO_LEGACY;
+}
+
 // ---------- UNSTYLED-CTA ----------
 // Source has a styled accent CTA (saturated bg fill); clone CTA is default grey/black-on-transparent ⇒ FIRES.
 {
