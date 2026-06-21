@@ -180,6 +180,16 @@ console.log('=== A) DETECTOR UNIT TESTS ===');
   const clnTiny = clone(src); paintBand(clnTiny, 14, 15);
   check('CONTENT-VOID neg: a single 200px gap (below the slab floor) is silent', cvOf({ srcShot: src, cloneShot: clnTiny }).fired === false);
 
+  // NEGATIVE 5 — HEIGHT-RATIO GUARD (the Allbirds FP): a STRETCHED clone (2.2x taller) makes same-y bands misalign,
+  // so a present-but-relocated section reads as a same-y void. Under stretch the visual path must be SUPPRESSED →
+  // a blanked band whose text IS reproduced elsewhere must NOT fire (it would, pre-guard, via the visual path).
+  const tallClone = (() => { const c = new PNG({ width: W, height: Hh * 2 }); for (let i = 0; i < c.data.length; i += 4) { c.data[i] = src.data[(i % (W * Hh * 4))]; c.data[i + 1] = src.data[(i % (W * Hh * 4)) + 1]; c.data[i + 2] = src.data[(i % (W * Hh * 4)) + 2]; c.data[i + 3] = 255; } paintBand(c, 12, 18); return c; })();
+  const relocText = [12, 13, 14, 15].map((b) => ({ x: 100, y: b * 200 + 20, w: 1000, h: 160, fsz: 20, text: 'A relocated carousel section with enough words to be text dominant band ' + b }));
+  const stretchedFP = cvOf({ srcShot: src, cloneShot: tallClone, srcTextPositions: relocText, cloneTextRuns: relocText.map((t) => ({ text: t.text })) });
+  check('CONTENT-VOID height-guard: stretched clone + relocated-but-present text → visual path suppressed → silent', stretchedFP.fired === false, `ratio ${stretchedFP.evidence.heightRatio} stretched ${stretchedFP.evidence.stretched}`);
+  // guard does NOT hide a REAL drop under stretch: same stretched clone, text NOT reproduced → text path still fires.
+  const stretchedReal = cvOf({ srcShot: src, cloneShot: tallClone, srcTextPositions: relocText, cloneTextRuns: [] });
+  check('CONTENT-VOID height-guard: real drop under stretch (text gone) → text path STILL fires', stretchedReal.fired === true, `path ${stretchedReal.evidence.path || '-'}`);
   // reversible
   process.env.GRADER_NO_VETO_CONTENTVOID = '1';
   check('CONTENT-VOID reversible: GRADER_NO_VETO_CONTENTVOID=1 → detector absent', runVetoes({ srcShot: src, cloneShot: clnVoid }).all.find((r) => r.veto === 'content-void') === undefined);

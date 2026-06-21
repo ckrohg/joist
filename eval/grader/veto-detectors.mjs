@@ -114,6 +114,8 @@ export const VETO_DEFAULTS = {
   VOID_TEXT_DOMINANT_CHARS: 40,// a band is "text-dominant" (eligible for the reflow text-guard) at >= this many non-boilerplate chars
   VOID_TEXT_MATCH_FRAC: 0.5,   // text-guard: a band is "relocated, not dropped" when >= this frac of its runs are reproduced in the clone
   VOID_BOILERPLATE_BANDS: 3,   // source text appearing in >= this many bands = nav/footer chrome (excluded from the text-guard)
+  VOID_HRATIO_LO: 0.75,        // height-ratio guard band: outside [LO,HI] the same-y VISUAL path is unreliable (band-misalignment
+  VOID_HRATIO_HI: 1.35,        // under a stretched/squashed clone) → fire only on the scale-INVARIANT text path (source text truly gone)
   // unstyled-CTA
   CTA_SAT: 0.20,          // accent saturation threshold (fg or bg)
   CTA_MIN_SRC: 1,         // source must have >=1 styled CTA for the veto to be eligible
@@ -286,6 +288,15 @@ function detectContentVoid(ctx, T) {
   const reqPx = Math.max(T.VOID_MIN_PX, Math.round(T.VOID_MIN_FRAC * H));
   const startBand = T.HERO_BAND_MAX; // 6 — a deliberate 1-band overlap w/ broken-hero (closes the 6/7 seam; the gate cap is idempotent)
 
+  // HEIGHT-RATIO GUARD (fusion-locked 2026-06-21): a stretched/squashed clone (e.g. a 2.2x height-blowup) makes the
+  // SAME-Y band comparison meaningless — source-y4200 (a carousel) lines up with clone-y4200 (oversized-image
+  // whitespace), so the VISUAL path falsely vetoes a section that is present-but-relocated. When cloneH/srcH is
+  // outside the guard band, drop the same-y visual trigger and fire ONLY on the scale-INVARIANT text path (source
+  // text genuinely absent from the WHOLE clone). The real blowup is still penalized by the height/responsive terms;
+  // this only suppresses the false DROPPED-SECTION veto. Reversible: GRADER_NO_VOID_HRATIO_GUARD=1.
+  const heightRatio = srcShot.height > 0 ? +(cloneShot.height / srcShot.height).toFixed(3) : 1;
+  const stretched = process.env.GRADER_NO_VOID_HRATIO_GUARD !== '1' && (heightRatio > T.VOID_HRATIO_HI || heightRatio < T.VOID_HRATIO_LO);
+
   // boilerplate = normed source text recurring across >= VOID_BOILERPLATE_BANDS bands (nav/footer chrome).
   const bandsOf = new Map();
   for (const t of (srcTextPositions || [])) { const n = _normText(t.text); if (n.length < 4) continue; const bi = Math.floor((t.y + (t.h || 0) / 2) / BAND); if (!bandsOf.has(n)) bandsOf.set(n, new Set()); bandsOf.get(n).add(bi); }
@@ -320,12 +331,14 @@ function detectContentVoid(ctx, T) {
     const slabPx = (bot - t + 1) * BAND;
     let evBands = 0; for (let k = t; k <= bot; k++) if (evid[k]) evBands++;
     const { unrepChars, unrepRuns } = unrepInSlab(t, bot);
-    if (slabPx >= reqPx && (evBands >= 2 || (unrepChars >= T.VOID_TEXT_CHARS && unrepRuns >= 2))) {
-      if (!best || slabPx > best._px) best = { veto: 'content-void', fired: true, severity: +Math.min(1, 0.6 + 0.4 * Math.min(1, slabPx / (0.4 * H))).toFixed(3), _px: slabPx, evidence: { slab: [t, bot], slabPx, voidFrac: +(slabPx / H).toFixed(3), evBands, unrepChars, path: evBands >= 2 ? 'visual' : 'text' } };
+    const visualOK = !stretched && evBands >= 2;             // same-y visual path — disabled under stretch (band-misalignment)
+    const textOK = unrepChars >= T.VOID_TEXT_CHARS && unrepRuns >= 2; // scale-invariant: source text truly gone from the clone
+    if (slabPx >= reqPx && (visualOK || textOK)) {
+      if (!best || slabPx > best._px) best = { veto: 'content-void', fired: true, severity: +Math.min(1, 0.6 + 0.4 * Math.min(1, slabPx / (0.4 * H))).toFixed(3), _px: slabPx, evidence: { slab: [t, bot], slabPx, voidFrac: +(slabPx / H).toFixed(3), evBands, unrepChars, path: visualOK ? 'visual' : 'text', heightRatio, stretched } };
     }
   }
   if (best) { delete best._px; return best; }
-  return { veto: 'content-void', fired: false, severity: 0, evidence: { reqPx, scanned: [startBand, lastBand] } };
+  return { veto: 'content-void', fired: false, severity: 0, evidence: { reqPx, scanned: [startBand, lastBand], heightRatio, stretched } };
 }
 
 /**
