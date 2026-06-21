@@ -1264,6 +1264,22 @@ export async function transpile({ html, width = 1440, assets, outDir, dryRun, ba
       capManifest = JSON.parse(fs.readFileSync(capPath, 'utf8'));
     } catch (e) { rhythm = { applied: false, reason: `cap manifest unreadable: ${e.message.slice(0, 80)}` }; }
     if (capManifest) {
+      // PAGE-BACKGROUND carry (linear dark-theme fix): the offline source.html often loses the body/html background
+      // (a JS-applied theme class / CSS var lost on static inlining → linear's dark theme reads transparent offline),
+      // so the root container has no bg and the cloned page renders WHITE (dark theme gone). capture-assets records the
+      // TRUE page bg (sampled from the online shot) as manifest.pageBg; apply it to the root container when the root has
+      // no opaque background of its own. Skip a (near-)white pageBg (the WP canvas is already white → no-op). Reversible:
+      // TRANSPILE_NO_PAGEBG=1.
+      if (!process.env.TRANSPILE_NO_PAGEBG && capManifest.pageBg) {
+        const bg = hex(capManifest.pageBg);
+        const rs = root.settings || {};
+        const rootHasOpaqueBg = rs.background_background === 'classic' && rs.background_color && hex(rs.background_color) !== '#ffffff';
+        const isWhite = !bg || ['#ffffff', '#fefefe'].includes(bg.toLowerCase());
+        if (bg && !isWhite && !rootHasOpaqueBg) {
+          rs.background_background = 'classic'; rs.background_color = bg; root.settings = rs;
+          mapper.POLICY.push(`PAGE-BG: root container background ← captured pageBg ${capManifest.pageBg} (offline source lost the body/html theme color)`);
+        }
+      }
       rhythm = applyRhythm(root, spec.tree, capManifest, { width });
       if (rhythm.applied) mapper.POLICY.push(`RHYTHM: pinned ${rhythm.sections.filter((s) => s.addBottomPad > 0).length} short section(s) to source band height (+${rhythm.recoveredPx}px bottom-pad total; ratio ${rhythm.ratioBefore}→${rhythm.ratioAfter}; ${rhythm.bands} source bands)`);
       else mapper.POLICY.push(`RHYTHM: no-op (${rhythm.reason || 'no short matched sections'})`);

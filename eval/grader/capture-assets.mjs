@@ -61,6 +61,8 @@ const NO_SVGFIX = process.env.CAPTURE_NO_SVGFIX === '1';  // GAP 2 — fall back
 const NO_DOM    = process.env.CAPTURE_NO_DOM === '1';     // GAP 3 — skip outline.txt + source.html
 const NO_CROPS  = process.env.CAPTURE_NO_CROPS === '1';   // GAP 1 — skip crops/ + crops-manifest.json
 const NO_CSS_INLINE = process.env.CAPTURE_NO_CSS_INLINE === '1'; // GAP 4 — leave external <link> CSS (source.html not self-contained)
+const NO_PAGEBG = process.env.CAPTURE_NO_PAGEBG === '1';   // GAP 5 — don't record the true page background from the shot
+let pageBg = null;                                          // GAP 5 — sampled true page bg (rgb string), canonical width
 if (!SOURCE || !OUT) {
   console.error('usage: node capture-assets.mjs --source <url> --out <dir> [--widths 1440,1100,768] [--max-px 20000]');
   process.exit(2);
@@ -731,6 +733,26 @@ for (const w of WIDTHS) {
     const shotRel = `shots/w${w}.png`;
     fs.writeFileSync(path.join(OUT, shotRel), shotBuf);
 
+    // GAP 5 (pageBg, 2026-06-20): record the TRUE rendered page background by sampling the canonical shot. The
+    // offline source.html render often LOSES the body/html background (a JS-applied theme class / CSS var that
+    // doesn't survive static inlining — linear's dark theme rgb(8,9,10) reads transparent offline), so transpile
+    // can't read it from the DOM and the cloned page defaults WHITE (dark theme lost). The ONLINE shot HAS the true
+    // bg; sample the modal/dominant color of a top band that avoids the centered hero text. Recorded on the canonical
+    // width only. Reversible: CAPTURE_NO_PAGEBG=1.
+    if (!NO_PAGEBG && pageBg === null) {
+      try {
+        const png = PNG.sync.read(shotBuf); const W = png.width, H = Math.min(png.height, 400); const counts = new Map();
+        for (let y = 8; y < H; y += 6) for (let x = 8; x < W; x += 10) {
+          // sample the far-left and far-right gutters (avoid centered hero text/art)
+          if (x > W * 0.18 && x < W * 0.82) continue;
+          const i = (y * W + x) << 2; const k = `${png.data[i] >> 3},${png.data[i + 1] >> 3},${png.data[i + 2] >> 3}`;
+          counts.set(k, (counts.get(k) || 0) + 1);
+        }
+        let best = null, bn = 0; for (const [k, n] of counts) if (n > bn) { bn = n; best = k; }
+        if (best) { const [r, g, b] = best.split(',').map((v) => (+v << 3) + 4); pageBg = `rgb(${r}, ${g}, ${b})`; }
+      } catch { /* best-effort */ }
+    }
+
     const wantDom = !NO_DOM && !domWritten;   // GAP 3 — extract rendered DOM + outline on the FIRST good width
     const facts = await extractFacts(page, { maxPx: MAX_PX, elCap: EL_CAP, ruleElCap: RULE_EL_CAP, perElRuleCap: PER_EL_RULE_CAP, mediaRuleCap: MEDIA_RULE_CAP, assetCap: ASSET_CAP, noSvgFix: NO_SVGFIX, emitCrops: !NO_CROPS, cropCap: CROP_CAP, emitDom: wantDom, noCssInline: NO_CSS_INLINE });
 
@@ -889,6 +911,7 @@ if (!NO_CROPS) {
 
 const manifest = {
   source: SOURCE, widths: WIDTHS, maxPx: MAX_PX,
+  pageBg, // GAP 5 — true rendered page background (the offline source.html often loses it)
   perWidth, assets,
   styleFacts: 'style-facts.json',
   // GAP 3 — always present (real or degraded stub); domWidth = width the rendered DOM came from (false if stub)
