@@ -11,6 +11,7 @@ import fs from 'fs';
 import { PNG } from 'pngjs';
 import { createHash } from 'crypto';
 import { resolveBase } from '../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: never render/PUT to a non-training host
+import { buttonPaint as _sharedButtonPaint } from './cta-paint.mjs'; // CTA paint: single shared source (build ≡ heal). See _cta-paint-equiv.mjs (byte-identical proof).
 const arg = (n, d = null) => { const i = process.argv.indexOf('--' + n); return i > -1 && process.argv[i + 1] && !process.argv[i + 1].startsWith('--') ? process.argv[i + 1] : d; };
 // §0 SAFETY GUARD: default to the LOCAL sandbox (was the PAUSED shared host georges232.sg-host.com —
 // this default caused the strays). resolveBase() throws LOUDLY before any fetch/PUT if JOIST_BASE
@@ -785,54 +786,15 @@ const NO_WHITEPILL = process.env.BUILD_NO_WHITEPILL === '1';
 // clone (the button branch emits no white-space:nowrap) and overflows down into the next tightly-stacked link
 // slot. ABS_NO_LINKWRAP=1 → old behavior (links can wrap → footer-grid collision). See the wrap-guard pre-pass.
 const NO_LINKWRAP = process.env.ABS_NO_LINKWRAP === '1';
+// CTA paint is now the single shared source in cta-paint.mjs (so build-time and self-heal-time paint IDENTICALLY).
+// This is a faithful delegation — _sharedButtonPaint is the verbatim extraction of the former inline body, proven
+// BYTE-IDENTICAL across 144 leaf×config comparisons (22 real captured CTAs + synthetic) by _cta-paint-equiv.mjs,
+// and a build-level no-op by the before/after ABS_DRY_RUN tree diff. We pass the local gradient-aware `textColor`
+// so the non-default !DEINLINE (ABS_NO_DEINLINE=1) inline-color branch stays exactly faithful; DEINLINE itself and
+// the BUILD_NO_CTA_PAINT / BUILD_NO_WHITEPILL / ABS_NO_CHROME_WRAP flags are read inside cta-paint from the same env.
+// (NO_CTA_PAINT / NO_WHITEPILL consts above are retained for any other reader and are now sourced inside cta-paint.)
 function buttonPaint(n) {
-  if (NO_CTA_PAINT || n.kind !== 'button') return null;
-  const hasSolid = _solidBg(n.bg);
-  const hasGrad = n.bgImage && /gradient|url\(/.test(n.bgImage);
-  const hasBorder = n.border && /^\d/.test(String(n.border)) && !/^0px/.test(String(n.border));
-  const tagSignal = n.tag === 'button' || (n.interactive && n.interactive.role === 'button');
-  // ── WHITE-PILL / SHADOW-ELEVATED path (whitepill-shadow fix; default ON, BUILD_NO_WHITEPILL=1 → legacy) ───────
-  // A CTA whose chrome is a transparent-bg + INSET-RING / elevation box-shadow (react.dev "Add React to your page":
-  // bg:rgba(0,0,0,0), border:0px, radius:9999px, padding:10px/24px, boxShadow: inset 1px ring rgb(217,219,227))
-  // hit NONE of the fill/border/tag signals → returned null → rendered as bare bold text. The capture now recovers
-  // the real (multi-layer) shadow (capture-layout shadowOf), so a genuine captured box-shadow is the distinguishing
-  // signal that nav links (boxShadow:none → null) and plain prose links do NOT carry. We add a SHADOW path GATED by
-  // a strict anti-false-pill guard so it fires ONLY on a real, padded, short-text button/link with a captured
-  // shadow — never on nav items or prose. When it fires with no captured fill, we synthesize a WHITE surface so the
-  // ring/elevation reads as a pill against the page (the source pill IS visually white-on-page chrome).
-  // capture-side shadowOf already dropped transparent/zero-geometry layers, so a non-null n.boxShadow is genuine;
-  // belt-and-suspenders for any legacy capture: require it to carry a color AND a px geometry token (a real shadow).
-  const hasShadow = !NO_WHITEPILL && !!n.boxShadow && /(#|rgb)/i.test(String(n.boxShadow)) && /-?\d*\.?\d+px/.test(String(n.boxShadow)) && !/^rgba\(0, 0, 0, 0\)/.test(String(n.boxShadow));
-  const padOk = !!_padCss(n.btnPad);                         // genuine non-zero padding (a pill has interior padding)
-  const shortText = ((n.text || '').trim().length <= 48);    // CTA/label length, not a prose paragraph
-  // A genuine shadow-elevated pill: captured visible shadow AND interior padding AND short button/link text.
-  const shadowPill = hasShadow && padOk && shortText;
-  // A bare textual link (no fill, no border, no <button>/role tag, no shadow-pill) is NOT a styled button → plain.
-  if (!hasSolid && !hasGrad && !hasBorder && !tagSignal && !shadowPill) return null;
-  // If the ONLY signal is the tag (no fill, no border, no shadow-pill) the source renders it as a plain text link
-  // styled as a button elsewhere we cannot see → do NOT invent a pill (would be a spurious fill). Require a genuine
-  // paint (fill / border / shadow-elevated pill) to actually style it.
-  if (!hasSolid && !hasGrad && !hasBorder && !shadowPill) return null;
-  const parts = ['display:inline-block', 'text-decoration:none', 'box-sizing:border-box'];
-  if (hasGrad) parts.push(`background-image:${n.bgImage}`);
-  if (hasSolid) parts.push(`background-color:${n.bg}`); // solid sits under/with the gradient; both kses-safe
-  // shadow-elevated pill with NO captured fill → synthesize a white surface so the ring/elevation reads as a pill.
-  else if (shadowPill && !hasGrad) parts.push('background-color:#ffffff');
-  if (hasBorder) parts.push(`border:${n.border}`);
-  const rad = px(n.radius); if (rad) parts.push(`border-radius:${rad}px`);
-  const pad = _padCss(n.btnPad) || '8px 18px'; parts.push(`padding:${pad}`);
-  if (n.boxShadow) parts.push(`box-shadow:${n.boxShadow}`);
-  // white-space:nowrap keeps a SHORT pill/badge/CTA label on one line. For LONG text (a testimonial card / prose
-  // rendered in a rounded surface — notion's “Agents get created…” quote @873px), nowrap bursts the viewport at
-  // EVERY width (it overflowed even desktop @1440 by 107px). Gate nowrap on shortText so long cards WRAP and fit.
-  // Reversible: ABS_NO_CHROME_WRAP=1 → legacy unconditional nowrap.
-  parts.push('text-align:center');
-  if (shortText || process.env.ABS_NO_CHROME_WRAP === '1') parts.push('white-space:nowrap');
-  // DE-INLINE: the anchor's COLOR comes from the native text_color (inherited via the per-leaf a{color:inherit}
-  // reset) so the panel color control actually renders; the chrome (bg/border/radius/padding/shadow) is NOT
-  // typography/color-control territory and stays inline. ABS_NO_DEINLINE=1 → legacy inline color kept.
-  if (!DEINLINE) { const c = textColor(n); if (c) parts.push(`color:${c}`); }
-  return parts.join(';');
+  return _sharedButtonPaint(n, { textColor });
 }
 
 // ── LEAF OWN-CHROME PROJECTION (projection fidelity fix #5 — default ON; BUILD_NO_LEAF_CHROME=1 → old, no chrome) ──
