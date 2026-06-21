@@ -551,10 +551,14 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
     // flex row so cells flow horizontally and wrap into rows — a faithful flex approximation of the grid. Reversible:
     // TRANSPILE_NO_GRID_ROW=1.
     const isGrid = !process.env.TRANSPILE_NO_GRID_ROW && s.display.includes('grid');
-    out.flex_direction = ((s.display.includes('flex') && s['flex-direction'] === 'row') || isGrid) ? 'row' : 'column';
+    // MEDIA-ARRANGEMENT reconstructed container (fusion 2026-06-21): force flex ROW+WRAP regardless of the offline-
+    // collapsed display, so its %-stamped cells pack C-per-row. A sticky panel (D) restacks to a column on mobile.
+    const maWrap = n._maRowWrap;
+    out.flex_direction = (maWrap || (s.display.includes('flex') && s['flex-direction'] === 'row') || isGrid) ? 'row' : 'column';
     if (s['justify-content'] && !['normal', 'flex-start'].includes(s['justify-content'])) out.flex_justify_content = s['justify-content'];
     if (s['align-items'] && !['normal', 'stretch'].includes(s['align-items'])) out.flex_align_items = s['align-items'];
-    if (s['flex-wrap'] === 'wrap' || isGrid) out.flex_wrap = 'wrap';
+    if (s['flex-wrap'] === 'wrap' || isGrid || maWrap) out.flex_wrap = 'wrap';
+    if (maWrap) { out.flex_direction_tablet = 'row'; out.flex_direction_mobile = 'row'; } // cells (not the container) restack via their % widths
     const gap = Math.max(px(s['row-gap']), px(s['column-gap']));
     out.flex_gap = { unit: 'px', size: gap, column: String(gap), row: String(gap), isLinked: true };
     const pads = ['padding-top', 'padding-right', 'padding-bottom', 'padding-left'].map((p) => px(s[p]));
@@ -761,14 +765,20 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
     // (reliably flushed to per-element CSS — unlike Pro custom_css, which this stack doesn't emit)
     // so the vector scales to the captured width preserving its aspect.
     const isSvg = /\.svg(\?|$)/i.test(String(url));
+    // FLUID-IN-CELL (media-arrangement): a reconstructed-gallery/grid image goes image_size:'full' (NO rigid px
+    // dimension) so it fills its % cell at the cell's width and auto-height (aspect-locked) — the bounded-row
+    // packing comes from the cell width, never from resizing the image file. (Outside a reconstruction, the px
+    // image_custom_dimension stays — it reserves the box against the lazy-collapse placeholder bug.)
+    const fluid = !!n._maFluid;
     const set = {
       image: { url, ...(id ? { id } : {}) },
-      ...((w && h && !isSvg)
+      ...((w && h && !isSvg && !fluid)
         ? { image_size: 'custom', image_custom_dimension: { width: String(w), height: String(h) } }
         : { image_size: 'full' }),
       ...widgetCommon(n),
     };
     if (isSvg && w) { set._element_width = 'initial'; set._element_custom_width = { unit: 'px', size: w }; }
+    else if (fluid) { set._element_width = 'initial'; set._element_custom_width = { unit: '%', size: 100 }; } // fill the cell
     else if (parent && isRowParent(parent.s)) set._element_width = 'auto';
     applyMedia(n, set, 'align');
     return { elType: 'widget', widgetType: 'image', settings: set };
@@ -856,8 +866,19 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
       const mTop = (/px$/.test(d['margin-top'] || '') && !CSS_MATH.test(d['margin-top'] || '')) ? px(n.s['margin-top']) : 0;
       if (mTop) settings.margin = dims(mTop, 0, 0, 0);
     }
+    // MEDIA-ARRANGEMENT cell (fusion 2026-06-21): a reconstructed grid/gallery/carousel cell gets a FLUID % width
+    // (per-keystone) so it packs C-per-row, instead of the offline-collapsed full-width px pin that stacks it. The
+    // image inside stays image_size:full (fluid-in-cell, never resized). Takes precedence over the px row-child pin.
+    if (n._maWidthPct) {
+      settings._element_width = 'initial';
+      settings._element_custom_width = { unit: '%', size: n._maWidthPct };
+      if (n._maWidthPctTablet != null) settings._element_custom_width_tablet = { unit: '%', size: n._maWidthPctTablet };
+      if (n._maWidthPctMobile != null) settings._element_custom_width_mobile = { unit: '%', size: n._maWidthPctMobile };
+      settings._flex_size = 'custom'; settings._flex_shrink = 0;
+      delete settings.width;
+    }
     // P4: e-con row children default to 100% width — pin px width + buffer, never shrink.
-    if (parent && isRowParent(parent.s) && !settings.width && !settings._flex_grow) {
+    else if (parent && isRowParent(parent.s) && !settings.width && !settings._flex_grow) {
       settings.width = { unit: 'px', size: n.rect.w + ROW_CHILD_BUFFER_PX };
       settings._flex_size = 'custom'; settings._flex_shrink = 0;
     }
@@ -1107,6 +1128,64 @@ export function collectMediaUrls(n, out = []) {
   return out;
 }
 
+// gap-safe per-cell width %: floor(100/C)-1 absorbs rounding so the row never overflows into an extra wrap line.
+const childPct = (C) => Math.max(1, Math.floor(100 / Math.max(1, C)) - 1);
+// column count by arrangement type (fusion 2026-06-21): grid → resolved track count (fallback content-derived);
+// carousel → ≤4; vertical scroll-snap gallery → 3 (legibility floor); clamp 2..6.
+function columnsFor(type, n) {
+  const kids = (n.children || []).length;
+  if (type === 'carousel-x') return Math.min(kids, 4);
+  if (type === 'scrollsnap-y') return 3;
+  // grid: count resolved tracks in grid-template-columns (paren-safe); offline-collapsed (<2) → content-derived.
+  const gtc = String((n.s || {})['grid-template-columns'] || '');
+  let tracks = gtc && gtc !== 'none' ? gtc.trim().split(/\s+(?![^(]*\))/).length : 0;
+  if (tracks < 2) tracks = Math.min(4, Math.max(2, Math.round(Math.sqrt(kids)))); // collapsed offline → a sane grid
+  return Math.max(2, Math.min(6, tracks));
+}
+
+// ── MEDIA-ARRANGEMENT RECONSTRUCTION pre-pass (fusion 2026-06-21). Walk the spec tree OUTSIDE-IN (pre-order),
+// classify each container ONCE (single-assignment; a claimed node's cells are reconstructed by recursing the
+// classifier into the cells only), and for a non-additive media container force flex ROW+WRAP and stamp each cell
+// with a fluid % width (per-keystone) so it packs C-per-row instead of stacking full-width. NEVER resizes an image
+// (cells narrow; image stays image_size:full, aspect-locked). Returns {reconstructed, imgsBefore, imgsAfter} for the
+// media-presence invariant. Reversible: caller gates on TRANSPILE_NO_MEDIA_ARRANGEMENT=1. MUTATES the tree.
+export function reconstructArrangement(tree, opts = {}) {
+  const log = [];
+  const imgsBefore = collectMediaUrls(tree).length;
+  function stampCells(n, type) {
+    const C = columnsFor(type, n);
+    const pct = childPct(C);
+    // responsive per type (fusion): grid/gallery → tablet 50% (≥3-col) / mobile 50% (media); carousel → tablet 33% / mobile 50%.
+    const pctT = type === 'carousel-x' ? childPct(3) : (C >= 3 ? 50 : pct);
+    const pctM = 50; // media grids/galleries/carousels NEVER 1-col on mobile (that is the additive stack again)
+    n._maRowWrap = true; n._maType = type; n._maCols = C;
+    const markFluid = (x) => { if (!x || typeof x !== 'object') return; if (x.tag === 'img') x._maFluid = true; for (const c of (x.children || [])) markFluid(c); };
+    for (const k of (n.children || [])) {
+      if (!k || typeof k !== 'object') continue;
+      k._maWidthPct = pct; k._maWidthPctTablet = pctT; k._maWidthPctMobile = pctM;
+      // FLUID-IN-CELL: every image under a reconstructed cell drops its rigid px image_custom_dimension and goes
+      // image_size:'full' so it scales to the narrowed % cell (aspect-locked) instead of forcing its full px height.
+      markFluid(k);
+    }
+    log.push(`${type} C=${C} cell=${pct}% (t${pctT}/m${pctM}) on <${n.tag} class="${String(n.cls).slice(0, 32)}"> kids=${(n.children || []).length}`);
+  }
+  function walk(n) {
+    if (!n || typeof n !== 'object') return;
+    const type = classifyArrangement(n);
+    if (type) {
+      stampCells(n, type);
+      // single-assignment: this node is CLAIMED. Recurse only INTO its cells' subtrees (cells are strict box subsets),
+      // never re-examine this node — outer wins the outer box, inner the inner box.
+      for (const k of (n.children || [])) for (const gk of (k.children || [])) walk(gk);
+      return;
+    }
+    for (const k of (n.children || [])) walk(k);
+  }
+  walk(tree);
+  const imgsAfter = collectMediaUrls(tree).length;
+  return { reconstructed: log.length, imgsBefore, imgsAfter, log };
+}
+
 /**
  * Detach <header>/<footer> landmark sections (and a top-level <nav> when no <header> exists) from the spec
  * tree so they can be authored as SITE PARTS (POST /joist/v1/site-parts → Pro Theme Builder documents with
@@ -1297,6 +1376,22 @@ export async function transpile({ html, width = 1440, assets, outDir, dryRun, ba
   let assetSrc = assets;
   if (!assetSrc && cap) { try { assetSrc = fs.statSync(cap).isDirectory() ? path.join(cap, 'manifest.json') : cap; } catch { assetSrc = cap; } }
   const manifest = loadManifest(assetSrc);
+  // MEDIA-ARRANGEMENT pre-pass (height-blowup fix, fusion 2026-06-21): reconstruct non-additive media containers
+  // (grid / carousel / vertical scroll-snap gallery / sticky panel) as bounded flex row+wrap with fluid % cells, so
+  // they pack C-per-row instead of stacking full-width (the 2.2x PDP blowup). Runs on spec.tree BEFORE mapNode.
+  // Media-presence invariant: image count must be preserved (the bounding can't be achieved by dropping an image).
+  // STATUS: OPT-IN (TRANSPILE_MEDIA_ARRANGEMENT=1) — detection + emit are built and fire correctly + preserve every
+  // image, but the height reduction is NOT yet landing (fluid-in-cell images aren't shrinking to their % cells on
+  // the Allbirds gallery → re-render still tall). Default OFF until the fluid mechanics + container-targeting are
+  // verified to drop the clone height to ≤~1.1x source. Off-path is byte-identical (pre-pass does not run).
+  if (process.env.TRANSPILE_MEDIA_ARRANGEMENT === '1') {
+    const ma = reconstructArrangement(spec.tree);
+    if (ma.reconstructed) {
+      if (ma.imgsAfter !== ma.imgsBefore) throw new Error(`media-arrangement INVARIANT VIOLATION: images ${ma.imgsBefore}→${ma.imgsAfter} (reconstruction must never drop an image)`);
+      console.log(`media-arrangement: reconstructed ${ma.reconstructed} container(s), ${ma.imgsBefore} images preserved`);
+      ma.log.forEach((l) => console.log('  •', l));
+    }
+  }
   // resolveAssets walks the FULL tree (header logos resolve too) — split AFTER.
   const { assetMap, notes } = await resolveAssets(spec.tree, manifest, { dryRun, base, b64, outDir });
   const mapper = makeMapper({ assetMap, authoringWidth: width });
