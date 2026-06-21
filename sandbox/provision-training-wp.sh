@@ -242,8 +242,8 @@ provision_joist() {
   WP cap add administrator joist_use_agent_api >/dev/null 2>&1 || true
   ok "granted joist_use_agent_api to administrator"
 
-  # mu-plugins: @font-face registration + canvas-template guard.
-  for muf in joist-training-fonts.php joist-training-canvas.php; do
+  # mu-plugins: @font-face registration + canvas-template guard + SVG-upload allow (clone logos are SVG).
+  for muf in joist-training-fonts.php joist-training-canvas.php joist-training-svg.php; do
     if [ -f "$MU_SRC_DIR/$muf" ]; then
       put_into_wpcontent "$MU_SRC_DIR/$muf" "mu-plugins/$muf" && ok "installed mu-plugin $muf" || warn "mu-plugin $muf copy failed"
     else
@@ -358,10 +358,10 @@ verify_readiness() {
     warn "elementor_canvas not in template filter (Elementor binds at render; verify a canvas page renders chrome-free)"
   fi
 
-  if WP eval 'echo (is_readable(WPMU_PLUGIN_DIR."/joist-training-fonts.php") && is_readable(WPMU_PLUGIN_DIR."/joist-training-canvas.php"))?"yes":"no";' 2>/dev/null | grep -q yes; then
-    ok "mu-plugins loaded (joist-training-fonts.php + joist-training-canvas.php)"
+  if WP eval 'echo (is_readable(WPMU_PLUGIN_DIR."/joist-training-fonts.php") && is_readable(WPMU_PLUGIN_DIR."/joist-training-canvas.php") && is_readable(WPMU_PLUGIN_DIR."/joist-training-svg.php"))?"yes":"no";' 2>/dev/null | grep -q yes; then
+    ok "mu-plugins loaded (fonts + canvas + svg)"
   else
-    warn "one or both mu-plugins missing from WPMU_PLUGIN_DIR"
+    warn "one or more mu-plugins missing from WPMU_PLUGIN_DIR"
     fail=1
   fi
 
