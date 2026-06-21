@@ -1084,21 +1084,43 @@ export async function resolveAssets(specTree, manifest, { dryRun, base, b64, out
   const notes = [];
   const cache = { file: path.join(outDir, 'uploads.json'), data: {} };
   try { cache.data = JSON.parse(fs.readFileSync(cache.file, 'utf8')); } catch {}
-  const byExact = new Map(manifest.map((a) => [a.src, a]));
-  const byBase = new Map(manifest.map((a) => [path.basename(String(a.src || a.file || '')), a]));
+  // capture-assets manifest entries identify an asset by `url` (the original fetched URL), not `src`; older/flat
+  // manifests use `src`. Index by BOTH so the lookup works regardless of manifest shape (the hero-bg/bg-light glow
+  // entries carry `url`, not `src` — keying only on `src` left assetMap EMPTY and every image hot-linked its offline-
+  // 404 original URL).
+  const srcOf = (a) => a.src || a.url || '';
+  const byExact = new Map(manifest.map((a) => [srcOf(a), a]));
+  const byBase = new Map(manifest.map((a) => [path.basename(String(srcOf(a) || a.file || '')), a]));
+  // NEXT-IMAGE NORMALIZED KEY (hero-bg fix): an <img> served by a responsive image optimizer (Next.js
+  // `/_next/image?url=<encoded>&w=N&q=N&dpl=…`) has a DIFFERENT w= descriptor than the manifest captured (the browser
+  // picks w=3840 from srcset; capture recorded w=1920) → exact/basename match MISS → the asset hot-links the original
+  // optimizer URL → 404s offline → the image (resend's full-bleed hero-bg / bg-light glow) silently vanishes. Key
+  // instead off the STABLE identity: the decoded inner `url=` path, else the URL with w/q/dpl/auto/fit params stripped.
+  const normImg = (u) => {
+    if (!u) return null;
+    try { const m = /[?&]url=([^&]+)/.exec(u); if (m) return decodeURIComponent(m[1]).split('?')[0]; } catch {}
+    return String(u).replace(/[?&](w|q|dpl|auto|fit|fm|dpr|width|height)=[^&]*/g, '').replace(/[?&]$/, '');
+  };
+  const byNorm = new Map(); for (const a of manifest) { const k = normImg(srcOf(a)); if (k && !byNorm.has(k)) byNorm.set(k, a); }
   const nodes = [];
   (function walk(n) { if (n.tag === 'img' || n.tag === 'svg') nodes.push(n); for (const c of n.children || []) walk(c); })(specTree);
   for (const n of nodes) {
     if (n.tag === 'img') {
       const key = n.src || n.resolvedSrc;
-      const entry = byExact.get(key) || byExact.get(n.resolvedSrc) || byBase.get(path.basename(String(key))) || null;
+      const entry = byExact.get(key) || byExact.get(n.resolvedSrc) || byBase.get(path.basename(String(key)))
+        || byNorm.get(normImg(key)) || byNorm.get(normImg(n.resolvedSrc)) || null;
       if (!entry) continue; // mapper pains + hotlinks
       // width/height = the asset's REAL pixel dims (when the manifest carries them) so the image
       // widget can derive its box from the true aspect ratio instead of a collapsed capture rect.
       const dims = (entry.width && entry.height) ? { width: +entry.width, height: +entry.height } : {};
-      if (entry.url) assetMap.set(key, { url: entry.url, id: entry.id, ...dims });
-      else if (entry.file && dryRun) assetMap.set(key, { pendingFile: entry.file, ...dims });
+      // PREFER THE LOCAL FILE over entry.url. In a capture-assets manifest `url` is the ORIGINAL fetched web URL
+      // (resend.com/_next/image?…) — NOT a usable hosted asset; it 404s offline and isn't WP media. Only an uploaded-WP
+      // url is usable, which we get by uploading entry.file. So: have a local file → upload it (or pendingFile in
+      // dry-run); fall back to entry.url only when there is NO local file (a pre-hosted/flat manifest). This is what
+      // makes the full-bleed hero-bg / bg-light glow images actually render instead of hot-linking a dead URL.
+      if (entry.file && dryRun) assetMap.set(key, { pendingFile: entry.file, ...dims });
       else if (entry.file) assetMap.set(key, { ...(await uploadMedia(entry.file, { base, b64, cache })), ...dims });
+      else if (entry.url) assetMap.set(key, { url: entry.url, id: entry.id, ...dims });
     } else {
       const key = 'inline-svg:' + sha1(n.svg).slice(0, 12);
       const entry = byExact.get(key) || null;
@@ -1180,7 +1202,13 @@ export async function serverValidate(root, { base, b64 }) {
 export async function transpile({ html, width = 1440, assets, outDir, dryRun, base, b64, siteParts: sitePartsEnabled = true, cap = null }) {
   fs.mkdirSync(outDir, { recursive: true });
   const spec = await extract(html, width);
-  const manifest = loadManifest(assets);
+  // --cap <dir|manifest.json> supplies BOTH the rhythm bands AND the asset manifest (capture-assets writes one
+  // manifest.json with both `assets[]` and `perWidth`). Previously only --assets fed loadManifest, so `--cap` alone
+  // (the normal clone path) resolved ZERO assets → every image hot-linked its offline-404 original URL (the hero-bg
+  // glow + product screenshots all vanished). Fall back to the cap manifest when --assets is not given.
+  let assetSrc = assets;
+  if (!assetSrc && cap) { try { assetSrc = fs.statSync(cap).isDirectory() ? path.join(cap, 'manifest.json') : cap; } catch { assetSrc = cap; } }
+  const manifest = loadManifest(assetSrc);
   // resolveAssets walks the FULL tree (header logos resolve too) — split AFTER.
   const { assetMap, notes } = await resolveAssets(spec.tree, manifest, { dryRun, base, b64, outDir });
   const mapper = makeMapper({ assetMap, authoringWidth: width });
