@@ -15,6 +15,7 @@ import { spawn } from 'child_process';
 import fs from 'fs';
 import { resolveBase } from '../../sandbox/host-guard.mjs'; // §0 SAFETY GUARD: never grade against a non-training host
 import { computeFloor, formatFloor } from './floor-metrics.mjs'; // ALWAYS-WORKS FLOOR: corpus-min + veto-rate (motor-cortex reframe)
+import { evaluate as tripwireEvaluate } from './tripwire.mjs'; // STEP-0 SAFETY: halt the corpus run if a detector regressed
 const has = (n) => process.argv.includes('--' + n);
 const arg = (n, d) => { const i = process.argv.indexOf('--' + n); return i > -1 && process.argv[i + 1] ? process.argv[i + 1] : d; };
 // §0 SAFETY GUARD: the clone host the corpus grades against. Was hardcoded to the PAUSED shared host
@@ -68,6 +69,18 @@ function run(cmd, args, logFile) {
 async function pool(items, n, fn) { const res = []; let i = 0; const workers = Array.from({ length: Math.min(n, items.length) }, async () => { while (i < items.length) { const idx = i++; res[idx] = await fn(items[idx], idx); } }); await Promise.all(workers); return res; }
 
 (async () => {
+  // STEP 0 — TRIPWIRE: never build/grade a corpus on a detector that REGRESSED. An Arm-1 halt (a known-broken
+  // fixture the detectors stopped catching, or a clean control that started firing) means every publish decision
+  // this cycle is untrustworthy → abort before spending any build. Deterministic + offline. --no-tripwire overrides.
+  if (!has('no-tripwire')) {
+    const tw = tripwireEvaluate();
+    if (tw.halts.length) {
+      console.error(`\n🛑 TRIPWIRE HALT (${tw.halts.length}) — detection/routing regressed; corpus run ABORTED (fix it, or --no-tripwire to override):`);
+      for (const h of tw.halts) console.error(`   ${h.id} ${h.kind} ${h.veto ? 'veto=' + h.veto + ' ' : ''}expected=${h.expected || 'no-fire'} got=${h.got || '-'} (${h.provenance || ''})`);
+      process.exit(2);
+    }
+    console.log(`tripwire step-0: PASS (${tw.passes}/${tw.total} fixtures; ${tw.blindSpotCount} open blind-spot${tw.blindSpotCount === 1 ? '' : 's'} tracked)`);
+  }
   if (doBuild) {
     console.log(`building ${CORPUS.length} clones (conc ${CONC})…`);
     await pool(CORPUS, CONC, async (s) => { const t0 = Date.now(); const ba = ['clone.mjs', '--source', s.url, '--page', String(s.page), '--mode', 'absolute', '--no-grade']; if (!NOCACHE) ba.push('--cache'); if (REFRESH) ba.push('--refresh'); const code = await run('node', ba, `${OUT}/build-${s.name}.log`); console.log(`  build ${s.name} → exit ${code} (${Math.round((Date.now() - t0) / 1000)}s)${NOCACHE ? '' : REFRESH ? ' [recaptured]' : ' [cached]'}`); return code; });
