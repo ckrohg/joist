@@ -30,10 +30,10 @@
  * (null if --no-shot). Throws on any container/wp-cli failure (fail-loud).
  */
 import { execFileSync } from 'node:child_process';
-import { writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { writeFileSync, mkdtempSync, rmSync, existsSync, readFileSync as _rf } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
-import { join, dirname } from 'node:path';
+import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assertAllowedBase, withRenderLock } from './host-guard.mjs'; // §0 SAFETY GUARD + render throttle
 
@@ -82,13 +82,105 @@ function compose(args, opts = {}) {
 }
 
 /**
+ * IMAGE-UPLOAD PRE-PASS (fusion-CONVERGENT path A, 2026-06-20). The transpiler emits image URLs as LOCAL
+ * `file://…/assets/<hash>-image.jpg` paths (the downloaded originals) — which the browser/WP cannot load, so every
+ * cloned image rendered BLANK. Make them paint by importing each asset into WP media via `wp media import` INSIDE the
+ * container (app-password-free — same wp-cli mechanism as the postmeta writer; no REST, no Joist plugin) and swapping
+ * each file:// URL for the real WP-media URL BEFORE the tree is written.
+ *
+ * IDEMPOTENT (the load-bearing safety property — host-overload incident): a naïve pass re-imports all images every
+ * render, bloating the media library and triggering full thumbnail regen each time (the SiteGround-tanking class of
+ * load). The pendingFiles are content-hash-named, so we dedup on `post_name=joist-<hash>`: an attachment with that
+ * name already in the library is REUSED (no re-import, no regen); only genuinely-new assets import. Import-once,
+ * reuse-forever across iterations.
+ *
+ * Walks the tree for any string value that is a `file://` URL (image widget settings.image.url, container
+ * background_image.url, …), collects the unique local files, imports them in ONE container invocation (the assets dir
+ * mounted at /assets), and returns a NEW tree with every file:// swapped to its WP-media URL. Files outside a single
+ * common assets dir, or missing on disk, are left untouched (logged). No-op when the tree has no file:// URLs.
+ */
+export function uploadAndSwapMedia(tree) {
+  const files = new Set();
+  const collect = (n) => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) { n.forEach(collect); return; }
+    for (const [k, v] of Object.entries(n)) {
+      if (typeof v === 'string' && v.startsWith('file://')) { try { files.add(fileURLToPath(v)); } catch { /* skip */ } }
+      else if (v && typeof v === 'object') collect(v);
+    }
+  };
+  collect(tree);
+  const onDisk = [...files].filter((f) => existsSync(f));
+  if (!onDisk.length) return { tree, imported: 0, reused: 0, map: {} };
+  // group by directory; mount each unique dir and import its files in one container script per dir.
+  const byDir = new Map();
+  for (const f of onDisk) { const d = dirname(f); if (!byDir.has(d)) byDir.set(d, []); byDir.get(d).push(basename(f)); }
+  const urlByFile = {}; let imported = 0, reused = 0;
+  for (const [dir, names] of byDir) {
+    // one script: for each basename, dedup on post_name=joist-<sanitized>; reuse URL on hit, else import + name it.
+    // NO `set -e`: wp-cli subcommands legitimately exit non-zero (e.g. an empty `wp post list`), which under set -e
+    // would abort the whole loop and import nothing. Each step is independently guarded instead.
+    const script = `
+for F in ${names.map((n) => `'${n.replace(/'/g, '')}'`).join(' ')}; do
+  SLUG="joist-$(printf '%s' "$F" | tr -c 'a-zA-Z0-9' '-' | tr 'A-Z' 'a-z')"
+  EXIST=$(wp post list --post_type=attachment --name="$SLUG" --field=ID 2>/dev/null | head -1)
+  if [ -n "$EXIST" ]; then
+    URL=$(wp eval "echo wp_get_attachment_url($EXIST);" 2>/dev/null)
+    echo "REUSE|$F|$URL"
+  else
+    ID=$(wp media import "/assets/$F" --porcelain 2>/dev/null | tail -1)
+    if [ -n "$ID" ]; then
+      wp post update "$ID" --post_name="$SLUG" >/dev/null 2>&1 || true
+      URL=$(wp eval "echo wp_get_attachment_url($ID);" 2>/dev/null)
+      echo "IMPORT|$F|$URL"
+    else
+      echo "FAIL|$F|"
+    fi
+  fi
+done
+`;
+    let out = '';
+    try {
+      out = compose(['run', '--rm', '-T', '-v', `${dir}:/assets:ro`, CLI_SERVICE, '-c', script], { timeout: 180000 });
+    } catch (e) { console.error(`uploadAndSwapMedia: import failed for ${dir}: ${String(e.message || e).slice(0, 160)}`); continue; }
+    for (const line of out.split('\n')) {
+      const m = line.match(/^(REUSE|IMPORT)\|(.+?)\|(https?:\/\/\S+)$/);
+      if (!m) continue;
+      if (m[1] === 'IMPORT') imported++; else reused++;
+      urlByFile[join(dir, m[2])] = m[3];
+    }
+  }
+  // swap every file:// occurrence whose path resolved to a URL.
+  const swap = (n) => {
+    if (!n || typeof n !== 'object') return n;
+    if (Array.isArray(n)) return n.map(swap);
+    const out = {};
+    for (const [k, v] of Object.entries(n)) {
+      if (typeof v === 'string' && v.startsWith('file://')) { let p; try { p = fileURLToPath(v); } catch { p = null; } out[k] = (p && urlByFile[p]) ? urlByFile[p] : v; }
+      else if (v && typeof v === 'object') out[k] = swap(v);
+      else out[k] = v;
+    }
+    return out;
+  };
+  return { tree: swap(tree), imported, reused, map: urlByFile };
+}
+
+/**
  * Inject an Elementor tree into a local page via direct postmeta + flush CSS.
  * @returns {{pageId:number, url:string}}
  */
 export function injectTree(tree, { slug = 'joist-render', page = null, title = 'Joist Render' } = {}) {
+  // IMAGE-UPLOAD PRE-PASS: import any local file:// asset into WP media (idempotent) and swap to WP-media URLs so
+  // cloned images actually paint. Reversible: JOIST_NO_MEDIA_UPLOAD=1 → keep file:// (old blank-image behavior).
+  let inTree = tree;
+  if (!process.env.JOIST_NO_MEDIA_UPLOAD) {
+    const r = uploadAndSwapMedia(tree);
+    inTree = r.tree;
+    if (r.imported || r.reused) console.error(`[media] ${r.imported} imported, ${r.reused} reused → ${Object.keys(r.map).length} asset URLs swapped`);
+  }
   // Stamp element ids BEFORE write — without them Elementor's CSS scoping collapses
   // (see ensureIds). This is the canonical correctness fix for the raw-postmeta path.
-  const arr = ensureIds(tree);
+  const arr = ensureIds(inTree);
   // hand the JSON to the container as a mounted file (command-arg JSON is fragile w/ quotes/unicode)
   const work = mkdtempSync(join(tmpdir(), 'joist-render-'));
   const localFile = join(work, 'tree.json');
