@@ -17,6 +17,9 @@ final class WidgetCatalog
     private const CACHE_TRANSIENT = 'joist_widget_schemas';
     private const CACHE_VERSION_OPT = 'joist_widget_schemas_version';
 
+    /** @var ?bool memoized per-request catalog-health verdict (see isHealthy()). */
+    private ?bool $healthMemo = null;
+
     /** @return list<array{type:string,label:string,category:string,is_pro:bool,plugin_source:string}> */
     public function listAll(): array
     {
@@ -79,6 +82,34 @@ final class WidgetCatalog
         $schema = $this->getSchema($widgetType);
         if ($schema === null) return [];
         return array_map(fn($c) => $c['name'], $schema['controls']);
+    }
+
+    /**
+     * CATALOG HEALTH SENTINEL (fusion-locked 2026-06-21). The introspected catalog can be POLLUTED — the plugin's
+     * own WidgetPack control hooks (or a prior theme/addon) mutate the live registry so e.g. heading reports
+     * `title_colors` instead of `title_color` and drops `align`, even on a clean Elementor 3.28.4 install. A polluted
+     * catalog must never BLOCK valid renders (page 834 proves Elementor accepts + renders the canonical names). This
+     * asserts the canonical PROJECTION VOCABULARY is present AND correctly named; SchemaValidator demotes
+     * name/enum errors to non-blocking warnings while this returns false. Memoized per-request.
+     */
+    public function isHealthy(): bool
+    {
+        if ($this->healthMemo !== null) return $this->healthMemo;
+        $expect = [
+            'heading'     => ['title_color', 'align'],
+            'text-editor' => ['align', 'text_color'],
+            'button'      => ['button_text_color'],
+            'image'       => ['image'],
+        ];
+        $ok = true;
+        foreach ($expect as $type => $controls) {
+            $names = $this->controlNames($type);
+            if (empty($names)) { $ok = false; break; }
+            foreach ($controls as $c) {
+                if (!in_array($c, $names, true)) { $ok = false; break 2; }
+            }
+        }
+        return $this->healthMemo = $ok;
     }
 
     public function invalidateCache(): void
