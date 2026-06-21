@@ -106,6 +106,14 @@ export const VETO_DEFAULTS = {
   HERO_EXACT_FLOOR: 0.15, // (legacy) bandExact conjunct
   HERO_CONTENT_GAP: 50,   // src-minus-clone luminance-range delta = "the clone DROPPED the band's content" (the
                           // robust replacement for the SSIM floor, which a shared white bg fools — see tripwire-seed)
+  // content-void (DETECTOR 5: page-wide dropped-SECTION veto; shares bandDropSignal w/ broken-hero)
+  VOID_MIN_PX: 400,            // absolute minimum void slab (2 bands)
+  VOID_MIN_FRAC: 0.05,         // ...scaled to 5% of page height: floor = max(VOID_MIN_PX, VOID_MIN_FRAC·H)
+  VOID_TAIL_SKIP: 2,           // tail-clamp: ignore the ragged bottom N bands (capture-height disagreement = a height defect, not a void)
+  VOID_TEXT_CHARS: 80,         // TEXT path trigger: unreproduced source chars in the slab (a sparse section truly gone)
+  VOID_TEXT_DOMINANT_CHARS: 40,// a band is "text-dominant" (eligible for the reflow text-guard) at >= this many non-boilerplate chars
+  VOID_TEXT_MATCH_FRAC: 0.5,   // text-guard: a band is "relocated, not dropped" when >= this frac of its runs are reproduced in the clone
+  VOID_BOILERPLATE_BANDS: 3,   // source text appearing in >= this many bands = nav/footer chrome (excluded from the text-guard)
   // unstyled-CTA
   CTA_SAT: 0.20,          // accent saturation threshold (fg or bg)
   CTA_MIN_SRC: 1,         // source must have >=1 styled CTA for the veto to be eligible
@@ -177,9 +185,12 @@ function detectBrokenHero(ctx, T) {
   const H = Math.min(srcShot.height, cloneShot.height), Wm = Math.min(srcShot.width, cloneShot.width), nb = Math.floor(H / BAND);
   if (nb < T.HERO_NAV_SKIP + 2) return { veto: 'broken-hero', fired: false, severity: 0, evidence: { rule: 'hero-scan', note: 'capture too short', nb, cloneHeroRange: 0, srcHeroRange: 0, flatClone: false, srcHasContent: false, bandFloor: false } };
 
-  // hero WINDOW: heading-anchored when source text positions are plumbed, else a nav-skipped above-the-fold scan.
+  // hero WINDOW: a nav-skipped above-the-fold scan by default (proven 0% miss on the ladders). The heading-anchored
+  // variant is gated OFF (GRADER_HERO_HEADING_ANCHOR=1) — it needs a downward-extension refinement before it can
+  // replace the default without regressing below-headline blanks (the fusion's named next step). Gating it means
+  // plumbing source text for the content-void guard does NOT silently change broken-hero's window.
   let window = null;
-  if (Array.isArray(srcTextPositions) && srcTextPositions.length) {
+  if (process.env.GRADER_HERO_HEADING_ANCHOR === '1' && Array.isArray(srcTextPositions) && srcTextPositions.length) {
     const bodyFsz = medianBodyFsz(srcTextPositions) || 16;
     const heads = srcTextPositions
       .filter((t) => (t.y + (t.h || 0)) > BAND && t.y < T.HERO_FOLD_PX && (t.fsz || 0) >= Math.max(28, 1.55 * bodyFsz) && String(t.text || '').trim().length >= 3 && (t.w || 0) >= 0.12 * srcShot.width)
@@ -188,21 +199,13 @@ function detectBrokenHero(ctx, T) {
   }
   if (!window) { window = []; for (let b = T.HERO_NAV_SKIP; b <= Math.min(nb - 1, T.HERO_BAND_MAX); b++) window.push(b); }
 
-  // per-band breakage: flat-on-clone AND source-has-content AND fidelity-at-floor (ALL three).
+  // per-band breakage via the SHARED bandDropSignal primitive (flat-on-clone AND src-has-content AND a large
+  // luminance-RANGE delta — NOT SSIM, which a shared bg fools; tripwire-seed-driven). content-void reuses the same.
   const broken = {}, ranges = {};
   for (const b of window) {
-    const y0 = b * BAND, y1 = Math.min(H, y0 + BAND);
-    const clR = lumRangeCrop(cloneShot, 0, y0, cloneShot.width, y1), srR = lumRangeCrop(srcShot, 0, y0, srcShot.width, y1);
-    ranges[b] = { cl: +clR.toFixed(1), sr: +srR.toFixed(1) };
-    const flatClone = clR < T.HERO_FLAT;
-    const srcHasContent = srR >= T.HERO_SRC_MIN || (Array.isArray(srcTextPositions) && srcTextPositions.some((t) => String(t.text || '').trim() && t.y < y1 && (t.y + (t.h || 0)) > y0));
-    // CONTENT-DROP measure (replaces the SSIM/exact floor — that floor is fooled by a shared dominant bg: blanking a
-    // LIGHT hero to white is pixel-SIMILAR to a sparse white-with-text source, so SSIM/exact stay HIGH on a REAL
-    // defect; empirically supabase blank ssim≈0.96, exact≈0.98). The luminance-RANGE DELTA is robust: a blanked band
-    // collapses to range≈0 while the source band keeps its content range, so srR-clR is large on a true drop and ~0
-    // on a faithful render — and it spares a near-faithful low-contrast/dark hero (small delta). (tripwire-seed-driven.)
-    const contentDropped = (srR - clR) >= T.HERO_CONTENT_GAP;
-    broken[b] = flatClone && srcHasContent && contentDropped;
+    const d = bandDropSignal(srcShot, cloneShot, b, T, srcTextPositions);
+    ranges[b] = { cl: d.clR, sr: d.srR };
+    broken[b] = d.dropped;
   }
   // fire ONLY on two ADJACENT broken bands (≥400px contiguous blank slab) — a lone band or a benign shift won't trip.
   let fired = false, slab = null;
@@ -244,14 +247,97 @@ function detectUnstyledCTA(ctx, T) {
   return { veto: 'unstyled-CTA', fired, severity, evidence: { srcCtas: srcCtaRuns.length, srcStyled, cloneCtas: cloneCtaRuns.length, cloneStyled } };
 }
 
+// ---- SHARED PRIMITIVE: per-band "the clone dropped this band's content" ---------------------------------------
+// flat-on-clone AND source-had-content AND a large luminance-RANGE delta (NOT SSIM — a shared dominant bg fools
+// SSIM: blanking a light section to white is pixel-similar to a sparse white-with-text source). ONE source of
+// truth so broken-hero (hero window) and content-void (page-wide) can never drift on the core signal.
+function bandDropSignal(srcShot, cloneShot, b, T, srcTextPositions) {
+  const BAND = T.HERO_BAND_PX, H = Math.min(srcShot.height, cloneShot.height);
+  const y0 = b * BAND, y1 = Math.min(H, y0 + BAND);
+  const clR = lumRangeCrop(cloneShot, 0, y0, cloneShot.width, y1);
+  const srR = lumRangeCrop(srcShot, 0, y0, srcShot.width, y1);
+  const flatClone = clR < T.HERO_FLAT;
+  const srcHasContent = srR >= T.HERO_SRC_MIN || (Array.isArray(srcTextPositions) && srcTextPositions.some((t) => String(t.text || '').trim() && t.y < y1 && (t.y + (t.h || 0)) > y0));
+  const contentDropped = (srR - clR) >= T.HERO_CONTENT_GAP;
+  return { dropped: flatClone && srcHasContent && contentDropped, clR: +clR.toFixed(1), srR: +srR.toFixed(1), flatClone, srcHasContent, contentDropped };
+}
+
+// ---- DETECTOR 5: content-void --------------------------------------------------------------------------------
+// (fusion-locked 2026-06-21) A whole SECTION blanked in place: the clone renders a band as the page background
+// while the source had content there. broken-hero owns the dense hero (bands 1–6); this owns the page BELOW it.
+// Fires on a contiguous flat-over-content SLAB clearing a page-relative floor [max(400px, 5%·H)], via a VISUAL
+// path (>=2 dropped bands the text-guard did NOT explain) OR a TEXT path (source text in the slab truly gone from
+// the clone). The #1 page-wide FP is REFLOW (a sparse section reproduced lower → clone reads flat at the source
+// position): the default-on TEXT-REFLOW GUARD strikes any dropped band whose (non-boilerplate, text-dominant)
+// source text reappears anywhere in the clone. Scope = blanked-IN-PLACE only (a removed section that shortens the
+// page is a HEIGHT defect, owned elsewhere). Reversible: GRADER_NO_VETO_CONTENTVOID=1.
+const _normText = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+function _srcRunsInBand(srcTextPositions, b, BAND) {
+  const y0 = b * BAND, y1 = y0 + BAND;
+  return (srcTextPositions || []).filter((t) => _normText(t.text).length >= 4 && t.y < y1 && (t.y + (t.h || 0)) > y0);
+}
+function detectContentVoid(ctx, T) {
+  if (flagOff('CONTENTVOID')) return null;
+  const { srcShot, cloneShot, srcTextPositions, cloneTextRuns } = ctx;
+  if (!srcShot || !cloneShot) return null; // never fire blind
+  const BAND = T.HERO_BAND_PX, H = Math.min(srcShot.height, cloneShot.height);
+  const lastBand = Math.floor(H / BAND) - 1 - T.VOID_TAIL_SKIP;
+  if (lastBand < 8) return { veto: 'content-void', fired: false, severity: 0, evidence: { note: 'page too short for a below-hero void', lastBand } };
+  const reqPx = Math.max(T.VOID_MIN_PX, Math.round(T.VOID_MIN_FRAC * H));
+  const startBand = T.HERO_BAND_MAX; // 6 — a deliberate 1-band overlap w/ broken-hero (closes the 6/7 seam; the gate cap is idempotent)
+
+  // boilerplate = normed source text recurring across >= VOID_BOILERPLATE_BANDS bands (nav/footer chrome).
+  const bandsOf = new Map();
+  for (const t of (srcTextPositions || [])) { const n = _normText(t.text); if (n.length < 4) continue; const bi = Math.floor((t.y + (t.h || 0) / 2) / BAND); if (!bandsOf.has(n)) bandsOf.set(n, new Set()); bandsOf.get(n).add(bi); }
+  const boiler = new Set([...bandsOf.entries()].filter(([, s]) => s.size >= T.VOID_BOILERPLATE_BANDS).map(([n]) => n));
+  const cloneBlob = (cloneTextRuns || []).map((t) => _normText(typeof t === 'string' ? t : t && t.text)).join('  ');
+  const reproduced = (n) => n.length >= 4 && cloneBlob.includes(n);
+
+  // TEXT-REFLOW GUARD: a dropped band is "relocated" (struck from evidence) iff it was text-DOMINANT and its
+  // non-boilerplate text is reproduced in the clone. A textless/image band is never suppressed → stays VISUAL.
+  const textExplained = (b) => {
+    const runs = _srcRunsInBand(srcTextPositions, b, BAND).map((t) => _normText(t.text)).filter((n) => !boiler.has(n));
+    const chars = runs.reduce((a, n) => a + n.length, 0);
+    if (chars < T.VOID_TEXT_DOMINANT_CHARS) return false; // not text-dominant → the visual path owns it
+    const repr = runs.filter(reproduced).length;
+    return runs.length > 0 && repr / runs.length >= T.VOID_TEXT_MATCH_FRAC;
+  };
+  const unrepInSlab = (t, bot) => {
+    const seen = new Set(); let chars = 0, runsN = 0;
+    for (let b = t; b <= bot; b++) for (const n of _srcRunsInBand(srcTextPositions, b, BAND).map((x) => _normText(x.text))) {
+      if (boiler.has(n) || seen.has(n) || reproduced(n)) continue; seen.add(n); chars += n.length; runsN++;
+    }
+    return { unrepChars: chars, unrepRuns: runsN };
+  };
+
+  const dropped = {}, evid = {};
+  for (let b = startBand; b <= lastBand; b++) { const d = bandDropSignal(srcShot, cloneShot, b, T, srcTextPositions); dropped[b] = d.dropped; evid[b] = d.dropped && !textExplained(b); }
+
+  let best = null;
+  for (let b = startBand; b <= lastBand;) {
+    if (!dropped[b]) { b++; continue; }
+    const t = b; while (b <= lastBand && dropped[b]) b++; const bot = b - 1;
+    const slabPx = (bot - t + 1) * BAND;
+    let evBands = 0; for (let k = t; k <= bot; k++) if (evid[k]) evBands++;
+    const { unrepChars, unrepRuns } = unrepInSlab(t, bot);
+    if (slabPx >= reqPx && (evBands >= 2 || (unrepChars >= T.VOID_TEXT_CHARS && unrepRuns >= 2))) {
+      if (!best || slabPx > best._px) best = { veto: 'content-void', fired: true, severity: +Math.min(1, 0.6 + 0.4 * Math.min(1, slabPx / (0.4 * H))).toFixed(3), _px: slabPx, evidence: { slab: [t, bot], slabPx, voidFrac: +(slabPx / H).toFixed(3), evBands, unrepChars, path: evBands >= 2 ? 'visual' : 'text' } };
+    }
+  }
+  if (best) { delete best._px; return best; }
+  return { veto: 'content-void', fired: false, severity: 0, evidence: { reqPx, scanned: [startBand, lastBand] } };
+}
+
 /**
- * runVetoes(ctx) — run all four detectors over the grade-time context.
+ * runVetoes(ctx) — run all FIVE detectors over the grade-time context.
  * ctx fields (all OPTIONAL; a detector returns null/no-op when its signal is absent):
  *   srcShot, cloneShot   : PNG objects ({width,height,data}) of the full-page source/clone screenshots
  *   pageSSIM             : page-level mean SSIM (for the wrong-logo page-OK guard)
  *   bandSSIM, bandExact  : per-200px-band arrays (for broken-hero)
  *   contrastFails        : clone ds.contrastFails [{fg,bg,ratio,fsz,x,y,w,h,text}] (for invisible-heading)
  *   srcCtaRuns, cloneCtaRuns : [{fgSat,bgSat,bgLum,hasBg}] CTA computed-style runs (for unstyled-CTA)
+ *   srcTextPositions     : source text runs [{x,y,w,h,fsz,text}] (for broken-hero heading-anchor + content-void text-guard)
+ *   cloneTextRuns        : clone text runs [{text}] or [string] (for content-void's text-reflow guard)
  *   tunables (optional)  : override VETO_DEFAULTS
  * Returns { fired:[{veto,severity,evidence}], all:[...every detector result incl. non-fired...] }.
  */
@@ -262,6 +348,7 @@ export function runVetoes(ctx = {}) {
     detectInvisibleHeading(ctx, T),
     detectBrokenHero(ctx, T),
     detectUnstyledCTA(ctx, T),
+    detectContentVoid(ctx, T),
   ].filter(Boolean);
   return { fired: results.filter((r) => r.fired), all: results };
 }

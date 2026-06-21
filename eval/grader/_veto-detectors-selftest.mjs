@@ -143,6 +143,49 @@ console.log('=== A) DETECTOR UNIT TESTS ===');
   delete process.env.GRADER_BROKEN_HERO_LEGACY;
 }
 
+// ---------- CONTENT-VOID (DETECTOR 5: page-wide dropped-SECTION veto + the reflow text-guard) ----------
+// The cardinal sin is DEFLATION — so the negatives battery (whitespace / reflow / sub-floor gap) matters most.
+{
+  const clone = (img) => { const c = new PNG({ width: img.width, height: img.height }); img.data.copy(c.data); return c; };
+  const paintBand = (img, b0, b1) => { for (let y = b0 * 200; y < b1 * 200; y++) for (let x = 0; x < img.width; x++) { const i = (y * img.width + x) * 4; img.data[i] = 245; img.data[i + 1] = 245; img.data[i + 2] = 245; } };
+  const W = 1440, Hh = 8000;                          // 40 bands — room for a below-hero void + a tail
+  const src = noisy(W, Hh, 120, 120, 120);            // content everywhere
+  const cvOf = (ctx) => runVetoes(ctx).all.find((r) => r.veto === 'content-void');
+
+  // POSITIVE 1 — a below-hero SECTION (bands 12..18) blanked → fires via the visual path.
+  const clnVoid = clone(src); paintBand(clnVoid, 12, 19);
+  const p1 = cvOf({ srcShot: src, cloneShot: clnVoid });
+  check('CONTENT-VOID pos: a blanked below-hero SECTION fires (visual path)', p1.fired === true, `slab ${JSON.stringify(p1.evidence.slab)} path ${p1.evidence.path}`);
+  // POSITIVE 2 — a 6–7 SEAM drop fires via the deliberate band-6 overlap scan (broken-hero alone would miss it).
+  const clnSeam = clone(src); paintBand(clnSeam, 6, 8);
+  const p2 = cvOf({ srcShot: src, cloneShot: clnSeam });
+  check('CONTENT-VOID pos: a 6–7 SEAM drop fires (band-6 overlap scan)', p2.fired === true, `slab ${JSON.stringify(p2.evidence.slab)}`);
+
+  // NEGATIVE 1 — identity clone → silent (master control).
+  check('CONTENT-VOID neg: identity clone is silent', cvOf({ srcShot: src, cloneShot: clone(src) }).fired === false);
+  // NEGATIVE 2 — legit whitespace: flat-bg gap in BOTH source and clone → srcHasContent false → silent.
+  const srcGap = clone(src); paintBand(srcGap, 12, 19);
+  check('CONTENT-VOID neg: legit whitespace (flat in BOTH) is silent (srcHasContent false)', cvOf({ srcShot: srcGap, cloneShot: clone(srcGap) }).fired === false);
+  // NEGATIVE 3 — REFLOW (the text-guard; the cardinal-sin FP): source text at bands 12..16, clone flat there but the
+  // SAME text reproduced elsewhere → guard strikes those bands → silent. clnReflow blanks EXACTLY the text bands.
+  const clnReflow = clone(src); paintBand(clnReflow, 12, 17);
+  const reflowText = 'A reflowed section paragraph with plenty of words to be text dominant and reproduced lower';
+  const srcTP = [12, 13, 14, 15, 16].map((b) => ({ x: 100, y: b * 200 + 20, w: 1000, h: 160, fsz: 20, text: reflowText + ' b' + b }));
+  const guarded = cvOf({ srcShot: src, cloneShot: clnReflow, srcTextPositions: srcTP, cloneTextRuns: srcTP.map((t) => ({ text: t.text })) });
+  check('CONTENT-VOID neg: REFLOW suppressed by the text-guard (text reproduced) → silent', guarded.fired === false, `slab ${JSON.stringify(guarded.evidence.slab || null)}`);
+  // guard-is-real: the SAME blank with the text NOT reproduced still fires (proves the guard does the work).
+  const unguarded = cvOf({ srcShot: src, cloneShot: clnReflow, srcTextPositions: srcTP, cloneTextRuns: [] });
+  check('CONTENT-VOID guard-is-real: same blank, text NOT reproduced → still fires', unguarded.fired === true, `slab ${JSON.stringify(unguarded.evidence.slab || null)}`);
+  // NEGATIVE 4 — a single 200px gap (below the max(400px,5%·H) floor) → silent.
+  const clnTiny = clone(src); paintBand(clnTiny, 14, 15);
+  check('CONTENT-VOID neg: a single 200px gap (below the slab floor) is silent', cvOf({ srcShot: src, cloneShot: clnTiny }).fired === false);
+
+  // reversible
+  process.env.GRADER_NO_VETO_CONTENTVOID = '1';
+  check('CONTENT-VOID reversible: GRADER_NO_VETO_CONTENTVOID=1 → detector absent', runVetoes({ srcShot: src, cloneShot: clnVoid }).all.find((r) => r.veto === 'content-void') === undefined);
+  delete process.env.GRADER_NO_VETO_CONTENTVOID;
+}
+
 // ---------- UNSTYLED-CTA ----------
 // Source has a styled accent CTA (saturated bg fill); clone CTA is default grey/black-on-transparent ⇒ FIRES.
 {
