@@ -525,12 +525,23 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
     }
   }
 
+  // a parent that lays its children out in a ROW: real flex-row, OR a CSS grid (mapped to row-wrap — see GRID→ROW-WRAP).
+  // Used by child-width/align logic so grid cells get content-width (_element_width:'auto') and pack multiple-per-row
+  // instead of each defaulting to full width (which stacked the logo grid vertically even after the container wrapped).
+  const isRowParent = (ps) => !!ps && ((ps.display.includes('flex') && ps['flex-direction'] === 'row') || (!process.env.TRANSPILE_NO_GRID_ROW && ps.display.includes('grid')));
+
   function containerSettings(n) {
     const s = n.s; const out = { content_width: 'full', padding: dims(0, 0, 0, 0) };
-    out.flex_direction = (s.display.includes('flex') && s['flex-direction'] === 'row') ? 'row' : 'column';
+    // GRID→ROW-WRAP (logo-grid fix): Elementor containers are flexbox, not CSS grid. A source `display:grid` container
+    // (resend's 12-logo partner grid, grid-cols) failed the includes('flex') test and fell to flex_direction:'column',
+    // stacking every cell VERTICALLY (the strip rendered as a 1-per-row column). Map a multi-cell grid to a WRAPPING
+    // flex row so cells flow horizontally and wrap into rows — a faithful flex approximation of the grid. Reversible:
+    // TRANSPILE_NO_GRID_ROW=1.
+    const isGrid = !process.env.TRANSPILE_NO_GRID_ROW && s.display.includes('grid');
+    out.flex_direction = ((s.display.includes('flex') && s['flex-direction'] === 'row') || isGrid) ? 'row' : 'column';
     if (s['justify-content'] && !['normal', 'flex-start'].includes(s['justify-content'])) out.flex_justify_content = s['justify-content'];
     if (s['align-items'] && !['normal', 'stretch'].includes(s['align-items'])) out.flex_align_items = s['align-items'];
-    if (s['flex-wrap'] === 'wrap') out.flex_wrap = 'wrap';
+    if (s['flex-wrap'] === 'wrap' || isGrid) out.flex_wrap = 'wrap';
     const gap = Math.max(px(s['row-gap']), px(s['column-gap']));
     out.flex_gap = { unit: 'px', size: gap, column: String(gap), row: String(gap), isLinked: true };
     const pads = ['padding-top', 'padding-right', 'padding-bottom', 'padding-left'].map((p) => px(s[p]));
@@ -574,7 +585,7 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
   function textEditor(n, parent, inherit) {
     counts['text-editor']++;
     let align = ALIGN[n.s['text-align']] || 'left';
-    if (parent && parent.s && parent.s.display.includes('flex') && parent.s['flex-direction'] === 'row' && parent.s['justify-content'] === 'center') align = 'center';
+    if (parent && isRowParent(parent.s) && parent.s['justify-content'] === 'center') align = 'center';
     const d = n.declared || {};
     let inner = n.text;
     let style = 'margin:0';
@@ -597,7 +608,7 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
       editor: `<div style="${style}">${inner}</div>`,
       align, text_color: hex(n.s.color) || '#131316', ...typo(n.s), ...widgetCommon(n),
     };
-    if (parent && parent.s && parent.s.display.includes('flex') && parent.s['flex-direction'] === 'row') {
+    if (parent && isRowParent(parent.s)) {
       set._element_width = 'auto';
       if (/display:inline-block/.test(inner)) {
         set._element_width = 'initial';
@@ -745,7 +756,7 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
       ...widgetCommon(n),
     };
     if (isSvg && w) { set._element_width = 'initial'; set._element_custom_width = { unit: 'px', size: w }; }
-    else if (parent && parent.s && parent.s.display.includes('flex') && parent.s['flex-direction'] === 'row') set._element_width = 'auto';
+    else if (parent && isRowParent(parent.s)) set._element_width = 'auto';
     applyMedia(n, set, 'align');
     return { elType: 'widget', widgetType: 'image', settings: set };
   }
@@ -828,7 +839,7 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
       if (mTop) settings.margin = dims(mTop, 0, 0, 0);
     }
     // P4: e-con row children default to 100% width — pin px width + buffer, never shrink.
-    if (parent && parent.s && parent.s.display.includes('flex') && parent.s['flex-direction'] === 'row' && !settings.width && !settings._flex_grow) {
+    if (parent && isRowParent(parent.s) && !settings.width && !settings._flex_grow) {
       settings.width = { unit: 'px', size: n.rect.w + ROW_CHILD_BUFFER_PX };
       settings._flex_size = 'custom'; settings._flex_shrink = 0;
     }
