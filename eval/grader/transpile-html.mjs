@@ -1313,6 +1313,21 @@ export async function transpile({ html, width = 1440, assets, outDir, dryRun, ba
   return { root, siteParts, template, report, mapper, rhythm };
 }
 
+// PROACTIVE PRO PROBE (fusion 2026-06-21): site parts require Elementor Pro (Theme Builder). GET /joist/v1/site
+// reports the Pro CONSTANT; an explicit `present === false` is ONE-DIRECTIONAL-SAFE (no Pro constant ⟹ no module ⟹
+// inlining chrome into the page is genuinely correct), so we can route the free-tier majority single-pass with zero
+// doomed POSTs. Only an explicit false forces inline; unknown/true/probe-failure falls through to ATTEMPT site parts
+// (protected by putPage's reactive 412 net + always-finalize). Reversible: JOIST_NO_PRO_PROBE=1 skips the probe.
+export async function detectProAbsent(base, b64) {
+  if (process.env.JOIST_NO_PRO_PROBE === '1') return false;
+  try {
+    const r = await fetch(`${base}/wp-json/joist/v1/site`, { headers: { Authorization: 'Basic ' + b64 } });
+    if (!r.ok) return false;
+    const j = await r.json();
+    return j?.elementor?.pro?.present === false; // strict false only; absent/unknown/true → don't force inline
+  } catch { return false; }
+}
+
 export async function putPage(root, { base, b64, pageId, create, title, siteParts = [], template = 'elementor_canvas' }) {
   const auth = { Authorization: 'Basic ' + b64, 'Content-Type': 'application/json' };
   if (!pageId && create) {
@@ -1323,38 +1338,68 @@ export async function putPage(root, { base, b64, pageId, create, title, sitePart
     console.log('CREATED PAGE ID:', pageId, '(record this in /tmp/htmlfirst-v1/pages.json)');
   }
   const headers = { ...auth, 'X-Joist-Session-Id': 'htmlfirst-' + Date.now() };
-  let expected = (await (await fetch(`${base}/wp-json/joist/v1/pages/${pageId}`, { headers })).json()).elementor?.hash;
-  let r; let txt;
-  for (let a = 0; a < 5; a++) {
-    const body = { expected_hash: expected, elements: [root], page_settings: {}, prefer_literals: true, ...(title ? { title } : {}), intent: 'html-first transpile v1' };
-    r = await fetch(`${base}/wp-json/joist/v1/pages/${pageId}`, { method: 'PUT', headers, body: JSON.stringify(body) });
-    txt = await r.text();
-    if (r.status !== 409) break;
-    try { expected = JSON.parse(txt).details.current_hash; } catch {}
-    await new Promise((res) => setTimeout(res, 400));
-  }
-  if (r.status >= 300) throw new Error(`PUT failed ${r.status}: ${txt.slice(0, 200)}`);
-  // §8d: chrome landmarks → Theme Builder site parts, display-conditioned to THIS page only
-  // (include/singular/page/<id>) so a transpiled header can never leak onto unrelated pages.
+
+  // Outcome state declared OUTSIDE the try so the ALWAYS-RUN finalize (and the return) can see it. The fusion fix
+  // (2026-06-21): the edit_mode=builder finalize must NEVER be skipped — otherwise a chrome-authoring failure leaves
+  // the page rendering the post_content FALLBACK, not the Elementor tree (the half-built-page bug). So chrome
+  // authoring flags+breaks (never throws), and the finalize lives in a `finally`.
+  let putStatus = 0, metaStatus = 0, effTemplate = template;
+  let chrome = siteParts.length ? 'site-parts' : 'inlined';
+  let chromeReason = siteParts.length ? 'pro-present' : 'inlined-no-parts';
   const partResults = [];
-  for (const part of siteParts) {
-    const pr = await fetch(`${base}/wp-json/joist/v1/site-parts`, {
-      method: 'POST', headers,
-      body: JSON.stringify({
-        type: part.type,
-        elements: [part.root],
-        conditions: [`include/singular/page/${pageId}`],
-        title: `${title || 'transpile'} — ${part.type} (page ${pageId})`,
-        intent: 'html-first transpile site part',
-      }),
-    });
-    const ptxt = await pr.text();
-    if (pr.status >= 300) throw new Error(`site-part POST (${part.type}) failed ${pr.status}: ${ptxt.slice(0, 300)}`);
-    let pj = {}; try { pj = JSON.parse(ptxt); } catch {}
-    partResults.push({ type: part.type, id: pj.id, hash: pj.hash, conditions: pj.conditions, render_check_required: pj.render_check_required !== false });
+  try {
+    let expected = (await (await fetch(`${base}/wp-json/joist/v1/pages/${pageId}`, { headers })).json()).elementor?.hash;
+    let r; let txt;
+    for (let a = 0; a < 5; a++) {
+      const body = { expected_hash: expected, elements: [root], page_settings: {}, prefer_literals: true, ...(title ? { title } : {}), intent: 'html-first transpile v1' };
+      r = await fetch(`${base}/wp-json/joist/v1/pages/${pageId}`, { method: 'PUT', headers, body: JSON.stringify(body) });
+      txt = await r.text();
+      if (r.status !== 409) break;
+      try { expected = JSON.parse(txt).details.current_hash; } catch {}
+      await new Promise((res) => setTimeout(res, 400));
+    }
+    putStatus = r.status;
+    if (r.status >= 300) throw new Error(`PUT failed ${r.status}: ${txt.slice(0, 200)}`); // genuine body failure → propagate (finally still finalizes)
+
+    // §8d: chrome landmarks → Theme Builder site parts, display-conditioned to THIS page only
+    // (include/singular/page/<id>) so a transpiled header can never leak onto unrelated pages. Requires Elementor Pro
+    // — on free Elementor the proactive probe makes siteParts EMPTY (chrome stays inlined in the body). This loop is
+    // the REACTIVE net for a wrong-positive probe (Pro constant present but Theme-Builder module off / license lapsed):
+    // it FLAGS+BREAKS instead of throwing, and forces the chrome-in-body canvas template so the finalize renders a
+    // complete-enough (body, edit_mode set) page rather than wedging it. (Full re-inline completeness recovery is a
+    // follow-on; today a wrong-positive renders body-only — chrome missing but NEVER half-built.)
+    for (const part of siteParts) {
+      const pr = await fetch(`${base}/wp-json/joist/v1/site-parts`, {
+        method: 'POST', headers,
+        body: JSON.stringify({
+          type: part.type,
+          elements: [part.root],
+          conditions: [`include/singular/page/${pageId}`],
+          title: `${title || 'transpile'} — ${part.type} (page ${pageId})`,
+          intent: 'html-first transpile site part',
+        }),
+      });
+      const ptxt = await pr.text();
+      if (pr.status >= 300) {
+        let code = ''; try { code = JSON.parse(ptxt).code || ''; } catch {}
+        chrome = 'inlined';
+        chromeReason = code === 'site_part.pro_missing' ? 'pro-missing-fallback' : `chrome-fail:${pr.status}:${code || 'unknown'}`;
+        effTemplate = 'elementor_canvas'; // chrome-in-body ⟺ canvas; also undo the header_footer a wrong-positive picked
+        console.error(`site-part ${part.type} POST ${pr.status} (${code || 'unknown'}) → inlining chrome, forcing canvas template (page will render, edit_mode set)`);
+        break;
+      }
+      let pj = {}; try { pj = JSON.parse(ptxt); } catch {}
+      partResults.push({ type: part.type, id: pj.id, hash: pj.hash, conditions: pj.conditions, render_check_required: pj.render_check_required !== false });
+    }
+  } finally {
+    // FINALIZE — ALWAYS runs (even on a body-PUT throw): set the template + edit_mode=builder so the frontend renders
+    // the Elementor TREE, never the post_content fallback. Wrapped so a finalize failure can't mask the real error.
+    try {
+      const mr = await fetch(`${base}/wp-json/wp/v2/pages/${pageId}`, { method: 'POST', headers: auth, body: JSON.stringify({ status: 'publish', template: effTemplate, meta: { _elementor_edit_mode: 'builder', _wp_page_template: effTemplate, _joist_chrome_inlined: chrome === 'inlined' ? '1' : '0' } }) });
+      metaStatus = mr.status;
+    } catch (e) { metaStatus = -1; }
   }
-  const mr = await fetch(`${base}/wp-json/wp/v2/pages/${pageId}`, { method: 'POST', headers: auth, body: JSON.stringify({ status: 'publish', template, meta: { _elementor_edit_mode: 'builder', _wp_page_template: template } }) });
-  return { pageId, putStatus: r.status, metaStatus: mr.status, template, siteParts: partResults, url: `${base}/?page_id=${pageId}` };
+  return { pageId, putStatus, metaStatus, template: effTemplate, chrome, chromeReason, siteParts: partResults, url: `${base}/?page_id=${pageId}` };
 }
 
 // ── CLI ─────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -1374,7 +1419,13 @@ if (isMain) {
   if (!dryRun && !b64) { console.error('need JOIST_AUTH_B64 (or --dry-run)'); process.exit(2); }
   const outDir = arg('out', '/tmp/htmlfirst-v1/' + path.basename(html).replace(/\.html?$/, ''));
   (async () => {
-    const { root, siteParts, template, report, mapper, rhythm } = await transpile({ html, width: +arg('width', 1440), assets: arg('assets'), cap: arg('cap'), outDir, dryRun, base, b64, siteParts: !has('no-site-parts') });
+    // Proactive Pro probe: free Elementor can't author Theme-Builder site parts, so inline chrome into the page
+    // (template→canvas) BEFORE building, avoiding a doomed POST + the half-built throw. --no-site-parts forces it.
+    let sitePartsEnabled = !has('no-site-parts');
+    if (sitePartsEnabled && !dryRun && b64) {
+      if (await detectProAbsent(base, b64)) { sitePartsEnabled = false; console.log('pro probe: Elementor Pro ABSENT → inlining header/footer into the page (template elementor_canvas)'); }
+    }
+    const { root, siteParts, template, report, mapper, rhythm } = await transpile({ html, width: +arg('width', 1440), assets: arg('assets'), cap: arg('cap'), outDir, dryRun, base, b64, siteParts: sitePartsEnabled });
     console.log('widget counts:', JSON.stringify(mapper.counts));
     if (rhythm) console.log('rhythm:', rhythm.applied ? `+${rhythm.recoveredPx}px (ratio ${rhythm.ratioBefore}→${rhythm.ratioAfter}, ${rhythm.sections.filter((s) => s.addBottomPad > 0).length} sections)` : `no-op (${rhythm.reason})`);
     console.log('tree sha1:', report.treeSha1, '→', path.join(outDir, 'tree.json'));
@@ -1407,7 +1458,7 @@ if (isMain) {
     const res = await putPage(root, { base, b64, pageId, create: has('create'), title: arg('title'), siteParts, template });
     report.put = res;
     fs.writeFileSync(path.join(outDir, 'report.json'), JSON.stringify(report, null, 2));
-    console.log('PUT', res.putStatus, 'meta', res.metaStatus, 'template', res.template);
+    console.log('PUT', res.putStatus, 'meta', res.metaStatus, 'template', res.template, '| chrome:', res.chrome, `(${res.chromeReason})`);
     for (const p of res.siteParts || []) console.log(`SITE PART ${p.type}: id ${p.id} hash ${p.hash} (render check required)`);
     console.log('URL:', res.url);
   })().catch((e) => { console.error('FATAL:', e.message); process.exit(1); });
