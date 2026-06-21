@@ -303,9 +303,14 @@ export async function extract(htmlFile, width) {
         'background-color', 'box-shadow', 'min-height', 'flex-grow', 'font-family',
         'border-top-width', 'border-right-width', 'border-bottom-width', 'border-left-width',
         'border-top-color', 'border-right-color', 'border-bottom-color', 'border-left-color',
-        'border-radius', 'color', 'font-size', 'font-weight', 'line-height', 'letter-spacing', 'text-align']) {
+        'border-radius', 'color', 'font-size', 'font-weight', 'line-height', 'letter-spacing', 'text-align',
+        // MEDIA-ARRANGEMENT discriminators (height-blowup fix): a container whose source layout was NON-ADDITIVE
+        // (grid / horizontal carousel / vertical scroll-snap / sticky) must not project as a full-height column stack.
+        'overflow-x', 'overflow-y', 'scroll-snap-type', 'position', 'grid-template-columns', 'grid-auto-flow']) {
         node.s[p] = cs.getPropertyValue(p);
       }
+      // element geometry the carousel gate needs (scroll overflow vs visible width) — not a computed-style prop.
+      node.scrollW = el.scrollWidth || 0; node.clientW = el.clientWidth || 0;
       node.autoML = (node.declared['margin-left'] || '') === 'auto';
       node.autoMR = (node.declared['margin-right'] || '') === 'auto';
       if (!isLeaf) {
@@ -1052,6 +1057,56 @@ export function applyRhythm(root, specTree, capManifest, { width = 1440 } = {}) 
 }
 
 // ── site-part landmark split (§8d basics: header/footer become Pro Theme Builder documents) ────────────────
+// ── MEDIA-ARRANGEMENT detection (height-blowup fix, fusion 2026-06-21) ────────────────────────────────────────
+// Classify whether a container's SOURCE layout made its height NON-ADDITIVE (so projecting its children as a
+// full-height column stack causes the height-blowup). DUAL GATE — style signals AND geometry; never fires from
+// image height alone. Returns 'grid' | 'carousel-x' | 'scrollsnap-y' | 'sticky' | null.
+// total height of all IMG descendants under a subtree (the additive cost if projected as a flat column stack).
+function imgDescHeight(n, acc = { h: 0, n: 0 }) {
+  if (!n) return acc;
+  if (n.tag === 'img' && n.rect) { acc.h += n.rect.h || 0; acc.n += 1; }
+  for (const k of (n.children || [])) imgDescHeight(k, acc);
+  return acc;
+}
+export function classifyArrangement(n, T = {}) {
+  if (!n || n.isLeaf || !Array.isArray(n.children) || n.children.length < 2) return null;
+  const s = n.s || {};
+  const kids = n.children, ph = (n.rect && n.rect.h) || 0;
+  if (ph <= 0) return null;
+  // ── MEDIA-PRESENCE GATE: only reconstruct containers that actually hold a gallery / card-grid — ≥3 img descendants.
+  // (We do NOT gate on imgH/parentH non-additivity: the offline source.html doesn't reproduce the JS-driven scroll-
+  // snap/sticky BOUNDING, so the offline parent is already blown up → the ratio is unobservable here. The container
+  // TYPE — read from STYLE (scroll-snap/overflow-x/grid/1fr-Nvw), which DOES survive into the static HTML — is the
+  // robust signal. The narrowed type tests below never match <body>/flex wrappers, so this stays a tight gate. The
+  // emitter emits the CORRECT structure regardless of whether the offline layout already blew up; the SaaS A/B +
+  // media-presence invariant are the over-firing guards.) ──────────
+  const { n: imgN } = imgDescHeight(n);
+  if (imgN < (T.MA_MIN_IMGS || 3)) return null;
+  const gtc = String(s['grid-template-columns'] || '');
+  // ── STICKY image|info PANEL: a 2-track "1fr Nvw" grid (image area + sticky info column). NOT "any sticky child" —
+  // that flagged the whole <body>; the PANEL SHAPE is the signal. ──
+  if (/\bvw\b/.test(gtc) && gtc.trim().split(/\s+(?![^(]*\))/).length === 2) return 'sticky';
+  // ── VERTICAL scroll-snap gallery (the big blowup contributor: a viewport-scroll image viewer) ──
+  if (/^y\b/.test(String(s['scroll-snap-type'] || ''))) return 'scrollsnap-y';
+  // ── HORIZONTAL carousel: scroll-snap-x OR overflow-x scroll/auto with kids on one y-band. The live scrollW>clientW
+  // geometry is unreliable OFFLINE (source.html may not size a scroller), so STYLE + a shared y-band is the primary
+  // signal; scrollW corroborates when present. ──
+  const ox = String(s['overflow-x'] || ''), ssx = /^x\b/.test(String(s['scroll-snap-type'] || ''));
+  const ys = kids.map((k) => (k.rect && k.rect.y) || 0), yBand = (Math.max(...ys) - Math.min(...ys)) < ph * 0.5;
+  if ((ssx || ((ox === 'auto' || ox === 'scroll') && (n.scrollW || 0) > (n.clientW || 0) * 1.15)) && yBand) return 'carousel-x';
+  // ── multi-column GRID (≥2 tracks): cells would stack to N rows; media-dominance already proved the blowup. ──
+  const tracks = gtc && gtc !== 'none' ? gtc.trim().split(/\s+(?![^(]*\))/).length : 0;
+  if ((s.display === 'grid' || s.display === 'inline-grid' || tracks >= 2) && tracks >= 2) return 'grid';
+  return null;
+}
+// media-presence invariant: collect every image node id/url under a subtree (assert all survive a reconstruction).
+export function collectMediaUrls(n, out = []) {
+  if (!n) return out;
+  if (n.tag === 'img') out.push(n.cls + '|' + (n.rect ? `${n.rect.w}x${n.rect.h}` : ''));
+  for (const k of (n.children || [])) collectMediaUrls(k, out);
+  return out;
+}
+
 /**
  * Detach <header>/<footer> landmark sections (and a top-level <nav> when no <header> exists) from the spec
  * tree so they can be authored as SITE PARTS (POST /joist/v1/site-parts → Pro Theme Builder documents with
