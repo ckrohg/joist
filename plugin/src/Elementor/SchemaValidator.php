@@ -50,6 +50,22 @@ final class SchemaValidator
             );
         }
 
+        // CATALOG-HEALTH GATE (fusion 2026-06-21, DIVERGENT → committed global-A). The introspected catalog can be
+        // POLLUTED (the plugin's own WidgetPack hooks mutate the live registry → heading reports `title_colors`, no
+        // `align`, even on clean Elementor 3.28.4). A faulty oracle must never BLOCK a control Elementor itself
+        // accepts: Document::save() already drops genuinely-unknown keys and renders the known ones (that is how page
+        // 834 rendered with title_color/align). So while the catalog is UNHEALTHY we DEMOTE unknown-control-name +
+        // enum errors to non-blocking warnings (structural checks stay hard); the real "rendered unstyled" gate moves
+        // render-side (the veto detectors look). Reversible: option joist_strict_schema=1 forces hard-block.
+        $hardBlock = ((bool) get_option('joist_strict_schema', false)) || $this->catalog->isHealthy();
+        if (!$hardBlock) {
+            static $loggedUnhealthy = false;
+            if (!$loggedUnhealthy) {
+                $loggedUnhealthy = true;
+                error_log('[joist] SchemaValidator: WidgetCatalog UNHEALTHY (polluted control schema) → demoting unknown-control + enum errors to non-blocking warnings; valid controls will NOT be blocked. Set option joist_strict_schema=1 to force hard-block.');
+            }
+        }
+
         $validKeys = [];
         $controlByName = [];
         foreach ($schema['controls'] as $control) {
@@ -68,12 +84,16 @@ final class SchemaValidator
             // Strip responsive suffix for control lookup.
             $baseKey = $this->stripResponsiveSuffix($key);
             if (!in_array($baseKey, $validKeys, true)) {
-                $errors[] = [
+                $finding = [
                     'path' => "settings.{$key}",
                     'code' => 'schema.unknown_key',
                     'message' => "Widget '{$widgetType}' has no control named '{$baseKey}'.",
-                    'suggestion' => $this->suggestControl($baseKey, $validKeys),
+                    // The suggestion comes from the (unhealthy → faulty) catalog; suppress it there so we never steer
+                    // an author toward a name that won't render (e.g. title_color → the polluted title_colors).
+                    'suggestion' => $hardBlock ? $this->suggestControl($baseKey, $validKeys) : null,
                 ];
+                if ($hardBlock) { $errors[] = $finding; }
+                else { $finding['demoted'] = 'catalog-unhealthy'; $warnings[] = $finding; }
                 continue;
             }
 
@@ -88,7 +108,8 @@ final class SchemaValidator
             // its enum; multi-select arrays are walked element-wise.
             $enumError = $this->validateEnumValue($key, $controlByName[$baseKey], $value);
             if ($enumError !== null) {
-                $errors[] = $enumError;
+                if ($hardBlock) { $errors[] = $enumError; }
+                else { $enumError['demoted'] = 'catalog-unhealthy'; $warnings[] = $enumError; }
             }
         }
 
