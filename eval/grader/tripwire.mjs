@@ -94,6 +94,8 @@ function replayFired(srcPath, clonePath) {
 // whether the CURRENT detectors catch it (the one allowed degree of freedom — a canary migrates to Arm 1 when a
 // detector closes the hole). This runs ONCE; thereafter the corpus is frozen and re-running only CHECKS it. ────────
 const LABEL_EXPECT = { hero: 'broken-hero', heading: 'invisible-heading' }; // injected-defect → the veto that owns it
+const KNOWN_GOOD_BASE = new Set(['supabase']);                              // the LOOK-verified 1:1 clone (clean control)
+const KNOWN_BROKEN_BASE = { linear: 'missing-nav', framer: 'dropped-panels' }; // LOOK-confirmed base-clone defects
 function seed() {
   const man = path.join(HERE, 'calibration', 'ladders', 'manifest.json');
   if (!fs.existsSync(man)) { console.error('seed: ladders manifest missing'); process.exit(1); }
@@ -103,20 +105,24 @@ function seed() {
     for (const rung of base.rungs) {
       const fired = replayFired(base.source_img, rung.clone_img);
       const want = LABEL_EXPECT[String(rung.defect)] || null; // the veto this rung's injected defect should trip
-      const broken = rung.defect != null || (rung.level === 0 && base.base === 'linear'); // linear base clone has a LOOK-confirmed missing nav
+      const isBaseRung = rung.defect == null;                 // L0/L1 — the base clone (+desat), NO injected salient defect
       const tag = `TW-${String(++id).padStart(4, '0')}`;
       let rec;
-      if (!broken) {
-        // labeled-CLEAN → Arm 1 clean control: must fire NOTHING (a fire here = a deflation regression).
+      if (isBaseRung && KNOWN_GOOD_BASE.has(base.base)) {
+        // a VERIFIED-good base clone → clean control: must fire NOTHING (a fire here = a deflation regression).
         rec = { id: tag, class: 'regression:clean-control', veto: null, expect: { detectionFires: [], gate: 'publish' }, humanAnchor: { overall_0_100: 100 } };
+      } else if (isBaseRung) {
+        // a NON-verified base clone (LOOK-confirmed imperfect: linear=missing-nav, framer=dropped-panels). Whatever the
+        // detectors catch is a TRUE catch to LOCK IN (regression); whatever they miss is a tracked blind spot (canary).
+        const why = `base-clone defect (${KNOWN_BROKEN_BASE[base.base] || 'imperfect'})`;
+        if (fired.length) rec = { id: tag, class: 'regression:real-broken', veto: fired[0], expect: { detectionFires: fired, gate: 'hold' }, humanAnchor: { overall_0_100: 30 }, note: `${why} caught by ${fired.join(',')}` };
+        else rec = { id: tag, class: 'canary:blind-spot', veto: null, expect: { detectionFires: [], gate: 'publish', liability: 'open' }, humanAnchor: { overall_0_100: 30 }, note: `${why} — no detector covers it yet` };
       } else if (want && fired.includes(want)) {
-        // detectable TODAY → Arm 1 regression: the expected veto must keep firing.
+        // an INJECTED defect detectable TODAY → Arm 1 regression: the expected veto must keep firing.
         rec = { id: tag, class: 'regression:veto', veto: want, expect: { detectionFires: [want], gate: 'hold' }, humanAnchor: { overall_0_100: rung.level >= 3 ? 5 : 20 } };
       } else {
-        // human-broken but the detectors MISS it → Arm 2 canary: publishes today, standing liability.
-        const why = rung.defect === 'heading' ? 'invisible-heading needs live style-runs (contrastFails) — pixel-only here'
-          : (rung.level === 0 ? 'missing-nav: broken-hero is hero-scoped (skips band 0) and no nav/content-void veto exists yet'
-            : 'no detector covers this defect class yet');
+        // an INJECTED defect the detectors MISS → Arm 2 canary: publishes today, standing liability.
+        const why = rung.defect === 'heading' ? 'invisible-heading needs live style-runs (contrastFails) — pixel-only here' : 'no detector covers this defect class yet';
         rec = { id: tag, class: 'canary:blind-spot', veto: null, expect: { detectionFires: [], gate: 'publish', liability: 'open' }, humanAnchor: { overall_0_100: 0 }, note: why };
       }
       rec.frozen = { source: base.source_img, clone: rung.clone_img };
@@ -142,7 +148,7 @@ export function evaluate() {
     const h = fileSha(rootPath(f.frozen.clone));
     if (f.hashes && f.hashes.clone && h && h !== f.hashes.clone) { halts.push({ id: f.id, kind: 'fixture-mutated', detail: 'frozen clone bytes changed' }); continue; }
     const fired = replayFired(f.frozen.source, f.frozen.clone);
-    if (f.class === 'regression:veto') {
+    if (f.class === 'regression:veto' || f.class === 'regression:real-broken') {
       const ok = f.expect.detectionFires.every((v) => fired.includes(v));
       if (ok) passes++; else halts.push({ id: f.id, kind: 'regression', veto: f.expect.detectionFires.join(','), expected: 'hold', got: 'publish', provenance: f.provenance });
     } else if (f.class === 'regression:clean-control') {

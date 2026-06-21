@@ -755,6 +755,8 @@ const refreshSource = process.argv.includes('--refresh-source');
       bandSSIM: sArr, bandExact: eArr,
       contrastFails: (cln.ds && cln.ds.contrastFails) || null,
       srcCtaRuns: src.ctaRuns || null, cloneCtaRuns: cln.ctaRuns || null,
+      srcTextPositions: (src.textPos || []).map((p) => ({ text: p.t, y: p.y })), // content-void text-guard (hero anchor stays gated)
+      cloneTextRuns: cln.texts || null,                                          // content-void reflow guard (clone text runs)
       tunables: { CEIL: VETO_CEIL },
     });
     if (vetoResult.fired.length) {

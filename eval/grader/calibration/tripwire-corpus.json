@@ -129,9 +129,9 @@
         "liability": "open"
       },
       "humanAnchor": {
-        "overall_0_100": 0
+        "overall_0_100": 30
       },
-      "note": "missing-nav: broken-hero is hero-scoped (skips band 0) and no nav/content-void veto exists yet",
+      "note": "base-clone defect (missing-nav) — no detector covers it yet",
       "frozen": {
         "source": "eval/grader/calibration/v2-shots/linear-src-d.png",
         "clone": "eval/grader/calibration/ladders/linear-L0-pristine.png"
@@ -145,15 +145,17 @@
     },
     {
       "id": "TW-0007",
-      "class": "regression:clean-control",
+      "class": "canary:blind-spot",
       "veto": null,
       "expect": {
         "detectionFires": [],
-        "gate": "publish"
+        "gate": "publish",
+        "liability": "open"
       },
       "humanAnchor": {
-        "overall_0_100": 100
+        "overall_0_100": 30
       },
+      "note": "base-clone defect (missing-nav) — no detector covers it yet",
       "frozen": {
         "source": "eval/grader/calibration/v2-shots/linear-src-d.png",
         "clone": "eval/grader/calibration/ladders/linear-L1-desat35.png"
@@ -239,15 +241,18 @@
     },
     {
       "id": "TW-0011",
-      "class": "regression:clean-control",
-      "veto": null,
+      "class": "regression:real-broken",
+      "veto": "content-void",
       "expect": {
-        "detectionFires": [],
-        "gate": "publish"
+        "detectionFires": [
+          "content-void"
+        ],
+        "gate": "hold"
       },
       "humanAnchor": {
-        "overall_0_100": 100
+        "overall_0_100": 30
       },
+      "note": "base-clone defect (dropped-panels) caught by content-void",
       "frozen": {
         "source": "eval/grader/calibration/v2-shots/framer-src-d.png",
         "clone": "eval/grader/calibration/ladders/framer-L0-pristine.png"
@@ -261,15 +266,18 @@
     },
     {
       "id": "TW-0012",
-      "class": "regression:clean-control",
-      "veto": null,
+      "class": "regression:real-broken",
+      "veto": "content-void",
       "expect": {
-        "detectionFires": [],
-        "gate": "publish"
+        "detectionFires": [
+          "content-void"
+        ],
+        "gate": "hold"
       },
       "humanAnchor": {
-        "overall_0_100": 100
+        "overall_0_100": 30
       },
+      "note": "base-clone defect (dropped-panels) caught by content-void",
       "frozen": {
         "source": "eval/grader/calibration/v2-shots/framer-src-d.png",
         "clone": "eval/grader/calibration/ladders/framer-L1-desat35.png"

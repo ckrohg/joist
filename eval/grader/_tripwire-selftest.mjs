@@ -17,7 +17,7 @@ const check = (name, ok, detail = '') => { (ok ? pass++ : fail++); console.log(`
 delete process.env.GRADER_BROKEN_HERO_LEGACY;
 const healthy = evaluate();
 check('healthy: ZERO Arm-1 halts (no false regression)', healthy.halts.length === 0, `halts ${JSON.stringify(healthy.halts.map((h) => h.id))}`);
-check('healthy: the blank-hero fixtures are Arm-1 regression PASSES (not canaries)', healthy.passes >= 11, `passes ${healthy.passes}/${healthy.total}`);
+check('healthy: every Arm-1 regression fixture PASSES (real-broken + clean-control + injected-veto)', healthy.passes >= 9 && healthy.halts.length === 0, `passes ${healthy.passes}/${healthy.total}, halts ${healthy.halts.length}`);
 check('healthy: open blind-spots are TRACKED (>0, the invis-heading + missing-nav canaries) not silently dropped', healthy.blindSpotCount >= 1, `blindSpotCount ${healthy.blindSpotCount}`);
 
 // 2. INJECTED REGRESSION (legacy broken-hero rule) → the Arm-1 blank-hero fixtures MISS → the tripwire HALTS.
