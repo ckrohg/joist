@@ -228,6 +228,13 @@ export async function extract(htmlFile, width) {
       const mediaS = {};
       if (/px$/.test(_mdecl['margin-top'] || '')) mediaS['margin-top'] = cs.marginTop;
       if (el.tagName === 'IMG') {
+        // BACKGROUND-LAYER detection (hero-bg fix): a position:absolute/fixed <img> that fills (≈) its offset parent
+        // and sits behind content is semantically a CONTAINER BACKGROUND, not an inline image. Flag it so the mapper
+        // redirects it to the ancestor container's background_image instead of emitting an inline widget (which, once
+        // the image actually loads, pushes all content below the fold). bgFill = covers most of the offset parent.
+        const op = el.offsetParent; const opr = op ? op.getBoundingClientRect() : null;
+        const coversParent = opr && r.width >= opr.width * 0.9 && r.height >= opr.height * 0.6;
+        const isBgLayer = (cs.position === 'absolute' || cs.position === 'fixed') && coversParent;
         return {
           tag: 'img', cls: el.className || '', isLeaf: true, text: null,
           src: el.getAttribute('src') || '', resolvedSrc: el.currentSrc || el.src || '', alt: el.alt || '',
@@ -235,6 +242,7 @@ export async function extract(htmlFile, width) {
           attrH: parseInt(el.getAttribute('height'), 10) || 0,
           natW: el.naturalWidth || 0, natH: el.naturalHeight || 0,
           rect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) },
+          position: cs.position, isBgLayer, opacity: cs.opacity,
           declared: _mdecl, media: mediaOf(el), s: mediaS,
         };
       }
@@ -887,7 +895,27 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
     }
     applyMedia(n, settings, 'container');
     mobileFullWidth(settings);
-    return { elType: 'container', settings, elements: (n.children || []).map((c) => mapNode(c, n, childInherit)) };
+    // HERO-BG → CONTAINER BACKGROUND (fusion decision 2): a full-bleed position:absolute <img> child is a background
+    // layer, not inline content. Lift it onto THIS container's background_image (the 2nd glow → background_overlay_image)
+    // so it sits behind content at correct z-order; emitting it inline would push content below the fold once the image
+    // loads. The bg-layer imgs are then dropped from the inline children. Reversible: TRANSPILE_NO_BG_LAYER=1.
+    let kids = n.children || [];
+    if (!process.env.TRANSPILE_NO_BG_LAYER) {
+      const bgImgs = kids.filter((c) => c.tag === 'img' && c.isBgLayer);
+      if (bgImgs.length) {
+        const urlOf = (c) => { const a = assetMap.get(c.src) || assetMap.get(c.resolvedSrc) || null; return a ? (a.url || (a.pendingFile && pathToFileURL(a.pendingFile).href)) : null; };
+        const u0 = urlOf(bgImgs[0]);
+        if (u0) {
+          settings.background_background = 'classic';
+          settings.background_image = { url: u0, id: (assetMap.get(bgImgs[0].src) || {}).id || '' };
+          settings.background_size = 'cover'; settings.background_position = 'center center';
+          if (bgImgs[1]) { const u1 = urlOf(bgImgs[1]); if (u1) { settings.background_overlay_background = 'classic'; settings.background_overlay_image = { url: u1, id: (assetMap.get(bgImgs[1].src) || {}).id || '' }; settings.background_overlay_size = 'cover'; settings.background_overlay_position = 'center center'; } }
+          policy(`hero-bg: ${bgImgs.length} full-bleed absolute <img> → container background_image${bgImgs[1] ? ' + overlay' : ''} (not inline) on <${n.tag}${n.cls ? ` class="${n.cls}"` : ''}>`);
+          kids = kids.filter((c) => !(c.tag === 'img' && c.isBgLayer));
+        }
+      }
+    }
+    return { elType: 'container', settings, elements: kids.map((c) => mapNode(c, n, childInherit)) };
   }
 
   return { mapNode, counts, PAIN, POLICY };
