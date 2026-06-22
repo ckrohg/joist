@@ -1120,9 +1120,15 @@ export function classifyArrangement(n, T = {}) {
   const ox = String(s['overflow-x'] || ''), ssx = /^x\b/.test(String(s['scroll-snap-type'] || ''));
   const ys = kids.map((k) => (k.rect && k.rect.y) || 0), yBand = (Math.max(...ys) - Math.min(...ys)) < ph * 0.5;
   if ((ssx || ((ox === 'auto' || ox === 'scroll') && (n.scrollW || 0) > (n.clientW || 0) * 1.15)) && yBand) return 'carousel-x';
-  // ── multi-column GRID (≥2 tracks): cells would stack to N rows; media-dominance already proved the blowup. ──
+  // ── multi-column GRID (≥2 tracks): cells would stack to N rows. REQUIRES a REPEATING MEDIA-CELL pattern — ≥3
+  // DIRECT children each carrying an image — so we reconstruct genuine card grids/galleries, NOT bespoke grid
+  // LAYOUTS (a hero app-UI mockup frame, a content+sidebar wrapper, a gallery-wrapper). Without this the gate
+  // over-fired on linear's JgFxua_frame (7 kids, 1 with an image — a composed mockup) + wrapperWithSidebar,
+  // reconstructing them 2-col → broke the hero (broken-hero veto, composite −0.056). VERIFIED separator: it keeps
+  // allbirds' real grids (5/5 and 5/6 media cells) and drops every false-fire. (fusion-confirmed, 2026-06-21.)
   const tracks = gtc && gtc !== 'none' ? gtc.trim().split(/\s+(?![^(]*\))/).length : 0;
-  if ((s.display === 'grid' || s.display === 'inline-grid' || tracks >= 2) && tracks >= 2) return 'grid';
+  const mediaCells = kids.filter((k) => { let has = false; (function w(x) { if (!x || has) return; if (x.tag === 'img') { has = true; return; } for (const g of (x.children || [])) w(g); })(k); return has; }).length;
+  if ((s.display === 'grid' || s.display === 'inline-grid' || tracks >= 2) && tracks >= 2 && mediaCells >= 3) return 'grid';
   return null;
 }
 // media-presence invariant: collect every image node id/url under a subtree (assert all survive a reconstruction).
@@ -1468,11 +1474,12 @@ export async function transpile({ html, width = 1440, assets, outDir, dryRun, ba
   // (grid / carousel / vertical scroll-snap gallery / sticky panel) as bounded flex row+wrap with fluid % cells, so
   // they pack C-per-row instead of stacking full-width (the 2.2x PDP blowup). Runs on spec.tree BEFORE mapNode.
   // Media-presence invariant: image count must be preserved (the bounding can't be achieved by dropping an image).
-  // STATUS: OPT-IN (TRANSPILE_MEDIA_ARRANGEMENT=1) — detection + emit are built and fire correctly + preserve every
-  // image, but the height reduction is NOT yet landing (fluid-in-cell images aren't shrinking to their % cells on
-  // the Allbirds gallery → re-render still tall). Default OFF until the fluid mechanics + container-targeting are
-  // verified to drop the clone height to ≤~1.1x source. Off-path is byte-identical (pre-pass does not run).
-  if (process.env.TRANSPILE_MEDIA_ARRANGEMENT === '1') {
+  // STATUS: DEFAULT-ON (opt-out TRANSPILE_NO_MEDIA_ARRANGEMENT=1; off-path byte-identical — pre-pass does not run).
+  // Validated by a 5-site projection A/B (MA-on+tightened vs off): allbirds 0.184→0.327 (resp 0.451→0.906, cliff
+  // cleared), clerk 0.242→0.245, linear 0.202→0.202 (no-op — the detection-tightening dropped the bespoke-grid
+  // over-fire that regressed it), resend/twdocs no-op. Zero regressions; image-presence invariant holds; the grid
+  // gate requires ≥3 repeating media cells so it only touches genuine card grids/galleries.
+  if (process.env.TRANSPILE_NO_MEDIA_ARRANGEMENT !== '1') {
     const assetDims = buildAssetDimsMap(manifest); // REAL portrait aspects from the captured asset files (no network)
     const ma = reconstructArrangement(spec.tree, { assetDims, authoringWidth: width });
     if (ma.reconstructed) {
