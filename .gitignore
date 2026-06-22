@@ -50,3 +50,6 @@ Thumbs.db
 *.swo
 *~
 dist/
+
+# tenet hub auth token — never commit (scrubbed from history 2026-06-22)
+**/.tenet/context-hub.token
