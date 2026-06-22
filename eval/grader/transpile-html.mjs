@@ -1135,17 +1135,92 @@ export function collectMediaUrls(n, out = []) {
 
 // gap-safe per-cell width %: floor(100/C)-1 absorbs rounding so the row never overflows into an extra wrap line.
 const childPct = (C) => Math.max(1, Math.floor(100 / Math.max(1, C)) - 1);
-// column count by arrangement type (fusion 2026-06-21): grid → resolved track count (fallback content-derived);
-// carousel → ≤4; vertical scroll-snap gallery → 3 (legibility floor); clamp 2..6.
+
+// ── REAL image dimensions from a file HEADER (no decode, no deps) — JPEG/PNG/WebP/GIF. The media-arrangement
+// pre-pass needs the TRUE aspect (offline rect is landscape-wrong, attrs are placeholder, natural dims are 0); only
+// the captured asset FILE has the real portrait aspect. Reads a few header bytes. Returns {w,h} or null. ──────────
+export function imageFileDims(file) {
+  let fd;
+  try {
+    const buf = Buffer.alloc(65536);
+    fd = fs.openSync(file, 'r');
+    const n = fs.readSync(fd, buf, 0, 65536, 0);
+    if (n < 24) return null;
+    // PNG: 8-byte sig, then IHDR @16: width(4 BE), height(4 BE)
+    if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) {
+      return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) };
+    }
+    // GIF: 'GIF8', then width(2 LE), height(2 LE) @6
+    if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x38) {
+      return { w: buf.readUInt16LE(6), h: buf.readUInt16LE(8) };
+    }
+    // WebP: 'RIFF'....'WEBP' then a VP8/VP8L/VP8X chunk
+    if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 && buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50) {
+      const fmt = buf.toString('ascii', 12, 16);
+      if (fmt === 'VP8 ') return { w: buf.readUInt16LE(26) & 0x3fff, h: buf.readUInt16LE(28) & 0x3fff };
+      if (fmt === 'VP8L') { const b0 = buf[21], b1 = buf[22], b2 = buf[23], b3 = buf[24]; return { w: 1 + (((b1 & 0x3f) << 8) | b0), h: 1 + (((b3 & 0xf) << 10) | (b2 << 2) | ((b1 & 0xc0) >> 6)) }; }
+      if (fmt === 'VP8X') return { w: 1 + (buf[24] | (buf[25] << 8) | (buf[26] << 16)), h: 1 + (buf[27] | (buf[28] << 8) | (buf[29] << 16)) };
+      return null;
+    }
+    // JPEG: scan markers for SOF0/1/2/3 (0xFFC0..C3) → height(2 BE), width(2 BE) at marker+5
+    if (buf[0] === 0xff && buf[1] === 0xd8) {
+      let off = 2;
+      while (off + 9 < n) {
+        if (buf[off] !== 0xff) { off++; continue; }
+        const m = buf[off + 1];
+        if (m >= 0xc0 && m <= 0xc3) return { h: buf.readUInt16BE(off + 5), w: buf.readUInt16BE(off + 7) };
+        if (m === 0xd8 || m === 0xd9 || (m >= 0xd0 && m <= 0xd7) || m === 0x01) { off += 2; continue; }
+        const len = buf.readUInt16BE(off + 2); if (len < 2) break; off += 2 + len;
+      }
+      return null;
+    }
+    return null;
+  } catch { return null; }
+  finally { if (fd !== undefined) try { fs.closeSync(fd); } catch {} }
+}
+// build a src/url/basename → real aspect (h/w) map from the captured asset files (read headers, no network/decode).
+// Keyed the SAME ways resolveAssets matches an img node (exact src||url, basename) so columnsFor can look it up.
+export function buildAssetDimsMap(manifest) {
+  const map = new Map();
+  for (const a of (manifest || [])) {
+    if (!a || a.kind === 'inline-svg' || !a.file) continue;
+    let dims = (a.width && a.height) ? { w: a.width, h: a.height } : (a.file ? imageFileDims(a.file) : null);
+    if (!dims || !dims.w || !dims.h) continue;
+    const ar = dims.h / dims.w;
+    for (const k of [a.src, a.url, path.basename(String(a.src || a.url || '')), path.basename(String(a.file || ''))]) {
+      if (k && !map.has(k)) map.set(k, ar);
+    }
+  }
+  return map;
+}
+// average real aspect (h/w) of a container's img descendants, via the asset-dims map (offline rect/attrs are wrong).
+function avgImgAspect(n, assetDims) {
+  if (!assetDims || !assetDims.size) return 0;
+  const ars = [];
+  (function w(x) { if (!x) return; if (x.tag === 'img') { const ar = assetDims.get(x.src) || assetDims.get(x.resolvedSrc) || assetDims.get(path.basename(String(x.src || x.resolvedSrc || ''))); if (ar) ars.push(ar); } for (const k of (x.children || [])) w(k); })(n);
+  return ars.length ? ars.reduce((a, b) => a + b, 0) / ars.length : 0;
+}
+// HEIGHT-BUDGET column choice per keystone (fusion 2026-06-21). maxC = the legibility-floor cap (cell ≥ minCell at
+// this width, ≤ maxRaise, ≤ N). Start by clamping base DOWN to maxC (so a too-many-col base doesn't make sub-legible
+// mobile cells). Then for PORTRAIT media (a≥1.25) RAISE to the smallest C whose estimated media-block height fits the
+// budget (1.45·W) — narrower cells → shorter images → fewer rows, NEVER resizing an image. a<1.25 (landscape/square)
+// → just the floor-clamp, no portrait raise (the generalization guard). Returns ≥1.
+function chooseC(base, N, a, Wk, minCell, maxRaise) {
+  const maxC = Math.max(1, Math.min(N || base, maxRaise, Math.floor(Wk / minCell) || 1));
+  let c = Math.min(base, maxC);
+  if (a >= 1.25 && N) {
+    const Hhat = (cc) => Math.ceil(N / cc) * a * (Wk / cc);
+    const budget = 1.45 * Wk;
+    if (Hhat(c) > budget) { let fit = maxC; for (let k = c + 1; k <= maxC; k++) { if (Hhat(k) <= budget) { fit = k; break; } } c = fit; }
+  }
+  return Math.max(1, c);
+}
+// base column count by arrangement type: grid → resolved track count (fallback content-derived); carousel → ≤4;
+// vertical scroll-snap gallery → 3 (legibility floor); clamp 2..6. (chooseC then RAISES this for portrait media.)
 function columnsFor(type, n) {
   const kids = (n.children || []).length;
   if (type === 'carousel-x') return Math.min(kids, 4);
   if (type === 'scrollsnap-y') return 3;
-  // grid: count resolved tracks in grid-template-columns (paren-safe); offline-collapsed (<2) → content-derived.
-  // NOTE (follow-on): a PORTRAIT-image gallery wants MORE columns (narrower cells → shorter images → fewer rows, the
-  // height-budget lever). We can't detect portrait OFFLINE — the offline rect aspect is landscape (0.57) and the attrs
-  // are square (1280²) while the real asset file is portrait; only the captured asset manifest has the true aspect,
-  // which resolves AFTER this pre-pass. Threading the asset map in (a pipeline reorder) is the fix for the cliff@900.
   const gtc = String((n.s || {})['grid-template-columns'] || '');
   let tracks = gtc && gtc !== 'none' ? gtc.trim().split(/\s+(?![^(]*\))/).length : 0;
   if (tracks < 2) tracks = Math.min(4, Math.max(2, Math.round(Math.sqrt(kids)))); // collapsed offline → a sane grid
@@ -1162,12 +1237,16 @@ export function reconstructArrangement(tree, opts = {}) {
   const log = [];
   const imgsBefore = collectMediaUrls(tree).length;
   function stampCells(n, type) {
-    const C = columnsFor(type, n);
-    const pct = childPct(C);
-    // responsive per type (fusion): grid/gallery → tablet 50% (≥3-col) / mobile 50% (media); carousel → tablet 33% / mobile 50%.
-    const pctT = type === 'carousel-x' ? childPct(3) : (C >= 3 ? 50 : pct);
-    const pctM = 50; // media grids/galleries/carousels NEVER 1-col on mobile (that is the additive stack again)
-    n._maRowWrap = true; n._maType = type; n._maCols = C;
+    const base = columnsFor(type, n);
+    const N = (n.children || []).length;
+    const a = avgImgAspect(n, opts.assetDims); // REAL aspect from the captured asset files (0 if unavailable)
+    const W = (n.rect && n.rect.w) || opts.authoringWidth || 1400;
+    // per-keystone columns from the height budget + legibility floor (portrait media gets MORE columns → shorter).
+    const Cd = chooseC(base, N, a, W, 280, 6);
+    const Ct = chooseC(base, N, a, Math.min(W, 900), 220, 4);
+    const Cm = chooseC(base, N, a, Math.min(W, 390), 150, 2);
+    const C = Cd, pct = childPct(Cd), pctT = childPct(Ct), pctM = childPct(Cm);
+    n._maRowWrap = true; n._maType = type; n._maCols = C; n._maAspect = +a.toFixed(2);
     const markFluid = (x) => { if (!x || typeof x !== 'object') return; if (x.tag === 'img') x._maFluid = true; for (const c of (x.children || [])) markFluid(c); };
     for (const k of (n.children || [])) {
       if (!k || typeof k !== 'object') continue;
@@ -1176,7 +1255,7 @@ export function reconstructArrangement(tree, opts = {}) {
       // image_size:'full' so it scales to the narrowed % cell (aspect-locked) instead of forcing its full px height.
       markFluid(k);
     }
-    log.push(`${type} C=${C} cell=${pct}% (t${pctT}/m${pctM}) on <${n.tag} class="${String(n.cls).slice(0, 32)}"> kids=${(n.children || []).length}`);
+    log.push(`${type} a=${(a || 0).toFixed(2)} C=${Cd}/${Ct}/${Cm} cell=${pct}/${pctT}/${pctM}% on <${n.tag} class="${String(n.cls).slice(0, 30)}"> kids=${N}`);
   }
   function walk(n) {
     if (!n || typeof n !== 'object') return;
@@ -1394,7 +1473,8 @@ export async function transpile({ html, width = 1440, assets, outDir, dryRun, ba
   // the Allbirds gallery → re-render still tall). Default OFF until the fluid mechanics + container-targeting are
   // verified to drop the clone height to ≤~1.1x source. Off-path is byte-identical (pre-pass does not run).
   if (process.env.TRANSPILE_MEDIA_ARRANGEMENT === '1') {
-    const ma = reconstructArrangement(spec.tree);
+    const assetDims = buildAssetDimsMap(manifest); // REAL portrait aspects from the captured asset files (no network)
+    const ma = reconstructArrangement(spec.tree, { assetDims, authoringWidth: width });
     if (ma.reconstructed) {
       if (ma.imgsAfter !== ma.imgsBefore) throw new Error(`media-arrangement INVARIANT VIOLATION: images ${ma.imgsBefore}→${ma.imgsAfter} (reconstruction must never drop an image)`);
       console.log(`media-arrangement: reconstructed ${ma.reconstructed} container(s), ${ma.imgsBefore} images preserved`);
