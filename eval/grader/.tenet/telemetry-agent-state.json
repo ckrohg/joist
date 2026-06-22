@@ -1,5 +1,5 @@
 {
-  "last_run": "2026-06-21T21:52:31.946Z",
+  "last_run": "2026-06-22T02:52:36.639Z",
   "last_insights": [
     "reliability:Context Hub crashing frequently",
     "reliability:Memory indexing errors detected",
@@ -8,9 +8,9 @@
     "perf:MCP latency trending up"
   ],
   "baseline_cost": 0,
-  "baseline_errors": 9.510140901585878,
+  "baseline_errors": 12.114718743485023,
   "baseline_crash_rate": 0,
-  "run_count": 455,
+  "run_count": 465,
   "health_trajectory": [],
   "last_stratus_run": "",
   "stratus_failures": 0
