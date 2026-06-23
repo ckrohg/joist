@@ -124,6 +124,19 @@ const FROZENCAP_THRESH = (() => { const v = parseFloat(process.env.GRADER_FROZEN
 // The authoritative grade-time frozen-section record is the sidecar ledger build-hybrid-flow.mjs writes. Auto-
 // discovered at /tmp/hybrid-residual-ledger.json; override/disable via --ledger <path|none>. ABSENT ⇒ the clone
 // is treated as pure-flow (no frozen bands) ⇒ ladder + frozen-cap are NO-OPS ⇒ byte-identical flow path.
+// ROUND-TRIP CERT (fusion 2026-06-22, REPORT-ONLY): editability-audit --live writes /tmp/roundtrip-cert.json
+// {builderSha, pass, ts}. Round-trip editability is a BUILDER property → measure once, reuse. The grader reports
+// it (breakdown.roundtripCert); ENFORCEMENT (pass:false → composite veto-cap) lands with the decoupled-editability
+// default-on flip. ABSENT ⇒ roundtripUncertified (proceed; --require-roundtrip would cap). Freshness via ts (<24h).
+function loadRoundtripCert() {
+  try {
+    const f = '/tmp/roundtrip-cert.json';
+    if (!fs.existsSync(f)) return { present: false, status: 'uncertified' };
+    const c = JSON.parse(fs.readFileSync(f, 'utf8'));
+    const fresh = typeof c.ts === 'number' && (Date.now() - c.ts) < 24 * 3600 * 1000;
+    return { present: true, pass: !!c.pass, builderSha: c.builderSha, fresh, status: !fresh ? 'stale' : (c.pass ? 'pass' : 'fail') };
+  } catch { return { present: false, status: 'uncertified' }; }
+}
 function loadLedger() {
   if (!USE_HONESTYGATE) return null;
   const a = arg('ledger', '/tmp/hybrid-residual-ledger.json');
@@ -648,6 +661,7 @@ const refreshSource = process.argv.includes('--refresh-source');
   const isCoveredNative = (t, chunk) => cloneNativeSet.has(t) || cloneNativeAll.includes(' ' + t + ' ') || cloneNativeAll.includes(t) || (!!chunk && cloneNativeAll.includes(t));
   let coveredNative = 0; for (const { t, chunk } of srcPos) if (isCoveredNative(t, chunk)) coveredNative++;
   const editabilityDecoupled = srcPos.length ? +(coveredNative / srcPos.length).toFixed(3) : 0;
+  const roundtripCert = loadRoundtripCert(); // report-only cached round-trip-propagation cert (builder property)
   const preserveHeightFrac = (ledger && typeof ledger.preserveHeightFrac === 'number') ? ledger.preserveHeightFrac : null;
   // structure diagnostic: of the clone, how much is native widgets vs raster images
   const c = cln.census; const nativeW = (c.wHeading || 0) + (c.wText || 0) + (c.wButton || 0); const imgW = c.wImage || 0;
@@ -821,7 +835,7 @@ const refreshSource = process.argv.includes('--refresh-source');
     source, clone,
     composite: +composite.toFixed(3),
     visual: +visual.toFixed(3), editability: +editability.toFixed(3), designSystem: +designSystem.toFixed(3), responsive: responsive != null ? +responsive.toFixed(3) : null,
-    breakdown: { ssim_mean: +ssimMean.toFixed(3), exactPixel_mean: +exactMean.toFixed(3), cgm_mean: +cgmMean.toFixed(3), cgmOverDensity: cgmRes.overDensity, hRatio: +hRatio.toFixed(3), heightPenalty: +hPen.toFixed(3), textCoverage: +textCoverage.toFixed(3), editVisCoupled: +editability.toFixed(3), editabilityDecoupled, srcTextRuns: srcPos.length, cloneTextRuns: cln.texts.length, cloneNativeRuns: (cln.nativeTexts || []).length, nativeRatio: +nativeRatio.toFixed(3), ...(USE_HONESTYGATE && !EDIT_BINARY ? { frozenRuns, frozenWeight: FROZEN_W } : {}), invisibleText: invisRuns.length, invisibleDefect: +invisDefect.toFixed(3), ...(INVISTEXT2 ? { invisDetector: 'localbg-v2', invisRuns: invisRuns.slice(0, 8).map((f) => ({ y: f.y, fsz: f.fsz, ratio: f.ratio, text: f.text })) } : {}), cloneWidgets: { heading: c.wHeading, text: c.wText, button: c.wButton, image: c.wImage } },
+    breakdown: { ssim_mean: +ssimMean.toFixed(3), exactPixel_mean: +exactMean.toFixed(3), cgm_mean: +cgmMean.toFixed(3), cgmOverDensity: cgmRes.overDensity, hRatio: +hRatio.toFixed(3), heightPenalty: +hPen.toFixed(3), textCoverage: +textCoverage.toFixed(3), editVisCoupled: +editability.toFixed(3), editabilityDecoupled, roundtripCert, srcTextRuns: srcPos.length, cloneTextRuns: cln.texts.length, cloneNativeRuns: (cln.nativeTexts || []).length, nativeRatio: +nativeRatio.toFixed(3), ...(USE_HONESTYGATE && !EDIT_BINARY ? { frozenRuns, frozenWeight: FROZEN_W } : {}), invisibleText: invisRuns.length, invisibleDefect: +invisDefect.toFixed(3), ...(INVISTEXT2 ? { invisDetector: 'localbg-v2', invisRuns: invisRuns.slice(0, 8).map((f) => ({ y: f.y, fsz: f.fsz, ratio: f.ratio, text: f.text })) } : {}), cloneWidgets: { heading: c.wHeading, text: c.wText, button: c.wButton, image: c.wImage } },
     designLint: { paletteFidelity: +palFid.toFixed(3), typeFidelity: +typeFid.toFixed(3), contrastPass: +contrastPass.toFixed(3), contrastPairs: cds.contrastPairs || 0, contrastFail: (cds.contrastPairs || 0) - (cds.contrastPass || 0), hasPrimary: !!hasPrimary, hasTypography: !!hasType, cloneFonts: cds.fontCount || 0, clonePalette: (cds.palette || []).length, cloneRadii: cds.radii || [] },
     responsiveDetail: responsive != null ? { mobileFit: +mobileFitV.toFixed(3), mobileOrder: +mobileOrderV.toFixed(3) } : null,
     // ---- GRADER-HONESTY GATE (absent entirely under GRADER_NO_HONESTYGATE=1 → byte-identical legacy report) ----

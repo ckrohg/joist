@@ -20,6 +20,7 @@
 import { execFileSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 const ROOT = path.resolve(HERE, '..', '..');
@@ -136,6 +137,19 @@ if (IS_MAIN) (async () => {
     console.log(`page ${t2.pageId} (${t2.url})`);
     console.log(`edited heading: ${t2.editedHeading} → propagated: ${t2.textPropagated} | edited button color: ${t2.editedButton} → propagated: ${t2.colorPropagated}`);
     console.log(`TIER 2: ${t2.pass ? 'PASS' : 'FAIL'}${t2.defects.length ? '  defects: ' + t2.defects.map((d) => d.cls).join(', ') : ''}`);
+  }
+
+  // ROUND-TRIP CERT sidecar (fusion 2026-06-22): a cached binary cert the grader reads as a composite gate. Round-trip
+  // editability is a BUILDER property (the same write path round-trips for every page a given builder emits) → measure
+  // once, key by builderSha so it auto-re-mints when the builder changes, reuse across the corpus. Only written on --live.
+  if (t2) {
+    try {
+      const builderFile = path.join(HERE, 'transpile-html.mjs');
+      const builderSha = fs.existsSync(builderFile) ? crypto.createHash('sha1').update(fs.readFileSync(builderFile)).digest('hex').slice(0, 12) : 'unknown';
+      const cert = { builder: 'transpile-html', builderSha, pass: !!t2.pass, sampled: ['heading', 'button'], tier1Pass: !!t1.pass, ts: Date.now(), pageId: t2.pageId };
+      fs.writeFileSync('/tmp/roundtrip-cert.json', JSON.stringify(cert, null, 2));
+      console.log(`round-trip cert → /tmp/roundtrip-cert.json (builderSha ${builderSha}, pass ${cert.pass})`);
+    } catch (e) { console.error('cert write failed:', e.message); }
   }
 
   const allDefects = [...t1.defects, ...(t2 ? t2.defects : [])];
