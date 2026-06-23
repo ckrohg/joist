@@ -807,6 +807,23 @@ const refreshSource = process.argv.includes('--refresh-source');
   const isInvisibleNative = (t) => invisNativeBlob.includes(' ' + t + ' ') || (t.length >= 8 && invisNativeBlob.includes(t));
   coveredNative = 0; for (const { t, chunk } of srcPos) if (isCoveredNative(t, chunk) && !isInvisibleNative(t)) coveredNative++;
   editabilityDecoupled = srcPos.length ? +(coveredNative / srcPos.length).toFixed(3) : 0;
+  // ---- HEADLINE-COMPOSITE FLIP (fusion 2026-06-22, DEFAULT-ON; revert GRADER_EDIT_LEGACY=1 → byte-identical coupled
+  // term). Feed the HONEST decoupled editability into the composite instead of the visual-COUPLED term that inherited
+  // the height-mismatch deflation. SAFE per the red-team: the composite stays VETO-GATED — the union text-over-raster
+  // veto (applied just below) caps a gamed-editability clone, so editability is one input, NOT the sole headline. The
+  // recompute replays the EXACT term sequence (formula → 3-term skate adj → visual<0.5 floor → invisDefect) so OFF is
+  // byte-identical and ON differs only by the editability term. Per "grader strictness IS progress": the composite
+  // RISING here is the honesty correction (a deflation removed), reversibly.
+  const editForComposite = process.env.GRADER_EDIT_LEGACY === '1' ? editability : editabilityDecoupled;
+  if (editForComposite !== editability) {
+    let c2 = (responsive != null)
+      ? 0.35 * visual + 0.35 * editForComposite + 0.10 * designSystem + 0.20 * responsive
+      : 0.45 * visual + 0.45 * editForComposite + 0.10 * designSystem;
+    if (responsive == null && skateFrac > 0) c2 = Math.max(0, c2 - 0.10 * skateFrac);
+    if (visual < 0.5) c2 = Math.min(c2, visual + 0.1);
+    c2 = c2 * (1 - invisDefect);
+    composite = c2;
+  }
   // ---- GRADER-HONESTY VETO-CAPS (#2) — human-salient STATIC defects the geometry/editability terms miss. A fired
   // veto HARD-CAPS the composite at VETO_CEIL (default 0.45): a human instantly reads the page as broken, so no
   // geometry score should survive it. Mirrors the midwidth veto-cap pattern (Math.min). Reversible: GRADER_NO_VETOES
@@ -866,7 +883,7 @@ const refreshSource = process.argv.includes('--refresh-source');
   const report = {
     source, clone,
     composite: +composite.toFixed(3),
-    visual: +visual.toFixed(3), editability: +editability.toFixed(3), designSystem: +designSystem.toFixed(3), responsive: responsive != null ? +responsive.toFixed(3) : null,
+    visual: +visual.toFixed(3), editability: +editForComposite.toFixed(3), designSystem: +designSystem.toFixed(3), responsive: responsive != null ? +responsive.toFixed(3) : null,
     breakdown: { ssim_mean: +ssimMean.toFixed(3), exactPixel_mean: +exactMean.toFixed(3), cgm_mean: +cgmMean.toFixed(3), cgmOverDensity: cgmRes.overDensity, hRatio: +hRatio.toFixed(3), heightPenalty: +hPen.toFixed(3), textCoverage: +textCoverage.toFixed(3), editVisCoupled: +editability.toFixed(3), editabilityDecoupled, roundtripCert, srcTextRuns: srcPos.length, cloneTextRuns: cln.texts.length, cloneNativeRuns: (cln.nativeTexts || []).length, nativeRatio: +nativeRatio.toFixed(3), ...(USE_HONESTYGATE && !EDIT_BINARY ? { frozenRuns, frozenWeight: FROZEN_W } : {}), invisibleText: invisRuns.length, invisibleDefect: +invisDefect.toFixed(3), ...(INVISTEXT2 ? { invisDetector: 'localbg-v2', invisRuns: invisRuns.slice(0, 8).map((f) => ({ y: f.y, fsz: f.fsz, ratio: f.ratio, text: f.text })) } : {}), cloneWidgets: { heading: c.wHeading, text: c.wText, button: c.wButton, image: c.wImage } },
     designLint: { paletteFidelity: +palFid.toFixed(3), typeFidelity: +typeFid.toFixed(3), contrastPass: +contrastPass.toFixed(3), contrastPairs: cds.contrastPairs || 0, contrastFail: (cds.contrastPairs || 0) - (cds.contrastPass || 0), hasPrimary: !!hasPrimary, hasTypography: !!hasType, cloneFonts: cds.fontCount || 0, clonePalette: (cds.palette || []).length, cloneRadii: cds.radii || [] },
     responsiveDetail: responsive != null ? { mobileFit: +mobileFitV.toFixed(3), mobileOrder: +mobileOrderV.toFixed(3) } : null,
