@@ -140,7 +140,7 @@ function loadLedger() {
 }
 
 async function capture(ctx, target, isSource) {
-  if (!/^https?:/.test(target)) return { shot: PNG.sync.read(fs.readFileSync(target)), texts: [], census: {}, ds: null, ctaRuns: [] };
+  if (!/^https?:/.test(target)) return { shot: PNG.sync.read(fs.readFileSync(target)), texts: [], nativeTexts: [], census: {}, ds: null, ctaRuns: [] };
   const p = await ctx.newPage(); await p.setViewportSize({ width: W, height: 900 });
   try { await p.goto(target, { waitUntil: 'networkidle', timeout: 60000 }); } catch { try { await p.goto(target, { waitUntil: 'load', timeout: 30000 }); } catch {} }
   await p.emulateMedia({ reducedMotion: 'reduce' }); await p.waitForTimeout(1200);
@@ -153,6 +153,14 @@ async function capture(ctx, target, isSource) {
     // SELECTABLE text runs (real editable text — NOT inside an image). Images carry no innerText, so any
     // text here is genuinely native/selectable. This is the editability signal.
     const texts = []; const textPos = []; const seen = new Set();
+    // DECOUPLED-EDITABILITY signal (fusion 2026-06-22): a clone-only, source-INDEPENDENT census of which text runs are
+    // genuinely NATIVE+editable — text NOT trapped in an html/shortcode BLOB widget (the raster-gaming hole). Built
+    // alongside `texts` so the grader can score editability on native coverage instead of bandVisual(y) (which inherits
+    // the visual deflation). On the SOURCE there are no .elementor-widget-* wrappers so nothing is blob → all native
+    // (correct: the source is ground truth); on the CLONE, text baked into an html widget (the raster decoy) is excluded.
+    const nativeTexts = []; const nativeSeen = new Set();
+    const isBlob = (el) => !!el.closest('.elementor-widget-html, .elementor-widget-shortcode');
+    const pushNative = (s, el) => { const k = (s || '').toLowerCase(); if (!k || nativeSeen.has(k) || isBlob(el)) return; nativeSeen.add(k); nativeTexts.push(s); };
     // include div: Elementor text-editor widgets render text in <div> wrappers; the own-text filter
     // (direct text-node child) keeps this to leaf text and excludes structural containers.
     // textPos carries each run's y so editability can couple a text run's credit to the VISUAL fidelity of
@@ -172,11 +180,11 @@ async function capture(ctx, target, isSource) {
         for (const w of words) { if (cur && cur.length + 1 + w.length > 200) { chunks.push(cur); cur = w; } else cur = cur ? cur + ' ' + w : w; }
         if (cur) chunks.push(cur);
         const r = e.getBoundingClientRect(); const cy = Math.round(r.top + window.scrollY);
-        for (const ck of chunks) { const k = ck.toLowerCase(); if (seen.has(k)) continue; seen.add(k); texts.push(ck); textPos.push({ t: ck, y: cy, chunk: 1 }); }
+        for (const ck of chunks) { const k = ck.toLowerCase(); if (seen.has(k)) continue; seen.add(k); texts.push(ck); textPos.push({ t: ck, y: cy, chunk: 1 }); pushNative(ck, e); }
         continue;
       }
       if (!vis(e)) continue; if (parseFloat(getComputedStyle(e).fontSize) < 10) continue;
-      const k = t.toLowerCase(); if (seen.has(k)) continue; seen.add(k); texts.push(t);
+      const k = t.toLowerCase(); if (seen.has(k)) continue; seen.add(k); texts.push(t); pushNative(t, e);
       const r = e.getBoundingClientRect(); textPos.push({ t, y: Math.round(r.top + window.scrollY) });
     }
     const census = {
@@ -246,10 +254,10 @@ async function capture(ctx, target, isSource) {
       radii: [...radiusSet].sort((a, b) => a - b).slice(0, 8),
       contrastFails: cfails.sort((a, b) => a.ratio - b.ratio).slice(0, 40),
     };
-    return { texts, textPos, census, ds, ctaRuns, pageH: document.documentElement.scrollHeight };
+    return { texts, textPos, nativeTexts, census, ds, ctaRuns, pageH: document.documentElement.scrollHeight };
   }, NO_LONGTEXT);
   const shot = PNG.sync.read(await p.screenshot({ fullPage: true }));
-  await p.close(); return { shot, texts: info.texts, textPos: info.textPos, census: info.census, ds: info.ds, ctaRuns: info.ctaRuns, pageH: info.pageH };
+  await p.close(); return { shot, texts: info.texts, textPos: info.textPos, nativeTexts: info.nativeTexts, census: info.census, ds: info.ds, ctaRuns: info.ctaRuns, pageH: info.pageH };
 }
 
 // RESPONSIVE dimension — MOBILE-FIT: does the clone fit the 390px viewport without horizontal overflow?
@@ -627,6 +635,19 @@ const refreshSource = process.argv.includes('--refresh-source');
   }
   const editability = srcPos.length ? credit / srcPos.length : 0;       // visual-coupled + ladder-weighted (objective)
   const textCoverage = srcPos.length ? covered / srcPos.length : 0;     // raw coverage (diagnostic only)
+  // ---- DECOUPLED editability (fusion 2026-06-22, REPORT-ONLY) — clone-only NATIVE coverage, source-INDEPENDENT, NOT
+  // bandVisual-coupled. The bandVisual coupling did two jobs: (1) render-verify [keep] + (2) source-band-MATCH [DELETE
+  // — that is `visual`'s job and the whole deflation bug: a 1.4x-taller clone misaligns bands → editability inherits a
+  // visual penalty it shouldn't carry]. C_native = source runs reproduced as NATIVE (non-blob) + visible clone text /
+  // source runs. Closes the raster hole STRICTLY STRONGER than the coupling: a faithful html-blob clone (which the OLD
+  // term scored ~1.0 because bandVisual≈1!) now scores ~0 — its text is excluded from nativeTexts. STATUS: report-only
+  // (breakdown.editabilityDecoupled); the HEADLINE still uses the coupled term until the full game-test battery +
+  // round-trip cert gate land and GRADER_EDIT_DECOUPLED flips it on.
+  const cloneNativeSet = new Set((cln.nativeTexts || []).map(norm));
+  const cloneNativeAll = ' ' + (cln.nativeTexts || []).map(norm).join(' ') + ' ';
+  const isCoveredNative = (t, chunk) => cloneNativeSet.has(t) || cloneNativeAll.includes(' ' + t + ' ') || cloneNativeAll.includes(t) || (!!chunk && cloneNativeAll.includes(t));
+  let coveredNative = 0; for (const { t, chunk } of srcPos) if (isCoveredNative(t, chunk)) coveredNative++;
+  const editabilityDecoupled = srcPos.length ? +(coveredNative / srcPos.length).toFixed(3) : 0;
   const preserveHeightFrac = (ledger && typeof ledger.preserveHeightFrac === 'number') ? ledger.preserveHeightFrac : null;
   // structure diagnostic: of the clone, how much is native widgets vs raster images
   const c = cln.census; const nativeW = (c.wHeading || 0) + (c.wText || 0) + (c.wButton || 0); const imgW = c.wImage || 0;
@@ -800,7 +821,7 @@ const refreshSource = process.argv.includes('--refresh-source');
     source, clone,
     composite: +composite.toFixed(3),
     visual: +visual.toFixed(3), editability: +editability.toFixed(3), designSystem: +designSystem.toFixed(3), responsive: responsive != null ? +responsive.toFixed(3) : null,
-    breakdown: { ssim_mean: +ssimMean.toFixed(3), exactPixel_mean: +exactMean.toFixed(3), cgm_mean: +cgmMean.toFixed(3), cgmOverDensity: cgmRes.overDensity, hRatio: +hRatio.toFixed(3), heightPenalty: +hPen.toFixed(3), textCoverage: +textCoverage.toFixed(3), editVisCoupled: +editability.toFixed(3), srcTextRuns: srcPos.length, cloneTextRuns: cln.texts.length, nativeRatio: +nativeRatio.toFixed(3), ...(USE_HONESTYGATE && !EDIT_BINARY ? { frozenRuns, frozenWeight: FROZEN_W } : {}), invisibleText: invisRuns.length, invisibleDefect: +invisDefect.toFixed(3), ...(INVISTEXT2 ? { invisDetector: 'localbg-v2', invisRuns: invisRuns.slice(0, 8).map((f) => ({ y: f.y, fsz: f.fsz, ratio: f.ratio, text: f.text })) } : {}), cloneWidgets: { heading: c.wHeading, text: c.wText, button: c.wButton, image: c.wImage } },
+    breakdown: { ssim_mean: +ssimMean.toFixed(3), exactPixel_mean: +exactMean.toFixed(3), cgm_mean: +cgmMean.toFixed(3), cgmOverDensity: cgmRes.overDensity, hRatio: +hRatio.toFixed(3), heightPenalty: +hPen.toFixed(3), textCoverage: +textCoverage.toFixed(3), editVisCoupled: +editability.toFixed(3), editabilityDecoupled, srcTextRuns: srcPos.length, cloneTextRuns: cln.texts.length, cloneNativeRuns: (cln.nativeTexts || []).length, nativeRatio: +nativeRatio.toFixed(3), ...(USE_HONESTYGATE && !EDIT_BINARY ? { frozenRuns, frozenWeight: FROZEN_W } : {}), invisibleText: invisRuns.length, invisibleDefect: +invisDefect.toFixed(3), ...(INVISTEXT2 ? { invisDetector: 'localbg-v2', invisRuns: invisRuns.slice(0, 8).map((f) => ({ y: f.y, fsz: f.fsz, ratio: f.ratio, text: f.text })) } : {}), cloneWidgets: { heading: c.wHeading, text: c.wText, button: c.wButton, image: c.wImage } },
     designLint: { paletteFidelity: +palFid.toFixed(3), typeFidelity: +typeFid.toFixed(3), contrastPass: +contrastPass.toFixed(3), contrastPairs: cds.contrastPairs || 0, contrastFail: (cds.contrastPairs || 0) - (cds.contrastPass || 0), hasPrimary: !!hasPrimary, hasTypography: !!hasType, cloneFonts: cds.fontCount || 0, clonePalette: (cds.palette || []).length, cloneRadii: cds.radii || [] },
     responsiveDetail: responsive != null ? { mobileFit: +mobileFitV.toFixed(3), mobileOrder: +mobileOrderV.toFixed(3) } : null,
     // ---- GRADER-HONESTY GATE (absent entirely under GRADER_NO_HONESTYGATE=1 → byte-identical legacy report) ----
