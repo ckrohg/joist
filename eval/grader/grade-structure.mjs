@@ -153,7 +153,7 @@ function loadLedger() {
 }
 
 async function capture(ctx, target, isSource) {
-  if (!/^https?:/.test(target)) return { shot: PNG.sync.read(fs.readFileSync(target)), texts: [], nativeTexts: [], census: {}, ds: null, ctaRuns: [] };
+  if (!/^https?:/.test(target)) return { shot: PNG.sync.read(fs.readFileSync(target)), texts: [], nativeTexts: [], census: {}, ds: null, ctaRuns: [], largestImgFrac: 0 };
   const p = await ctx.newPage(); await p.setViewportSize({ width: W, height: 900 });
   try { await p.goto(target, { waitUntil: 'networkidle', timeout: 60000 }); } catch { try { await p.goto(target, { waitUntil: 'load', timeout: 30000 }); } catch {} }
   await p.emulateMedia({ reducedMotion: 'reduce' }); await p.waitForTimeout(1200);
@@ -241,11 +241,22 @@ async function capture(ctx, target, isSource) {
       const bg = hasBg ? bgRaw : bgOf(e);
       ctaRuns.push({ text: t.slice(0, 40), fgSat: +sat(fg).toFixed(3), bgSat: +sat(bg).toFixed(3), bgLum: +lum(bg).toFixed(3), hasBg });
     }
+    // TEXT-OVER-RASTER signal (fusion 2026-06-22): largest SINGLE image-like element's clamped bbox / page area.
+    // A full-page-raster veneer => one <img>/bg ≈ 1.0; a structured page's hero photo ≈ 0.1–0.3. Scanned IDENTICALLY
+    // on source AND clone (the FP guard: a source whose hero is a CSS background must not look 'structured' vs a
+    // faithful clone using an image widget). Gradients excluded (text-over-gradient is legitimate). max-over-dominant,
+    // never union — a 25% hero stays uncounted; only a ≥60% full-bleed raster fires the veto.
+    const _docW = document.documentElement.scrollWidth || window.innerWidth || 1440;
+    const _pageH = document.documentElement.scrollHeight || 1; const _PA = Math.max(1, _docW * _pageH);
+    const _frac = (r) => { const x0 = Math.max(0, r.left), y0 = Math.max(0, r.top + window.scrollY), x1 = Math.min(_docW, r.right), y1 = Math.min(_pageH, r.bottom + window.scrollY); return (Math.max(0, x1 - x0) * Math.max(0, y1 - y0)) / _PA; };
+    let largestImgFrac = 0;
+    for (const im of document.querySelectorAll('img')) if (vis(im)) largestImgFrac = Math.max(largestImgFrac, _frac(im.getBoundingClientRect()));
     for (const e of document.querySelectorAll('*')) {
       if (scanned > 4000) break;            // cap for very large pages
       if (!vis(e)) continue;
       scanned++;
       const cs = getComputedStyle(e); const r = e.getBoundingClientRect(); const area = r.width * r.height;
+      if (cs.backgroundImage && cs.backgroundImage.indexOf('url(') >= 0) largestImgFrac = Math.max(largestImgFrac, _frac(r)); // bg-image veneer (no <img>); gradients have no url()
       const bg = parseRGB(cs.backgroundColor);
       if (bg && bg.a > 0.5 && area > 400) { const k = `${Math.round(bg.r)},${Math.round(bg.g)},${Math.round(bg.b)}`; palette.set(k, (palette.get(k) || 0) + area); if (sat(bg) > 0.25 && lum(bg) > 0.03 && lum(bg) < 0.97) hasAccent = true; }
       const rad = parseFloat(cs.borderTopLeftRadius) || 0; if (rad > 0) radiusSet.add(Math.round(rad));
@@ -267,10 +278,10 @@ async function capture(ctx, target, isSource) {
       radii: [...radiusSet].sort((a, b) => a - b).slice(0, 8),
       contrastFails: cfails.sort((a, b) => a.ratio - b.ratio).slice(0, 40),
     };
-    return { texts, textPos, nativeTexts, census, ds, ctaRuns, pageH: document.documentElement.scrollHeight };
+    return { texts, textPos, nativeTexts, census, ds, ctaRuns, largestImgFrac: +largestImgFrac.toFixed(4), pageH: document.documentElement.scrollHeight };
   }, NO_LONGTEXT);
   const shot = PNG.sync.read(await p.screenshot({ fullPage: true }));
-  await p.close(); return { shot, texts: info.texts, textPos: info.textPos, nativeTexts: info.nativeTexts, census: info.census, ds: info.ds, ctaRuns: info.ctaRuns, pageH: info.pageH };
+  await p.close(); return { shot, texts: info.texts, textPos: info.textPos, nativeTexts: info.nativeTexts, census: info.census, ds: info.ds, ctaRuns: info.ctaRuns, largestImgFrac: info.largestImgFrac, pageH: info.pageH };
 }
 
 // RESPONSIVE dimension — MOBILE-FIT: does the clone fit the 390px viewport without horizontal overflow?
@@ -792,6 +803,7 @@ const refreshSource = process.argv.includes('--refresh-source');
       srcCtaRuns: src.ctaRuns || null, cloneCtaRuns: cln.ctaRuns || null,
       srcTextPositions: (src.textPos || []).map((p) => ({ text: p.t, y: p.y })), // content-void text-guard (hero anchor stays gated)
       cloneTextRuns: cln.texts || null,                                          // content-void reflow guard (clone text runs)
+      srcLargestImgFrac: src.largestImgFrac, cloneLargestImgFrac: cln.largestImgFrac,        // text-over-raster veto (page-level, source-baselined)
       tunables: { CEIL: VETO_CEIL },
     });
     if (vetoResult.fired.length) {

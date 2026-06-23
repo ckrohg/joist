@@ -220,6 +220,26 @@ console.log('=== A) DETECTOR UNIT TESTS ===');
   delete process.env.GRADER_NO_VETO_UNSTYLEDCTA;
 }
 
+// ---------- TEXT-OVER-RASTER (DETECTOR 6: native text veneer over a full-page raster) ----------
+// Pure scalars (largestImgFrac per side) — no PNGs. GAME-TEST + 3 negative controls (fusion 2026-06-22).
+{
+  const tor = (s, c) => runVetoes({ srcLargestImgFrac: s, cloneLargestImgFrac: c }).all.find((r) => r.veto === 'text-over-raster');
+  // GAME-TEST: a full-page raster (clone 0.95) over a STRUCTURED source (0.12) → FIRES (closes the hole).
+  check('TEXT-OVER-RASTER game-test: full-page raster over structured source FIRES', tor(0.12, 0.95).fired === true, `excess ${tor(0.12, 0.95).evidence.excess}`);
+  // NEG A — ordinary text-over-photo hero (non-dominant both sides) → no fire, full credit kept.
+  check('TEXT-OVER-RASTER neg A: text-over-photo hero does NOT fire', tor(0.22, 0.22).fired === false);
+  // NEG B — faithful clone of an image-DOMINATED source (source-baseline rescue) → no fire.
+  check('TEXT-OVER-RASTER neg B: image-dominated source does NOT fire', tor(0.80, 0.85).fired === false);
+  // NEG C — safety-gap image in [0.30,0.60] → no fire.
+  check('TEXT-OVER-RASTER neg C: safety-gap image does NOT fire', tor(0.20, 0.45).fired === false);
+  // no-op when the signal is absent (older capture) → null, never a false positive.
+  check('TEXT-OVER-RASTER no-op: absent signal → detector absent', runVetoes({ srcShot: solid(8, 8, 0, 0, 0) }).all.find((r) => r.veto === 'text-over-raster') === undefined);
+  // reversible
+  process.env.GRADER_NO_VETO_TEXTRASTER = '1';
+  check('TEXT-OVER-RASTER reversible: GRADER_NO_VETO_TEXTRASTER=1 → detector absent', runVetoes({ srcLargestImgFrac: 0.12, cloneLargestImgFrac: 0.95 }).all.find((r) => r.veto === 'text-over-raster') === undefined);
+  delete process.env.GRADER_NO_VETO_TEXTRASTER;
+}
+
 // ---------- AGGREGATE: a fully clean ctx trips NOTHING (the master negative control) ----------
 {
   const W = 800, Hh = 1000;

@@ -119,6 +119,9 @@ export const VETO_DEFAULTS = {
   // unstyled-CTA
   CTA_SAT: 0.20,          // accent saturation threshold (fg or bg)
   CTA_MIN_SRC: 1,         // source must have >=1 styled CTA for the veto to be eligible
+  // text-over-raster (DETECTOR 6)
+  RASTER_CLONE_FRAC: 0.60, // clone's largest single image-like element owns ≥60% of the page → full-bleed raster
+  RASTER_SRC_FRAC: 0.30,   // ...but the SOURCE's largest was ≤30% (structured) → the clone replaced structure w/ a screenshot
 };
 
 const flagOff = (name) => process.env[`GRADER_NO_VETO_${name}`] === '1';
@@ -341,8 +344,25 @@ function detectContentVoid(ctx, T) {
   return { veto: 'content-void', fired: false, severity: 0, evidence: { reqPx, scanned: [startBand, lastBand], heightRatio, stretched } };
 }
 
+// ---- DETECTOR 6: text-over-raster --------------------------------------------------------------------------------
+// (fusion-locked 2026-06-22) The decoupled-editability hole: a clone that renders a faithful full-page RASTER of the
+// source as one big image, then overlays REAL native text widgets — every edit "works" so editability ≈ 0.9, but the
+// page is a screenshot with a text veneer. Page-level + source-baselined: fire when the CLONE's largest single
+// image-like element owns the page (≥ RASTER_CLONE_FRAC) but the SOURCE's did not (≤ RASTER_SRC_FRAC). max-over-
+// dominant (never union) so a legitimate ~25% hero photo / text-over-gradient stays at FULL credit; the [0.30,0.60]
+// gap is the safety margin. The signal is scanned IDENTICALLY on both sides (the FP guard — a CSS-bg-hero source must
+// not read 'structured' against a faithful image-widget clone). Caps composite ≤ CEIL even when editability is high.
+function detectTextOverRaster(ctx, T) {
+  if (flagOff('TEXTRASTER')) return null;
+  const s = ctx.srcLargestImgFrac, c = ctx.cloneLargestImgFrac;
+  if (s == null || c == null) return null; // signal absent (older capture) → no-op, never a false positive
+  const cloneDominant = c >= T.RASTER_CLONE_FRAC, srcStructured = s <= T.RASTER_SRC_FRAC;
+  const fired = cloneDominant && srcStructured, excess = +(c - s).toFixed(3);
+  return { veto: 'text-over-raster', fired, severity: fired ? +Math.min(1, 0.6 + excess * 0.4).toFixed(3) : 0, evidence: { cloneLargestImgFrac: c, srcLargestImgFrac: s, excess, cloneDominant, srcStructured } };
+}
+
 /**
- * runVetoes(ctx) — run all FIVE detectors over the grade-time context.
+ * runVetoes(ctx) — run all SIX detectors over the grade-time context.
  * ctx fields (all OPTIONAL; a detector returns null/no-op when its signal is absent):
  *   srcShot, cloneShot   : PNG objects ({width,height,data}) of the full-page source/clone screenshots
  *   pageSSIM             : page-level mean SSIM (for the wrong-logo page-OK guard)
@@ -362,6 +382,7 @@ export function runVetoes(ctx = {}) {
     detectBrokenHero(ctx, T),
     detectUnstyledCTA(ctx, T),
     detectContentVoid(ctx, T),
+    detectTextOverRaster(ctx, T),
   ].filter(Boolean);
   return { fired: results.filter((r) => r.fired), all: results };
 }
