@@ -153,7 +153,7 @@ function loadLedger() {
 }
 
 async function capture(ctx, target, isSource) {
-  if (!/^https?:/.test(target)) return { shot: PNG.sync.read(fs.readFileSync(target)), texts: [], nativeTexts: [], census: {}, ds: null, ctaRuns: [], largestImgFrac: 0 };
+  if (!/^https?:/.test(target)) return { shot: PNG.sync.read(fs.readFileSync(target)), texts: [], nativeTexts: [], census: {}, ds: null, ctaRuns: [], largestImgFrac: 0, imgUnionFrac: 0 };
   const p = await ctx.newPage(); await p.setViewportSize({ width: W, height: 900 });
   try { await p.goto(target, { waitUntil: 'networkidle', timeout: 60000 }); } catch { try { await p.goto(target, { waitUntil: 'load', timeout: 30000 }); } catch {} }
   await p.emulateMedia({ reducedMotion: 'reduce' }); await p.waitForTimeout(1200);
@@ -162,7 +162,7 @@ async function capture(ctx, target, isSource) {
   await p.waitForTimeout(800);
   const info = await p.evaluate((NOLT) => {
     const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
-    const vis = (el) => { const r = el.getBoundingClientRect(); if (!r.width || !r.height) return false; const cs = getComputedStyle(el); return !(cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity < 0.05); };
+    const vis = (el) => { const r = el.getBoundingClientRect(); if (!r.width || !r.height) return false; if (r.right <= 0 || r.bottom <= 0 || r.left >= (document.documentElement.scrollWidth || 1e9)) return false; const cs = getComputedStyle(el); return !(cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity < 0.05); };
     // SELECTABLE text runs (real editable text — NOT inside an image). Images carry no innerText, so any
     // text here is genuinely native/selectable. This is the editability signal.
     const texts = []; const textPos = []; const seen = new Set();
@@ -250,13 +250,19 @@ async function capture(ctx, target, isSource) {
     const _pageH = document.documentElement.scrollHeight || 1; const _PA = Math.max(1, _docW * _pageH);
     const _frac = (r) => { const x0 = Math.max(0, r.left), y0 = Math.max(0, r.top + window.scrollY), x1 = Math.min(_docW, r.right), y1 = Math.min(_pageH, r.bottom + window.scrollY); return (Math.max(0, x1 - x0) * Math.max(0, y1 - y0)) / _PA; };
     let largestImgFrac = 0;
-    for (const im of document.querySelectorAll('img')) if (vis(im)) largestImgFrac = Math.max(largestImgFrac, _frac(im.getBoundingClientRect()));
+    // UNION image-coverage (red-team 2026-06-22): max-over-single-image is defeated by TILING a full-page raster into
+    // N images each <60%. The union of ALL image-like bboxes (rasterized into a 40x40 occupancy grid) catches a tiled
+    // veneer (union≈1.0) while staying source-baselined (a real image-dominated source has high union too → no FP).
+    const _GX = 40, _GY = 40, _cell = new Uint8Array(_GX * _GY);
+    const _mark = (r) => { const x0 = Math.max(0, r.left), y0 = Math.max(0, r.top + window.scrollY), x1 = Math.min(_docW, r.right), y1 = Math.min(_pageH, r.bottom + window.scrollY); for (let gy = Math.floor(y0 / _pageH * _GY); gy < Math.ceil(y1 / _pageH * _GY); gy++) for (let gx = Math.floor(x0 / _docW * _GX); gx < Math.ceil(x1 / _docW * _GX); gx++) if (gx >= 0 && gy >= 0 && gx < _GX && gy < _GY) _cell[gy * _GX + gx] = 1; };
+    for (const im of document.querySelectorAll('img,canvas,video,picture')) if (vis(im)) { const r = im.getBoundingClientRect(); largestImgFrac = Math.max(largestImgFrac, _frac(r)); _mark(r); }
     for (const e of document.querySelectorAll('*')) {
       if (scanned > 4000) break;            // cap for very large pages
       if (!vis(e)) continue;
       scanned++;
       const cs = getComputedStyle(e); const r = e.getBoundingClientRect(); const area = r.width * r.height;
-      if (cs.backgroundImage && cs.backgroundImage.indexOf('url(') >= 0) largestImgFrac = Math.max(largestImgFrac, _frac(r)); // bg-image veneer (no <img>); gradients have no url()
+      if (cs.backgroundImage && cs.backgroundImage.indexOf('url(') >= 0) { largestImgFrac = Math.max(largestImgFrac, _frac(r)); _mark(r); } // bg-image veneer (no <img>); gradients have no url()
+      for (const pe of ['::before', '::after']) { const pcs = getComputedStyle(e, pe); if (pcs.backgroundImage && pcs.backgroundImage.indexOf('url(') >= 0) _mark(r); } // pseudo-element raster evades a DOM <img> scan entirely
       const bg = parseRGB(cs.backgroundColor);
       if (bg && bg.a > 0.5 && area > 400) { const k = `${Math.round(bg.r)},${Math.round(bg.g)},${Math.round(bg.b)}`; palette.set(k, (palette.get(k) || 0) + area); if (sat(bg) > 0.25 && lum(bg) > 0.03 && lum(bg) < 0.97) hasAccent = true; }
       const rad = parseFloat(cs.borderTopLeftRadius) || 0; if (rad > 0) radiusSet.add(Math.round(rad));
@@ -271,6 +277,7 @@ async function capture(ctx, target, isSource) {
         }
       }
     }
+    const imgUnionFrac = _cell.reduce((a, b) => a + b, 0) / (_GX * _GY); // union fraction of page covered by image-like bboxes
     const ds = {
       palette: [...palette.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([k, w]) => { const [r, g, b] = k.split(',').map(Number); return { r, g, b, w }; }),
       fonts: [...fonts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 16).map(([k, c]) => ({ k, c })),
@@ -278,10 +285,10 @@ async function capture(ctx, target, isSource) {
       radii: [...radiusSet].sort((a, b) => a - b).slice(0, 8),
       contrastFails: cfails.sort((a, b) => a.ratio - b.ratio).slice(0, 40),
     };
-    return { texts, textPos, nativeTexts, census, ds, ctaRuns, largestImgFrac: +largestImgFrac.toFixed(4), pageH: document.documentElement.scrollHeight };
+    return { texts, textPos, nativeTexts, census, ds, ctaRuns, largestImgFrac: +largestImgFrac.toFixed(4), imgUnionFrac: +imgUnionFrac.toFixed(4), pageH: document.documentElement.scrollHeight };
   }, NO_LONGTEXT);
   const shot = PNG.sync.read(await p.screenshot({ fullPage: true }));
-  await p.close(); return { shot, texts: info.texts, textPos: info.textPos, nativeTexts: info.nativeTexts, census: info.census, ds: info.ds, ctaRuns: info.ctaRuns, largestImgFrac: info.largestImgFrac, pageH: info.pageH };
+  await p.close(); return { shot, texts: info.texts, textPos: info.textPos, nativeTexts: info.nativeTexts, census: info.census, ds: info.ds, ctaRuns: info.ctaRuns, largestImgFrac: info.largestImgFrac, imgUnionFrac: info.imgUnionFrac, pageH: info.pageH };
 }
 
 // RESPONSIVE dimension — MOBILE-FIT: does the clone fit the 390px viewport without horizontal overflow?
@@ -669,7 +676,9 @@ const refreshSource = process.argv.includes('--refresh-source');
   // round-trip cert gate land and GRADER_EDIT_DECOUPLED flips it on.
   const cloneNativeSet = new Set((cln.nativeTexts || []).map(norm));
   const cloneNativeAll = ' ' + (cln.nativeTexts || []).map(norm).join(' ') + ' ';
-  const isCoveredNative = (t, chunk) => cloneNativeSet.has(t) || cloneNativeAll.includes(' ' + t + ' ') || cloneNativeAll.includes(t) || (!!chunk && cloneNativeAll.includes(t));
+  // word-boundary match only (red-team 2026-06-22: drop the bare-substring branch — a concat-all-source-text widget
+  // would contain every run as a substring and inflate the term; the bare include survives ONLY for chunk-fallback runs).
+  const isCoveredNative = (t, chunk) => cloneNativeSet.has(t) || cloneNativeAll.includes(' ' + t + ' ') || (!!chunk && cloneNativeAll.includes(t));
   // C1 (invisible-native-layer guard): the count is DEFERRED to after invisRuns (computed below, pixel-verified
   // against the clone screenshot) so an invisible native text layer (white-on-white heading) is EXCLUDED — it passes
   // vis()/non-blob but renders invisible, so it must not inflate the term. Computed at the `editabilityDecoupled =` site below.
@@ -814,6 +823,7 @@ const refreshSource = process.argv.includes('--refresh-source');
       srcTextPositions: (src.textPos || []).map((p) => ({ text: p.t, y: p.y })), // content-void text-guard (hero anchor stays gated)
       cloneTextRuns: cln.texts || null,                                          // content-void reflow guard (clone text runs)
       srcLargestImgFrac: src.largestImgFrac, cloneLargestImgFrac: cln.largestImgFrac,        // text-over-raster veto (page-level, source-baselined)
+      srcImgUnionFrac: src.imgUnionFrac, cloneImgUnionFrac: cln.imgUnionFrac,                  // ...union signal (catches a TILED/pseudo raster veneer)
       tunables: { CEIL: VETO_CEIL },
     });
     if (vetoResult.fired.length) {

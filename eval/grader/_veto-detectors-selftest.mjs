@@ -234,6 +234,12 @@ console.log('=== A) DETECTOR UNIT TESTS ===');
   check('TEXT-OVER-RASTER neg C: safety-gap image does NOT fire', tor(0.20, 0.45).fired === false);
   // no-op when the signal is absent (older capture) → null, never a false positive.
   check('TEXT-OVER-RASTER no-op: absent signal → detector absent', runVetoes({ srcShot: solid(8, 8, 0, 0, 0) }).all.find((r) => r.veto === 'text-over-raster') === undefined);
+  // ── UNION conjunct (red-team 2026-06-22): a TILED / pseudo-element raster veneer evades max-keying ──
+  const torU = (s, c, su, cu) => runVetoes({ srcLargestImgFrac: s, cloneLargestImgFrac: c, srcImgUnionFrac: su, cloneImgUnionFrac: cu }).all.find((r) => r.veto === 'text-over-raster');
+  check('TEXT-OVER-RASTER union: TILED raster (3×0.34, no union signal) evades MAX-keying (documents the hole)', torU(0.18, 0.34).fired === false);
+  check('TEXT-OVER-RASTER union: tiled raster CAUGHT by union-coverage (union 0.98 / src 0.18)', torU(0.18, 0.34, 0.18, 0.98).fired === true);
+  check('TEXT-OVER-RASTER union: PSEUDO-element raster CAUGHT (DOM <img> sees 0, union 0.98)', torU(0.00, 0.00, 0.18, 0.98).fired === true);
+  check('TEXT-OVER-RASTER union FP-control: image-dominated source does NOT fire (src union 0.82)', torU(0.80, 0.85, 0.82, 0.88).fired === false);
   // reversible
   process.env.GRADER_NO_VETO_TEXTRASTER = '1';
   check('TEXT-OVER-RASTER reversible: GRADER_NO_VETO_TEXTRASTER=1 → detector absent', runVetoes({ srcLargestImgFrac: 0.12, cloneLargestImgFrac: 0.95 }).all.find((r) => r.veto === 'text-over-raster') === undefined);

@@ -356,9 +356,14 @@ function detectTextOverRaster(ctx, T) {
   if (flagOff('TEXTRASTER')) return null;
   const s = ctx.srcLargestImgFrac, c = ctx.cloneLargestImgFrac;
   if (s == null || c == null) return null; // signal absent (older capture) → no-op, never a false positive
-  const cloneDominant = c >= T.RASTER_CLONE_FRAC, srcStructured = s <= T.RASTER_SRC_FRAC;
-  const fired = cloneDominant && srcStructured, excess = +(c - s).toFixed(3);
-  return { veto: 'text-over-raster', fired, severity: fired ? +Math.min(1, 0.6 + excess * 0.4).toFixed(3) : 0, evidence: { cloneLargestImgFrac: c, srcLargestImgFrac: s, excess, cloneDominant, srcStructured } };
+  // UNION conjunct (red-team 2026-06-22): max-over-single-image is defeated by tiling a full-page raster into N images
+  // each < RASTER_CLONE_FRAC. The union of all image-like bboxes (incl. pseudo-element backgrounds a DOM <img> scan
+  // misses) catches the tiled/pseudo veneer — source-baselined so a real image-dominated source never false-fires.
+  const su = ctx.srcImgUnionFrac, cu = ctx.cloneImgUnionFrac;
+  const cloneDominant = c >= T.RASTER_CLONE_FRAC || (cu != null && cu >= T.RASTER_CLONE_FRAC);
+  const srcStructured = s <= T.RASTER_SRC_FRAC && (su == null || su <= T.RASTER_SRC_FRAC);
+  const fired = cloneDominant && srcStructured, excess = +(Math.max(c, cu || 0) - Math.max(s, su || 0)).toFixed(3);
+  return { veto: 'text-over-raster', fired, severity: fired ? +Math.min(1, 0.6 + excess * 0.4).toFixed(3) : 0, evidence: { cloneLargestImgFrac: c, srcLargestImgFrac: s, cloneImgUnionFrac: cu, srcImgUnionFrac: su, excess, cloneDominant, srcStructured } };
 }
 
 /**
