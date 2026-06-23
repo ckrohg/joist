@@ -114,6 +114,9 @@ export async function extract(htmlFile, width) {
     // starts at opacity:0 and animates in on scroll, and transpile loads source.html UN-scrolled, so gating opacity
     // would FALSE-DROP legitimately-visible content.
     const isHiddenEl = (el) => { const c = getComputedStyle(el); return c.display === 'none' || c.visibility === 'hidden' || c.visibility === 'collapse'; };
+    // cssPath — BYTE-IDENTICAL to capture-assets.mjs's locator fn (region-raster: stamp each spec node's loc so a
+    // crop's `locator` from the crops-manifest matches a tree node). Any drift here silently breaks crop selection.
+    const cssPath = (el) => { const seg = []; let n = el, g = 0; while (n && n.nodeType === 1 && n !== document.documentElement && g++ < 12) { let s = n.tagName.toLowerCase(); if (n.id && /^[A-Za-z][\w-]*$/.test(n.id)) { seg.unshift(`${s}#${n.id}`); break; } const sib = n.parentElement ? [...n.parentElement.children].filter((c) => c.tagName === n.tagName) : []; if (sib.length > 1) s += `:nth-of-type(${sib.indexOf(n) + 1})`; seg.unshift(s); n = n.parentElement; } return seg.join('>'); };
     const declared = (el) => {
       const out = {};
       for (const sheet of document.styleSheets) {
@@ -236,7 +239,7 @@ export async function extract(htmlFile, width) {
         const coversParent = opr && r.width >= opr.width * 0.9 && r.height >= opr.height * 0.6;
         const isBgLayer = (cs.position === 'absolute' || cs.position === 'fixed') && coversParent;
         return {
-          tag: 'img', cls: el.className || '', isLeaf: true, text: null,
+          tag: 'img', cls: el.className || '', loc: cssPath(el), isLeaf: true, text: null,
           src: el.getAttribute('src') || '', resolvedSrc: el.currentSrc || el.src || '', alt: el.alt || '',
           attrW: parseInt(el.getAttribute('width'), 10) || 0,
           attrH: parseInt(el.getAttribute('height'), 10) || 0,
@@ -262,7 +265,7 @@ export async function extract(htmlFile, width) {
           } catch {}
         }
         return {
-          tag: 'svg', cls: (el.getAttribute('class') || ''), isLeaf: true, text: null,
+          tag: 'svg', cls: (el.getAttribute('class') || ''), loc: cssPath(el), isLeaf: true, text: null,
           svg: svgMarkup.replace(/\s+/g, ' ').trim(),
           rect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) },
           declared: _mdecl, media: mediaOf(el), s: mediaS,
@@ -289,7 +292,7 @@ export async function extract(htmlFile, width) {
         || (kids.every((k) => ['SPAN', 'BR'].includes(k.tagName)) && (!boxKid || isBtnish))
         || (isBtnish && kids.every((k) => ['SPAN', 'BR', 'SVG', 'svg'].includes(k.tagName)));
       const node = {
-        tag: el.tagName.toLowerCase(), cls: el.className || '', isLeaf,
+        tag: el.tagName.toLowerCase(), cls: el.className || '', loc: cssPath(el), isLeaf,
         isBtn: isBtnish && isLeaf, // CTA pill the mapper should emit as a native button widget
         rect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) },
         declared: declared(el), media: mediaOf(el),
@@ -346,7 +349,7 @@ export async function extract(htmlFile, width) {
 }
 
 // ── 2. map spec → Elementor tree ────────────────────────────────────────────────────────────────────────────
-export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {}) {
+export function makeMapper({ assetMap = new Map(), authoringWidth = 1440, cropMap = new Map() } = {}) {
   const PAIN = []; const POLICY = [];
   const pain = (m) => { if (!PAIN.includes(m)) PAIN.push(m); };
   const policy = (m) => { if (!POLICY.includes(m)) POLICY.push(m); };
@@ -805,9 +808,32 @@ export function makeMapper({ assetMap = new Map(), authoringWidth = 1440 } = {})
     return stampHealClasses(mapNodeInner(n, parent, inherit), n);
   }
 
+  // REGION-RASTER (fusion 2026-06-23): a selected text-free imagery crop (ui-mock/media) → ONE in-flow native Image
+  // widget at the captured box (pixel-1:1 by construction), REPLACING the subtree the projection would flatten into
+  // div-soup. image_size:'full' (intrinsic W×H reserves the box, no lazy-collapse, occupies box.h → kills the height
+  // blowup); wrapper px-pin at desktop (renders 1:1 regardless of parent width) → %:100 at tablet/mobile (shrink, not
+  // overflow). text stays native (these crops are textFrac≈0). counts.image so editability/blob stay correct.
+  function regionRasterWidget(n, crop) {
+    counts.image++;
+    const W = crop.box.w; const fullBand = W >= 0.94 * authoringWidth;
+    const set = { image: { url: crop.upload.url, ...(crop.upload.id ? { id: crop.upload.id } : {}) }, image_size: 'full', ...widgetCommon(n) };
+    set._element_width = 'initial';
+    if (fullBand) { set._element_custom_width = { unit: '%', size: 100 }; }
+    else {
+      set._element_custom_width = { unit: 'px', size: W };
+      set._element_custom_width_tablet = (crop.perWidth && crop.perWidth['768']) ? { unit: 'px', size: crop.perWidth['768'].w } : { unit: '%', size: 100 };
+      set._element_custom_width_mobile = { unit: '%', size: 100 };
+    }
+    policy(`REGION-RASTER <${n.tag} loc="${String(n.loc).slice(-40)}"> → 1:1 crop ${W}×${crop.box.h}${fullBand ? ' (full-band %100)' : ' (inset px-pin)'}`);
+    return { elType: 'widget', widgetType: 'image', settings: set };
+  }
+
   function mapNodeInner(n, parent, inherit) {
     const cls = (c) => String(n.cls).split(/\s+/).includes(c);
     const childInherit = inheritedAligns(n, inherit);
+    // REGION-RASTER hook: a selected crop for THIS node replaces its whole subtree (early-return → children never
+    // walked → the crop's inner <img>/<div> descendants can't double-render elsewhere; outermost-wins is pre-filtered).
+    if (n.loc && cropMap.has(n.loc)) { const cr = cropMap.get(n.loc); if (cr && cr.upload && cr.upload.url) return regionRasterWidget(n, cr); }
     if (n.tag === 'img' || n.tag === 'svg') return imageWidget(n, parent);
     if (n.isLeaf) {
       if (!n.text) { // empty box: divider / dot / filler / grid-gap spacer
@@ -1308,6 +1334,27 @@ export function splitSiteParts(specTree) {
 }
 
 // ── asset manifest resolution + WP media upload (P6) ───────────────────────────────────────────────────────
+// REGION-RASTER selection (fusion 2026-06-23): pick crops to replace with a 1:1 raster — ONLY text-free real-imagery
+// (no native text lost), confident, then outermost-wins so a crop nested in a kept crop is dropped (no double-raster).
+export function selectCrops(cropsManifest, { authoringWidth = 1440, W = '1440' } = {}) {
+  const crops = Array.isArray(cropsManifest) ? cropsManifest : (cropsManifest && cropsManifest.crops) || [];
+  const eligible = crops.filter((c) => {
+    if (!c || !c.locator || !(c.files && c.files[W]) || !(c.perWidth && c.perWidth[W])) return false;
+    const sig = c.signals || {};
+    if ((sig.textLeaves || 0) !== 0 || (sig.textFrac || 0) > 0.005) return false; // load-bearing: no native text trapped
+    if ((c.confidence || 0) < 0.60) return false;
+    const cls = c.classification || '';
+    const directImagery = cls === 'media' || cls === 'ui-screenshot' || cls === 'bg-image';
+    const compositeImagery = (cls === 'ui-mock' || cls === 'ui-panel') && (sig.mediaFrac || 0) >= 0.80; // 0.80 gate drops CSS-only panels
+    return directImagery || compositeImagery;
+  });
+  // outermost-first: shallower locator (=outer) first, then larger area; keep a crop only if no kept crop is its ancestor.
+  eligible.sort((a, b) => a.locator.split('>').length - b.locator.split('>').length || (b.perWidth[W].w * b.perWidth[W].h) - (a.perWidth[W].w * a.perWidth[W].h));
+  const kept = [];
+  for (const c of eligible) { if (kept.some((k) => c.locator === k.locator || c.locator.startsWith(k.locator + '>'))) continue; kept.push(c); }
+  return kept;
+}
+
 export function loadManifest(file) {
   if (!file) return [];
   const j = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -1490,7 +1537,31 @@ export async function transpile({ html, width = 1440, assets, outDir, dryRun, ba
   }
   // resolveAssets walks the FULL tree (header logos resolve too) — split AFTER.
   const { assetMap, notes } = await resolveAssets(spec.tree, manifest, { dryRun, base, b64, outDir });
-  const mapper = makeMapper({ assetMap, authoringWidth: width });
+  // REGION-RASTER (fusion 2026-06-23, default OFF — opt-in REGION_RASTER=1): select text-free imagery crops, upload
+  // their captured PNGs, build a locator→crop map so mapNodeInner replaces those subtrees with a 1:1 Image widget.
+  let cropMap = new Map();
+  if (process.env.REGION_RASTER === '1' && cap) {
+    try {
+      const capDir = fs.statSync(cap).isDirectory() ? cap : path.dirname(cap);
+      const cmPath = path.join(capDir, 'crops-manifest.json');
+      if (fs.existsSync(cmPath)) {
+        const selected = selectCrops(JSON.parse(fs.readFileSync(cmPath, 'utf8')), { authoringWidth: width });
+        const cache = { file: path.join(outDir, 'uploads.json'), data: {} };
+        try { cache.data = JSON.parse(fs.readFileSync(cache.file, 'utf8')); } catch {}
+        let uploaded = 0, skipped = 0;
+        for (const c of selected) {
+          const cropFile = path.join(capDir, c.files['1440']);
+          if (!fs.existsSync(cropFile)) { skipped++; continue; }
+          let upload = null;
+          if (dryRun) upload = { url: pathToFileURL(cropFile).href, pendingFile: cropFile };
+          else { try { upload = await uploadMedia(cropFile, { base, b64, cache }); uploaded++; } catch { skipped++; continue; } }
+          cropMap.set(c.locator, { box: c.perWidth['1440'], perWidth: c.perWidth, upload });
+        }
+        console.log(`region-raster: ${selected.length} selected, ${cropMap.size} ready (${uploaded} uploaded, ${skipped} skipped)`);
+      }
+    } catch (e) { console.error('region-raster setup failed (continuing native):', e.message); cropMap = new Map(); }
+  }
+  const mapper = makeMapper({ assetMap, authoringWidth: width, cropMap });
   // §8d: landmark chrome → site parts (Theme Builder documents), page tree stays content-only.
   const partNodes = sitePartsEnabled ? splitSiteParts(spec.tree) : [];
   const siteParts = partNodes.map(({ type, node, tag, cls }) => {
