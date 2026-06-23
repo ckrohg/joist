@@ -213,3 +213,13 @@
 {"session":"session-christian-krohg-20260621-1521-dedefb","event":"session:unregister","ts":"2026-06-21T22:27:00.910Z"}
 {"session":"session-christian-krohg-20260621-1954-c9587e","event":"session:register","user":"christian-krohg","branch":"projection/media-arrangement-wip","ts":"2026-06-22T02:55:00.820Z"}
 {"session":"session-christian-krohg-20260621-1954-568832","event":"session:register","user":"christian-krohg","branch":"projection/media-arrangement-wip","ts":"2026-06-22T02:55:00.831Z"}
+{"session":"session-christian-krohg-20260621-1954-568832","event":"session:unregister","ts":"2026-06-22T02:57:24.541Z"}
+{"session":"session-christian-krohg-20260621-1954-568832","event":"session:unregister","ts":"2026-06-22T02:57:25.981Z"}
+{"session":"session-christian-krohg-20260621-1958-b88f29","event":"session:register","user":"christian-krohg","branch":"main","ts":"2026-06-22T02:58:26.254Z"}
+{"session":"session-christian-krohg-20260621-1958-b88f29","event":"session:unregister","ts":"2026-06-22T03:00:45.023Z"}
+{"session":"session-christian-krohg-20260621-1958-b88f29","event":"session:unregister","ts":"2026-06-22T03:00:46.443Z"}
+{"session":"session-christian-krohg-20260621-2000-6eb6b5","event":"session:register","user":"christian-krohg","branch":"main","ts":"2026-06-22T03:00:52.067Z"}
+{"session":"session-christian-krohg-20260621-2000-6eb6b5","event":"session:unregister","ts":"2026-06-22T03:02:49.783Z"}
+{"session":"session-christian-krohg-20260621-2000-6eb6b5","event":"session:unregister","ts":"2026-06-22T03:02:51.298Z"}
+{"session":"session-christian-krohg-20260622-2213-9387f9","event":"session:register","user":"christian-krohg","branch":"grader/editability-decouple","ts":"2026-06-23T05:13:36.834Z"}
+{"session":"session-christian-krohg-20260622-2213-7a8e68","event":"session:register","user":"christian-krohg","branch":"grader/editability-decouple","ts":"2026-06-23T05:13:36.946Z"}
