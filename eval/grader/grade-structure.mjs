@@ -670,8 +670,10 @@ const refreshSource = process.argv.includes('--refresh-source');
   const cloneNativeSet = new Set((cln.nativeTexts || []).map(norm));
   const cloneNativeAll = ' ' + (cln.nativeTexts || []).map(norm).join(' ') + ' ';
   const isCoveredNative = (t, chunk) => cloneNativeSet.has(t) || cloneNativeAll.includes(' ' + t + ' ') || cloneNativeAll.includes(t) || (!!chunk && cloneNativeAll.includes(t));
-  let coveredNative = 0; for (const { t, chunk } of srcPos) if (isCoveredNative(t, chunk)) coveredNative++;
-  const editabilityDecoupled = srcPos.length ? +(coveredNative / srcPos.length).toFixed(3) : 0;
+  // C1 (invisible-native-layer guard): the count is DEFERRED to after invisRuns (computed below, pixel-verified
+  // against the clone screenshot) so an invisible native text layer (white-on-white heading) is EXCLUDED — it passes
+  // vis()/non-blob but renders invisible, so it must not inflate the term. Computed at the `editabilityDecoupled =` site below.
+  let coveredNative = 0, editabilityDecoupled = 0;
   const roundtripCert = loadRoundtripCert(); // report-only cached round-trip-propagation cert (builder property)
   const preserveHeightFrac = (ledger && typeof ledger.preserveHeightFrac === 'number') ? ledger.preserveHeightFrac : null;
   // structure diagnostic: of the clone, how much is native widgets vs raster images
@@ -788,6 +790,14 @@ const refreshSource = process.argv.includes('--refresh-source');
     : (cds.contrastFails || []).filter((f) => f.ratio < 1.3 && f.fsz >= 18 && f.w > 0 && lumRange(cln.shot, f.x, f.y, f.w, f.h) < 24);
   const invisDefect = process.env.GRADER_NODEFECT === '1' ? 0 : Math.min(0.20, invisRuns.length * 0.04);
   composite = composite * (1 - invisDefect);
+  // DECOUPLED editability — C1 close (fusion 2026-06-22): now that invisRuns (pixel-verified invisible clone text) is
+  // known, count source runs covered by a VISIBLE native clone run — excluding any whose only native match is an
+  // INVISIBLE run (white-on-white heading layer = the C1 game-test). Build the invisible-native blob and strip it from
+  // the match surface. (RENDER_VISIBLE = non-blob [done in capture] + pixel-visible [here].)
+  const invisNativeBlob = ' ' + invisRuns.map((f) => norm(f.text || '')).filter((s) => s.length >= 4).join(' | ') + ' ';
+  const isInvisibleNative = (t) => invisNativeBlob.includes(' ' + t + ' ') || (t.length >= 8 && invisNativeBlob.includes(t));
+  coveredNative = 0; for (const { t, chunk } of srcPos) if (isCoveredNative(t, chunk) && !isInvisibleNative(t)) coveredNative++;
+  editabilityDecoupled = srcPos.length ? +(coveredNative / srcPos.length).toFixed(3) : 0;
   // ---- GRADER-HONESTY VETO-CAPS (#2) — human-salient STATIC defects the geometry/editability terms miss. A fired
   // veto HARD-CAPS the composite at VETO_CEIL (default 0.45): a human instantly reads the page as broken, so no
   // geometry score should survive it. Mirrors the midwidth veto-cap pattern (Math.min). Reversible: GRADER_NO_VETOES
